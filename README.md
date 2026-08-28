@@ -4,9 +4,10 @@ A Windows GUI tool that builds a personal tweak mod (`.pak`) for
 **S.T.A.L.K.E.R. 2: Heart of Chornobyl** from sliders and checkboxes —
 no modding knowledge needed.
 
-**Open source (MIT).** This project was started by a player with an idea and
-built with AI assistance. If you can code: contributions, fixes and new
-tweaks are very welcome — this README tells you everything you need.
+**Open source (MIT).** Everything in this repo was written by Claude
+(Anthropic's AI) — the project owner can't code and considers this a working
+**concept** for people who can: fork it, improve it, find bugs, build on it.
+Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 

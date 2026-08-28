@@ -1,0 +1,90 @@
+S2Tweaker - build your own personal tweak mod
+
+Everything here was done by Claude (Anthropic's AI). I can't code myself -
+so please see this as a CONCEPT / proof of what's possible, made for people
+who CAN code, to pick up, improve and build on :D
+Everyone is free to use this mod and the tool!
+
+Full source code is open (MIT license):
+https://github.com/Zayn995/S2Tweaker
+Bug reports, improvements and forks are very welcome.
+
+
+WHAT IT DOES
+============
+A small Windows tool with sliders and checkboxes. You pick your values,
+it builds a .pak mod from them - no modding knowledge needed.
+
+- 41 tweaks: health, stamina (incl. per-action costs), stamina regen,
+  fall damage 0-100%, movement speed, jump height, max carry weight +
+  where the overweight penalty starts, item weights per category,
+  player/NPC/mutant damage & health, headshot multiplier, explosions,
+  weapon & armor durability, weapon jamming, spread, recoil, scoped aim
+  sway, breath hold, anomaly damage, radiation, bleeding, hunger &
+  sleepiness rates, trader buy/sell prices, trader min. durability,
+  repair & upgrade costs, quest money rewards
+- It reads the vanilla values from YOUR installed game version, so
+  multiplier tweaks stay correct after game patches
+- Only the values you CHANGE get patched - everything left on "(vanilla)"
+  is untouched, so it won't conflict with your other mods
+
+
+HOW TO USE (step by step)
+=========================
+ 1. Download and extract the ZIP
+ 2. Create a folder, for example on your desktop:  Desktop\S2Tweaker
+ 3. Put S2Tweaker.exe (and README.txt) into that folder
+ 4. Run S2Tweaker.exe
+ 5. The tool suggests your game folder, e.g.
+    C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl
+    Check it. If it's wrong, click "Browse ..." and select your game
+    folder (the one that contains Stalker2\Content\Paks)
+ 6. Click "Confirm & load game data" and wait 10-20 seconds
+    (only needed on first start and after game updates)
+ 7. Set your sliders and checkboxes. Everything you leave at "(vanilla)"
+    will NOT be part of the mod
+ 8. Optional: change the mod name at the bottom
+ 9. Click "Build pak -> output folder"
+10. Open  Desktop\S2Tweaker\output  - there is your mod, e.g.
+    zzz_S2Tweaker_P.pak
+11. Copy that file into:
+    <your game folder>\Stalker2\Content\Paks\~mods\
+    Example:
+    C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl\Stalker2\Content\Paks\~mods\
+    If the ~mods folder doesn't exist, create it.
+    (Shortcut: the "Install to ~mods" button does steps 9-11 in one
+    click and creates the ~mods folder automatically)
+12. Start the game. Done!
+
+
+CHANGE OR REMOVE THE MOD
+========================
+- Change values: move the sliders, build again - the new pak replaces
+  the old one (same mod name = same file name)
+- Remove the mod: delete zzz_<YourModName>_P.pak from the ~mods folder,
+  or click "Remove from ~mods" in the tool
+- Uninstall the tool: just delete your S2Tweaker folder - settings,
+  cache and output all live inside it (fully portable, nothing else is
+  written anywhere)
+
+
+GOOD TO KNOW
+============
+- After a game update: start the tool and confirm the game folder again -
+  it detects the new version and re-reads the vanilla values automatically
+- If you already use single-purpose mods that change the same values
+  (e.g. "carry weight 200"), remove them - this tool covers them and its
+  pak loads last anyway
+- Some antivirus tools flag freshly built Python exes - this is a known
+  false-positive pattern
+- Debug checkbox: also exports the raw .cfg patch files to
+  output\<ModName>_cfg so you can see exactly what the mod changes
+
+
+CREDITS
+=======
+- All code written by Claude (Anthropic)
+- repak by trumank (pak packing, MIT/Apache-2.0)
+- cfg.bin decoder based on work by joric, sdwvit and thexii
+- Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the
+  {bpatch} config-patch system, and GSC Game World for the game
