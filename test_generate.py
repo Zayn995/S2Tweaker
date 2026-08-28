@@ -1,0 +1,70 @@
+"""Entwickler-Test: erzeugt eine Test-Pak mit vielen aktiven Tweaks."""
+
+import sys
+from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from s2tweaker.gamedata import GameData
+from s2tweaker.tweaks import Settings, build_patches, summarize
+from s2tweaker import pakio
+
+VANILLA = Path(__file__).parent / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "out"
+
+gd = GameData(VANILLA)
+
+print("=== Inventar (neuer Build) ===")
+mutants = gd.mutants()
+print(f"Mutanten: {len(mutants)}, Waffen: {len(gd.player_weapon_wear())}, "
+      f"Items: {len(gd.item_weights())}")
+print("Kategorien:", Counter(cat for cat, _ in gd.item_weights().values()))
+traders = gd.traders()
+n_dur = sum(1 for t in traders.values() for v in t.values() if "WeaponSellMinDurability" in v)
+n_buy = sum(1 for t in traders.values() for v in t.values() if "BuyModifier" in v)
+print(f"Händler: {len(traders)} (Generatoren mit MinDurability: {n_dur}, mit BuyModifier: {n_buy})")
+print("Difficulty Weapon_BaseDamage:", gd.difficulty_values("EnvironmentDifficulty.Weapon_BaseDamage"))
+print("Jamming:", gd.difficulty_values("NPCCombatDifficulty.Weapon_JammingMultiplier"))
+print("Upgrade_Cost:", gd.difficulty_values("EconomyDifficulty.Upgrade_Cost"))
+from s2tweaker.cfgparse import parse_number
+print("HoldBreath Drain/Regen:",
+      gd.resolve(gd.holdbreath, "DefaultHoldBreathParams", "HoldBreathDrainPerSecond"),
+      gd.resolve(gd.holdbreath, "DefaultHoldBreathParams", "HoldBreathRegenPerSecond"))
+print("Sway-Effekte vorhanden:",
+      "ScopeIdleSwayXModifierEffect" in gd.effects.children,
+      "ScopeIdleSwayYModifierEffect" in gd.effects.children)
+print("Player Sprint-Kosten:", gd.resolve(gd.obj, "Player", "StaminaPerAction.Sprint"))
+print("Player RunSpeed:", gd.resolve(gd.obj, "Player", "MovementParams.RunSpeed"))
+
+s = Settings(
+    max_hp=200, hp_regen=2, max_stamina=300, stamina_regen=10,
+    fall_damage_pct=25, movement_speed_factor=1.2, jump_height_factor=1.3,
+    stamina_sprint=0.5, stamina_jump=0.25, stamina_melee_light=0.5,
+    stamina_melee_strong=0.5, stamina_buttstock=0.0, stamina_vault=0.75,
+    max_carry_weight=200, penalty_start_weight=120, no_overweight_penalty=True,
+    item_weight_factor=0.5, ignore_equipped_weight=True,
+    player_damage_factor=2.0, headshot_factor=1.5, npc_damage_factor=0.75,
+    npc_hp_factor=1.25, mutant_hp_factor=0.8, mutant_damage_factor=0.75,
+    explosion_damage_factor=0.5, durability_factor=3.0, jamming_factor=0.0,
+    scope_sway_pct=0, breath_drain_factor=0.0, breath_regen_factor=2.0,
+    anomaly_damage_factor=0.5, radiation_factor=0.5, bleeding_factor=0.5,
+    hunger_rate_factor=0.5, sleepiness_rate_factor=0.0,
+    trader_min_durability_pct=0, trader_buy_price_factor=1.5,
+    trader_sell_price_factor=0.75, repair_cost_factor=0.5,
+    upgrade_cost_factor=0.5, quest_reward_factor=2.0,
+)
+
+print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")
+for line in summarize(s):
+    print(" -", line)
+
+patches = build_patches(gd, s)
+print("\n=== Patch-Dateien ===")
+for path, content in patches.items():
+    print(f"  {len(content):>8,} chars  {path}")
+
+OUT.mkdir(parents=True, exist_ok=True)
+pak = OUT / "zzz_S2Tweaker_Test_P.pak"
+pakio.pack_mod(patches, pak)
+print(f"\nPak erzeugt: {pak}  ({pak.stat().st_size:,} bytes)")

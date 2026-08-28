@@ -1,0 +1,18 @@
+# NEVER upload extracted game files (copyrighted GSC content)
+vanilla/
+cache/
+
+# Per-user data
+settings.json
+output/
+out/
+
+# Proprietary Oodle DLL (auto-downloaded by repak, not redistributable)
+tools/oo2core*.dll
+
+# Build artifacts
+build/
+dist/
+__pycache__/
+*.spec
+release/*.zip

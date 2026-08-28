@@ -1,0 +1,5 @@
+# Runtime
+customtkinter>=5.2
+
+# Building the exe (optional)
+pyinstaller>=6.10
