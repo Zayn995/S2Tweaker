@@ -126,6 +126,8 @@ class App(ctk.CTk):
         self.title(APP_TITLE)
         self.geometry("1010x860")
         self.minsize(880, 640)
+        self._set_icon()
+        self.after(300, self._set_icon)  # CustomTkinter setzt sonst sein eigenes
 
         self.gd: GameData | None = None
         self.game_dir: Path | None = None
@@ -147,6 +149,17 @@ class App(ctk.CTk):
             pass
         self.after(100, self._poll_msgs)
         self.after(150, self._prefill_game)
+
+    def _set_icon(self):
+        try:
+            if getattr(sys, "frozen", False):
+                ico = Path(sys._MEIPASS) / "icon.ico"  # type: ignore[attr-defined]
+            else:
+                ico = app_dir() / "assets" / "icon.ico"
+            if ico.is_file():
+                self.iconbitmap(str(ico))
+        except Exception:
+            pass
 
     # ------------------------------------------------------------ layout
     def _build_header(self):
