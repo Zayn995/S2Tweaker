@@ -6,6 +6,7 @@ cache/
 settings.json
 output/
 out/
+release/NEXUS_SUPPORT_EMAIL.txt
 
 # Proprietary Oodle DLL (auto-downloaded by repak, not redistributable)
 tools/oo2core*.dll
