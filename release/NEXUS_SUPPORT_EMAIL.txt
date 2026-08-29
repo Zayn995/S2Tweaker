@@ -1,0 +1,55 @@
+To:      support@nexusmods.com
+Subject: File review request - S2Tweaker (mod 2508, S.T.A.L.K.E.R. 2)
+
+Hello Nexus Mods team,
+
+my uploaded main file was quarantined by the automated safety checks
+(as expected for an executable). I'd like to request a manual review.
+
+MOD / FILE
+- Mod page:  https://www.nexusmods.com/stalker2heartofchornobyl/mods/2508
+- File:      "S2Tweaker V1.0.0" (S2Tweaker_v1.0.0.zip, 19.8 MB,
+             uploaded 29 Aug 2026)
+- My Nexus username: Zayn995
+
+WHAT IT IS
+S2Tweaker is a standalone Windows GUI tool (not a game mod itself). It lets
+players build their own tweak mod: it reads vanilla config values from the
+player's own S.T.A.L.K.E.R. 2 installation, shows sliders/checkboxes, and
+generates a .pak config-patch mod for the game's ~mods folder. The ZIP
+contains only two files: S2Tweaker.exe and README.txt.
+
+SOURCE CODE (fully open, MIT license)
+- Repository:      https://github.com/Zayn995/S2Tweaker
+- Release (same ZIP as uploaded to Nexus):
+  https://github.com/Zayn995/S2Tweaker/releases/tag/v1.0.0
+- The uploaded build corresponds to commit 9f40707 on the main branch.
+
+STEPS TO BUILD (Windows, Python 3.12+)
+1. git clone https://github.com/Zayn995/S2Tweaker
+2. pip install -r requirements.txt
+   (customtkinter + pyinstaller, see requirements.txt)
+3. Run build.bat - it executes:
+   python -m PyInstaller --noconfirm --onefile --windowed --name S2Tweaker
+     --icon "assets\icon.ico" --add-binary "assets\icon.ico;."
+     --add-binary "tools\repak.exe;." --collect-all customtkinter main.py
+4. Result: dist\S2Tweaker.exe (this exe plus release\README.txt is exactly
+   the content of the uploaded ZIP)
+
+NOTES FOR THE SCANNER RESULTS
+- The exe is a PyInstaller "onefile" build (Python 3.14 + customtkinter),
+  which is a well-known false-positive pattern for some AV engines.
+- The exe bundles one third-party binary: tools/repak.exe - the open-source
+  UE pak packing tool "repak" by trumank (MIT/Apache-2.0):
+  https://github.com/trumank/repak
+  This may register as a "nested executable" in automated checks.
+- The tool only writes inside its own folder, plus (only when the user
+  clicks "Install to ~mods") a .pak file into the game's
+  Stalker2\Content\Paks\~mods folder. No network access, no installer,
+  no system changes.
+
+Thank you very much for taking a look! Happy to provide anything else
+you need.
+
+Best regards,
+Zayn995
