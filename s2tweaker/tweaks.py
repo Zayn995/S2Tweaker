@@ -144,6 +144,14 @@ class Settings:
     durability_factor: float = 1.0           # Waffen-Verschleiss (Kaskade)
     armor_durability_factor: float = 1.0     # Ruestungs-"Gesundheit" (Difficulty)
     jamming_factor: float = 1.0              # 0 = Waffen klemmen nie
+    # --- Ruestungsschutz (Spieler-Protection je Schadensart) ---
+    armor_strike_factor: float = 1.0         # Beschuss/Physisch
+    armor_burn_factor: float = 1.0
+    armor_shock_factor: float = 1.0
+    armor_chemical_factor: float = 1.0
+    armor_radiation_factor: float = 1.0
+    armor_psy_factor: float = 1.0
+    armor_carry_bonus_factor: float = 1.0    # Exo-/Ruestungs-Tragegewicht-Boni
 
     # --- Waffenhandling ---
     scope_sway_pct: float = 100.0            # 100 = Vanilla, 0 = kein Sway (ZF)
@@ -174,6 +182,7 @@ class Settings:
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
     artifact_spawn_factor: float = 1.0       # Spawn-Chance der Artefakt-Spawner
+    artifact_rarity_factor: float = 1.0      # >1 = seltene Stufen wahrscheinlicher
 
     # --- Ausruestung / Welt-Extras ---
     detector_range_factor: float = 1.0       # Detektoren + Anomalie-Piepser
@@ -424,8 +433,10 @@ def _camerashake_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
-    """SpawnChanceBase je Spawner und Spieler-Rang skalieren (Cap 100 %)."""
-    if not _neq(s.artifact_spawn_factor, 1.0):
+    """SpawnChanceBase (Cap 100 %) und Rarity-Verteilung je Spawner/Rang."""
+    spawn_on = _neq(s.artifact_spawn_factor, 1.0)
+    rarity_on = _neq(s.artifact_rarity_factor, 1.0)
+    if not (spawn_on or rarity_on):
         return {}
     patches: dict = {}
     for sid, node in gd.artifactspawners.children.items():
@@ -433,11 +444,32 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
             continue
         ranks: dict = {}
         for rank, rank_node in node.children.items():
-            chance = parse_number(rank_node.values.get("SpawnChanceBase"))
-            if chance <= 0:
-                continue
-            ranks[rank] = {"SpawnChanceBase": _num(
-                min(100.0, chance * s.artifact_spawn_factor)) + "f"}
+            cfg: dict = {}
+            if spawn_on:
+                chance = parse_number(rank_node.values.get("SpawnChanceBase"))
+                if chance > 0:
+                    cfg["SpawnChanceBase"] = _num(
+                        min(100.0, chance * s.artifact_spawn_factor)) + "f"
+            if rarity_on:
+                rarity = rank_node.children.get("RarityChance")
+                if rarity is not None:
+                    weights = {key: parse_number(rarity.values.get(key))
+                               for key in ("Common", "Uncommon", "Rare", "Epic")}
+                    total = sum(weights.values())
+                    higher = sum(weights[k] for k in ("Uncommon", "Rare", "Epic"))
+                    if total > 0 and higher > 0:
+                        # Seltene Stufen x Faktor, Common uebernimmt den Rest,
+                        # damit die Gesamtsumme (= Ziehungsgewicht) gleich bleibt
+                        scale = min(s.artifact_rarity_factor,
+                                    total / higher if higher else 1.0)
+                        new = {k: weights[k] * scale
+                               for k in ("Uncommon", "Rare", "Epic")}
+                        new["Common"] = max(0.0, total - sum(new.values()))
+                        if any(_neq(new[k], weights[k]) for k in new):
+                            cfg["RarityChance"] = {
+                                k: _num(v) + "f" for k, v in new.items()}
+            if cfg:
+                ranks[rank] = cfg
         if ranks:
             patches[sid] = ranks
     return patches
@@ -698,25 +730,34 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
     # Strahlung (ArtifactAddRadiation*) hat einen eigenen Regler.
     effect_on = _neq(s.artifact_effect_factor, 1.0)
     radiation_on = _neq(s.artifact_radiation_factor, 1.0)
-    if effect_on or radiation_on:
-        for sid, node in gd.effects.children.items():
-            if not sid.startswith("Artifact") or "#" in sid:
-                continue
+    carry_on = _neq(s.armor_carry_bonus_factor, 1.0)
+    for sid, node in gd.effects.children.items():
+        if "#" in sid:
+            continue
+        if sid.startswith("Artifact"):
             is_radiation = sid.startswith("ArtifactAddRadiation")
             factor = (s.artifact_radiation_factor if is_radiation
                       else s.artifact_effect_factor)
-            if not _neq(factor, 1.0):
+            if not (radiation_on if is_radiation else effect_on):
                 continue
-            cfg: dict = {}
-            for key in ("ValueMin", "ValueMax"):
-                raw = node.values.get(key)
-                if raw is None:
-                    continue
-                scaled = _scale_literal(raw, factor)
-                if scaled is not None and scaled != raw.strip():
-                    cfg[key] = scaled
-            if cfg:
-                patches[sid] = cfg
+        elif (carry_on and node.values.get("Type")
+                == "EEffectType::AdditionalInventoryWeight"):
+            # Exo-/Ruestungs-/Upgrade-Tragegewicht-Boni (Artefakte oben)
+            factor = s.armor_carry_bonus_factor
+        else:
+            continue
+        if not _neq(factor, 1.0):
+            continue
+        cfg: dict = {}
+        for key in ("ValueMin", "ValueMax"):
+            raw = node.values.get(key)
+            if raw is None:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None and scaled != raw.strip():
+                cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -825,6 +866,26 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
             cfg = {key: _num(value * s.detector_range_factor) + "f"
                    for key, value in radii.items()}
             patches.setdefault(sid, {}).update(cfg)
+
+    # Ruestungsschutz je Schadensart (nur die Spieler-Protection;
+    # ProtectionNPC bleibt unangetastet)
+    protection_factors = {
+        "Strike": s.armor_strike_factor,
+        "Burn": s.armor_burn_factor,
+        "Shock": s.armor_shock_factor,
+        "ChemicalBurn": s.armor_chemical_factor,
+        "Radiation": s.armor_radiation_factor,
+        "PSY": s.armor_psy_factor,
+    }
+    if any(_neq(f, 1.0) for f in protection_factors.values()):
+        for sid, values in sorted(gd.armor_protection().items()):
+            cfg = {}
+            for key, vanilla in values.items():
+                factor = protection_factors[key]
+                if _neq(factor, 1.0):
+                    cfg[key] = _num(vanilla * factor)
+            if cfg:
+                patches.setdefault(sid, {}).setdefault("Protection", {}).update(cfg)
     return patches
 
 
@@ -1031,6 +1092,13 @@ def summarize(s: Settings) -> list[str]:
     f("Weapon durability", s.durability_factor)
     f("Armor durability", s.armor_durability_factor)
     f("Weapon jamming", s.jamming_factor)
+    f("Armor protection: physical (strike)", s.armor_strike_factor)
+    f("Armor protection: burn", s.armor_burn_factor)
+    f("Armor protection: shock", s.armor_shock_factor)
+    f("Armor protection: chemical", s.armor_chemical_factor)
+    f("Armor protection: radiation", s.armor_radiation_factor)
+    f("Armor protection: PSY", s.armor_psy_factor)
+    f("Armor carry-weight bonuses", s.armor_carry_bonus_factor)
 
     if _neq(s.scope_sway_pct, 100):
         lines.append(f"Scoped aim sway {s.scope_sway_pct:g} %")
@@ -1066,6 +1134,7 @@ def summarize(s: Settings) -> list[str]:
     f("Artifact effect strength", s.artifact_effect_factor)
     f("Artifact radiation side-effect", s.artifact_radiation_factor)
     f("Artifact spawn chance", s.artifact_spawn_factor)
+    f("Rare artifact bias", s.artifact_rarity_factor)
     f("Detector & scanner range", s.detector_range_factor)
     f("Fast travel cost", s.fast_travel_cost_factor)
     f("Trader restock time", s.trader_restock_factor)

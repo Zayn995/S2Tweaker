@@ -422,6 +422,24 @@ class App(ctk.CTk):
                      "× 0 = weapons never jam.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Armor protection (all armor & helmets)")
+        ctk.CTkLabel(
+            f, text="   Scales YOUR armor's protection values per damage "
+                    "type. NPC armor is untouched (use 'NPC health' for "
+                    "that). Upgrade bonuses stay vanilla.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "ap_strike", "Physical (bullets & melee)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_burn", "Burn (fire)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_shock", "Shock (electric)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_chem", "Chemical", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_rad", "Radiation", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_psy", "PSY", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
+                     "Exoskeleton & armor/upgrade carry bonuses. "
+                     "0 % = armor grants no extra carry weight.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("NPCs & AI")
         f = self._section(body, "Human NPCs")
         self._slider(f, "npcdmg", "NPC damage (to you)", 0.1, 5, 0.1, 1, fmt_factor)
@@ -558,6 +576,10 @@ class App(ctk.CTk):
         self._slider(f, "art_spawn", "Artifact spawn chance", 25, 400, 25, 100, fmt_pct,
                      "Chance that anomaly fields spawn an artifact "
                      "(vanilla 25–40 %, capped at 100 %).")
+        self._slider(f, "art_rarity", "Rare artifact bias", 25, 500, 25, 100, fmt_pct,
+                     "Shifts the rarity roll toward Uncommon/Rare/Epic at "
+                     "Common's expense. Ranks that can't roll Rare/Epic in "
+                     "vanilla (e.g. Newbie) still won't.")
         self._slider(f, "detector", "Detector & scanner range", 50, 300, 10, 100, fmt_pct,
                      "Artifact detectors (Echo, Bear, Veles, Gilka), the "
                      "anomaly beeper and the searchpoint scanner.")
@@ -821,6 +843,13 @@ class App(ctk.CTk):
             durability_factor=s["dur"].get(),
             armor_durability_factor=s["dur_armor"].get(),
             jamming_factor=s["jam"].get(),
+            armor_strike_factor=s["ap_strike"].get() / 100.0,
+            armor_burn_factor=s["ap_burn"].get() / 100.0,
+            armor_shock_factor=s["ap_shock"].get() / 100.0,
+            armor_chemical_factor=s["ap_chem"].get() / 100.0,
+            armor_radiation_factor=s["ap_rad"].get() / 100.0,
+            armor_psy_factor=s["ap_psy"].get() / 100.0,
+            armor_carry_bonus_factor=s["ap_carry"].get() / 100.0,
             scope_sway_pct=s["sway"].get(),
             breath_drain_factor=s["breath_drain"].get() / 100.0,
             breath_regen_factor=s["breath_regen"].get() / 100.0,
@@ -843,6 +872,7 @@ class App(ctk.CTk):
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
+            artifact_rarity_factor=s["art_rarity"].get() / 100.0,
             detector_range_factor=s["detector"].get() / 100.0,
             fast_travel_cost_factor=s["fasttravel"].get() / 100.0,
             trader_restock_factor=s["restock"].get() / 100.0,

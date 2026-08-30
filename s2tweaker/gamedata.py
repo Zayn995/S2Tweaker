@@ -451,6 +451,27 @@ class GameData:
                 result[sid] = mods
         return result
 
+    ARMOR_PROTECTION_KEYS = ("Strike", "Burn", "Shock", "ChemicalBurn",
+                             "Radiation", "PSY")
+
+    def armor_protection(self) -> dict[str, dict[str, float]]:
+        """{SID: {Schutzart: Wert}} der Spieler-Protection aller Ruestungen/
+        Helme (nur Werte > 0; ProtectionNPC bleibt bewusst unberuehrt)."""
+        result: dict[str, dict[str, float]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "armor":
+                continue
+            values = {}
+            for key in self.ARMOR_PROTECTION_KEYS:
+                value = parse_number(self.resolve(self.items, sid, f"Protection.{key}"))
+                if value > 0:
+                    values[key] = value
+            if values:
+                result[sid] = values
+        return result
+
     DETECTOR_RANGE_KEYS = ("ShowArtifactRadius", "MinDetectRadius",
                            "DetectorWorkRadius", "SonarRadius",
                            "AnomalyDetectionRadius")
