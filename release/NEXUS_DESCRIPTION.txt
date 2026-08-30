@@ -15,14 +15,19 @@ WHAT IT DOES
 A small Windows tool with sliders and checkboxes. You pick your values,
 it builds a .pak mod from them - no modding knowledge needed.
 
-- 41 tweaks: health, stamina (incl. per-action costs), stamina regen,
-  fall damage 0-100%, movement speed, jump height, max carry weight +
-  where the overweight penalty starts, item weights per category,
+- ~90 tweaks in 7 tabs: health, stamina (incl. per-action costs),
+  fall damage, walk/crouch & run/sprint speed, jump height, max carry
+  weight + overweight penalty start, item weights per category,
   player/NPC/mutant damage & health, headshot multiplier, explosions,
-  weapon & armor durability, weapon jamming, spread, recoil, scoped aim
-  sway, breath hold, anomaly damage, radiation, bleeding, hunger &
-  sleepiness rates, trader buy/sell prices, trader min. durability,
-  repair & upgrade costs, quest money rewards
+  weapon & armor durability, jamming, spread, recoil, scoped aim sway,
+  breath hold, anomaly damage, radiation, bleeding, hunger & sleepiness,
+  trader prices & min. durability, repair & upgrade costs, quest rewards
+- NEW in 1.1.0: weapon tweaks on THREE levels (global / 8 weapon
+  categories / per-weapon overrides for 79 weapons incl. uniques -
+  damage, spread, recoil, durability, fire rate), an "NPCs & AI" tab
+  (accuracy, vision & hearing range, grenade usage, "NPCs don't
+  self-heal"), per-category price factors, and a fix for the scoped-sway
+  slider breaking the alternative offset aiming
 - It reads the vanilla values from YOUR installed game version, so
   multiplier tweaks stay correct after game patches
 - Only the values you CHANGE get patched - everything left on "(vanilla)"

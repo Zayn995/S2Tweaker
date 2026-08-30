@@ -7,17 +7,23 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-41 tweaks, including:
+~90 tweaks in 7 tabs, including:
 - Max health / stamina, passive regen, per-action stamina costs
-- Fall damage 0-100 %, movement speed, jump height
+- Fall damage 0-100 %, walk/crouch & run/sprint speed, jump height
 - Max carry weight + where the overweight penalty starts (or off entirely)
 - Item weights per category, weightless equipped gear
 - Player/NPC/mutant damage & health, headshot multiplier, explosions
 - Weapon & armor durability, weapon jamming, spread, recoil
 - Scoped aim sway, breath hold
+- Weapon tweaks on THREE levels: global sliders, 8 weapon categories
+  (damage, spread, recoil, durability, fire rate each) and per-weapon
+  overrides for 79 weapons incl. all uniques
+- NPCs & AI: accuracy, vision range, hearing range, grenade usage,
+  "NPCs don't self-heal"
 - Anomaly damage, radiation, bleeding, hunger & sleepiness rates
 - Trader min. durability for buying gear, buy/sell prices, repair &
-  upgrade costs, quest money rewards
+  upgrade costs, quest money rewards, per-category price factors
+  (weapons, armor, ammo, artifacts, consumables)
 
 
 HOW TO USE
