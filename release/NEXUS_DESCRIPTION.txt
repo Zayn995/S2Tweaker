@@ -1,118 +1,210 @@
-﻿S2Tweaker - build your own personal tweak mod
+[center][size=6][b]S2Tweaker[/b][/size]
+[b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-Everything here was done by Claude (Anthropic's AI). I can't code myself -
-so please see this as a CONCEPT / proof of what's possible, made for people
-who CAN code, to pick up, improve and build on :D
+[i]~155 tweaks in 7 tabs · pick your values · one click builds your .pak[/i]
+[i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
+
+[line]
+
+Everything here was done by Claude (Anthropic's AI). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
 Everyone is free to use this mod and the tool!
 
-Full source code is open (MIT license):
-https://github.com/Zayn995/S2Tweaker
+Full source code is open (MIT license): [url=https://github.com/Zayn995/S2Tweaker]github.com/Zayn995/S2Tweaker[/url]
 Bug reports, improvements and forks are very welcome.
 
+[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
-WHAT IT DOES
-============
-A small Windows tool with sliders and checkboxes. You pick your values,
-it builds a .pak mod from them - no modding knowledge needed.
+[heading]WHAT IT DOES[/heading]
 
-- ~130 tweaks in 7 tabs: health, stamina (incl. per-action costs),
-  fall damage, walk/crouch & run/sprint speed, jump height, max carry
-  weight + overweight penalty start, item weights per category,
-  player/NPC/mutant damage & health, headshot multiplier, explosions,
-  weapon & armor durability, jamming, spread, recoil, scoped aim sway,
-  breath hold, anomaly damage, radiation, bleeding, hunger & sleepiness,
-  trader prices & min. durability, repair & upgrade costs, quest rewards
-- NEW in 1.5.0: MUTANT overhaul (speed & hearing sliders, per-species
-  overrides for health/speed/damage incl. every attack, bloodsucker
-  cloaking controls), ADS movement speed & magazine size & melee damage,
-  anomaly damage PER TYPE (electro/chemical/fire/gravity), consumable
-  strength, rain & emission frequency
-- NEW in 1.4.0: ARMOR protection sliders per damage type (physical/
-  burn/shock/chemical/radiation/PSY - your armor only, NPCs untouched),
-  armor & exoskeleton carry-weight bonuses (0 % = none), and a rare
-  artifact bias slider (shift rarity rolls toward Rare/Epic)
-- NEW in 1.3.0: AMMO tweaks (damage, armor piercing, armor damage,
-  cover penetration - each ammo type keeps its character), weapon
-  EFFECTIVE RANGE and BLEEDING as full three-level weapon parameters,
-  weapon and armor durability now SEPARATE sliders, detector & scanner
-  range (Echo/Bear/Veles/Gilka + anomaly beeper), fast travel cost
-  (0 % = free) and trader restock time
-- NEW in 1.2.0 (your requests from the comments!): hit camera shake /
-  aim punch 0-300 %, NPC reaction delay, experimental A-Life sliders
-  (max simultaneous NPCs & mutants, spawn distance), artifact effect
-  strength / radiation / spawn chance, save & load PRESETS, and a
-  search box to find any of the ~120 sliders
-- NEW in 1.1.0: weapon tweaks on THREE levels (global / 8 weapon
-  categories / per-weapon overrides for 79 weapons incl. uniques -
-  damage, spread, recoil, durability, fire rate), an "NPCs & AI" tab
-  (accuracy, vision & hearing range, grenade usage, "NPCs don't
-  self-heal"), per-category price factors, and a fix for the scoped-sway
-  slider breaking the alternative offset aiming
-- It reads the vanilla values from YOUR installed game version, so
-  multiplier tweaks stay correct after game patches
-- Only the values you CHANGE get patched - everything left on "(vanilla)"
-  is untouched, so it won't conflict with your other mods
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]155 tweaks[/b], sorted into 7 tabs:
 
+[b]Player[/b]
+[list]
+[*]Health, stamina (incl. per-action costs), fall damage, jump height, breath hold
+[*]Walk/crouch and run/sprint speed as separate sliders
+[*]Max carry weight, overweight penalty start, item weights per category
+[*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
+[*]Hit camera shake / aim punch 0-300%
+[/list]
 
-HOW TO USE (step by step)
-=========================
- 1. Download and extract the ZIP
- 2. Create a folder, for example on your desktop:  Desktop\S2Tweaker
- 3. Put S2Tweaker.exe (and README.txt) into that folder
- 4. Run S2Tweaker.exe
- 5. The tool suggests your game folder, e.g.
-    C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl
-    Check it. If it's wrong, click "Browse ..." and select your game
-    folder (the one that contains Stalker2\Content\Paks)
- 6. Click "Confirm & load game data" and wait 10-20 seconds
-    (only needed on first start and after game updates)
- 7. Set your sliders and checkboxes. Everything you leave at "(vanilla)"
-    will NOT be part of the mod
- 8. Optional: change the mod name at the bottom
- 9. Click "Build pak -> output folder"
-10. Open  Desktop\S2Tweaker\output  - there is your mod, e.g.
-    zzz_S2Tweaker_P.pak
-11. Copy that file into:
-    <your game folder>\Stalker2\Content\Paks\~mods\
-    Example:
-    C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl\Stalker2\Content\Paks\~mods\
-    If the ~mods folder doesn't exist, create it.
-    (Shortcut: the "Install to ~mods" button does steps 9-11 in one
-    click and creates the ~mods folder automatically)
-12. Start the game. Done!
+[b]Weapons - a three-level system[/b]
+[list]
+[*]8 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 79 weapons[/b] incl. all uniques - single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]The 8 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed
+[*]Magazine size - scales weapon base capacity and all 81 magazine attachments
+[*]Melee damage (knife & rifle butt strike)
+[*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
+[*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
+[/list]
 
+[b]Ammo[/b]
+[list]
+[*]Damage, armor piercing, armor damage and cover penetration - scaled per ammo type, so AP stays the armor king and buckshot stays bad at it, just more or less extreme
+[/list]
 
-CHANGE OR REMOVE THE MOD
-========================
-- Change values: move the sliders, build again - the new pak replaces
-  the old one (same mod name = same file name)
-- Remove the mod: delete zzz_<YourModName>_P.pak from the ~mods folder,
-  or click "Remove from ~mods" in the tool
-- Uninstall the tool: just delete your S2Tweaker folder - settings,
-  cache and output all live inside it (fully portable, nothing else is
-  written anywhere)
+[b]Armor[/b]
+[list]
+[*]Protection per damage type: physical, burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
+[*]Armor durability (separate from weapon durability)
+[*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
+[/list]
 
+[b]NPCs & AI[/b]
+[list]
+[*]NPC damage, health and accuracy
+[*]Vision and hearing range down to 10% - combine both for ghost-mode stealth
+[*]Grenade usage (0% = no more grenade spam) and reaction delay (how long NPCs take to alert their squad)
+[*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
+[*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
+[/list]
 
-GOOD TO KNOW
-============
-- After a game update: start the tool and confirm the game folder again -
-  it detects the new version and re-reads the vanilla values automatically
-- If you already use single-purpose mods that change the same values
-  (e.g. "carry weight 200"), remove them - this tool covers them and its
-  pak loads last anyway
-- Some antivirus tools flag freshly built Python exes - this is a known
-  false-positive pattern
-- Debug checkbox: also exports the raw .cfg patch files to
-  output\<ModName>_cfg so you can see exactly what the mod changes
+[b]Mutants[/b]
+[list]
+[*]Global mutant damage, health, speed and hearing sliders
+[*]Per-species overrides via dropdown: health, speed and damage for every species - damage scales each attack individually (claw / jump / charge ...)
+[*]Bloodsucker cloaking: cloaking speed, and how hard damage breaks the cloak (x0 = hits never reveal them)
+[/list]
 
+[b]Artifacts & detectors[/b]
+[list]
+[*]Artifact effect strength, radiation side-effect (0% = clean artifacts), spawn chance
+[*]Rare artifact bias: shift rarity rolls toward Uncommon/Rare/Epic at Common's expense
+[*]Detector & scanner range: Echo, Bear, Veles, Gilka, the anomaly beeper and the searchpoint scanner
+[/list]
 
-CREDITS
-=======
-- All code written by Claude (Anthropic)
-- repak by trumank (pak packing, MIT/Apache-2.0)
-- cfg.bin decoder based on work by joric, sdwvit and thexii
-- Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the
-  {bpatch} config-patch system, and GSC Game World for the game
+[b]World[/b]
+[list]
+[*]Anomaly damage - one global slider plus per element type: electro / chemical / fire / gravity
+[*]Consumable strength: medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
+[*]Rain & storm frequency, emission frequency
+[/list]
 
+[b]Economy[/b]
+[list]
+[*]Trader buy/sell prices, minimum durability traders accept, per-category price factors (weapons, armor, ammo, artifacts, consumables)
+[*]Repair & upgrade costs, quest rewards
+[*]Fast travel cost 0-400% (0% = guides are free), trader restock time
+[/list]
 
+[b]Tool features[/b]
+[list]
+[*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
+[*][b]Search box[/b] to find any slider - highlights matches and shows which tab
+[*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
+[*][b]Only the values you CHANGE get patched[/b] - everything left on "(vanilla)" is untouched, so it won't conflict with your other mods
+[/list]
 
+[heading]HOW TO USE (step by step)[/heading]
+
+[list=1]
+[*]Download and extract the ZIP
+[*]Create a folder, for example on your desktop: Desktop\S2Tweaker
+[*]Put S2Tweaker.exe (and README.txt) into that folder
+[*]Run S2Tweaker.exe
+[*]The tool suggests your game folder, e.g. C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl - check it. If it's wrong, click "Browse ..." and select your game folder (the one that contains Stalker2\Content\Paks)
+[*]Click "Confirm & load game data" and wait 10-20 seconds (only needed on first start and after game updates)
+[*]Set your sliders and checkboxes. Everything you leave at "(vanilla)" will NOT be part of the mod
+[*]Optional: change the mod name at the bottom
+[*]Click "Build pak -> output folder"
+[*]Open Desktop\S2Tweaker\output - there is your mod, e.g. zzz_S2Tweaker_P.pak
+[*]Copy that file into: <your game folder>\Stalker2\Content\Paks\~mods\
+Example: C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl\Stalker2\Content\Paks\~mods\
+If the ~mods folder doesn't exist, create it.
+(Shortcut: the "Install to ~mods" button does steps 9-11 in one click and creates the ~mods folder automatically)
+[*]Start the game. Done!
+[/list]
+
+[heading]CHANGE OR REMOVE THE MOD[/heading]
+
+[list]
+[*]Change values: move the sliders, build again - the new pak replaces the old one (same mod name = same file name)
+[*]Remove the mod: delete zzz_<YourModName>_P.pak from the ~mods folder, or click "Remove from ~mods" in the tool
+[*]Uninstall the tool: just delete your S2Tweaker folder - settings, cache and output all live inside it (fully portable, nothing else is written anywhere)
+[/list]
+
+[heading]GOOD TO KNOW[/heading]
+
+[list]
+[*]After a game update: start the tool and confirm the game folder again - it detects the new version and re-reads the vanilla values automatically. Then rebuild your pak
+[*]If you already use single-purpose mods that change the same values (e.g. "carry weight 200"), remove them - this tool covers them and its pak loads last anyway
+[*]Weapon fire rate, spread and recoil live in game data shared with NPCs - NPCs using those weapons are affected too (noted in the app)
+[*]Since game patch 2.0 the community reports that cfg-based movement-speed changes can desync from animations or partially not apply - the movement and carry-weight sliders carry an in-app warning until this settles
+[*]Some antivirus tools flag freshly built Python exes - this is a known false-positive pattern
+[*]Debug checkbox: also exports the raw .cfg patch files to output\<ModName>_cfg so you can see exactly what the mod changes
+[/list]
+
+[heading]CHANGELOG[/heading]
+
+[b]v1.5.0 - Mutant overhaul, weapon extras & world package[/b] (~155 sliders total)
+[list]
+[*]Mutants: global mutant speed and mutant hearing sliders
+[*]Mutants: per-species overrides (dropdown) for health, speed and damage of every species - damage scales each attack individually (claw/jump/charge ...). Poltergeist & Rat deal damage indirectly, so damage overrides don't apply there
+[*]Bloodsucker cloaking: cloaking speed + how hard damage breaks the cloak (x0 = hits never reveal them)
+[*]Weapons: ADS movement speed as the 8th three-level parameter (global / category / per-weapon)
+[*]Weapons: magazine size - scales weapon base capacity and all 81 magazine attachments (integer scaling, launchers never drop below 1)
+[*]Weapons: melee damage (knife & rifle butt strike)
+[*]World: anomaly damage per element type - electro / chemical / fire / gravity (stacks with the global anomaly slider; PSY anomalies drain psy energy, not health)
+[*]World: consumable strength - medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
+[*]World: rain & storm frequency and emission frequency
+[/list]
+
+[b]v1.4.0 - Armor protection & artifact rarity[/b] (~130 sliders)
+[list]
+[*]Armor protection per damage type: physical (bullets/melee), burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
+[*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
+[*]Rare artifact bias 25-500%: shifts the rarity roll toward Uncommon/Rare/Epic at Common's expense (total spawn chance unchanged; ranks that can't roll Rare/Epic in vanilla still won't)
+[/list]
+
+[b]v1.3.0 - Ammo, range, detectors & economy[/b] (~120 sliders)
+[spoiler]
+[list]
+[*]Ammo tweaks: damage, armor piercing, armor damage and cover penetration - scaled per ammo type, so AP stays the armor king and buckshot stays bad at it, just more or less extreme
+[*]Weapon effective range and bleeding as full three-level parameters (global / 8 categories / per-weapon). Bleeding 0% = your bullets never cause bleeding
+[*]Weapon and armor durability are now separate sliders
+[*]Detector & scanner range: Echo/Bear/Veles/Gilka artifact detectors, the anomaly beeper and the searchpoint scanner
+[*]Fast travel cost 0-400% (0% = guides are free)
+[*]Trader restock time 25-400% (day-based traders can't go below 1 day)
+[/list]
+[/spoiler]
+
+[b]v1.2.0 - Community requests[/b] (built directly from your comments - thank you!)
+[spoiler]
+[list]
+[*]Hit camera shake / aim punch 0-300% (requested by dizzyman)
+[*]NPC reaction delay 25-400% - how long NPCs take to alert their squad (requested by lux1109)
+[*]A-Life sliders (experimental): max simultaneous NPCs & mutants, spawn distance (requested by lux1109)
+[*]Artifact pack: effect strength, radiation side-effect (0% = clean artifacts), spawn chance
+[*]Save / load presets (JSON files in a presets folder next to the exe)
+[*]Search box to find any slider - highlights matches, shows which tab
+[*]NPC vision/hearing minimum lowered to 10% - combine both for ghost-mode stealth
+[/list]
+[/spoiler]
+
+[b]v1.1.0 - Weapon system, NPCs & AI[/b]
+[spoiler]
+[list]
+[*]Bug fix: the scoped-sway slider no longer breaks offset aiming (the alternative aim past the scope stays intact)
+[*]Weapon tweaks on three levels: global sliders, per-category factors for 8 categories, and per-weapon overrides for 79 weapons incl. all uniques (damage, spread, recoil, durability, fire rate). Single weapon beats category, category beats global; the tool resolves shared weapon stats and tells you about them
+[*]New "NPCs & AI" tab: accuracy, vision range, hearing range, grenade usage (0% = no grenade spam) and "NPCs don't self-heal"
+[*]Economy: per-category price factors for weapons, armor, ammo, artifacts and consumables
+[*]UI reorganized into 7 tabs, movement split into "Walk & crouch" and "Run & sprint", window now fits smaller / DPI-scaled screens
+[*]Notes: weapon fire rate / spread / recoil are shared with NPCs using those weapons; movement and carry-weight sliders carry a warning about possible animation desync since game patch 2.0
+[/list]
+[/spoiler]
+
+[b]v1.0.0 - First public release[/b]
+[spoiler]
+[list]
+[*]Core tweak set: player stats, carry weight & overweight, player/NPC/mutant damage & health, durability & jamming, trader prices & minimum durability
+[*]Built and tested against game version 2.0.3 (Steam); reads vanilla values from your installed game version, so it survives game updates
+[/list]
+[/spoiler]
+
+[heading]CREDITS[/heading]
+
+[list]
+[*]All code written by Claude (Anthropic)
+[*]repak by trumank (pak packing, MIT/Apache-2.0)
+[*]cfg.bin decoder based on work by joric, sdwvit and thexii
+[*]Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the {bpatch} config-patch system, and GSC Game World for the game
+[/list]
