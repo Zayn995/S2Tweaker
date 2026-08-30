@@ -42,10 +42,35 @@ NEEDED_FILES = [
     "PassiveDetectorPrototypes.cfg.bin",
     "FastTravelPrototypes.cfg.bin",
     "BoolProviderPrototypes.cfg.bin",
+    "AbilityPrototypes.cfg.bin",
+    "MeleeWeaponPrototypes.cfg.bin",
+    "WeatherSelectionPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 7
+CACHE_SCHEMA = 8
+
+# Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
+# AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
+# Rat, Poltergeist und "Mutant" haben keine Damage-Attacken.
+SPECIES_ABILITY_PREFIXES = {
+    "Bloodsucker": ["Bloodsucker_", "AshyBloodsucker_", "MistBloodsucker_",
+                    "PrologueBloodsucker_"],
+    "Boar": ["Boar_", "HelmedBoar_", "PorcupineBoar_", "ChargeAbility_Boar",
+             "ChargeAbility_HelmedBoar", "ChargeAbility_PorcupineBoar"],
+    "Flesh": ["Flesh_", "BoggyFlesh_"],
+    "Pseudodog": ["PseudoDog_", "PseudoDogSummon_"],
+    "Blinddog": ["BlindDog_"],
+    "MoldyBlinddog": ["MoldyBlindDog_"],
+    "Snork": ["Snork_"],
+    "Controller": ["Controller_"],
+    "Burer": ["Burer_"],
+    "Pseudogiant": ["Pseudogiant_", "ChargeAbility_Pseudogiant"],
+    "Chimera": ["Chimera_"],
+    "Deer": ["Deer_", "ChargeAbility_Deer"],
+    "Tushkan": ["Tushkan_"],
+    "Bayun": ["Cat_"],
+}
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
@@ -244,6 +269,18 @@ class GameData:
         return self._parse("BoolProviderPrototypes.cfg")
 
     @cached_property
+    def abilities(self) -> CfgStruct:
+        return self._parse("AbilityPrototypes.cfg")
+
+    @cached_property
+    def melee(self) -> CfgStruct:
+        return self._parse("MeleeWeaponPrototypes.cfg")
+
+    @cached_property
+    def weatherselection(self) -> CfgStruct:
+        return self._parse("WeatherSelectionPrototypes.cfg")
+
+    @cached_property
     def trade_text(self) -> str:
         return (self.dir / "TradePrototypes.cfg").read_text(
             encoding="utf-8-sig", errors="replace"
@@ -309,6 +346,127 @@ class GameData:
                 continue
             result[sid] = parse_number(hp)
         return result
+
+    MUTANT_SPEED_KEYS = ("WalkSpeed", "RunSpeed", "SprintSpeed")
+
+    def mutant_speeds(self) -> dict[str, dict[str, float]]:
+        """{SID: {SpeedKey: Wert}} aller Mutanten-Prototypen (aufgeloest)."""
+        result: dict[str, dict[str, float]] = {}
+        for sid in self.mutants():
+            speeds = {}
+            for key in self.MUTANT_SPEED_KEYS:
+                value = parse_number(self.resolve(self.obj, sid, f"MovementParams.{key}"))
+                if value > 0:
+                    speeds[key] = value
+            if speeds:
+                result[sid] = speeds
+        return result
+
+    def mutant_faction(self, sid: str) -> str | None:
+        """Kreatur-Fraktion (= Art) eines Mutanten-Prototyps."""
+        faction = self._chain_get(self._resolve_chain(self.obj, sid), "Faction")
+        return faction if faction in MUTANT_FACTIONS else None
+
+    def mutant_attack_damages(self, species: str) -> dict[str, tuple[str, float]]:
+        """{Attacken-Struct: (Damage-Pfad, Vanilla-Wert)} einer Mutanten-Art.
+
+        Damage liegt top-level; nur die ChargeAbility_*-Structs nesten ihn
+        unter DamageParams. Structs mit Damage <= 0 (Utility-Faehigkeiten)
+        werden uebersprungen."""
+        prefixes = SPECIES_ABILITY_PREFIXES.get(species, [])
+        result: dict[str, tuple[str, float]] = {}
+        for sid, node in self.abilities.children.items():
+            if "#" in sid or not any(sid.startswith(p) for p in prefixes):
+                continue
+            for path in ("Damage", "DamageParams.Damage"):
+                value = parse_number(node.get(path))
+                if value > 0:
+                    result[sid] = (path, value)
+                    break
+        return result
+
+    # Bloodsucker-Tarnung: Prototypen mit InvisibilityFeatureData
+    INVISIBILITY_KEYS = ("ToVisibleSeconds", "ToInvisibleSeconds",
+                        "InvisibilityLossFromDamage")
+
+    def invisibility_prototypes(self) -> dict[str, dict[str, float]]:
+        """{SID: {Key: Wert}} aller Prototypen mit eigener Tarnung."""
+        result: dict[str, dict[str, float]] = {}
+        for sid, node in self.obj.children.items():
+            if "#" in sid:
+                continue
+            data = node.children.get("InvisibilityFeatureData")
+            if data is None:
+                continue
+            values = {}
+            for key in self.INVISIBILITY_KEYS:
+                value = parse_number(data.values.get(key))
+                if value > 0:
+                    values[key] = value
+            if values:
+                result[sid] = values
+        return result
+
+    # Consumable-Effekte: nur diese Typen sind gefahrlos skalierbar
+    # (Vorzeichen-Regeln siehe docs/V15_DATA_RESEARCH.md)
+    CONSUMABLE_SAFE_TYPES = {
+        "EEffectType::Health", "EEffectType::Bleeding", "EEffectType::Radiation",
+        "EEffectType::HungerPoints", "EEffectType::Stamina",
+        "EEffectType::RegenStamina", "EEffectType::PsyPoints",
+        "EEffectType::DegenPsyPoints", "EEffectType::SleepinessPoints",
+        "EEffectType::DegenBleeding", "EEffectType::Drunkness",
+    }
+    # Bei diesen Typen sind POSITIVE Werte ein Malus (Hunger/Suff steigt) —
+    # nur negative Werte skalieren
+    CONSUMABLE_NEGATIVE_ONLY = {"EEffectType::HungerPoints",
+                                "EEffectType::Drunkness"}
+
+    def consumable_effects(self) -> dict[str, CfgStruct]:
+        """{Effekt-SID: Effekt-Node} aller von Consumables referenzierten,
+        gefahrlos skalierbaren Effekte."""
+        sids: set[str] = set()
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "consumable":
+                continue
+            for node in self._resolve_chain(self.items, sid):
+                effects = node.children.get("EffectPrototypeSIDs")
+                if effects is not None:
+                    sids.update(effects.values.values())
+                    break
+        result: dict[str, CfgStruct] = {}
+        for sid in sids:
+            node = self.effects.children.get(sid)
+            if node is None:
+                continue
+            etype = node.values.get("Type", "")
+            if etype not in self.CONSUMABLE_SAFE_TYPES:
+                continue
+            if etype in self.CONSUMABLE_NEGATIVE_ONLY:
+                if parse_number(node.values.get("ValueMin")) >= 0:
+                    continue
+            result[sid] = node
+        return result
+
+    # Anomalie-Schadens-Effekte je Element-Typ (SID-Sets verifiziert;
+    # Werte werden live gelesen). PSY macht keinen direkten HP-Schaden.
+    ANOMALY_EFFECT_SETS = {
+        "electro": ["ElectroAnomaly", "ElectroAnomalyPrologue"],
+        "chemical": ["ChemicalDamage", "SoapBubbleDamage",
+                     "ParticleSoapBubbleDamage", "ToxicCloudDamage"],
+        "fire": ["FireAnomalyDPS", "FireBurning", "HeatBurning",
+                 "SteamAnomalyDPS", "SteamBurning", "SteamHeatBurning",
+                 "ClickerAnomalyHit", "LavaLampAnomalyFloor",
+                 "LavaLampAnomalyHit", "FireBallAnomaly"],
+        "gravity": ["CarouselAnomaly", "RazorAnomalyDamageDPSLow",
+                    "RazorAnomalyDamageDPSHigh", "RazorAnomalyLowBleed",
+                    "RazorAnomalyHighBleed", "ExpulsionDamage",
+                    "DiamondDPS", "DiamondBleeding"],
+    }
+
+    # Wetter: diese Sub-Structs gelten als "Regen/Sturm"
+    RAIN_WEATHER_TYPES = ("Stormy", "LightRainy", "Rainy", "Thundery")
 
     def npcs_with_regen(self) -> dict[str, float]:
         """{SID: RegenHP} aller menschlichen NPC-Prototypen mit

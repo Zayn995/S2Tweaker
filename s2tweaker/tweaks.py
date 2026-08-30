@@ -57,7 +57,7 @@ SPRINT_DRAIN_TAGS = {
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
-                 "range", "bleeding"]
+                 "range", "bleeding", "adsspeed"]
 
 WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -67,6 +67,7 @@ WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "firerate": "Fire rate",
     "range": "Effective range",
     "bleeding": "Bleeding",
+    "adsspeed": "ADS move speed",
 }
 
 # CWS-Schluessel, die der Range-Faktor gemeinsam skaliert
@@ -135,6 +136,12 @@ class Settings:
     npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
     npc_grenade_factor: float = 1.0      # 0 = nie werfen (-1-Bosse bleiben)
     npc_no_heal: bool = False            # RegenHP=0 fuer alle Human-NPCs
+    # --- Mutanten (global; Overrides pro Art via mutant_overrides) ---
+    mutant_speed_factor: float = 1.0     # Walk/Run/SprintSpeed aller Arten
+    mutant_hearing_factor: float = 1.0   # der eine geteilte MutantsHearingSensor
+    mutant_overrides: dict = field(default_factory=dict)  # {Art: {param: f}}
+    bloodsucker_cloak_factor: float = 1.0    # >1 = tarnt sich schneller
+    bloodsucker_uncloak_factor: float = 1.0  # >1 = Treffer enttarnen staerker
     # --- A-Life (experimentell) ---
     max_agents_factor: float = 1.0       # gleichzeitige NPCs/Mutanten um den Spieler
     spawn_distance_factor: float = 1.0   # A-Life-Spawn-Distanz
@@ -161,6 +168,9 @@ class Settings:
     recoil_factor: float = 1.0               # Rueckstoss
     weapon_range_factor: float = 1.0         # effektive Reichweite (Kaskade)
     weapon_bleeding_factor: float = 1.0      # Blutungs-Chance/-Staerke (Kaskade)
+    ads_speed_factor: float = 1.0            # Bewegungstempo beim Zielen (Kaskade)
+    magazine_factor: float = 1.0             # Magazingroesse (Waffe + Magazine)
+    melee_damage_factor: float = 1.0         # Messer + Kolbenschlag
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -174,10 +184,17 @@ class Settings:
 
     # --- Welt & Survival ---
     anomaly_damage_factor: float = 1.0
+    anomaly_electro_factor: float = 1.0      # je Element-Typ (stapelt mit global)
+    anomaly_chemical_factor: float = 1.0
+    anomaly_fire_factor: float = 1.0
+    anomaly_gravity_factor: float = 1.0
     radiation_factor: float = 1.0
     bleeding_factor: float = 1.0
     hunger_rate_factor: float = 1.0          # 0 = kein Hunger
     sleepiness_rate_factor: float = 1.0      # 0 = keine Muedigkeit
+    consumable_factor: float = 1.0           # Medkits/Verband/Essen usw.
+    rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
+    emission_factor: float = 1.0             # Emissions-Haeufigkeit
     # --- Artefakte ---
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
@@ -475,13 +492,138 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _mutant_factor(s: Settings, species: str | None, param: str,
+                   global_factor: float) -> float:
+    """Kaskade Art-Override > globaler Mutanten-Regler."""
+    if species is not None:
+        value = s.mutant_overrides.get(species, {}).get(param)
+        if value is not None:
+            return value
+    return global_factor
+
+
 def _mutants_patch(gd: GameData, s: Settings) -> dict:
-    if not _neq(s.mutant_hp_factor, 1.0):
+    hp_on = _neq(s.mutant_hp_factor, 1.0) or any(
+        "hp" in p for p in s.mutant_overrides.values())
+    speed_on = _neq(s.mutant_speed_factor, 1.0) or any(
+        "speed" in p for p in s.mutant_overrides.values())
+    patches: dict = {}
+    if hp_on:
+        for sid, hp in sorted(gd.mutants().items()):
+            factor = _mutant_factor(s, gd.mutant_faction(sid), "hp",
+                                    s.mutant_hp_factor)
+            if _neq(factor, 1.0) and factor > 0:
+                patches.setdefault(sid, {})["VitalParams"] = {
+                    "MaxHP": _num(max(1.0, hp * factor))}
+    if speed_on:
+        for sid, speeds in sorted(gd.mutant_speeds().items()):
+            factor = _mutant_factor(s, gd.mutant_faction(sid), "speed",
+                                    s.mutant_speed_factor)
+            if _neq(factor, 1.0) and factor > 0:
+                patches.setdefault(sid, {})["MovementParams"] = {
+                    key: _num(value * factor) for key, value in speeds.items()}
+    return patches
+
+
+def _mutant_abilities_patch(gd: GameData, s: Settings) -> dict:
+    """Attacken-Schaden pro Mutanten-Art (nur via Art-Overrides)."""
+    patches: dict = {}
+    for species, params in sorted(s.mutant_overrides.items()):
+        factor = params.get("damage")
+        if factor is None or not _neq(factor, 1.0) or factor <= 0:
+            continue
+        for sid, (path, value) in sorted(gd.mutant_attack_damages(species).items()):
+            node = patches.setdefault(sid, {})
+            parts = path.split(".")
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            node[parts[-1]] = _num(value * factor)
+    return patches
+
+
+def _invisibility_patch(gd: GameData, s: Settings) -> dict:
+    """Bloodsucker-Tarnung: Tarn-Tempo und Enttarnung durch Treffer."""
+    cloak_on = _neq(s.bloodsucker_cloak_factor, 1.0) and s.bloodsucker_cloak_factor > 0
+    uncloak_on = _neq(s.bloodsucker_uncloak_factor, 1.0)
+    if not (cloak_on or uncloak_on):
         return {}
     patches: dict = {}
-    for sid, hp in sorted(gd.mutants().items()):
-        patches[sid] = {"VitalParams": {"MaxHP": _num(max(1.0, hp * s.mutant_hp_factor))}}
+    for sid, values in sorted(gd.invisibility_prototypes().items()):
+        cfg: dict = {}
+        if cloak_on and "ToInvisibleSeconds" in values:
+            cfg["ToInvisibleSeconds"] = _num(
+                values["ToInvisibleSeconds"] / s.bloodsucker_cloak_factor)
+        if uncloak_on and "InvisibilityLossFromDamage" in values:
+            cfg["InvisibilityLossFromDamage"] = _num(
+                values["InvisibilityLossFromDamage"] * s.bloodsucker_uncloak_factor)
+        if cfg:
+            patches[sid] = {"InvisibilityFeatureData": cfg}
     return patches
+
+
+def _melee_patch(gd: GameData, s: Settings) -> dict:
+    """Messer + Kolbenschlag (MeleeWeaponPrototypes)."""
+    if not _neq(s.melee_damage_factor, 1.0) or s.melee_damage_factor <= 0:
+        return {}
+    patches: dict = {}
+    for sid in ("Knife", "WeaponButt"):
+        value = parse_number(gd.resolve(gd.melee, sid, "Damage"))
+        if value > 0:
+            patches[sid] = {"Damage": _num(value * s.melee_damage_factor)}
+    return patches
+
+
+def _weather_patch(gd: GameData, s: Settings) -> dict:
+    """Regen-/Sturm-Gewichte und Emissions-Haeufigkeit je Auswahl-Prototyp."""
+    rain_on = _neq(s.rain_factor, 1.0)
+    emission_on = _neq(s.emission_factor, 1.0)
+    if not (rain_on or emission_on):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.weatherselection.children.items():
+        if "#" in sid:
+            continue
+        cfg: dict = {}
+        if rain_on:
+            for wtype in gd.RAIN_WEATHER_TYPES:
+                sub = node.children.get(wtype)
+                if sub is None:
+                    continue
+                weight = parse_number(sub.values.get("BlendWeight"))
+                if weight > 0:
+                    cfg[wtype] = {"BlendWeight": _num(weight * s.rain_factor)}
+        if emission_on:
+            sub = node.children.get("Emission")
+            if sub is not None:
+                increase = parse_number(sub.values.get("BlendWeightIncrease"))
+                if increase > 0:
+                    cfg.setdefault("Emission", {})["BlendWeightIncrease"] = _num(
+                        increase * s.emission_factor)
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
+    """Der eine geteilte MutantsHearingSensor (alle Arten)."""
+    if not _neq(s.mutant_hearing_factor, 1.0):
+        return {}
+    node = gd.hearingsensors.children.get("MutantsHearingSensor")
+    events = node.children.get("SoundEvents") if node else None
+    if events is None:
+        return {}
+    entries: dict = {}
+    for idx, entry in events.children.items():
+        distance = parse_number(entry.values.get("HearingDistance"))
+        if distance <= 0:
+            continue
+        entries[idx] = {
+            "Type": entry.values.get("Type", "ESoundEventType::None"),
+            "HearingDistance": _num(distance * s.mutant_hearing_factor),
+        }
+    if not entries:
+        return {}
+    return {"MutantsHearingSensor": {"SoundEvents": entries}}
 
 
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
@@ -639,6 +781,14 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
     # RecoilInterval synchron, sonst laufen Rueckstoss und Schuss auseinander
     scale("FireInterval", "firerate", invert=True)
     scale("RecoilInterval", "firerate", invert=True)
+    scale("AimingMovementSpeedModifier", "adsspeed", s.ads_speed_factor)
+
+    # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig
+    if _neq(s.magazine_factor, 1.0) and s.magazine_factor > 0:
+        for sid, value in sorted(gd.weapon_general_values("MaxAmmo").items()):
+            scaled_int = max(1, int(round(value * s.magazine_factor)))
+            if scaled_int != int(value):
+                patches.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
     return patches
 
 
@@ -758,6 +908,45 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                 cfg[key] = scaled
         if cfg:
             patches[sid] = cfg
+
+    # Anomalie-Schaden je Element-Typ (SID-Sets verifiziert, Werte live)
+    anomaly_factors = {
+        "electro": s.anomaly_electro_factor,
+        "chemical": s.anomaly_chemical_factor,
+        "fire": s.anomaly_fire_factor,
+        "gravity": s.anomaly_gravity_factor,
+    }
+    for element, factor in anomaly_factors.items():
+        if not _neq(factor, 1.0):
+            continue
+        for sid in gd.ANOMALY_EFFECT_SETS[element]:
+            node = gd.effects.children.get(sid)
+            if node is None:
+                continue
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None:
+                    continue
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
+
+    # Consumable-Staerke (dynamische Whitelist ueber Item-Referenzen + Typ)
+    if _neq(s.consumable_factor, 1.0):
+        for sid, node in sorted(gd.consumable_effects().items()):
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None:
+                    continue
+                scaled = _scale_literal(raw, s.consumable_factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
     return patches
 
 
@@ -866,6 +1055,22 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
             cfg = {key: _num(value * s.detector_range_factor) + "f"
                    for key, value in radii.items()}
             patches.setdefault(sid, {}).update(cfg)
+
+    # Magazin-Aufsaetze: Magazine.MaxAmmo (81 konkrete Magazine, ganzzahlig)
+    if _neq(s.magazine_factor, 1.0) and s.magazine_factor > 0:
+        for sid, node in sorted(gd.items.children.items()):
+            if "#" in sid or sid.startswith("Template") or sid == "[0]":
+                continue
+            mag = node.children.get("Magazine")
+            if mag is None:
+                continue
+            value = parse_number(mag.values.get("MaxAmmo"))
+            if value <= 0:
+                continue
+            scaled_int = max(1, int(round(value * s.magazine_factor)))
+            if scaled_int != int(value):
+                patches.setdefault(sid, {})["Magazine"] = {
+                    "MaxAmmo": str(scaled_int)}
 
     # Ruestungsschutz je Schadensart (nur die Spieler-Protection;
     # ProtectionNPC bleibt unangetastet)
@@ -987,7 +1192,16 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     obj_patches = _player_patch(gd, s)
     obj_patches.update(_mutants_patch(gd, s))
     obj_patches.update(_npc_heal_patch(gd, s))
+    for sid, cfg in _invisibility_patch(gd, s).items():
+        obj_patches.setdefault(sid, {}).update(cfg)
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
+
+    add(f"AbilityPrototypes/AbilityPrototypes_patch_{n}.cfg",
+        _mutant_abilities_patch(gd, s))
+    add(f"MeleeWeaponPrototypes/MeleeWeaponPrototypes_patch_{n}.cfg",
+        _melee_patch(gd, s))
+    add(f"WeatherSelectionPrototypes/WeatherSelectionPrototypes_patch_{n}.cfg",
+        _weather_patch(gd, s))
 
     add(f"DifficultyPrototypes/DifficultyPrototypes_patch_{n}.cfg",
         _difficulty_patch(gd, s))
@@ -1026,8 +1240,10 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _restock_patch(gd, s))
     add("AIPrototypes/VisionScannerPrototypes/"
         f"VisionScannerPrototypes_patch_{n}.cfg", _vision_patch(gd, s))
+    hearing = _hearing_patch(gd, s)
+    hearing.update(_mutant_hearing_patch(gd, s))
     add("AIPrototypes/HearingSensorPrototypes/"
-        f"HearingSensorPrototypes_patch_{n}.cfg", _hearing_patch(gd, s))
+        f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", _items_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", _trade_patch(gd, s))
 
@@ -1088,6 +1304,14 @@ def summarize(s: Settings) -> list[str]:
     f("A-Life spawn distance", s.spawn_distance_factor)
     f("Mutant health", s.mutant_hp_factor)
     f("Mutant damage", s.mutant_damage_factor)
+    f("Mutant speed", s.mutant_speed_factor)
+    f("Mutant hearing range", s.mutant_hearing_factor)
+    f("Bloodsucker cloaking speed", s.bloodsucker_cloak_factor)
+    f("Bloodsucker uncloak from damage", s.bloodsucker_uncloak_factor)
+    for species, params in sorted(s.mutant_overrides.items()):
+        parts = [f"{p} × {v:g}" for p, v in sorted(params.items()) if _neq(v, 1.0)]
+        if parts:
+            lines.append(f"Mutant {species}: " + ", ".join(parts))
     f("Explosion damage", s.explosion_damage_factor)
     f("Weapon durability", s.durability_factor)
     f("Armor durability", s.armor_durability_factor)
@@ -1108,6 +1332,9 @@ def summarize(s: Settings) -> list[str]:
     f("Weapon recoil", s.recoil_factor)
     f("Weapon effective range", s.weapon_range_factor)
     f("Weapon bleeding", s.weapon_bleeding_factor)
+    f("ADS movement speed", s.ads_speed_factor)
+    f("Magazine size", s.magazine_factor)
+    f("Melee damage (knife & butt strike)", s.melee_damage_factor)
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)
@@ -1127,6 +1354,13 @@ def summarize(s: Settings) -> list[str]:
             lines.append(f"{sid}: " + ", ".join(parts))
 
     f("Anomaly damage", s.anomaly_damage_factor)
+    f("Anomaly damage: electro", s.anomaly_electro_factor)
+    f("Anomaly damage: chemical", s.anomaly_chemical_factor)
+    f("Anomaly damage: fire", s.anomaly_fire_factor)
+    f("Anomaly damage: gravity", s.anomaly_gravity_factor)
+    f("Consumable strength", s.consumable_factor)
+    f("Rain & storm frequency", s.rain_factor)
+    f("Emission frequency", s.emission_factor)
     f("Radiation accumulation", s.radiation_factor)
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)

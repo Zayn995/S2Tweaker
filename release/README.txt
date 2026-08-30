@@ -7,7 +7,10 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~130 tweaks in 7 tabs, including:
+~155 tweaks in 7 tabs, including:
+- NEW in 1.5.0: mutant overhaul (per-species health/speed/damage
+  overrides, bloodsucker cloaking), ADS speed, magazine size, melee
+  damage, anomaly damage per type, consumable strength, weather
 - NEW in 1.4.0: armor protection per damage type, armor carry-weight
   bonuses, rare artifact bias
 - NEW in 1.3.0: ammo tweaks (damage/armor piercing/armor damage/cover
@@ -87,4 +90,5 @@ CREDITS
   https://github.com/sdwvit/S2CfgToJSON
 - Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the
   {bpatch} config-patch system, and to GSC Game World for the game.
+
 

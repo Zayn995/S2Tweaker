@@ -22,6 +22,11 @@ it builds a .pak mod from them - no modding knowledge needed.
   weapon & armor durability, jamming, spread, recoil, scoped aim sway,
   breath hold, anomaly damage, radiation, bleeding, hunger & sleepiness,
   trader prices & min. durability, repair & upgrade costs, quest rewards
+- NEW in 1.5.0: MUTANT overhaul (speed & hearing sliders, per-species
+  overrides for health/speed/damage incl. every attack, bloodsucker
+  cloaking controls), ADS movement speed & magazine size & melee damage,
+  anomaly damage PER TYPE (electro/chemical/fire/gravity), consumable
+  strength, rain & emission frequency
 - NEW in 1.4.0: ARMOR protection sliders per damage type (physical/
   burn/shock/chemical/radiation/PSY - your armor only, NPCs untouched),
   armor & exoskeleton carry-weight bonuses (0 % = none), and a rare
@@ -108,5 +113,6 @@ CREDITS
 - cfg.bin decoder based on work by joric, sdwvit and thexii
 - Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the
   {bpatch} config-patch system, and GSC Game World for the game
+
 
 

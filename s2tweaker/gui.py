@@ -160,6 +160,12 @@ class App(ctk.CTk):
         self.cat_checks: dict[str, ctk.CTkCheckBox] = {}
         # Einzelwaffen-Overrides: {WGS-SID: {param: faktor}} (nur != 1.0)
         self.weapon_overrides: dict[str, dict[str, float]] = {}
+        # Mutanten-Overrides pro Art: {Art: {hp/speed/damage: faktor}}
+        self.mutant_overrides: dict[str, dict[str, float]] = {}
+        self.mut_sliders: dict[str, SliderRow] = {}
+        self._mut_current: str | None = None
+        self._mut_loading = False
+        self._mut_species: list[str] = []
         self.iw_sliders: dict[str, SliderRow] = {}
         self._iw_current: str | None = None
         self._iw_loading = False
@@ -329,6 +335,54 @@ class App(ctk.CTk):
             self._iw_select(self._iw_current)
         self._iw_update_info()
 
+    # -------------------------------------------- Mutanten-Overrides
+    def _mut_populate(self):
+        if self.gd is None:
+            return
+        species = sorted({f for f in (
+            self.gd.mutant_faction(sid) for sid in self.gd.mutants()) if f})
+        self._mut_species = species
+        self.mutant_overrides = {
+            sp: params for sp, params in self.mutant_overrides.items()
+            if sp in species
+        }
+        if not species:
+            return
+        self.mut_menu.configure(values=species, state="normal")
+        current = (self._mut_current if self._mut_current in species
+                   else ("Bloodsucker" if "Bloodsucker" in species else species[0]))
+        self.mut_menu.set(current)
+        self._mut_select(current)
+
+    def _mut_select(self, species: str):
+        self._mut_current = species
+        if self.mut_menu.get() != species:
+            self.mut_menu.set(species)
+        self._mut_loading = True
+        stored = self.mutant_overrides.get(species, {})
+        for param, slider_row in self.mut_sliders.items():
+            slider_row.set(stored.get(param, 1.0))
+        self._mut_loading = False
+        self._mut_update_info()
+
+    def _mut_changed(self):
+        if self._mut_loading or self._mut_current is None:
+            return
+        values = {p: row.get() for p, row in self.mut_sliders.items()}
+        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
+        if values:
+            self.mutant_overrides[self._mut_current] = values
+        else:
+            self.mutant_overrides.pop(self._mut_current, None)
+        self._mut_update_info()
+
+    def _mut_update_info(self):
+        if self.mutant_overrides:
+            self.mut_info.configure(
+                text="Overrides: " + ", ".join(sorted(self.mutant_overrides)))
+        else:
+            self.mut_info.configure(text="No species overrides set.")
+
     def _check(self, parent, key: str, label: str, tooltip: str = "") -> None:
         box = ctk.CTkCheckBox(parent, text=label)
         box.pack(anchor="w", **PAD)
@@ -411,8 +465,6 @@ class App(ctk.CTk):
         self._slider(f, "aimpunch", "Hit camera shake (aim punch)", 0, 300, 25, 100, fmt_pct,
                      "Camera kick when YOU get shot. 0 % = no flinch, "
                      "300 % = heavy aim punch.")
-        self._slider(f, "mhp", "Mutant health", 0.1, 5, 0.1, 1, fmt_factor)
-        self._slider(f, "mdmg", "Mutant damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.5, 1, fmt_factor,
                      "Weapons wear less per shot fired.")
@@ -420,6 +472,44 @@ class App(ctk.CTk):
                      "Armor takes more punishment before breaking.")
         self._slider(f, "jam", "Weapon jamming", 0, 2, 0.1, 1, fmt_factor,
                      "× 0 = weapons never jam.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Mutants")
+        self._slider(f, "mhp", "Mutant health (all species)", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "mdmg", "Mutant damage (all species)", 0.1, 5, 0.1, 1, fmt_factor,
+                     "Via difficulty multiplier – species overrides below "
+                     "scale the individual attack values on top.")
+        self._slider(f, "mspeed", "Mutant speed (all species)", 0.25, 2, 0.25, 1, fmt_factor,
+                     "Walk/run/sprint speed of every mutant species.")
+        self._slider(f, "mhearing", "Mutant hearing range", 10, 200, 5, 100, fmt_pct,
+                     "All mutant species share one hearing sensor.")
+        row = ctk.CTkFrame(f, fg_color="transparent")
+        row.pack(fill="x", **PAD)
+        ctk.CTkLabel(row, text="Species override", width=260, anchor="w").pack(side="left")
+        self.mut_menu = ctk.CTkOptionMenu(
+            row, values=["– load game data first –"], command=self._mut_select,
+            state="disabled", width=220, dynamic_resizing=False)
+        self.mut_menu.set("– load game data first –")
+        self.mut_menu.pack(side="left", padx=8)
+        self.mut_info = ctk.CTkLabel(row, text="", anchor="w", justify="left",
+                                     wraplength=420, text_color="gray60")
+        self.mut_info.pack(side="left", padx=8)
+        for param, label in (("hp", "Health"), ("speed", "Speed"), ("damage", "Damage")):
+            self.mut_sliders[param] = SliderRow(
+                f, label, 0.25, 5, 0.25, 1, fmt_factor,
+                on_change=self._mut_changed)
+        ctk.CTkLabel(
+            f, text="   ×1 (vanilla) = no override – the global mutant "
+                    "sliders above still apply to this species. Damage "
+                    "overrides scale each attack individually (Poltergeist "
+                    "& Rat deal damage indirectly – no effect there).",
+            anchor="w", font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "bs_cloak", "Bloodsucker cloaking speed", 0.25, 4, 0.25, 1, fmt_factor,
+                     "× 4 = bloodsuckers vanish almost instantly.")
+        self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
+                     "Higher = hitting them breaks the cloak much harder. "
+                     "× 0 = damage never reveals them.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Armor protection (all armor & helmets)")
@@ -493,6 +583,13 @@ class App(ctk.CTk):
         self._slider(f, "wbleed", "Weapon bleeding", 0, 300, 25, 100, fmt_pct,
                      "Bleeding chance and intensity your shots inflict. "
                      "0 % = your bullets never cause bleeding.")
+        self._slider(f, "adsmove", "ADS movement speed", 50, 200, 10, 100, fmt_pct,
+                     "How fast you move while aiming down sights "
+                     "(vanilla varies 58–150 % of run speed per weapon).")
+        self._slider(f, "magazine", "Magazine size", 50, 300, 25, 100, fmt_pct,
+                     "Scales weapon base capacity AND all magazine "
+                     "attachments (launchers never drop below 1 round).")
+        self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Ammo (all calibers)")
@@ -557,7 +654,15 @@ class App(ctk.CTk):
 
         body = self._tab("World")
         f = self._section(body, "World & survival")
-        self._slider(f, "anomaly", "Anomaly damage", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "anomaly", "Anomaly damage (all types)", 0.1, 5, 0.1, 1, fmt_factor,
+                     "Global difficulty multiplier – stacks with the "
+                     "per-type sliders below.")
+        self._slider(f, "anom_electro", "Anomaly damage: electro", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "anom_chem", "Anomaly damage: chemical", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "anom_fire", "Anomaly damage: fire", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "anom_grav", "Anomaly damage: gravity", 0.1, 5, 0.1, 1, fmt_factor,
+                     "Carousel, Razor, Expulsion, Diamond … "
+                     "(PSY anomalies drain psy, not health – no slider).")
         self._slider(f, "radiation", "Radiation accumulation", 0, 5, 0.25, 1, fmt_factor,
                      "× 0 = no radiation buildup.")
         self._slider(f, "bleeding", "Bleeding intensity", 0, 5, 0.25, 1, fmt_factor)
@@ -565,6 +670,16 @@ class App(ctk.CTk):
                      "0 % = never get hungry.")
         self._slider(f, "sleep", "Sleepiness rate", 0, 300, 10, 100, fmt_pct,
                      "0 % = never get sleepy.")
+        self._slider(f, "consumable", "Consumable strength", 25, 300, 25, 100, fmt_pct,
+                     "Medkits, bandages, food, drinks: healing, bleeding/"
+                     "radiation removal, stamina etc. Penalties (drunkness, "
+                     "spoiled food) stay vanilla.")
+        self._slider(f, "rain", "Rain & storm frequency", 0, 300, 25, 100, fmt_pct,
+                     "Weight of rainy/stormy/thunder weather in the rotation. "
+                     "0 % = practically always dry.")
+        self._slider(f, "emission", "Emission frequency", 25, 400, 25, 100, fmt_pct,
+                     "How often emissions build up (quest-controlled "
+                     "no-emission zones stay untouched).")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Artifacts")
@@ -670,12 +785,16 @@ class App(ctk.CTk):
             row.set_state(state)
         for row in self.iw_sliders.values():
             row.set_state(state)
+        for row in self.mut_sliders.values():
+            row.set_state(state)
         for box in list(self.checks.values()) + list(self.cat_checks.values()):
             box.configure(state=state)
         self.iw_clear_btn.configure(state=state)
-        # Waffen-Dropdown nur aktivieren, wenn die Liste geladen ist
+        # Dropdowns nur aktivieren, wenn die Listen geladen sind
         self.iw_menu.configure(
             state=state if (enabled and self._iw_categories) else "disabled")
+        self.mut_menu.configure(
+            state=state if (enabled and self._mut_species) else "disabled")
 
     def _set_status(self, text: str):
         self._msgs.put(("status", text))
@@ -691,6 +810,7 @@ class App(ctk.CTk):
                     self.game_label.configure(text=payload)
                 elif kind == "ready":
                     self._iw_populate()
+                    self._mut_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
                     self.btn_confirm.configure(state="normal",
@@ -839,6 +959,12 @@ class App(ctk.CTk):
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
             mutant_hp_factor=s["mhp"].get(),
             mutant_damage_factor=s["mdmg"].get(),
+            mutant_speed_factor=s["mspeed"].get(),
+            mutant_hearing_factor=s["mhearing"].get() / 100.0,
+            mutant_overrides={sp: dict(v)
+                              for sp, v in self.mutant_overrides.items()},
+            bloodsucker_cloak_factor=s["bs_cloak"].get(),
+            bloodsucker_uncloak_factor=s["bs_uncloak"].get(),
             explosion_damage_factor=s["expl"].get(),
             durability_factor=s["dur"].get(),
             armor_durability_factor=s["dur_armor"].get(),
@@ -857,6 +983,9 @@ class App(ctk.CTk):
             recoil_factor=s["recoil"].get() / 100.0,
             weapon_range_factor=s["wrange"].get() / 100.0,
             weapon_bleeding_factor=s["wbleed"].get() / 100.0,
+            ads_speed_factor=s["adsmove"].get() / 100.0,
+            magazine_factor=s["magazine"].get() / 100.0,
+            melee_damage_factor=s["melee"].get() / 100.0,
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
@@ -865,10 +994,17 @@ class App(ctk.CTk):
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},
             anomaly_damage_factor=s["anomaly"].get(),
+            anomaly_electro_factor=s["anom_electro"].get(),
+            anomaly_chemical_factor=s["anom_chem"].get(),
+            anomaly_fire_factor=s["anom_fire"].get(),
+            anomaly_gravity_factor=s["anom_grav"].get(),
             radiation_factor=s["radiation"].get(),
             bleeding_factor=s["bleeding"].get(),
             hunger_rate_factor=s["hunger"].get() / 100.0,
             sleepiness_rate_factor=s["sleep"].get() / 100.0,
+            consumable_factor=s["consumable"].get() / 100.0,
+            rain_factor=s["rain"].get() / 100.0,
+            emission_factor=s["emission"].get() / 100.0,
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
@@ -918,6 +1054,9 @@ class App(ctk.CTk):
         for box in self.cat_checks.values():
             box.select()
         self._iw_clear_all()
+        self.mutant_overrides.clear()
+        if self._mut_current is not None:
+            self._mut_select(self._mut_current)
 
     def _ui_state(self) -> dict:
         """Kompletter Regler-Zustand (fuer settings.json UND Presets)."""
@@ -926,6 +1065,7 @@ class App(ctk.CTk):
             "checks": {k: bool(v.get()) for k, v in self.checks.items()},
             "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
             "weapon_overrides": self.weapon_overrides,
+            "mutant_overrides": self.mutant_overrides,
         }
 
     def _save_ui_settings(self):
@@ -969,9 +1109,11 @@ class App(ctk.CTk):
             messagebox.showerror(APP_TITLE, "Could not read that preset file.")
             return
         self.weapon_overrides.clear()
+        self.mutant_overrides.clear()
         self._apply_ui_state(data)
         if self.gd is not None:
             self._iw_populate()
+            self._mut_populate()
         self.status.configure(text=f"Preset loaded: {path}")
 
     def _load_ui_settings(self):
@@ -1019,6 +1161,15 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.weapon_overrides[sid] = clean
+        for species, params in (data.get("mutant_overrides") or {}).items():
+            try:
+                clean = {p: float(v) for p, v in params.items()
+                         if p in ("hp", "speed", "damage")
+                         and abs(float(v) - 1.0) > 1e-9}
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if clean:
+                self.mutant_overrides[species] = clean
 
     def _on_close(self):
         self._save_ui_settings()
