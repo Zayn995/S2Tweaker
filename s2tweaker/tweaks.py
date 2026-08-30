@@ -55,10 +55,34 @@ SPRINT_DRAIN_TAGS = {
     "EStateTag::Run",
 }
 
-MOVEMENT_SPEED_KEYS = [
-    "WalkSpeed", "RunSpeed", "CrouchSpeed", "LowCrouchSpeed",
-    "JoggingSpeed", "SprintSpeed",
-]
+# --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
+WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate"]
+
+WEAPON_PARAM_LABELS = {  # GUI (englisch)
+    "damage": "Damage",
+    "spread": "Spread",
+    "recoil": "Recoil",
+    "durability": "Durability",
+    "firerate": "Fire rate",
+}
+
+WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
+    "pistol": "Pistols",
+    "smg": "SMGs",
+    "rifle": "Assault rifles",
+    "shotgun": "Shotguns",
+    "dmr": "Marksman rifles (DMR)",
+    "sniper": "Sniper rifles",
+    "mg": "Machine guns",
+    "launcher": "Grenade launchers",
+}
+
+
+# Gangarten getrennt regelbar: Animation/Schrittsound skalieren NICHT mit
+# (Engine-Assets, per cfg unerreichbar) -- getrennte Regler halten den
+# sichtbaren Versatz klein (Referenz: Nexus-Mod 2314 laesst Walk unangetastet).
+WALK_SPEED_KEYS = ["WalkSpeed", "CrouchSpeed", "LowCrouchSpeed"]
+RUN_SPEED_KEYS = ["RunSpeed", "JoggingSpeed", "SprintSpeed"]
 
 
 @dataclass
@@ -71,7 +95,8 @@ class Settings:
     max_stamina: float = 100.0               # Vanilla 100
     stamina_regen: float = 5.0               # SP/s, Vanilla 5
     fall_damage_pct: float = 100.0           # 100 = Vanilla, 0 = kein Fallschaden
-    movement_speed_factor: float = 1.0       # alle Gangarten
+    walk_speed_factor: float = 1.0           # Gehen + Schleichen
+    run_speed_factor: float = 1.0            # Laufen + Sprinten
     jump_height_factor: float = 1.0          # JumpSpeedCoef
 
     # --- Ausdauer-Kosten einzeln (Faktor, 1.0 = Vanilla) ---
@@ -95,6 +120,12 @@ class Settings:
     headshot_factor: float = 1.0
     npc_damage_factor: float = 1.0
     npc_hp_factor: float = 1.0
+    # --- NPCs & KI ---
+    npc_accuracy_factor: float = 1.0     # >1 = praeziser (Dispersion kleiner)
+    npc_vision_factor: float = 1.0       # Sichtweite (Story-Bosse ausgenommen)
+    npc_hearing_factor: float = 1.0      # Hoerweite (Mutanten ausgenommen)
+    npc_grenade_factor: float = 1.0      # 0 = nie werfen (-1-Bosse bleiben)
+    npc_no_heal: bool = False            # RegenHP=0 fuer alle Human-NPCs
     mutant_hp_factor: float = 1.0
     mutant_damage_factor: float = 1.0
     explosion_damage_factor: float = 1.0
@@ -107,6 +138,11 @@ class Settings:
     breath_regen_factor: float = 1.0
     spread_factor: float = 1.0               # Streuung; 0 = laserpraezise
     recoil_factor: float = 1.0               # Rueckstoss
+
+    # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
+    # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
+    weapon_category_factors: dict = field(default_factory=dict)  # {kat: {param: f}}
+    weapon_overrides: dict = field(default_factory=dict)         # {WGS-SID: {param: f}}
 
     # --- Welt & Survival ---
     anomaly_damage_factor: float = 1.0
@@ -122,6 +158,12 @@ class Settings:
     repair_cost_factor: float = 1.0
     upgrade_cost_factor: float = 1.0
     quest_reward_factor: float = 1.0
+    # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
+    weapon_price_factor: float = 1.0
+    armor_price_factor: float = 1.0
+    ammo_price_factor: float = 1.0
+    artifact_price_factor: float = 1.0
+    consumable_price_factor: float = 1.0
 
 
 def _num(x: float) -> str:
@@ -169,11 +211,13 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
         player["StaminaPerAction"] = actions
 
     movement: dict = {}
-    if _neq(s.movement_speed_factor, 1.0):
-        for key in MOVEMENT_SPEED_KEYS:
-            vanilla = parse_number(gd.resolve(gd.obj, "Player", f"MovementParams.{key}"))
-            if vanilla > 0:
-                movement[key] = _num(vanilla * s.movement_speed_factor)
+    for factor, keys in ((s.walk_speed_factor, WALK_SPEED_KEYS),
+                         (s.run_speed_factor, RUN_SPEED_KEYS)):
+        if _neq(factor, 1.0):
+            for key in keys:
+                vanilla = parse_number(gd.resolve(gd.obj, "Player", f"MovementParams.{key}"))
+                if vanilla > 0:
+                    movement[key] = _num(vanilla * factor)
     if _neq(s.jump_height_factor, 1.0):
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.JumpSpeedCoef"), 1.0)
         movement["JumpSpeedCoef"] = _num(vanilla * s.jump_height_factor)
@@ -185,6 +229,114 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
         player["Protection"] = {"Fall": _num(100.0 - s.fall_damage_pct)}
 
     return {"Player": player} if player else {}
+
+
+# Vision: Player/NoVision nie anfassen; Boss/ScarBoss-Scanner (Korshunov,
+# Scar, StrelokMutant) bewusst ausgenommen. ACHTUNG Vanilla-Ausreisser:
+# der Faust-Bosskampf nutzt DefaultNPC-Vision (wird also mitskaliert) und
+# der Supersoldier als einziger Mutant DefaultNPC-Hearing — beides ist in
+# den GUI-Tooltips dokumentiert; sauberer Fix (eigener Sensor-Klon per
+# Patch) steht in docs/ROADMAP.md fuer nach den In-Game-Tests.
+NPC_VISION_SKIP = {"Player", "NoVision", "ScarBoss", "Boss"}
+NPC_HEARING_SKIP = {"MutantsHearingSensor"}
+
+
+def _npc_heal_patch(gd: GameData, s: Settings) -> dict:
+    """NPCs heilen sich nicht mehr: RegenHP=0 pro NPC-Prototyp (die Structs
+    sind voll expandiert, ein Patch am Basis-Struct reicht daher nicht)."""
+    if not s.npc_no_heal:
+        return {}
+    return {sid: {"VitalParams": {"RegenHP": "0.0"}}
+            for sid in sorted(gd.npcs_with_regen())}
+
+
+def _vision_patch(gd: GameData, s: Settings) -> dict:
+    if not _neq(s.npc_vision_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.visionscanners.children.items():
+        if sid in NPC_VISION_SKIP or "#" in sid:
+            continue
+        cfg = {}
+        for key in ("CentralVisionDistance", "PeripheralVisionDistance"):
+            value = parse_number(node.values.get(key))
+            if value > 0:
+                cfg[key] = _num(value * s.npc_vision_factor)
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _hearing_patch(gd: GameData, s: Settings) -> dict:
+    """SoundEvents-Array: komplette Eintraege ({Type, HearingDistance})
+    emittieren, nur Distanzen > 0 skalieren."""
+    if not _neq(s.npc_hearing_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.hearingsensors.children.items():
+        if sid in NPC_HEARING_SKIP or "#" in sid:
+            continue
+        events = node.children.get("SoundEvents")
+        if events is None:
+            continue
+        entries: dict = {}
+        for idx, entry in events.children.items():
+            distance = parse_number(entry.values.get("HearingDistance"))
+            if distance <= 0:
+                continue
+            entries[idx] = {
+                "Type": entry.values.get("Type", "ESoundEventType::None"),
+                "HearingDistance": _num(distance * s.npc_hearing_factor),
+            }
+        if entries:
+            patches[sid] = {"SoundEvents": entries}
+    return patches
+
+
+def _npc_weapon_patch(gd: GameData, s: Settings) -> dict:
+    """CWS *_NPC-Structs: DispersionRadius / Genauigkeits-Faktor
+    (Faktor > 1 = NPCs treffen besser)."""
+    if not _neq(s.npc_accuracy_factor, 1.0) or s.npc_accuracy_factor <= 0:
+        return {}
+    patches: dict = {}
+    for sid in sorted(gd.weaponsettings.children):
+        if "_NPC" not in sid or "#" in sid:
+            continue
+        value = parse_number(gd.resolve(gd.weaponsettings, sid, "DispersionRadius"))
+        if value > 0:
+            patches[sid] = {
+                "DispersionRadius": _num(value / s.npc_accuracy_factor)}
+    return patches
+
+
+def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
+    """AvailableGrenadesPerFaction: Anzahl pro Fraktion/Rang skalieren.
+    -1 (= unbegrenzt, Boss-Fraktionen) wird nie angefasst."""
+    if not _neq(s.npc_grenade_factor, 1.0):
+        return {}
+    root = gd.aiglobals.children.get("AISettings")
+    throw = root.children.get("ThrowGrenadeSettings") if root else None
+    per_faction = throw.children.get("AvailableGrenadesPerFaction") if throw else None
+    if per_faction is None:
+        return {}
+    factions: dict = {}
+    for faction, node in per_faction.children.items():
+        if "#" in faction:
+            continue
+        ranks: dict = {}
+        for rank, raw in node.values.items():
+            count = parse_number(raw, -1.0)
+            if count < 0:
+                continue
+            scaled = int(round(count * s.npc_grenade_factor))
+            if scaled != int(count):
+                ranks[rank] = str(scaled)
+        if ranks:
+            factions[faction] = ranks
+    if not factions:
+        return {}
+    return {"AISettings": {"ThrowGrenadeSettings": {
+        "AvailableGrenadesPerFaction": factions}}}
 
 
 def _mutants_patch(gd: GameData, s: Settings) -> dict:
@@ -219,36 +371,121 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("EconomyDifficulty", "Upgrade_Cost", s.upgrade_cost_factor)
     apply("EconomyDifficulty", "Reward_MainLine_Money", s.quest_reward_factor)
     apply("EconomyDifficulty", "Reward_SideLine_Money", s.quest_reward_factor)
+    apply("EconomyDifficulty", "Weapon_Cost", s.weapon_price_factor)
+    apply("EconomyDifficulty", "Armor_Cost", s.armor_price_factor)
+    apply("EconomyDifficulty", "Ammo_Cost", s.ammo_price_factor)
+    apply("EconomyDifficulty", "Artifact_Cost", s.artifact_price_factor)
+    apply("EconomyDifficulty", "Consumable_Cost", s.consumable_price_factor)
     return patches
 
 
+def _weapon_factor(s: Settings, category: str | None, wgs_sid: str,
+                   param: str, global_factor: float = 1.0) -> float:
+    """Kaskade Einzelwaffe > Kategorie > globaler Regler."""
+    value = s.weapon_overrides.get(wgs_sid, {}).get(param)
+    if value is None and category is not None:
+        value = s.weapon_category_factors.get(category, {}).get(param)
+    if value is None:
+        value = global_factor
+    return value
+
+
 def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
-    """*_Player-Waffen-Settings: Abnutzung pro Schuss + Streuung."""
+    """CharacterWeaponSettings: Schaden, Streuung, Abnutzung (Kaskade).
+
+    Mehrere Waffen koennen sich EIN CWS-Struct teilen (AK74-Familie ->
+    GunAK74_ST_Player) und Unikate heissen *_Player_WS — daher wird pro
+    CWS-Struct ueber ALLE darauf zeigenden Waffen kaskadiert: irgendein
+    Einzelwaffen-Override gewinnt, sonst irgendein Kategorie-Faktor,
+    sonst der globale Regler (letzterer wie bisher nur fuer klassische
+    *_Player-Structs). Schaden hat keinen globalen per-Waffe-Regler
+    (global wirkt der Difficulty-Multiplikator Weapon_BaseDamage und
+    multipliziert sich im Spiel mit Kategorie/Einzelwaffe)."""
+    by_cws: dict[str, list[tuple[str, str | None]]] = {}
+    for wgs, (cat, cws) in sorted(gd.player_weapons().items()):
+        if cws:
+            by_cws.setdefault(cws, []).append((wgs, cat))
+
+    sids = set(by_cws)
+    sids.update(sid for sid in gd.weaponsettings.children
+                if "_Player" in sid and "#" not in sid)
+
+    def factor_for(sid: str, param: str, global_factor: float) -> float:
+        refs = by_cws.get(sid)
+        if not refs:
+            wgs = sid.replace("_Player", "")
+            refs = [(wgs, gd.weapon_category(wgs))]
+        for wgs, _cat in refs:
+            value = s.weapon_overrides.get(wgs, {}).get(param)
+            if value is not None:
+                return value
+        for _wgs, cat in refs:
+            if cat is not None:
+                value = s.weapon_category_factors.get(cat, {}).get(param)
+                if value is not None:
+                    return value
+        return global_factor if "_Player" in sid else 1.0
+
     patches: dict = {}
-    if _neq(s.durability_factor, 1.0):
-        for sid, wear in sorted(gd.player_weapon_wear().items()):
-            patches.setdefault(sid, {})["DurabilityDamagePerShot"] = _num(
-                wear / s.durability_factor)
-    if _neq(s.spread_factor, 1.0):
-        for sid, radius in sorted(gd.player_weapon_dispersion().items()):
-            patches.setdefault(sid, {})["DispersionRadius"] = _num(
-                radius * s.spread_factor)
+    for sid in sorted(sids):
+        if "#" in sid or sid not in gd.weaponsettings.children:
+            continue
+
+        def scaled(key: str, factor: float, invert: bool = False):
+            if not _neq(factor, 1.0) or factor <= 0:
+                return
+            value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
+            if value > 0:
+                patches.setdefault(sid, {})[key] = _num(
+                    value / factor if invert else value * factor)
+
+        scaled("DurabilityDamagePerShot",
+               factor_for(sid, "durability", s.durability_factor), invert=True)
+        scaled("DispersionRadius", factor_for(sid, "spread", s.spread_factor))
+        scaled("BaseDamage", factor_for(sid, "damage", 1.0))
     return patches
 
 
 def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
-    """WeaponGeneralSetup: Erstschuss-Streuung + Rueckstoss (verschachtelt)."""
+    """WeaponGeneralSetup: Streuung, Rueckstoss, Feuerrate (Kaskade).
+
+    Gepatcht werden Structs, die den Wert SELBST definieren — Erben
+    skalieren ueber den Eltern-Patch automatisch mit. Einzelwaffen-
+    Overrides werden zusaetzlich am eigenen Struct emittiert (Wert via
+    gd.resolve aufgeloest), falls die Waffe den Wert nur erbt."""
     patches: dict = {}
-    if _neq(s.spread_factor, 1.0):
-        values = gd.weapon_general_values("DispersionParams.FirstShotDispersionRadius")
+
+    def emit(sid: str, path: str, value: float):
+        node = patches.setdefault(sid, {})
+        parts = path.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = _num(value)
+
+    def scale(path: str, param: str, global_factor: float = 1.0,
+              invert: bool = False):
+        values = gd.weapon_general_values(path)
         for sid, value in sorted(values.items()):
-            patches.setdefault(sid, {}).setdefault("DispersionParams", {})[
-                "FirstShotDispersionRadius"] = _num(value * s.spread_factor)
-    if _neq(s.recoil_factor, 1.0):
-        values = gd.weapon_general_values("RecoilParams.RecoilRadius")
-        for sid, value in sorted(values.items()):
-            patches.setdefault(sid, {}).setdefault("RecoilParams", {})[
-                "RecoilRadius"] = _num(value * s.recoil_factor)
+            f = _weapon_factor(s, gd.weapon_category(sid), sid, param,
+                               global_factor)
+            if not _neq(f, 1.0) or f <= 0:
+                continue
+            emit(sid, path, value / f if invert else value * f)
+        for sid, params in sorted(s.weapon_overrides.items()):
+            f = params.get(param)
+            if f is None or sid in values or not _neq(f, 1.0) or f <= 0:
+                continue
+            value = parse_number(gd.resolve(gd.weapongeneral, sid, path))
+            if value > 0:
+                emit(sid, path, value / f if invert else value * f)
+
+    scale("DispersionParams.FirstShotDispersionRadius", "spread",
+          s.spread_factor)
+    scale("RecoilParams.RecoilRadius", "recoil", s.recoil_factor)
+    # Feuerrate: Faktor 2 = doppelt so schnell -> Intervalle halbieren;
+    # RecoilInterval synchron, sonst laufen Rueckstoss und Schuss auseinander
+    scale("FireInterval", "firerate", invert=True)
+    scale("RecoilInterval", "firerate", invert=True)
     return patches
 
 
@@ -335,18 +572,27 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
         ):
             if sid in gd.effects.children:
                 patches[sid] = {"ValueMin": "0%", "ValueMax": "0%"}
-    if _neq(s.scope_sway_pct, 100):
-        # Sway-Reduktion (Zielfernrohr-Effekte): -1.0 = -100 % Sway.
-        # ValueProviderSID=Empty macht den Wert konstant (statt x Aim-Alpha).
-        value = _num(-(1.0 - s.scope_sway_pct / 100.0))
-        for sid in ("ScopeIdleSwayXModifierEffect", "ScopeIdleSwayYModifierEffect"):
-            if sid in gd.effects.children:
-                patches[sid] = {
-                    "ValueMin": value,
-                    "ValueMax": value,
-                    "ValueProviderSID": "Empty",
-                }
     return patches
+
+
+def _floatprovider_patch(gd: GameData, s: Settings) -> dict:
+    """Scope-Sway ueber den Konstant-Provider regeln (Bugfix).
+
+    Vanilla speist ScopeIdleSwayValue = ScopeIdleSwayConstValue x
+    (1 - OffsetAimAlpha) die Sway-Effekte pro Tick und blendet den Daempfer
+    beim Offset-Aiming (seitliches Zielen am ZF vorbei) auf 0 aus. Ein Patch
+    direkt an den Effekten (ValueProviderSID=Empty) legte diese Ausblendung
+    still -- die Offset-Aim-Animation blieb aus (Nexus-Bugreport).
+    Hier wird nur die Konstante skaliert; die Provider-Kette bleibt intakt.
+    """
+    if not _neq(s.scope_sway_pct, 100):
+        return {}
+    # Vanilla-Konstante -0.2 = -20 % Sway im ZF; 100 % = Vanilla, 0 % = -1.0
+    # (kein Sway). Dazwischen linear auf dem Rest-Sway (1 + Konstante).
+    vanilla = parse_number(
+        gd.resolve(gd.floatproviders, "ScopeIdleSwayConstValue", "Value"), -0.2)
+    value = -(1.0 - (1.0 + vanilla) * s.scope_sway_pct / 100.0)
+    return {"ScopeIdleSwayConstValue": {"Value": _num(value)}}
 
 
 def _holdbreath_patch(gd: GameData, s: Settings) -> dict:
@@ -451,14 +697,17 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 
     obj_patches = _player_patch(gd, s)
     obj_patches.update(_mutants_patch(gd, s))
+    obj_patches.update(_npc_heal_patch(gd, s))
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
 
     add(f"DifficultyPrototypes/DifficultyPrototypes_patch_{n}.cfg",
         _difficulty_patch(gd, s))
+    cws_patches = _weapon_settings_patch(gd, s)
+    cws_patches.update(_npc_weapon_patch(gd, s))
     add(
         "WeaponData/CharacterWeaponSettingsPrototypes/"
         f"CharacterWeaponSettingsPrototypes_patch_{n}.cfg",
-        _weapon_settings_patch(gd, s),
+        cws_patches,
     )
     add(
         "WeaponData/WeaponGeneralSetupPrototypes/"
@@ -470,9 +719,16 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ObjEffectMaxParamsPrototypes/ObjEffectMaxParamsPrototypes_patch_{n}.cfg",
         _effect_max_patch(gd, s))
     add(f"EffectPrototypes/EffectPrototypes_patch_{n}.cfg", _effects_patch(gd, s))
+    add(f"FloatProviderPrototypes/FloatProviderPrototypes_patch_{n}.cfg",
+        _floatprovider_patch(gd, s))
     add(f"ObjHoldBreathParamsPrototypes/ObjHoldBreathParamsPrototypes_patch_{n}.cfg",
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
+    add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
+    add("AIPrototypes/VisionScannerPrototypes/"
+        f"VisionScannerPrototypes_patch_{n}.cfg", _vision_patch(gd, s))
+    add("AIPrototypes/HearingSensorPrototypes/"
+        f"HearingSensorPrototypes_patch_{n}.cfg", _hearing_patch(gd, s))
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", _items_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", _trade_patch(gd, s))
 
@@ -501,7 +757,8 @@ def summarize(s: Settings) -> list[str]:
             lines.append(f"Stamina cost {key} × {factor:g}")
     if _neq(s.fall_damage_pct, 100):
         lines.append(f"Fall damage {s.fall_damage_pct:g} %")
-    f("Movement speed", s.movement_speed_factor)
+    f("Walk & crouch speed", s.walk_speed_factor)
+    f("Run & sprint speed", s.run_speed_factor)
     f("Jump height", s.jump_height_factor)
 
     if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):
@@ -520,6 +777,12 @@ def summarize(s: Settings) -> list[str]:
     f("Headshot damage", s.headshot_factor)
     f("Human NPC damage", s.npc_damage_factor)
     f("Human NPC health", s.npc_hp_factor)
+    f("NPC accuracy", s.npc_accuracy_factor)
+    f("NPC vision range", s.npc_vision_factor)
+    f("NPC hearing range", s.npc_hearing_factor)
+    f("NPC grenade usage", s.npc_grenade_factor)
+    if s.npc_no_heal:
+        lines.append("NPCs don't self-heal")
     f("Mutant health", s.mutant_hp_factor)
     f("Mutant damage", s.mutant_damage_factor)
     f("Explosion damage", s.explosion_damage_factor)
@@ -532,6 +795,19 @@ def summarize(s: Settings) -> list[str]:
     f("Breath recovery", s.breath_regen_factor)
     f("Weapon spread", s.spread_factor)
     f("Weapon recoil", s.recoil_factor)
+
+    for cat, params in sorted(s.weapon_category_factors.items()):
+        label = WEAPON_CATEGORY_LABELS.get(cat, cat)
+        for param in WEAPON_PARAMS:
+            value = params.get(param)
+            if value is not None and _neq(value, 1.0):
+                lines.append(
+                    f"{label}: {WEAPON_PARAM_LABELS[param].lower()} × {value:g}")
+    for sid, params in sorted(s.weapon_overrides.items()):
+        parts = [f"{WEAPON_PARAM_LABELS[p].lower()} × {v:g}"
+                 for p, v in sorted(params.items()) if _neq(v, 1.0)]
+        if parts:
+            lines.append(f"{sid}: " + ", ".join(parts))
 
     f("Anomaly damage", s.anomaly_damage_factor)
     f("Radiation accumulation", s.radiation_factor)
@@ -546,4 +822,9 @@ def summarize(s: Settings) -> list[str]:
     f("Repair cost", s.repair_cost_factor)
     f("Upgrade cost", s.upgrade_cost_factor)
     f("Quest money rewards", s.quest_reward_factor)
+    f("Weapon prices", s.weapon_price_factor)
+    f("Armor prices", s.armor_price_factor)
+    f("Ammo prices", s.ammo_price_factor)
+    f("Artifact prices", s.artifact_price_factor)
+    f("Consumable prices", s.consumable_price_factor)
     return lines

@@ -74,8 +74,9 @@ class CfgStruct:
             yield from child.walk()
 
 
+# Trailing ':' kommt in AIGlobals.cfg vor ("AISettings : struct.begin:")
 _STRUCT_BEGIN = re.compile(
-    r"^(?P<name>[^=:]+?)\s*:\s*struct\.begin(?:\s*\{(?P<attrs>[^}]*)\})?\s*$"
+    r"^(?P<name>[^=:]+?)\s*:\s*struct\.begin(?:\s*\{(?P<attrs>[^}]*)\})?\s*:?\s*$"
 )
 _KEY_VALUE = re.compile(r"^(?P<key>[^=:]+?)\s*=\s*(?P<value>.*)$")
 
@@ -139,10 +140,16 @@ def parse_file(path) -> CfgStruct:
 
 
 def parse_number(value: str | None, default: float = 0.0) -> float:
-    """GSC-Zahlenliterale wie '24.f', '0.3f', '100' nach float."""
+    """GSC-Zahlenliterale wie '24.f', '0.3f', '100', '1000.f;', '2%' nach float.
+
+    Trailing ';' (AIGlobals.cfg) und '%'-Literale werden toleriert;
+    '2%' liefert 2.0 (Prozentzahl, NICHT 0.02)."""
     if value is None:
         return default
-    v = value.strip().rstrip("fF").rstrip(".")
+    v = value.strip().rstrip(";").strip()
+    if v.endswith("%"):
+        v = v[:-1].strip()
+    v = v.rstrip("fF").rstrip(".")
     try:
         return float(v)
     except ValueError:

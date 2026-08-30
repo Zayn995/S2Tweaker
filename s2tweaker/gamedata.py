@@ -26,16 +26,21 @@ NEEDED_FILES = [
     "TradePrototypes.cfg.bin",
     "DifficultyPrototypes.cfg.bin",
     "EffectPrototypes.cfg.bin",
+    "FloatProviderPrototypes.cfg.bin",
     "ObjWeightParamsPrototypes.cfg.bin",
     "ObjEffectMaxParamsPrototypes.cfg.bin",
     "ObjHoldBreathParamsPrototypes.cfg.bin",
     "WeaponData/CharacterWeaponSettingsPrototypes.cfg.bin",
     "WeaponData/WeaponGeneralSetupPrototypes.cfg.bin",
+    "WeaponData/WeaponAttributesPrototypes.cfg.bin",
     "CoreVariables.cfg",
+    "AIGlobals.cfg",
+    "AIPrototypes/HearingSensorPrototypes.cfg.bin",
+    "AIPrototypes/VisionScannerPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 2
+CACHE_SCHEMA = 5
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
@@ -48,6 +53,27 @@ MUTANT_FACTIONS = {
 
 WEAPON_TEMPLATES = {"TemplateWeapon"}
 ARMOR_TEMPLATES = {"TemplateArmor"}
+
+# Kategorie-Templates in WeaponGeneralSetupPrototypes.cfg: jede Waffe erbt
+# per refkey (ggf. ueber Unikat-Zwischenstufen) von genau einem davon.
+WEAPON_CATEGORY_TEMPLATES = {
+    "TemplatePistol": "pistol",
+    "TemplateMAC": "smg",           # Maschinenpistolen -> SMG-Kategorie
+    "TemplateSMG": "smg",
+    "TemplateRifle": "rifle",
+    "TemplateRifleSingleFire": "rifle",
+    "TemplateShotgun": "shotgun",
+    "TemplateDMR": "dmr",
+    "TemplateSniper": "sniper",
+    "TemplateMG": "mg",
+    "TemplateGLaunch": "launcher",
+}
+
+# Ausreisser in den Spieldaten: der RPG-7 erbt kurioserweise von
+# TemplateSniper — fuer die Regler zaehlt er als Granatwerfer.
+WEAPON_CATEGORY_OVERRIDES = {
+    "GunRpg7_GL": "launcher",
+}
 
 CATEGORY_TEMPLATES = {
     "TemplateWeapon": "weapon",
@@ -84,8 +110,10 @@ class GameData:
 
         if not pak.is_file():
             # Steam aktualisiert gerade das Spiel o.ae. -> letzten Cache nutzen
+            # (nur Caches des AKTUELLEN Schemas: aeltere haben nicht alle
+            # NEEDED_FILES und wuerden beim Bauen crashen)
             fallback = sorted(
-                (d for d in cache_root.glob("vanilla-*")
+                (d for d in cache_root.glob(f"vanilla-*-s{CACHE_SCHEMA}")
                  if (d / ".complete").is_file()),
                 key=lambda d: d.stat().st_mtime,
             )
@@ -151,8 +179,16 @@ class GameData:
         return self._parse("EffectPrototypes.cfg")
 
     @cached_property
+    def floatproviders(self) -> CfgStruct:
+        return self._parse("FloatProviderPrototypes.cfg")
+
+    @cached_property
     def weaponsettings(self) -> CfgStruct:
         return self._parse("WeaponData/CharacterWeaponSettingsPrototypes.cfg")
+
+    @cached_property
+    def weaponattributes(self) -> CfgStruct:
+        return self._parse("WeaponData/WeaponAttributesPrototypes.cfg")
 
     @cached_property
     def trade(self) -> CfgStruct:
@@ -169,6 +205,18 @@ class GameData:
     @cached_property
     def corevars(self) -> CfgStruct:
         return self._parse("CoreVariables.cfg")
+
+    @cached_property
+    def aiglobals(self) -> CfgStruct:
+        return self._parse("AIGlobals.cfg")
+
+    @cached_property
+    def hearingsensors(self) -> CfgStruct:
+        return self._parse("AIPrototypes/HearingSensorPrototypes.cfg")
+
+    @cached_property
+    def visionscanners(self) -> CfgStruct:
+        return self._parse("AIPrototypes/VisionScannerPrototypes.cfg")
 
     @cached_property
     def trade_text(self) -> str:
@@ -237,6 +285,22 @@ class GameData:
             result[sid] = parse_number(hp)
         return result
 
+    def npcs_with_regen(self) -> dict[str, float]:
+        """{SID: RegenHP} aller menschlichen NPC-Prototypen mit
+        Selbstheilung (Mutanten und Player ausgenommen)."""
+        result: dict[str, float] = {}
+        for sid in self.obj.children:
+            if sid in ("[0]", "Player") or "#" in sid:
+                continue
+            chain = self._resolve_chain(self.obj, sid)
+            faction = self._chain_get(chain, "Faction")
+            if faction is None or faction in MUTANT_FACTIONS:
+                continue
+            regen = parse_number(self._chain_get(chain, "VitalParams.RegenHP"))
+            if regen > 0:
+                result[sid] = regen
+        return result
+
     def player_weapon_wear(self) -> dict[str, float]:
         """{SID: DurabilityDamagePerShot} aller *_Player-Waffen-Settings."""
         return self._player_weapon_values("DurabilityDamagePerShot")
@@ -256,6 +320,43 @@ class GameData:
             number = parse_number(value)
             if number > 0:
                 result[sid] = number
+        return result
+
+    def weapon_category(self, sid: str) -> str | None:
+        """Kategorie einer Waffe (WeaponGeneralSetup-SID) ueber die
+        refkey-Kette bis zum Kategorie-Template; None = keine Kategorie
+        (Quest-/Sonderwaffen) -> nur globale Regler greifen."""
+        for node in self._resolve_chain(self.weapongeneral, sid):
+            if node.name in WEAPON_CATEGORY_OVERRIDES:
+                return WEAPON_CATEGORY_OVERRIDES[node.name]
+            if node.name in WEAPON_CATEGORY_TEMPLATES:
+                return WEAPON_CATEGORY_TEMPLATES[node.name]
+        return None
+
+    def player_weapons(self) -> dict[str, tuple[str | None, str | None]]:
+        """{WGS-SID: (Kategorie, CWS-Struct-SID)} aller Spieler-Waffen.
+
+        Verknuepfungskette: Item -> PlayerWeaponAttributes
+        (WeaponAttributesPrototypes.cfg) -> DefaultWeaponSettingsSID ->
+        CharacterWeaponSettings-Struct. Der letzte Schritt ist Pflicht:
+        bei 24 Unikaten heisst der CWS-Struct *_Player_WS, nicht *_Player,
+        und mehrere Waffen koennen sich EIN CWS-Struct teilen
+        (z.B. die ganze AK74-Familie -> GunAK74_ST_Player)."""
+        result: dict[str, tuple[str | None, str | None]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "weapon":
+                continue
+            wgs = self.resolve(self.items, sid, "GeneralWeaponSetup")
+            attrs = self.resolve(self.items, sid, "PlayerWeaponAttributes")
+            if not wgs or wgs in result:
+                continue
+            cws = None
+            if attrs:
+                cws = self.resolve(self.weaponattributes, attrs,
+                                   "DefaultWeaponSettingsSID") or attrs
+            result[wgs] = (self.weapon_category(wgs), cws)
         return result
 
     def weapon_general_values(self, path: str) -> dict[str, float]:

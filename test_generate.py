@@ -31,15 +31,18 @@ from s2tweaker.cfgparse import parse_number
 print("HoldBreath Drain/Regen:",
       gd.resolve(gd.holdbreath, "DefaultHoldBreathParams", "HoldBreathDrainPerSecond"),
       gd.resolve(gd.holdbreath, "DefaultHoldBreathParams", "HoldBreathRegenPerSecond"))
-print("Sway-Effekte vorhanden:",
-      "ScopeIdleSwayXModifierEffect" in gd.effects.children,
-      "ScopeIdleSwayYModifierEffect" in gd.effects.children)
+print("Sway-Provider (Vanilla):",
+      gd.resolve(gd.floatproviders, "ScopeIdleSwayConstValue", "Value"))
 print("Player Sprint-Kosten:", gd.resolve(gd.obj, "Player", "StaminaPerAction.Sprint"))
 print("Player RunSpeed:", gd.resolve(gd.obj, "Player", "MovementParams.RunSpeed"))
+weapons = gd.player_weapons()
+from collections import Counter as _C
+print("Spieler-Waffen:", len(weapons), dict(_C(c for c, _ in weapons.values())))
 
 s = Settings(
     max_hp=200, hp_regen=2, max_stamina=300, stamina_regen=10,
-    fall_damage_pct=25, movement_speed_factor=1.2, jump_height_factor=1.3,
+    fall_damage_pct=25, walk_speed_factor=1.1, run_speed_factor=0.8,
+    jump_height_factor=1.3,
     stamina_sprint=0.5, stamina_jump=0.25, stamina_melee_light=0.5,
     stamina_melee_strong=0.5, stamina_buttstock=0.0, stamina_vault=0.75,
     max_carry_weight=200, penalty_start_weight=120, no_overweight_penalty=True,
@@ -53,6 +56,14 @@ s = Settings(
     trader_min_durability_pct=0, trader_buy_price_factor=1.5,
     trader_sell_price_factor=0.75, repair_cost_factor=0.5,
     upgrade_cost_factor=0.5, quest_reward_factor=2.0,
+    weapon_price_factor=1.5, armor_price_factor=0.75, ammo_price_factor=0.5,
+    artifact_price_factor=2.0, consumable_price_factor=1.25,
+    weapon_category_factors={"shotgun": {"damage": 2.0, "firerate": 1.5},
+                             "pistol": {"spread": 0.5}},
+    weapon_overrides={"GunM860_SG": {"damage": 3.0},
+                      "GunAK74_ST": {"recoil": 0.5}},
+    npc_accuracy_factor=2.0, npc_vision_factor=0.5, npc_hearing_factor=0.5,
+    npc_grenade_factor=2.0, npc_no_heal=True,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")
