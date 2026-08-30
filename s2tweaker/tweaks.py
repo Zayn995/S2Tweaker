@@ -56,7 +56,8 @@ SPRINT_DRAIN_TAGS = {
 }
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
-WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate"]
+WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
+                 "range", "bleeding"]
 
 WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -64,7 +65,13 @@ WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "recoil": "Recoil",
     "durability": "Durability",
     "firerate": "Fire rate",
+    "range": "Effective range",
+    "bleeding": "Bleeding",
 }
+
+# CWS-Schluessel, die der Range-Faktor gemeinsam skaliert
+WEAPON_RANGE_KEYS = ("EffectiveFireDistanceMin", "EffectiveFireDistanceMax",
+                     "FireDistanceDropOff", "DistanceDropOffLength")
 
 WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
     "pistol": "Pistols",
@@ -134,7 +141,8 @@ class Settings:
     mutant_hp_factor: float = 1.0
     mutant_damage_factor: float = 1.0
     explosion_damage_factor: float = 1.0
-    durability_factor: float = 1.0
+    durability_factor: float = 1.0           # Waffen-Verschleiss (Kaskade)
+    armor_durability_factor: float = 1.0     # Ruestungs-"Gesundheit" (Difficulty)
     jamming_factor: float = 1.0              # 0 = Waffen klemmen nie
 
     # --- Waffenhandling ---
@@ -143,6 +151,13 @@ class Settings:
     breath_regen_factor: float = 1.0
     spread_factor: float = 1.0               # Streuung; 0 = laserpraezise
     recoil_factor: float = 1.0               # Rueckstoss
+    weapon_range_factor: float = 1.0         # effektive Reichweite (Kaskade)
+    weapon_bleeding_factor: float = 1.0      # Blutungs-Chance/-Staerke (Kaskade)
+    # --- Munition (global ueber alle Munitionstypen) ---
+    ammo_damage_factor: float = 1.0
+    ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
+    ammo_armor_damage_factor: float = 1.0
+    ammo_cover_factor: float = 1.0
 
     # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
     # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
@@ -159,6 +174,11 @@ class Settings:
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
     artifact_spawn_factor: float = 1.0       # Spawn-Chance der Artefakt-Spawner
+
+    # --- Ausruestung / Welt-Extras ---
+    detector_range_factor: float = 1.0       # Detektoren + Anomalie-Piepser
+    fast_travel_cost_factor: float = 1.0     # 0 = Schnellreise gratis
+    trader_restock_factor: float = 1.0       # Restock-Zeit der Haendler
 
     # --- Wirtschaft ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
@@ -447,7 +467,7 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("NPCCombatDifficulty", "NPC_HP", s.npc_hp_factor)
     apply("MutantCombatDifficulty", "Mutant_BaseDamage", s.mutant_damage_factor)
     apply("EnvironmentDifficulty", "Explosion_BaseDamage", s.explosion_damage_factor)
-    apply("EnvironmentDifficulty", "Armor_Durability", s.durability_factor)
+    apply("EnvironmentDifficulty", "Armor_Durability", s.armor_durability_factor)
     apply("NPCCombatDifficulty", "Weapon_JammingMultiplier", s.jamming_factor)
     apply("EnvironmentDifficulty", "Anomaly_Damage", s.anomaly_damage_factor)
     apply("EnvironmentDifficulty", "Radiation_AccumulationSpeed", s.radiation_factor)
@@ -527,6 +547,23 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
                factor_for(sid, "durability", s.durability_factor), invert=True)
         scaled("DispersionRadius", factor_for(sid, "spread", s.spread_factor))
         scaled("BaseDamage", factor_for(sid, "damage", 1.0))
+
+        range_factor = factor_for(sid, "range", s.weapon_range_factor)
+        for key in WEAPON_RANGE_KEYS:
+            scaled(key, range_factor)
+
+        # Bleeding darf auch auf 0 (nie bluten) — daher ohne scaled()-Guard
+        bleed_factor = factor_for(sid, "bleeding", s.weapon_bleeding_factor)
+        if _neq(bleed_factor, 1.0) and bleed_factor >= 0:
+            value = parse_number(gd.resolve(gd.weaponsettings, sid, "BaseBleeding"))
+            if value > 0:
+                patches.setdefault(sid, {})["BaseBleeding"] = _num(value * bleed_factor)
+            # ChanceBleedingPerShot ist ein %-Literal ("10%")
+            raw = gd.resolve(gd.weaponsettings, sid, "ChanceBleedingPerShot")
+            if raw is not None:
+                scaled_raw = _scale_literal(raw, bleed_factor)
+                if scaled_raw is not None and scaled_raw != raw.strip():
+                    patches.setdefault(sid, {})["ChanceBleedingPerShot"] = scaled_raw
     return patches
 
 
@@ -761,6 +798,89 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
             patches[sid] = {"Weight": _num(weight * s.item_weight_factor)}
     if s.ignore_equipped_weight:
         patches["[0]"] = {"IgnoreEquippedWeight": "true"}
+
+    # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte)
+    ammo_factors = {
+        "DamageMod": s.ammo_damage_factor,
+        "ArmorPiercingMod": s.ammo_piercing_factor,
+        "ArmorDamageMod": s.ammo_armor_damage_factor,
+        "CoverPiercingMod": s.ammo_cover_factor,
+    }
+    if any(_neq(f, 1.0) for f in ammo_factors.values()):
+        for sid, mods in sorted(gd.ammo_mods().items()):
+            cfg = {}
+            for key, factor in ammo_factors.items():
+                if not _neq(factor, 1.0) or key not in mods:
+                    continue
+                vanilla = mods[key]
+                scaled = vanilla * factor
+                if _neq(scaled, vanilla):
+                    cfg[key] = _num(scaled)
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
+
+    # Artefakt-Detektor-Items (Echo/Bear/Veles/Gilka): Reichweiten skalieren
+    if _neq(s.detector_range_factor, 1.0):
+        for sid, radii in sorted(gd.detector_items().items()):
+            cfg = {key: _num(value * s.detector_range_factor) + "f"
+                   for key, value in radii.items()}
+            patches.setdefault(sid, {}).update(cfg)
+    return patches
+
+
+def _passive_detector_patch(gd: GameData, s: Settings) -> dict:
+    """Anomalie-Piepser & Searchpoint-Scanner: DetectorRadius skalieren."""
+    if not _neq(s.detector_range_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for name, node in gd.passivedetectors.children.items():
+        if "#" in name:
+            continue
+        radius = parse_number(node.values.get("DetectorRadius"))
+        if radius > 0:
+            patches[name] = {
+                "DetectorRadius": _num(radius * s.detector_range_factor)}
+    return patches
+
+
+def _fasttravel_patch(gd: GameData, s: Settings) -> dict:
+    """RequiredMoney je Reiseziel skalieren (0 = Schnellreise gratis)."""
+    if not _neq(s.fast_travel_cost_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.fasttravel.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        locations = node.children.get("Locations")
+        if locations is None:
+            continue
+        entries: dict = {}
+        for idx, entry in locations.children.items():
+            money = parse_number(entry.values.get("RequiredMoney"))
+            if money > 0:
+                entries[idx] = {"RequiredMoney": _num(
+                    money * s.fast_travel_cost_factor)}
+        if entries:
+            patches[sid] = {"Locations": entries}
+    return patches
+
+
+def _restock_patch(gd: GameData, s: Settings) -> dict:
+    """TradeRegen-Bedingungen: Days/Hours skalieren (Minimum 1)."""
+    if not _neq(s.trader_restock_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.boolproviders.children.items():
+        if not sid.startswith("TradeRegen") or "#" in sid:
+            continue
+        for key in ("Days", "Hours"):
+            raw = node.values.get(key)
+            if raw is None:
+                continue
+            vanilla = parse_number(raw)
+            scaled = max(1, int(round(vanilla * s.trader_restock_factor)))
+            if scaled != int(vanilla):
+                patches[sid] = {key: str(scaled)}
     return patches
 
 
@@ -837,6 +957,12 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _camerashake_patch(gd, s))
     add(f"ArtifactSpawnerPrototypes/ArtifactSpawnerPrototypes_patch_{n}.cfg",
         _artifact_spawner_patch(gd, s))
+    add(f"PassiveDetectorPrototypes/PassiveDetectorPrototypes_patch_{n}.cfg",
+        _passive_detector_patch(gd, s))
+    add(f"FastTravelPrototypes/FastTravelPrototypes_patch_{n}.cfg",
+        _fasttravel_patch(gd, s))
+    add(f"BoolProviderPrototypes/BoolProviderPrototypes_patch_{n}.cfg",
+        _restock_patch(gd, s))
     add("AIPrototypes/VisionScannerPrototypes/"
         f"VisionScannerPrototypes_patch_{n}.cfg", _vision_patch(gd, s))
     add("AIPrototypes/HearingSensorPrototypes/"
@@ -902,7 +1028,8 @@ def summarize(s: Settings) -> list[str]:
     f("Mutant health", s.mutant_hp_factor)
     f("Mutant damage", s.mutant_damage_factor)
     f("Explosion damage", s.explosion_damage_factor)
-    f("Weapon & armor durability", s.durability_factor)
+    f("Weapon durability", s.durability_factor)
+    f("Armor durability", s.armor_durability_factor)
     f("Weapon jamming", s.jamming_factor)
 
     if _neq(s.scope_sway_pct, 100):
@@ -911,6 +1038,12 @@ def summarize(s: Settings) -> list[str]:
     f("Breath recovery", s.breath_regen_factor)
     f("Weapon spread", s.spread_factor)
     f("Weapon recoil", s.recoil_factor)
+    f("Weapon effective range", s.weapon_range_factor)
+    f("Weapon bleeding", s.weapon_bleeding_factor)
+    f("Ammo damage", s.ammo_damage_factor)
+    f("Ammo armor piercing", s.ammo_piercing_factor)
+    f("Ammo armor damage", s.ammo_armor_damage_factor)
+    f("Ammo cover penetration", s.ammo_cover_factor)
 
     for cat, params in sorted(s.weapon_category_factors.items()):
         label = WEAPON_CATEGORY_LABELS.get(cat, cat)
@@ -933,6 +1066,9 @@ def summarize(s: Settings) -> list[str]:
     f("Artifact effect strength", s.artifact_effect_factor)
     f("Artifact radiation side-effect", s.artifact_radiation_factor)
     f("Artifact spawn chance", s.artifact_spawn_factor)
+    f("Detector & scanner range", s.detector_range_factor)
+    f("Fast travel cost", s.fast_travel_cost_factor)
+    f("Trader restock time", s.trader_restock_factor)
 
     if _neq(s.trader_min_durability_pct, 40):
         lines.append(f"Traders buy gear from {s.trader_min_durability_pct:g} % durability (vanilla 40)")

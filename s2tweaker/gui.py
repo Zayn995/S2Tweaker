@@ -414,8 +414,10 @@ class App(ctk.CTk):
         self._slider(f, "mhp", "Mutant health", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "mdmg", "Mutant damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
-        self._slider(f, "dur", "Weapon & armor durability", 0.5, 10, 0.5, 1, fmt_factor,
-                     "Weapons wear less per shot; armor takes more punishment.")
+        self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.5, 1, fmt_factor,
+                     "Weapons wear less per shot fired.")
+        self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.5, 1, fmt_factor,
+                     "Armor takes more punishment before breaking.")
         self._slider(f, "jam", "Weapon jamming", 0, 2, 0.1, 1, fmt_factor,
                      "× 0 = weapons never jam.")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -467,6 +469,26 @@ class App(ctk.CTk):
         self._slider(f, "spread", "Weapon spread (bullet dispersion)", 0, 200, 5, 100, fmt_pct,
                      "0 % = laser accuracy (hip fire, aiming and first shot).")
         self._slider(f, "recoil", "Weapon recoil", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
+                     "Scales effective fire distance and damage drop-off "
+                     "start/length together.")
+        self._slider(f, "wbleed", "Weapon bleeding", 0, 300, 25, 100, fmt_pct,
+                     "Bleeding chance and intensity your shots inflict. "
+                     "0 % = your bullets never cause bleeding.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Ammo (all calibers)")
+        ctk.CTkLabel(
+            f, text="   Scales each ammo type's own modifiers, so special "
+                    "ammo keeps its character: AP stays the armor king, "
+                    "buckshot stays bad at it – just more or less extreme.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "ammo_dmg", "Ammo damage", 25, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_ap", "Ammo armor piercing", 0, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 25, 100, fmt_pct,
+                     "How well bullets punch through wooden walls, fences etc.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Weapon categories")
@@ -536,6 +558,9 @@ class App(ctk.CTk):
         self._slider(f, "art_spawn", "Artifact spawn chance", 25, 400, 25, 100, fmt_pct,
                      "Chance that anomaly fields spawn an artifact "
                      "(vanilla 25–40 %, capped at 100 %).")
+        self._slider(f, "detector", "Detector & scanner range", 50, 300, 10, 100, fmt_pct,
+                     "Artifact detectors (Echo, Bear, Veles, Gilka), the "
+                     "anomaly beeper and the searchpoint scanner.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Economy")
@@ -548,6 +573,12 @@ class App(ctk.CTk):
                      "0 % = free repairs.")
         self._slider(f, "upgrade", "Upgrade cost", 0, 200, 5, 100, fmt_pct)
         self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.25, 1, fmt_factor)
+        self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 25, 100, fmt_pct,
+                     "0 % = guides take you anywhere for free.")
+        self._slider(f, "restock", "Trader restock time", 25, 400, 25, 100, fmt_pct,
+                     "How long traders take to refresh their stock "
+                     "(vanilla: 8 h to 7 days depending on the trader; "
+                     "day-based traders can't go below 1 day).")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.25, 1, fmt_factor,
                      "Per-category price multipliers – these stack with the "
                      "trader buy/sell sliders above.")
@@ -788,12 +819,19 @@ class App(ctk.CTk):
             mutant_damage_factor=s["mdmg"].get(),
             explosion_damage_factor=s["expl"].get(),
             durability_factor=s["dur"].get(),
+            armor_durability_factor=s["dur_armor"].get(),
             jamming_factor=s["jam"].get(),
             scope_sway_pct=s["sway"].get(),
             breath_drain_factor=s["breath_drain"].get() / 100.0,
             breath_regen_factor=s["breath_regen"].get() / 100.0,
             spread_factor=s["spread"].get() / 100.0,
             recoil_factor=s["recoil"].get() / 100.0,
+            weapon_range_factor=s["wrange"].get() / 100.0,
+            weapon_bleeding_factor=s["wbleed"].get() / 100.0,
+            ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
+            ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
+            ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
+            ammo_cover_factor=s["ammo_cover"].get() / 100.0,
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},
@@ -805,6 +843,9 @@ class App(ctk.CTk):
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
+            detector_range_factor=s["detector"].get() / 100.0,
+            fast_travel_cost_factor=s["fasttravel"].get() / 100.0,
+            trader_restock_factor=s["restock"].get() / 100.0,
             trader_min_durability_pct=s["trader_dur"].get(),
             trader_buy_price_factor=s["buyprice"].get(),
             trader_sell_price_factor=s["sellprice"].get(),
@@ -925,6 +966,9 @@ class App(ctk.CTk):
         if "move" in sliders:
             sliders.setdefault("walk", sliders["move"])
             sliders.setdefault("run", sliders["move"])
+        # Migration: "dur" war frueher Waffen+Ruestung gemeinsam
+        if "dur" in sliders:
+            sliders.setdefault("dur_armor", sliders["dur"])
         for key, value in sliders.items():
             if key in self.sliders:
                 try:

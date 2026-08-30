@@ -68,6 +68,11 @@ s = Settings(
     max_agents_factor=1.5, spawn_distance_factor=0.5,
     artifact_effect_factor=2.0, artifact_radiation_factor=0.0,
     artifact_spawn_factor=3.0,
+    armor_durability_factor=2.0, weapon_range_factor=1.5,
+    weapon_bleeding_factor=2.0, ammo_damage_factor=1.5,
+    ammo_piercing_factor=2.0, ammo_armor_damage_factor=1.25,
+    ammo_cover_factor=0.5, detector_range_factor=2.0,
+    fast_travel_cost_factor=0.5, trader_restock_factor=0.25,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

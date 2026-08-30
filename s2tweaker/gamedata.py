@@ -39,10 +39,13 @@ NEEDED_FILES = [
     "AIPrototypes/VisionScannerPrototypes.cfg.bin",
     "CameraShakePrototypes.cfg.bin",
     "ArtifactSpawnerPrototypes.cfg.bin",
+    "PassiveDetectorPrototypes.cfg.bin",
+    "FastTravelPrototypes.cfg.bin",
+    "BoolProviderPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 6
+CACHE_SCHEMA = 7
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
@@ -227,6 +230,18 @@ class GameData:
     @cached_property
     def artifactspawners(self) -> CfgStruct:
         return self._parse("ArtifactSpawnerPrototypes.cfg")
+
+    @cached_property
+    def passivedetectors(self) -> CfgStruct:
+        return self._parse("PassiveDetectorPrototypes.cfg")
+
+    @cached_property
+    def fasttravel(self) -> CfgStruct:
+        return self._parse("FastTravelPrototypes.cfg")
+
+    @cached_property
+    def boolproviders(self) -> CfgStruct:
+        return self._parse("BoolProviderPrototypes.cfg")
 
     @cached_property
     def trade_text(self) -> str:
@@ -414,6 +429,47 @@ class GameData:
                     entries[idx] = found
             if entries:
                 result[sid] = entries
+        return result
+
+    AMMO_MOD_KEYS = ("DamageMod", "ArmorPiercingMod", "ArmorDamageMod",
+                     "CoverPiercingMod")
+
+    def ammo_mods(self) -> dict[str, dict[str, float]]:
+        """{SID: {ModKey: aufgeloester Vanilla-Wert}} aller Munitions-Items."""
+        result: dict[str, dict[str, float]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "ammo":
+                continue
+            mods = {}
+            for key in self.AMMO_MOD_KEYS:
+                raw = self.resolve(self.items, sid, key)
+                if raw is not None:
+                    mods[key] = parse_number(raw)
+            if mods:
+                result[sid] = mods
+        return result
+
+    DETECTOR_RANGE_KEYS = ("ShowArtifactRadius", "MinDetectRadius",
+                           "DetectorWorkRadius", "SonarRadius",
+                           "AnomalyDetectionRadius")
+
+    def detector_items(self) -> dict[str, dict[str, float]]:
+        """{SID: {RadiusKey: Wert}} der Artefakt-Detektor-Items (Echo & Co.)."""
+        result: dict[str, dict[str, float]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.template_of(sid) != "TemplateDetector":
+                continue
+            radii = {}
+            for key in self.DETECTOR_RANGE_KEYS:
+                value = parse_number(self.resolve(self.items, sid, key))
+                if value > 0:
+                    radii[key] = value
+            if radii:
+                result[sid] = radii
         return result
 
     def effect_percent(self, sid: str) -> float:

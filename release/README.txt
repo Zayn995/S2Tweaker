@@ -7,7 +7,11 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~100 tweaks in 7 tabs, including:
+~120 tweaks in 7 tabs, including:
+- NEW in 1.3.0: ammo tweaks (damage/armor piercing/armor damage/cover
+  penetration), weapon effective range & bleeding (three-level system),
+  separate weapon/armor durability, detector & scanner range, fast
+  travel cost, trader restock time
 - NEW in 1.2.0 (community requests): hit camera shake / aim punch 0-300 %,
   NPC reaction delay, experimental A-Life sliders (max simultaneous
   NPCs/mutants, spawn distance), artifact effect strength / radiation /
