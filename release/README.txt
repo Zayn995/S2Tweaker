@@ -7,7 +7,11 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~90 tweaks in 7 tabs, including:
+~100 tweaks in 7 tabs, including:
+- NEW in 1.2.0 (community requests): hit camera shake / aim punch 0-300 %,
+  NPC reaction delay, experimental A-Life sliders (max simultaneous
+  NPCs/mutants, spawn distance), artifact effect strength / radiation /
+  spawn chance, save & load presets, slider search box
 - Max health / stamina, passive regen, per-action stamina costs
 - Fall damage 0-100 %, walk/crouch & run/sprint speed, jump height
 - Max carry weight + where the overweight penalty starts (or off entirely)

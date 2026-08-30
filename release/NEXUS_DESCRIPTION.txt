@@ -22,6 +22,11 @@ it builds a .pak mod from them - no modding knowledge needed.
   weapon & armor durability, jamming, spread, recoil, scoped aim sway,
   breath hold, anomaly damage, radiation, bleeding, hunger & sleepiness,
   trader prices & min. durability, repair & upgrade costs, quest rewards
+- NEW in 1.2.0 (your requests from the comments!): hit camera shake /
+  aim punch 0-300 %, NPC reaction delay, experimental A-Life sliders
+  (max simultaneous NPCs & mutants, spawn distance), artifact effect
+  strength / radiation / spawn chance, save & load PRESETS, and a
+  search box to find any of the ~100 sliders
 - NEW in 1.1.0: weapon tweaks on THREE levels (global / 8 weapon
   categories / per-weapon overrides for 79 weapons incl. uniques -
   damage, spread, recoil, durability, fire rate), an "NPCs & AI" tab

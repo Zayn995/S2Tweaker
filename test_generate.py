@@ -64,6 +64,10 @@ s = Settings(
                       "GunAK74_ST": {"recoil": 0.5}},
     npc_accuracy_factor=2.0, npc_vision_factor=0.5, npc_hearing_factor=0.5,
     npc_grenade_factor=2.0, npc_no_heal=True,
+    aim_punch_factor=2.0, npc_reaction_factor=2.0,
+    max_agents_factor=1.5, spawn_distance_factor=0.5,
+    artifact_effect_factor=2.0, artifact_radiation_factor=0.0,
+    artifact_spawn_factor=3.0,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

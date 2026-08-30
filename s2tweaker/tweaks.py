@@ -118,14 +118,19 @@ class Settings:
     # --- Kampf ---
     player_damage_factor: float = 1.0
     headshot_factor: float = 1.0
+    aim_punch_factor: float = 1.0        # Kamera-Wackeln bei Treffern (0-3)
     npc_damage_factor: float = 1.0
     npc_hp_factor: float = 1.0
     # --- NPCs & KI ---
     npc_accuracy_factor: float = 1.0     # >1 = praeziser (Dispersion kleiner)
     npc_vision_factor: float = 1.0       # Sichtweite (Story-Bosse ausgenommen)
     npc_hearing_factor: float = 1.0      # Hoerweite (Mutanten ausgenommen)
+    npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
     npc_grenade_factor: float = 1.0      # 0 = nie werfen (-1-Bosse bleiben)
     npc_no_heal: bool = False            # RegenHP=0 fuer alle Human-NPCs
+    # --- A-Life (experimentell) ---
+    max_agents_factor: float = 1.0       # gleichzeitige NPCs/Mutanten um den Spieler
+    spawn_distance_factor: float = 1.0   # A-Life-Spawn-Distanz
     mutant_hp_factor: float = 1.0
     mutant_damage_factor: float = 1.0
     explosion_damage_factor: float = 1.0
@@ -150,6 +155,10 @@ class Settings:
     bleeding_factor: float = 1.0
     hunger_rate_factor: float = 1.0          # 0 = kein Hunger
     sleepiness_rate_factor: float = 1.0      # 0 = keine Muedigkeit
+    # --- Artefakte ---
+    artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
+    artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
+    artifact_spawn_factor: float = 1.0       # Spawn-Chance der Artefakt-Spawner
 
     # --- Wirtschaft ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
@@ -172,6 +181,27 @@ def _num(x: float) -> str:
 
 def _neq(a: float, b: float) -> bool:
     return abs(a - b) > 1e-9
+
+
+def _scale_literal(raw: str, factor: float) -> str | None:
+    """GSC-Zahlenliteral vorzeichen- und suffixerhaltend skalieren.
+
+    '20' -> '40', '-0.15' -> '-0.3', '35%' -> '70%', '2.5f' -> '5.0f'.
+    None bei nicht-numerischen Werten (die bleiben unangetastet)."""
+    raw = raw.strip()
+    suffix = ""
+    core = raw
+    if core.endswith("%"):
+        suffix = "%"
+        core = core[:-1]
+    elif core.endswith(("f", "F")):
+        suffix = "f"
+        core = core[:-1].rstrip(".")
+    try:
+        value = float(core)
+    except ValueError:
+        return None
+    return _num(value * factor) + suffix
 
 
 # ------------------------------------------------------------------ features
@@ -310,33 +340,87 @@ def _npc_weapon_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
-    """AvailableGrenadesPerFaction: Anzahl pro Fraktion/Rang skalieren.
-    -1 (= unbegrenzt, Boss-Fraktionen) wird nie angefasst."""
-    if not _neq(s.npc_grenade_factor, 1.0):
-        return {}
+    """AIGlobals: Granaten pro Fraktion/Rang, Reaktionszeiten, A-Life."""
     root = gd.aiglobals.children.get("AISettings")
-    throw = root.children.get("ThrowGrenadeSettings") if root else None
-    per_faction = throw.children.get("AvailableGrenadesPerFaction") if throw else None
-    if per_faction is None:
+    if root is None:
         return {}
-    factions: dict = {}
-    for faction, node in per_faction.children.items():
-        if "#" in faction:
+    settings: dict = {}
+
+    if _neq(s.npc_grenade_factor, 1.0):
+        throw = root.children.get("ThrowGrenadeSettings")
+        per_faction = throw.children.get("AvailableGrenadesPerFaction") if throw else None
+        factions: dict = {}
+        if per_faction is not None:
+            for faction, node in per_faction.children.items():
+                if "#" in faction:
+                    continue
+                ranks: dict = {}
+                for rank, raw in node.values.items():
+                    count = parse_number(raw, -1.0)
+                    if count < 0:  # -1 = unbegrenzt (Boss-Fraktionen) nie anfassen
+                        continue
+                    scaled = int(round(count * s.npc_grenade_factor))
+                    if scaled != int(count):
+                        ranks[rank] = str(scaled)
+                if ranks:
+                    factions[faction] = ranks
+        if factions:
+            settings["ThrowGrenadeSettings"] = {
+                "AvailableGrenadesPerFaction": factions}
+
+    if _neq(s.npc_reaction_factor, 1.0):
+        threats: dict = {}
+        for key in ("ThreatReportDelaySeconds", "EnemyReportDelaySeconds"):
+            vanilla = parse_number(root.get(f"ThreatsSettings.{key}"))
+            if vanilla > 0:
+                threats[key] = _num(vanilla * s.npc_reaction_factor)
+        if threats:
+            settings["ThreatsSettings"] = threats
+
+    if _neq(s.max_agents_factor, 1.0):
+        vanilla = parse_number(root.values.get("MaxAgentsCount"), 52.0)
+        settings["MaxAgentsCount"] = str(max(1, int(round(vanilla * s.max_agents_factor))))
+
+    if _neq(s.spawn_distance_factor, 1.0):
+        spawn = parse_number(root.values.get("MinALifeSpawnDistance"), 2500.0)
+        despawn = parse_number(root.values.get("MinALifeDespawnDistance"), 3000.0)
+        new_spawn = spawn * s.spawn_distance_factor
+        # Despawn-Distanz muss immer ueber der Spawn-Distanz bleiben, sonst
+        # verschwinden frisch gespawnte Agenten sofort wieder
+        new_despawn = max(despawn * s.spawn_distance_factor, new_spawn + 500.0)
+        settings["MinALifeSpawnDistance"] = _num(new_spawn)
+        settings["MinALifeDespawnDistance"] = _num(new_despawn)
+
+    return {"AISettings": settings} if settings else {}
+
+
+def _camerashake_patch(gd: GameData, s: Settings) -> dict:
+    """Aim Punch: Kamera-Wackeln beim Getroffenwerden (Nexus-Wunsch)."""
+    if not _neq(s.aim_punch_factor, 1.0):
+        return {}
+    vanilla = parse_number(
+        gd.resolve(gd.camerashake, "ProjectileHitCameraShake", "Scale"), 1.0)
+    return {"ProjectileHitCameraShake": {"Scale": _num(vanilla * s.aim_punch_factor)}}
+
+
+def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
+    """SpawnChanceBase je Spawner und Spieler-Rang skalieren (Cap 100 %)."""
+    if not _neq(s.artifact_spawn_factor, 1.0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.artifactspawners.children.items():
+        if sid == "Empty" or "#" in sid:
             continue
         ranks: dict = {}
-        for rank, raw in node.values.items():
-            count = parse_number(raw, -1.0)
-            if count < 0:
+        for rank, rank_node in node.children.items():
+            chance = parse_number(rank_node.values.get("SpawnChanceBase"))
+            if chance <= 0:
                 continue
-            scaled = int(round(count * s.npc_grenade_factor))
-            if scaled != int(count):
-                ranks[rank] = str(scaled)
+            ranks[rank] = {"SpawnChanceBase": _num(
+                min(100.0, chance * s.artifact_spawn_factor)) + "f"}
         if ranks:
-            factions[faction] = ranks
-    if not factions:
-        return {}
-    return {"AISettings": {"ThrowGrenadeSettings": {
-        "AvailableGrenadesPerFaction": factions}}}
+            patches[sid] = ranks
+    return patches
 
 
 def _mutants_patch(gd: GameData, s: Settings) -> dict:
@@ -572,6 +656,30 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
         ):
             if sid in gd.effects.children:
                 patches[sid] = {"ValueMin": "0%", "ValueMax": "0%"}
+
+    # Artefakt-Effekte: alle Artifact*-Structs sind ein sauberer Namensraum.
+    # Strahlung (ArtifactAddRadiation*) hat einen eigenen Regler.
+    effect_on = _neq(s.artifact_effect_factor, 1.0)
+    radiation_on = _neq(s.artifact_radiation_factor, 1.0)
+    if effect_on or radiation_on:
+        for sid, node in gd.effects.children.items():
+            if not sid.startswith("Artifact") or "#" in sid:
+                continue
+            is_radiation = sid.startswith("ArtifactAddRadiation")
+            factor = (s.artifact_radiation_factor if is_radiation
+                      else s.artifact_effect_factor)
+            if not _neq(factor, 1.0):
+                continue
+            cfg: dict = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None:
+                    continue
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches[sid] = cfg
     return patches
 
 
@@ -725,6 +833,10 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
+    add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
+        _camerashake_patch(gd, s))
+    add(f"ArtifactSpawnerPrototypes/ArtifactSpawnerPrototypes_patch_{n}.cfg",
+        _artifact_spawner_patch(gd, s))
     add("AIPrototypes/VisionScannerPrototypes/"
         f"VisionScannerPrototypes_patch_{n}.cfg", _vision_patch(gd, s))
     add("AIPrototypes/HearingSensorPrototypes/"
@@ -775,14 +887,18 @@ def summarize(s: Settings) -> list[str]:
 
     f("Player damage", s.player_damage_factor)
     f("Headshot damage", s.headshot_factor)
+    f("Hit camera shake (aim punch)", s.aim_punch_factor)
     f("Human NPC damage", s.npc_damage_factor)
     f("Human NPC health", s.npc_hp_factor)
     f("NPC accuracy", s.npc_accuracy_factor)
     f("NPC vision range", s.npc_vision_factor)
     f("NPC hearing range", s.npc_hearing_factor)
+    f("NPC reaction delay", s.npc_reaction_factor)
     f("NPC grenade usage", s.npc_grenade_factor)
     if s.npc_no_heal:
         lines.append("NPCs don't self-heal")
+    f("Max simultaneous A-Life agents", s.max_agents_factor)
+    f("A-Life spawn distance", s.spawn_distance_factor)
     f("Mutant health", s.mutant_hp_factor)
     f("Mutant damage", s.mutant_damage_factor)
     f("Explosion damage", s.explosion_damage_factor)
@@ -814,6 +930,9 @@ def summarize(s: Settings) -> list[str]:
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)
     f("Sleepiness rate", s.sleepiness_rate_factor)
+    f("Artifact effect strength", s.artifact_effect_factor)
+    f("Artifact radiation side-effect", s.artifact_radiation_factor)
+    f("Artifact spawn chance", s.artifact_spawn_factor)
 
     if _neq(s.trader_min_durability_pct, 40):
         lines.append(f"Traders buy gear from {s.trader_min_durability_pct:g} % durability (vanilla 40)")

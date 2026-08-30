@@ -49,6 +49,10 @@ def cache_dir() -> Path:
     return app_dir() / "cache"
 
 
+def presets_dir() -> Path:
+    return app_dir() / "presets"
+
+
 SETTINGS_FILE = app_dir() / "settings.json"
 
 ctk.set_appearance_mode("dark")
@@ -78,6 +82,7 @@ class SliderRow:
         self.value_label.pack(side="left")
         self.reset_btn = ctk.CTkButton(row, text="↺", width=28, command=self.reset)
         self.reset_btn.pack(side="left", padx=(6, 0))
+        self._orig_color = self.label.cget("text_color")
         self.set(default)
         if tooltip:
             hint = ctk.CTkLabel(parent, text="   " + tooltip, anchor="w",
@@ -104,6 +109,16 @@ class SliderRow:
     def set_state(self, state: str):
         self.slider.configure(state=state)
         self.reset_btn.configure(state=state)
+
+    def set_highlight(self, mode: str):
+        """Suchfilter: 'match' = hervorheben, 'dim' = abdunkeln."""
+        if mode == "match":
+            color = "#d9a648"
+        elif mode == "dim":
+            color = "gray35"
+        else:
+            color = self._orig_color
+        self.label.configure(text_color=color)
 
 
 def fmt_int(v: float) -> str:
@@ -139,6 +154,8 @@ class App(ctk.CTk):
         self.gd: GameData | None = None
         self.game_dir: Path | None = None
         self.sliders: dict[str, SliderRow] = {}
+        self.slider_tabs: dict[str, str] = {}
+        self._current_tab = ""
         self.checks: dict[str, ctk.CTkCheckBox] = {}
         self.cat_checks: dict[str, ctk.CTkCheckBox] = {}
         # Einzelwaffen-Overrides: {WGS-SID: {param: faktor}} (nur != 1.0)
@@ -188,6 +205,10 @@ class App(ctk.CTk):
         self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
                                         command=self._pick_game_dir)
         self.btn_browse.pack(side="right", padx=4, pady=8)
+        self.search_entry = ctk.CTkEntry(head, width=180,
+                                         placeholder_text="🔍 Find a slider …")
+        self.search_entry.pack(side="right", padx=4, pady=8)
+        self.search_entry.bind("<KeyRelease>", self._apply_filter)
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(parent)
@@ -199,6 +220,7 @@ class App(ctk.CTk):
     def _slider(self, parent, key: str, label: str, from_: float, to: float,
                 step: float, default: float, fmt, tooltip: str = "") -> None:
         self.sliders[key] = SliderRow(parent, label, from_, to, step, default, fmt, tooltip)
+        self.slider_tabs[key] = self._current_tab
 
     def _warning(self, parent, text: str) -> None:
         """Auffaelliger (bernsteinfarbener) Hinweis unterhalb von Reglern."""
@@ -317,6 +339,7 @@ class App(ctk.CTk):
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
+        self._current_tab = name
         tab = self.tabs.add(name)
         frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
         frame.pack(fill="both", expand=True)
@@ -385,6 +408,9 @@ class App(ctk.CTk):
         self._slider(f, "pdmg", "Player damage (guns)", 0.25, 10, 0.25, 1, fmt_factor,
                      "Applied via difficulty multipliers, all difficulty levels.")
         self._slider(f, "headshot", "Player headshot damage", 0.25, 5, 0.25, 1, fmt_factor)
+        self._slider(f, "aimpunch", "Hit camera shake (aim punch)", 0, 300, 25, 100, fmt_pct,
+                     "Camera kick when YOU get shot. 0 % = no flinch, "
+                     "300 % = heavy aim punch.")
         self._slider(f, "mhp", "Mutant health", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "mdmg", "Mutant damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
@@ -400,17 +426,35 @@ class App(ctk.CTk):
         self._slider(f, "npchp", "NPC health", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "npc_acc", "NPC accuracy", 0.25, 3, 0.25, 1, fmt_factor,
                      "× 2 = NPCs shoot twice as precisely (smaller bullet spread).")
-        self._slider(f, "npc_vision", "NPC vision range", 25, 200, 5, 100, fmt_pct,
+        self._slider(f, "npc_vision", "NPC vision range", 10, 200, 5, 100, fmt_pct,
                      "How far human NPCs (incl. the Faust fight) can see you. "
-                     "Korshunov & Scar boss senses stay vanilla.")
-        self._slider(f, "npc_hearing", "NPC hearing range", 25, 200, 5, 100, fmt_pct,
+                     "Korshunov & Scar boss senses stay vanilla. "
+                     "10 % vision + 10 % hearing ≈ ghost mode.")
+        self._slider(f, "npc_hearing", "NPC hearing range", 10, 200, 5, 100, fmt_pct,
                      "Footsteps, shots, voices etc. Mutants are unaffected "
                      "(except Supersoldiers – they use NPC hearing).")
+        self._slider(f, "npc_reaction", "NPC reaction delay", 25, 400, 25, 100, fmt_pct,
+                     "How long NPCs take to report threats/enemies to their "
+                     "squad (vanilla 2–3 s). 400 % = slow, sleepy AI; "
+                     "25 % = instant alarm.")
         self._slider(f, "npc_grenades", "NPC grenade usage", 0, 300, 10, 100, fmt_pct,
                      "0 % = NPCs never throw grenades (scripted bosses keep theirs).")
         self._check(f, "npc_no_heal", "NPCs don't self-heal",
                     "Vanilla: NPCs passively regenerate health (guards up to 20 HP/s) "
                     "while the player regenerates none. Includes bosses.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "A-Life population (experimental)")
+        self._warning(f, "Experimental: these change how the living world "
+                         "spawns around you. Large values can hurt "
+                         "performance or break quest pacing – change in "
+                         "small steps and keep a backup save.")
+        self._slider(f, "alife_agents", "Max simultaneous NPCs & mutants", 50, 200, 10, 100, fmt_pct,
+                     "Vanilla: 52 A-Life agents around the player. "
+                     "200 % = a much busier Zone (heavy CPU load!).")
+        self._slider(f, "alife_distance", "A-Life spawn distance", 50, 200, 10, 100, fmt_pct,
+                     "Vanilla: squads spawn ≥ 2500 m away. Lower = encounters "
+                     "pop up closer to you; higher = quieter surroundings.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weapons")
@@ -483,6 +527,17 @@ class App(ctk.CTk):
                      "0 % = never get sleepy.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Artifacts")
+        self._slider(f, "art_effect", "Artifact effect strength", 25, 300, 25, 100, fmt_pct,
+                     "Scales what artifacts do on your belt – positive effects "
+                     "AND side effects alike (radiation has its own slider below).")
+        self._slider(f, "art_radiation", "Artifact radiation side-effect", 0, 200, 10, 100, fmt_pct,
+                     "0 % = artifacts emit no radiation at all.")
+        self._slider(f, "art_spawn", "Artifact spawn chance", 25, 400, 25, 100, fmt_pct,
+                     "Chance that anomaly fields spawn an artifact "
+                     "(vanilla 25–40 %, capped at 100 %).")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("Economy")
         f = self._section(body, "Economy & traders")
         self._slider(f, "trader_dur", "Traders buy gear from durability", 0, 100, 5, 40, fmt_pct,
@@ -517,6 +572,10 @@ class App(ctk.CTk):
         self.debug_check.pack(side="left", padx=14)
         ctk.CTkButton(row1, text="Reset all to vanilla ↺", width=150,
                       command=self._reset_all).pack(side="right", padx=4)
+        ctk.CTkButton(row1, text="Load preset …", width=110,
+                      command=self._load_preset).pack(side="right", padx=4)
+        ctk.CTkButton(row1, text="Save preset …", width=110,
+                      command=self._save_preset).pack(side="right", padx=4)
 
         row2 = ctk.CTkFrame(foot, fg_color="transparent")
         row2.pack(fill="x", padx=8, pady=(2, 4))
@@ -714,13 +773,17 @@ class App(ctk.CTk):
             ignore_equipped_weight=bool(self.checks["ignore_equipped"].get()),
             player_damage_factor=s["pdmg"].get(),
             headshot_factor=s["headshot"].get(),
+            aim_punch_factor=s["aimpunch"].get() / 100.0,
             npc_damage_factor=s["npcdmg"].get(),
             npc_hp_factor=s["npchp"].get(),
             npc_accuracy_factor=s["npc_acc"].get(),
             npc_vision_factor=s["npc_vision"].get() / 100.0,
             npc_hearing_factor=s["npc_hearing"].get() / 100.0,
+            npc_reaction_factor=s["npc_reaction"].get() / 100.0,
             npc_grenade_factor=s["npc_grenades"].get() / 100.0,
             npc_no_heal=bool(self.checks["npc_no_heal"].get()),
+            max_agents_factor=s["alife_agents"].get() / 100.0,
+            spawn_distance_factor=s["alife_distance"].get() / 100.0,
             mutant_hp_factor=s["mhp"].get(),
             mutant_damage_factor=s["mdmg"].get(),
             explosion_damage_factor=s["expl"].get(),
@@ -739,6 +802,9 @@ class App(ctk.CTk):
             bleeding_factor=s["bleeding"].get(),
             hunger_rate_factor=s["hunger"].get() / 100.0,
             sleepiness_rate_factor=s["sleep"].get() / 100.0,
+            artifact_effect_factor=s["art_effect"].get() / 100.0,
+            artifact_radiation_factor=s["art_radiation"].get() / 100.0,
+            artifact_spawn_factor=s["art_spawn"].get() / 100.0,
             trader_min_durability_pct=s["trader_dur"].get(),
             trader_buy_price_factor=s["buyprice"].get(),
             trader_sell_price_factor=s["sellprice"].get(),
@@ -752,6 +818,27 @@ class App(ctk.CTk):
             consumable_price_factor=s["price_consumable"].get(),
         )
 
+    def _apply_filter(self, _event=None):
+        """Suchfeld: passende Regler hervorheben, Rest abdunkeln."""
+        query = self.search_entry.get().strip().lower()
+        counts: dict[str, int] = {}
+        for key, row in self.sliders.items():
+            label = row.label.cget("text").lower()
+            if not query:
+                row.set_highlight("normal")
+            elif query in label:
+                row.set_highlight("match")
+                tab = self.slider_tabs.get(key, "?")
+                counts[tab] = counts.get(tab, 0) + 1
+            else:
+                row.set_highlight("dim")
+        if query:
+            if counts:
+                self.status.configure(text="Matches: " + ", ".join(
+                    f"{tab} ({n})" for tab, n in counts.items()))
+            else:
+                self.status.configure(text="No slider matches your search.")
+
     def _reset_all(self):
         for slider in self.sliders.values():
             slider.reset()
@@ -761,21 +848,60 @@ class App(ctk.CTk):
             box.select()
         self._iw_clear_all()
 
+    def _ui_state(self) -> dict:
+        """Kompletter Regler-Zustand (fuer settings.json UND Presets)."""
+        return {
+            "sliders": {k: v.get() for k, v in self.sliders.items()},
+            "checks": {k: bool(v.get()) for k, v in self.checks.items()},
+            "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
+            "weapon_overrides": self.weapon_overrides,
+        }
+
     def _save_ui_settings(self):
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
             data = {
                 "game_dir": str(self.game_dir) if self.game_dir else None,
                 "mod_name": self.name_entry.get(),
-                "sliders": {k: v.get() for k, v in self.sliders.items()},
-                "checks": {k: bool(v.get()) for k, v in self.checks.items()},
-                "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
-                "weapon_overrides": self.weapon_overrides,
                 "debug_cfg": bool(self.debug_check.get()),
+                **self._ui_state(),
             }
             SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except OSError:
             pass
+
+    def _save_preset(self):
+        presets_dir().mkdir(parents=True, exist_ok=True)
+        path = filedialog.asksaveasfilename(
+            title="Save preset", defaultextension=".json",
+            initialdir=presets_dir(), initialfile="my_preset.json",
+            filetypes=[("S2Tweaker preset", "*.json")])
+        if not path:
+            return
+        try:
+            Path(path).write_text(
+                json.dumps(self._ui_state(), indent=2), encoding="utf-8")
+            self.status.configure(text=f"Preset saved: {path}")
+        except OSError:
+            messagebox.showerror(APP_TITLE, traceback.format_exc())
+
+    def _load_preset(self):
+        presets_dir().mkdir(parents=True, exist_ok=True)
+        path = filedialog.askopenfilename(
+            title="Load preset", initialdir=presets_dir(),
+            filetypes=[("S2Tweaker preset", "*.json")])
+        if not path:
+            return
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            messagebox.showerror(APP_TITLE, "Could not read that preset file.")
+            return
+        self.weapon_overrides.clear()
+        self._apply_ui_state(data)
+        if self.gd is not None:
+            self._iw_populate()
+        self.status.configure(text=f"Preset loaded: {path}")
 
     def _load_ui_settings(self):
         try:
@@ -789,6 +915,11 @@ class App(ctk.CTk):
         if data.get("mod_name"):
             self.name_entry.delete(0, "end")
             self.name_entry.insert(0, data["mod_name"])
+        if data.get("debug_cfg"):
+            self.debug_check.select()
+        self._apply_ui_state(data)
+
+    def _apply_ui_state(self, data: dict):
         sliders = data.get("sliders", {})
         # Migration: alter Einzelregler "move" -> "walk" + "run"
         if "move" in sliders:
@@ -814,8 +945,6 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.weapon_overrides[sid] = clean
-        if data.get("debug_cfg"):
-            self.debug_check.select()
 
     def _on_close(self):
         self._save_ui_settings()

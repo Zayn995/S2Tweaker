@@ -37,10 +37,12 @@ NEEDED_FILES = [
     "AIGlobals.cfg",
     "AIPrototypes/HearingSensorPrototypes.cfg.bin",
     "AIPrototypes/VisionScannerPrototypes.cfg.bin",
+    "CameraShakePrototypes.cfg.bin",
+    "ArtifactSpawnerPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 5
+CACHE_SCHEMA = 6
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
@@ -217,6 +219,14 @@ class GameData:
     @cached_property
     def visionscanners(self) -> CfgStruct:
         return self._parse("AIPrototypes/VisionScannerPrototypes.cfg")
+
+    @cached_property
+    def camerashake(self) -> CfgStruct:
+        return self._parse("CameraShakePrototypes.cfg")
+
+    @cached_property
+    def artifactspawners(self) -> CfgStruct:
+        return self._parse("ArtifactSpawnerPrototypes.cfg")
 
     @cached_property
     def trade_text(self) -> str:
