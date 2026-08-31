@@ -20,3 +20,6 @@ release/*.zip
 
 # Stray test paks
 *.pak
+
+# Screenshots: jederzeit per tools/make_screenshots.py neu erzeugbar
+release/screenshots/
