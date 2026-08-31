@@ -18,11 +18,17 @@ from . import __version__, game, pakio
 from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
+    AMMO_CALIBER_LABELS,
+    AMMO_PARAM_KEYS,
+    AMMO_PARAM_LABELS,
+    AMMO_PARAMS,
+    AMMO_TYPE_LABELS,
     CATEGORY_LABELS,
     WEAPON_CATEGORY_LABELS,
     WEAPON_PARAM_LABELS,
     WEAPON_PARAMS,
     Settings,
+    ammo_label,
     build_patches,
     summarize,
 )
@@ -438,6 +444,298 @@ class IwCategoryBlock:
             row.set_state(state)
 
 
+class IaAmmoRow:
+    """Aufklappbare Zeile EINER Munitionssorte im Ammo-Baum.
+
+    Zwillingsklasse zu IwWeaponRow, bewusst KEINE Ableitung: der Waffenbaum
+    ist frisch verifiziert und bleibt unangetastet. Der Preis sind ein paar
+    doppelte Zeilen, der Gewinn ist, dass an den Waffen strukturell nichts
+    kaputtgehen kann. Geteilt werden nur SliderRow, ACCENT, fmt_factor und
+    die drei CTkFont-Objekte (nur lesend!).
+
+    Die 4 Regler entstehen erst beim ERSTEN Aufklappen (lazy). Einzige
+    Wahrheit bleibt app.ammo_overrides.
+    """
+
+    def __init__(self, app, parent, sid: str, cal: str, ammo_type: str,
+                 show_type: bool):
+        self.app = app
+        self.sid = sid
+        self.cal = cal
+        self.ammo_type = ammo_type      # lesbar, z.B. "Armor-piercing"
+        self.show_type = show_type      # False bei Ein-Sorten-Kalibern
+        # Regler nur fuer Werte, die sich ueberhaupt skalieren lassen: bei 18
+        # der 34 Sorten stehen ArmorPiercingMod UND CoverPiercingMod auf 0.0,
+        # ein Faktor darauf bleibt 0.0. Solche Regler taeuschen eine Wirkung
+        # vor, die es nicht gibt (und waren als einzige Aenderung sogar ein
+        # Absturzgrund beim Bauen). Ohne bekannte Vanilla-Werte -- oder wenn
+        # ALLES 0 waere -- bleibt es bei allen vier.
+        mods = app._ia_mods.get(sid, {})
+        usable = [p for p in AMMO_PARAMS
+                  if abs(mods.get(AMMO_PARAM_KEYS[p], 0.0)) > 1e-9]
+        self.params = usable if (mods and usable) else list(AMMO_PARAMS)
+        self.body = None
+        self.sliders: dict[str, SliderRow] = {}
+        self.reset_btn = None
+        self.expanded = False
+        self._highlight = "normal"
+        self._state = app._ia_state              # NICHT app._iw_state
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_row,
+            command=self.toggle, state=app._ia_state)
+        self.btn.pack(fill="x", padx=(16, 8), pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.refresh()
+
+    # ------------------------------------------------------------ Aufbau
+    def build(self):
+        if self.body is not None:
+            return
+        self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
+        # Vanilla-Werte zeigen: bei vielen Sorten steht in ArmorPiercingMod
+        # und CoverPiercingMod 0.0 -- ein Faktor darauf bleibt 0.0. Ohne
+        # diesen Hinweis sieht das wie ein kaputter Regler aus.
+        mods = self.app._ia_mods.get(self.sid, {})
+        if mods:
+            parts = [f"{AMMO_PARAM_LABELS[p].lower()} {mods[AMMO_PARAM_KEYS[p]]:g}"
+                     for p in AMMO_PARAMS if AMMO_PARAM_KEYS[p] in mods]
+            text = "   vanilla: " + ", ".join(parts)
+            if len(self.params) < len(AMMO_PARAMS):
+                text += ("\n   Values that are 0 in vanilla stay 0 – "
+                         "no slider is offered for them.")
+            # Expanding-Munition hat NEGATIVE Piercing-Werte (−0.7): ein
+            # Faktor > 1 macht die Strafe groesser, nicht kleiner.
+            if any(v < 0 for v in mods.values()):
+                text += ("\n   A negative value is a penalty – a factor "
+                         "above ×1 makes that penalty bigger.")
+            ctk.CTkLabel(self.body, text=text, anchor="w", justify="left",
+                         wraplength=700, font=self.app._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12,
+                                                   pady=(2, 0))
+        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
+        # und damit _changed auf -- ohne Sperre wuerde der halb gefuellte
+        # Regler-Satz den gespeicherten Override loeschen. Alten Wert merken
+        # und zuruecklegen (nicht hart True/False), damit ein verschachtelter
+        # Aufruf aus _ia_refresh_all die Sperre nicht vorzeitig loest.
+        prev = self.app._ia_loading
+        self.app._ia_loading = True
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for param in self.params:
+                self.sliders[param] = SliderRow(
+                    self.body, AMMO_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    fmt_factor, on_change=self._changed)
+        finally:
+            self.app._ia_loading = prev
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+        self.reset_btn = ctk.CTkButton(
+            self.body, text="↺  Reset this round", width=170,
+            fg_color="transparent", border_width=1, command=self.reset)
+        self.reset_btn.pack(anchor="w", padx=12, pady=(2, 4))
+        ctk.CTkFrame(self.body, height=2, corner_radius=0,
+                     fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
+        self.load_values()
+        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self.set_state(self.app._ia_state)
+
+    def toggle(self):
+        self.app._ia_auto_opened.discard(self.cal)
+        if self.expanded:
+            self.body.pack_forget()
+            self.expanded = False
+        else:
+            self.build()
+            self.body.pack(fill="x", padx=(36, 0), after=self.btn)
+            self.expanded = True
+        self.refresh()
+
+    # ------------------------------------------------------------- Werte
+    def load_values(self):
+        if self.sliders:
+            stored = self.app.ammo_overrides.get(self.sid, {})
+            prev = self.app._ia_loading
+            self.app._ia_loading = True
+            try:
+                for param, row in self.sliders.items():
+                    row.set(stored.get(param, 1.0))
+            finally:
+                self.app._ia_loading = prev
+        self.refresh()
+
+    def _changed(self):
+        if self.app._ia_loading or not self.sliders:
+            return
+        self.app._ia_auto_opened.discard(self.cal)
+        values = {p: r.get() for p, r in self.sliders.items()}
+        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
+        if values:
+            self.app.ammo_overrides[self.sid] = values
+        else:
+            self.app.ammo_overrides.pop(self.sid, None)
+        self.refresh()
+        self.app._ia_after_change(self.cal)
+
+    def reset(self):
+        self.app.ammo_overrides.pop(self.sid, None)
+        self.load_values()
+        self.app._ia_after_change(self.cal)
+
+    # -------------------------------------------------------- Darstellung
+    def refresh(self):
+        n = len(self.app.ammo_overrides.get(self.sid, {}))
+        arrow = "▾" if self.expanded else "▸"
+        # Die Sorte steht im TITEL: A545A/A545D/A545E sind sonst nicht zu
+        # unterscheiden. Bei Kalibern mit nur EINER Sorte weggelassen.
+        kind = f"  ·  {self.ammo_type}" if self.show_type else ""
+        # len(self.params), NICHT len(self.sliders): die Regler entstehen erst
+        # beim Aufklappen, die Zahl muss aber schon vorher stimmen.
+        mark = (f"     ●  {n} of {len(self.params)} factors changed"
+                if n else "")
+        self.btn.configure(text=f"{arrow}  {self.sid}{kind}{mark}")
+        self._apply_color(n)
+
+    def _apply_color(self, n: int):
+        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str):
+        self._highlight = mode
+        self._apply_color(len(self.app.ammo_overrides.get(self.sid, {})))
+
+    def set_state(self, state: str):
+        # Frueh raus: sonst haengen bei allen offenen Sorten 136 Regler an
+        # einem einzigen "Reload"-Klick.
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        if self.reset_btn is not None:
+            self.reset_btn.configure(state=state)
+        for row in self.sliders.values():
+            row.set_state(state)
+
+
+class IaCaliberBlock:
+    """Aufklappbarer Kaliber-Block im Ammo-Baum (1-4 Sorten).
+
+    Zwillingsklasse zu IwCategoryBlock -- siehe Begruendung bei IaAmmoRow.
+    """
+
+    def __init__(self, app, parent, cal: str, label: str, sids: list[str]):
+        self.app = app
+        self.cal = cal
+        self.label = label
+        self.sids = sids                       # bereits nach Sorte sortiert
+        self.rows: dict[str, IaAmmoRow] = {}
+        self.expanded = False
+        self._highlight = "normal"
+        self._note = ""
+        self._note_hint = False
+        self._state = app._ia_state
+        self._hitset: set[str] | None = None
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_cat,
+            command=self.toggle, state=app._ia_state)
+        self.btn.pack(fill="x", padx=8, pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.content = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.refresh()
+
+    def ensure_rows(self):
+        """Lazy. Ohne Sanduhr: hoechstens 4 Knoepfe (gemessen ~15 ms),
+        anders als die Waffen-Variante mit bis zu 25 Zeilen."""
+        if self.rows:
+            return
+        for sid in self.sids:
+            ammo_type = self.app._ia_types.get(sid, "")
+            row = IaAmmoRow(self.app, self.content, sid, self.cal, ammo_type,
+                            len(self.sids) > 1 and bool(ammo_type))
+            row.set_highlight(self._row_mode(sid))   # laufende Suche erben
+            self.rows[sid] = row
+
+    def _row_mode(self, sid: str) -> str:
+        if self._hitset is None:
+            return "normal"
+        return "match" if sid in self._hitset else "dim"
+
+    def set_row_filter(self, hitset: "set[str] | None"):
+        self._hitset = hitset
+        for sid, row in self.rows.items():
+            row.set_highlight(self._row_mode(sid))
+
+    def expand(self):
+        if self.expanded:
+            return
+        self.ensure_rows()
+        self.content.pack(fill="x", padx=(8, 0), after=self.btn)
+        self.expanded = True
+        self.refresh()
+
+    def collapse(self):
+        if not self.expanded:
+            return
+        self.content.pack_forget()
+        self.expanded = False
+        self.refresh()
+
+    def toggle(self):
+        self.app._ia_auto_opened.discard(self.cal)
+        self.collapse() if self.expanded else self.expand()
+
+    def refresh(self):
+        n_over = sum(1 for sid in self.sids if sid in self.app.ammo_overrides)
+        arrow = "▾" if self.expanded else "▸"
+        extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
+                 if n_over else "")
+        extra += self._note
+        # NUR am zugeklappten Block -- hier und nicht beim Suchen angehaengt,
+        # sonst bliebe der Hinweis nach einem Klick auf den Kopf stehen.
+        if self._note_hint and not self.expanded:
+            extra += "     click to show"
+        self.btn.configure(
+            text=f"{arrow}  {self.label}  ·  {len(self.sids)}{extra}")
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n_over:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str, note: str = "", hint: bool = False):
+        self._highlight = mode
+        self._note = note
+        self._note_hint = hint
+        self.refresh()
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        for row in self.rows.values():
+            row.set_state(state)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -472,6 +770,19 @@ class App(ctk.CTk):
         self._wcat_btns: dict[str, tuple] = {}
         self._wcat_notes: dict[str, str] = {}   # Suchzusatz je Kategorie-Kopf
         self._iw_expand_job: str | None = None  # laufender after()-Auftrag
+        # Einzelmunitions-Overrides: {Ammo-SID: {param: faktor}} (nur != 1.0)
+        self.ammo_overrides: dict[str, dict[str, float]] = {}
+        # Strikt eigener Namensraum. NICHTS davon mit den _iw_*-Feldern
+        # teilen: eine gemeinsame Sperre/ein gemeinsamer after()-Auftrag
+        # wuerde Overrides der jeweils anderen Seite verschlucken.
+        self._ia_loading = False
+        self._ia_calibers: dict[str, str] = {}            # SID -> Kaliber
+        self._ia_types: dict[str, str] = {}               # SID -> lesbare Sorte
+        self._ia_mods: dict[str, dict[str, float]] = {}   # SID -> Vanilla-Werte
+        self._ia_blocks: dict[str, IaCaliberBlock] = {}
+        self._ia_auto_opened: set[str] = set()
+        self._ia_expand_job: str | None = None
+        self._ia_state = "disabled"
         # Statuszeile vor dem ersten Tastendruck im Suchfeld
         self._status_before_search: str | None = None
         self._iw_state = "disabled"                # gilt fuer lazy Widgets
@@ -521,7 +832,7 @@ class App(ctk.CTk):
         self.btn_browse.pack(side="right", padx=4, pady=8)
         # Breit genug, damit der Platzhaltertext ganz hineinpasst
         self.search_entry = ctk.CTkEntry(head, width=230,
-                                         placeholder_text="🔍 Find a slider or weapon …")
+                                         placeholder_text="🔍 Find a slider, weapon or ammo …")
         self.search_entry.pack(side="right", padx=4, pady=8)
         # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
         # sonst draengt ein langer Spielpfad die Knoepfe und das Suchfeld
@@ -775,6 +1086,191 @@ class App(ctk.CTk):
                     built += cost
                     block.expand()   # refresh() nimmt den Hinweis selbst weg
                     self._iw_auto_opened.add(cat)
+
+    # -------------------------------------------- Einzelmunitions-Overrides
+    def _ia_populate(self):
+        """Munitionsliste einlesen und den Ammo-Baum neu aufbauen."""
+        if self.gd is None:
+            return
+        kinds = self.gd.ammo_kinds()
+        self._ia_mods = self.gd.ammo_mods()
+        self._ia_calibers = {sid: cal for sid, (cal, _t) in kinds.items()}
+        self._ia_types = {
+            sid: AMMO_TYPE_LABELS.get(typ, typ)
+            for sid, (_c, typ) in kinds.items()
+        }
+        # Verwaiste Overrides (Spiel-Update, andere Installation) verwerfen.
+        # Erst HIER moeglich: vorher sind die gueltigen SIDs nicht bekannt.
+        # Dazu Faktoren auf Werte werfen, die in dieser Spielversion 0 sind:
+        # sie erzeugen keinen Patch (0 × Faktor = 0), wuerden aber im
+        # Ergebnis-Dialog auftauchen und die Zaehler der Zeilen sprengen.
+        cleaned = {}
+        for sid, params in self.ammo_overrides.items():
+            if sid not in self._ia_calibers:
+                continue
+            mods = self._ia_mods.get(sid, {})
+            kept = {p: v for p, v in params.items()
+                    if not mods or p not in AMMO_PARAM_KEYS
+                    or abs(mods.get(AMMO_PARAM_KEYS[p], 0.0)) > 1e-9}
+            if kept:
+                cleaned[sid] = kept
+        self.ammo_overrides = cleaned
+        self._ia_build_tree()
+
+    def _ia_build_tree(self):
+        """Baum verwerfen und neu aufbauen (erst Referenzen, dann Widgets)."""
+        self._ia_cancel_expand()
+        self._ia_blocks.clear()
+        self._ia_auto_opened.clear()
+        for child in list(self.ia_tree.winfo_children()):
+            child.destroy()
+        if not self._ia_calibers:
+            text = ("   – load game data first –" if self.gd is None else
+                    "   – no ammo found in this game version –")
+            ctk.CTkLabel(self.ia_tree, text=text, anchor="w",
+                         font=self._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12)
+            self._ia_update_info()
+            return
+        by_cal: dict[str, list[str]] = {}
+        for sid, cal in self._ia_calibers.items():
+            by_cal.setdefault(cal, []).append(sid)
+        # Innerhalb eines Kalibers nach SORTE sortieren (Standard zuerst),
+        # nicht alphabetisch: die SIDs sind fuer den Benutzer bedeutungslos.
+        order = list(AMMO_TYPE_LABELS.values())
+
+        def sort_key(sid: str):
+            label = self._ia_types.get(sid, "")
+            rank = order.index(label) if label in order else len(order)
+            return (rank, sid)
+
+        for cal, label in AMMO_CALIBER_LABELS.items():
+            if by_cal.get(cal):
+                self._ia_blocks[cal] = IaCaliberBlock(
+                    self, self.ia_tree, cal, label,
+                    sorted(by_cal[cal], key=sort_key))
+        # Unbekannte Kaliber (kuenftige Spiel-Patches) nicht verstecken:
+        # Beschriftung = roher Enum-Schwanz. Die Karte ist Nachschlagewerk,
+        # kein Filter. sorted() bekommt nie None (ammo_kinds liefert "").
+        for cal in sorted(set(by_cal) - set(AMMO_CALIBER_LABELS)):
+            self._ia_blocks[cal] = IaCaliberBlock(
+                self, self.ia_tree, cal, cal or "Other",
+                sorted(by_cal[cal], key=sort_key))
+        self._ia_update_info()
+
+    def _ia_after_change(self, cal: str):
+        block = self._ia_blocks.get(cal)
+        if block is not None:
+            block.refresh()
+        self._ia_update_info()
+
+    def _ia_update_info(self):
+        if self.ammo_overrides:
+            # Lesbare Namen statt SIDs: "A012D" sagt ausserhalb des Baums
+            # niemandem etwas, "12 gauge standard" schon.
+            text = "Overrides set for: " + ", ".join(
+                ammo_label(sid) for sid in sorted(self.ammo_overrides))
+        else:
+            text = "No per-ammo overrides set."
+        self.ia_info.configure(text=text)
+
+    def _ia_refresh_all(self):
+        """Alle GEBAUTEN Regler und Marker an ammo_overrides angleichen.
+        Vertraegt einen leeren Baum -- laeuft auch ohne Spieldaten."""
+        for block in self._ia_blocks.values():
+            for row in block.rows.values():
+                row.load_values()
+            block.refresh()
+        self._ia_update_info()
+
+    def _ia_clear_all(self):
+        self.ammo_overrides.clear()
+        self._ia_refresh_all()
+
+    def _ia_note(self, block, cal_hit: bool, sid_hits: list, hits) -> None:
+        if sid_hits:
+            note = (f"     {len(sid_hits)} match"
+                    f"{'es' if len(sid_hits) != 1 else ''}")
+        elif cal_hit:
+            note = "     caliber match"    # keine Zahl: siehe _ia_filter
+        else:
+            note = ""
+        block.set_highlight("match" if hits else "dim", note, bool(hits))
+
+    def _ia_cancel_expand(self) -> None:
+        if self._ia_expand_job is not None:
+            try:
+                self.after_cancel(self._ia_expand_job)
+            except Exception:
+                pass
+            self._ia_expand_job = None
+
+    @staticmethod
+    def _ia_norm(text: str) -> str:
+        """'5.45×39 mm' -> '5.45x39 mm'. Das Malzeichen steht auf keiner
+        Tastatur -- ohne diese Normalisierung fiele die Kaliber-Suche aus."""
+        return text.lower().replace("×", "x")
+
+    def _ia_sid_hit(self, sid: str, q: str) -> bool:
+        """SID oder Sorte ("armor-piercing", "standard", ...): die Sorte ist
+        das einzige unterscheidende Merkmal zwischen A545A/A545D/A545E und
+        steht als einzige nicht schon im zugeklappten Baum."""
+        return q in sid.lower() or q in self._ia_norm(
+            self._ia_types.get(sid, ""))
+
+    def _ia_filter(self, query: str) -> int:
+        """Suchfeld auf den Ammo-Baum anwenden; liefert die Trefferzahl.
+        Faerben sofort, Auto-Aufklappen verzoegert (siehe _ia_auto_expand)."""
+        self._ia_cancel_expand()
+        if not query:
+            for cal in list(self._ia_auto_opened):
+                block = self._ia_blocks.get(cal)
+                if block is not None:
+                    block.collapse()
+            self._ia_auto_opened.clear()
+            for block in self._ia_blocks.values():
+                block.set_highlight("normal", "")
+                block.set_row_filter(None)
+            return 0
+        q = self._ia_norm(query)
+        hits_total = 0
+        for cal, block in self._ia_blocks.items():
+            cal_hit = q in self._ia_norm(block.label) or q in cal.lower()
+            sid_hits = [sid for sid in block.sids if self._ia_sid_hit(sid, q)]
+            # Gleiche Zaehlregel wie im Waffenbaum: entweder die echten
+            # SID-Treffer oder EIN Treffer fuer das Kaliber -- Kopfzeile und
+            # Statuszeile muessen dieselbe Zahl nennen.
+            hits = block.sids if cal_hit else sid_hits
+            hits_total += len(sid_hits) if sid_hits else (1 if cal_hit else 0)
+            block.set_row_filter(set(hits))
+            if not hits and cal in self._ia_auto_opened:
+                block.collapse()
+                self._ia_auto_opened.discard(cal)
+            self._ia_note(block, cal_hit, sid_hits, hits)
+        if self._ia_blocks:
+            self._ia_expand_job = self.after(
+                250, lambda x=q: self._ia_auto_expand(x))
+        return hits_total
+
+    def _ia_auto_expand(self, q: str) -> None:
+        """Verzoegerter Teil: passende Kaliber aufklappen. Bricht ab, falls
+        im Suchfeld inzwischen etwas anderes steht. Eigenes Budget -- der
+        Ammo-Baum darf dem Waffenbaum keine Zeilen wegnehmen."""
+        self._ia_expand_job = None
+        if self._ia_norm(self.search_entry.get().strip()) != q:
+            return
+        built = 0
+        for cal, block in self._ia_blocks.items():
+            cal_hit = q in self._ia_norm(block.label) or q in cal.lower()
+            sid_hits = [sid for sid in block.sids if self._ia_sid_hit(sid, q)]
+            hits = block.sids if cal_hit else sid_hits
+            specific = len(sid_hits) <= 8
+            if hits and specific and len(q) >= 3 and not block.expanded:
+                cost = 0 if block.rows else len(block.sids)
+                if built + cost <= 30:
+                    built += cost
+                    block.expand()
+                    self._ia_auto_opened.add(cal)
 
     # -------------------------------------------- Mutanten-Overrides
     def _mut_populate(self):
@@ -1033,20 +1529,6 @@ class App(ctk.CTk):
         self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
-        f = self._section(body, "Ammo (all calibers)")
-        ctk.CTkLabel(
-            f, text="   Scales each ammo type's own modifiers, so special "
-                    "ammo keeps its character: AP stays the armor king, "
-                    "buckshot stays bad at it – just more or less extreme.",
-            anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "ammo_dmg", "Ammo damage", 25, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_ap", "Ammo armor piercing", 0, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 25, 100, fmt_pct,
-                     "How well bullets punch through wooden walls, fences etc.")
-        ctk.CTkLabel(f, text="", height=2).pack()
-
         f = self._section(body, "Weapon categories")
         ctk.CTkLabel(
             f, text="   Factors for every weapon of a category. ×1 (vanilla) "
@@ -1086,6 +1568,51 @@ class App(ctk.CTk):
         self.iw_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.iw_tree.pack(fill="x", pady=(2, 2))
         self._iw_build_tree()            # zeigt zunaechst nur den Platzhalter
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Ammo")
+        # Die 4 globalen Regler standen frueher im Weapons-Tab. Sie MUESSEN
+        # nach _tab("Ammo") entstehen: _slider() stempelt den aktuellen
+        # Tab-Namen in slider_tabs, sonst nennt die Suche den falschen Tab.
+        f = self._section(body, "Ammo (all calibers)")
+        ctk.CTkLabel(
+            f, text="   Scales each ammo type's own modifiers, so special "
+                    "ammo keeps its character: AP stays the armor king, "
+                    "buckshot stays bad at it – just more or less extreme.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "ammo_dmg", "Ammo damage", 25, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_ap", "Ammo armor piercing", 0, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 25, 100, fmt_pct)
+        self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 25, 100, fmt_pct,
+                     "How well bullets punch through wooden walls, fences etc.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Single ammo overrides (advanced)")
+        ctk.CTkLabel(
+            f, text="   ×1 (vanilla) = no override – the global ammo slider "
+                    "above applies to this round. Any other value REPLACES "
+                    "the global slider for that factor on this round – the "
+                    "two do not stack.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12)
+        ctk.CTkLabel(
+            f, text="   Expand a caliber, then a round, to edit its factors.",
+            anchor="w", font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+        self.ia_info = ctk.CTkLabel(
+            f, text="No per-ammo overrides set.", anchor="w", justify="left",
+            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+        self.ia_info.pack(fill="x", padx=12, pady=(2, 2))
+        self.ia_clear_btn = ctk.CTkButton(
+            f, text="Clear all ammo overrides", width=200,
+            command=self._ia_clear_all)
+        self.ia_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
+        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        self.ia_tree = ctk.CTkFrame(f, fg_color="transparent")
+        self.ia_tree.pack(fill="x", pady=(2, 2))
+        self._ia_build_tree()            # zeigt zunaechst nur den Platzhalter
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("World")
@@ -1218,6 +1745,7 @@ class App(ctk.CTk):
     def _set_body_state(self, enabled: bool):
         state = "normal" if enabled else "disabled"
         self._iw_state = state   # gilt auch fuer spaeter gebaute Zeilen/Regler
+        self._ia_state = state   # dito fuer den Ammo-Baum
         for row in self.sliders.values():
             row.set_state(state)
         for row in self.mut_sliders.values():
@@ -1226,6 +1754,9 @@ class App(ctk.CTk):
             box.configure(state=state)
         self.iw_clear_btn.configure(state=state)
         for block in self._iw_blocks.values():
+            block.set_state(state)
+        self.ia_clear_btn.configure(state=state)
+        for block in self._ia_blocks.values():
             block.set_state(state)
         # Dropdown nur aktivieren, wenn die Liste geladen ist
         self.mut_menu.configure(
@@ -1256,6 +1787,7 @@ class App(ctk.CTk):
                     self.game_label.configure(text=payload)
                 elif kind == "ready":
                     self._iw_populate()
+                    self._ia_populate()
                     self._mut_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
@@ -1441,6 +1973,8 @@ class App(ctk.CTk):
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},
+            ammo_overrides={sid: dict(v)
+                            for sid, v in self.ammo_overrides.items()},
             anomaly_damage_factor=s["anomaly"].get(),
             anomaly_electro_factor=s["anom_electro"].get(),
             anomaly_chemical_factor=s["anom_chem"].get(),
@@ -1513,6 +2047,11 @@ class App(ctk.CTk):
         iw_hits = self._iw_filter(query)
         if query and iw_hits:
             counts["Weapons"] = counts.get("Weapons", 0) + iw_hits
+        # Eigene Zeile, NICHT in iw_hits mitgezaehlt: sonst schickt die
+        # Statuszeile den Benutzer wegen "A545" in den Weapons-Tab.
+        ia_hits = self._ia_filter(query)
+        if query and ia_hits:
+            counts["Ammo"] = counts.get("Ammo", 0) + ia_hits
         if query:
             if self._status_before_search is None:
                 self._status_before_search = self.status.cget("text")
@@ -1521,10 +2060,10 @@ class App(ctk.CTk):
                     f"{tab} ({n})" for tab, n in counts.items()))
             else:
                 self.status.configure(
-                    text="No slider or weapon matches your search.")
+                    text="No slider, weapon or ammo matches your search.")
         elif self._status_before_search is not None:
             # Suchfeld geleert: alte Meldung zurueck statt eines stehen
-            # gebliebenen "No slider or weapon matches your search."
+            # gebliebenen "No slider, weapon or ammo matches your search."
             self.status.configure(text=self._status_before_search)
             self._status_before_search = None
 
@@ -1536,6 +2075,7 @@ class App(ctk.CTk):
         for box in self.cat_checks.values():
             box.select()
         self._iw_clear_all()
+        self._ia_clear_all()
         self.mutant_overrides.clear()
         if self._mut_current is not None:
             self._mut_select(self._mut_current)
@@ -1547,6 +2087,7 @@ class App(ctk.CTk):
             "checks": {k: bool(v.get()) for k, v in self.checks.items()},
             "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
             "weapon_overrides": self.weapon_overrides,
+            "ammo_overrides": self.ammo_overrides,
             "mutant_overrides": self.mutant_overrides,
         }
 
@@ -1591,10 +2132,12 @@ class App(ctk.CTk):
             messagebox.showerror(APP_TITLE, "Could not read that preset file.")
             return
         self.weapon_overrides.clear()
+        self.ammo_overrides.clear()
         self.mutant_overrides.clear()
         self._apply_ui_state(data)
         if self.gd is not None:
             self._iw_populate()
+            self._ia_populate()
             self._mut_populate()
         # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
         # laufende Suche wieder auf den neu gebauten Baum anwenden.
@@ -1655,15 +2198,27 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.mutant_overrides[species] = clean
+        for sid, params in (data.get("ammo_overrides") or {}).items():
+            try:
+                clean = {p: float(v) for p, v in params.items()
+                         if p in AMMO_PARAMS and abs(float(v) - 1.0) > 1e-9}
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if clean:
+                self.ammo_overrides[sid] = clean
+        # Unbekannte SIDs koennen erst in _ia_populate weg (dort sind die
+        # gueltigen Kaliber bekannt) -- genau wie beim Waffenbaum.
         # Bereits gebaute Waffen-Regler auf die geladenen Werte ziehen (und
         # entfallene Overrides zurueck auf ×1). Ohne gebaute Zeilen faellt das
         # auf die reine Info-Zeile zurueck, gilt also auch ohne Spieldaten.
         self._iw_refresh_all()
+        self._ia_refresh_all()
 
     def _on_close(self):
         # Ein wartendes Auto-Aufklappen wuerde sonst noch Widgets in einem
         # gerade zerstoerten Fenster bauen wollen.
         self._iw_cancel_expand()
+        self._ia_cancel_expand()
         self._save_ui_settings()
         self.destroy()
 
@@ -1680,6 +2235,29 @@ class App(ctk.CTk):
                 "Everything is set to vanilla – nothing to patch.")
             return False
         patches = build_patches(self.gd, s)
+        # summarize() kennt nur die Settings, build_patches() auch die
+        # Vanilla-Werte: ein Faktor auf einen Vanilla-0-Wert (viele
+        # ArmorPiercingMod/CoverPiercingMod) oder ein Item-Gewicht ohne
+        # angehakte Kategorie steht in "active", erzeugt aber keine Zeile.
+        # Ohne diesen Riegel bekaeme repak einen leeren Ordner und der
+        # Benutzer einen rohen Python-Traceback statt einer Erklaerung.
+        if not patches:
+            # Ursachen-Hinweis nur nennen, wenn er auch passen KANN — sonst
+            # erklaert der Dialog dem Benutzer etwas ueber Munition, waehrend
+            # in Wahrheit die Gewichts-Kategorien abgehakt sind.
+            ammo_touched = bool(s.ammo_overrides) or any(
+                abs(v - 1.0) > 1e-9 for v in (
+                    s.ammo_damage_factor, s.ammo_piercing_factor,
+                    s.ammo_armor_damage_factor, s.ammo_cover_factor))
+            why = ("\n\nA factor on a value that is 0 in vanilla stays 0."
+                   if ammo_touched else
+                   "\n\nCheck that the categories belonging to your changed "
+                   "sliders are still ticked.")
+            messagebox.showinfo(
+                APP_TITLE,
+                "The values you changed have no effect on the game data – "
+                "nothing to patch." + why)
+            return False
         pakio.pack_mod(patches, out_pak)
 
         debug_note = ""

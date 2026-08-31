@@ -80,7 +80,14 @@ s = Settings(
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     weapon_bleeding_factor=2.0, ammo_damage_factor=1.5,
     ammo_piercing_factor=2.0, ammo_armor_damage_factor=1.25,
-    ammo_cover_factor=0.5, detector_range_factor=2.0,
+    ammo_cover_factor=0.5,
+    # A545A: Override schlaegt den globalen Regler (Kaskade).
+    # A012D: ArmorDamageMod = 0.084, kein glatter 1.0-Ausreisser.
+    # AVOG: ArmorPiercingMod = 0.0 -> darf KEINE Patch-Zeile erzeugen.
+    ammo_overrides={"A545A": {"damage": 2.0, "piercing": 1.5},
+                    "A012D": {"armordamage": 2.0},
+                    "AVOG": {"piercing": 3.0}},
+    detector_range_factor=2.0,
     fast_travel_cost_factor=0.5, trader_restock_factor=0.25,
 )
 

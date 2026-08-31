@@ -85,6 +85,79 @@ WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
     "launcher": "Grenade launchers",
 }
 
+# --- Munitions-Zwei-Ebenen-System: Einzelsorte > globaler Regler ---------
+AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover"]
+
+AMMO_PARAM_LABELS = {  # GUI (englisch)
+    "damage": "Damage",
+    "piercing": "Armor piercing",
+    "armordamage": "Armor damage",
+    "cover": "Cover penetration",
+}
+
+# Regler-Schluessel -> cfg-Schluessel in ItemPrototypes (= AMMO_MOD_KEYS).
+# Reihenfolge NICHT aendern: sie bestimmt die Reihenfolge der Zeilen im
+# erzeugten Patch und damit die Byte-Gleichheit zu bisherigen Paks.
+AMMO_PARAM_KEYS = {
+    "damage": "DamageMod",
+    "piercing": "ArmorPiercingMod",
+    "armordamage": "ArmorDamageMod",
+    "cover": "CoverPiercingMod",
+}
+
+# Reihenfolge = Sortierung der Sorten INNERHALB eines Kalibers
+AMMO_TYPE_LABELS = {
+    "Default": "Standard",
+    "ArmorPiercing": "Armor-piercing",
+    "Expanding": "Expanding",
+    "Supersonic": "Supersonic",
+}
+
+# Schluessel = Enum-Schwanz von Caliber, Reihenfolge = GUI-Reihenfolge.
+# NACHSCHLAGEWERK, KEIN FILTER: unbekannte Kaliber (kuenftige Spiel-Patches)
+# erscheinen im Baum mit dem rohen Schwanz als Beschriftung.
+AMMO_CALIBER_LABELS = {
+    "A918": "9×18 mm Makarov",
+    "A919": "9×19 mm Parabellum",
+    "A045": ".45 ACP",
+    "A939": "9×39 mm",
+    "A545": "5.45×39 mm",
+    "A556": "5.56×45 mm NATO",
+    "A762": "7.62×39 mm",
+    "A762NATO": "7.62×51 mm NATO",
+    "A762Sniper": "7.62×54 mmR",
+    "A012": "12 gauge",
+    "AGA": "Gauss rounds",
+    "AVOG": "VOG-25 grenades",
+    "AHEDP": "40 mm HEDP grenades",
+    "APG7V": "PG-7V rockets",
+}
+
+# Endbuchstabe einer Munitions-SID -> Sorte. A545A = 5.45 armor-piercing.
+AMMO_SID_TYPE_SUFFIX = {
+    "A": "ArmorPiercing",
+    "D": "Default",
+    "E": "Expanding",
+    "S": "Supersonic",
+}
+
+
+def ammo_label(sid: str) -> str:
+    """'A545A' -> '5.45×39 mm armor-piercing'.
+
+    Nur aus der SID abgeleitet, weil summarize() keine GameData hat. Reihen-
+    folge wichtig: AGA/AHEDP/APG7V/AVOG sind KOMPLETTE Kaliber-Schluessel und
+    muessen VOR dem Abtrennen des Endbuchstabens erkannt werden (sonst wuerde
+    'AGA' als 'AG' + 'A' gelesen). Unbekanntes bleibt die rohe SID.
+    """
+    if sid in AMMO_CALIBER_LABELS:
+        return AMMO_CALIBER_LABELS[sid]
+    stem, suffix = sid[:-1], sid[-1:]
+    if stem in AMMO_CALIBER_LABELS and suffix in AMMO_SID_TYPE_SUFFIX:
+        kind = AMMO_TYPE_LABELS[AMMO_SID_TYPE_SUFFIX[suffix]]
+        return f"{AMMO_CALIBER_LABELS[stem]} {kind.lower()}"
+    return sid
+
 
 # Gangarten getrennt regelbar: Animation/Schrittsound skalieren NICHT mit
 # (Engine-Assets, per cfg unerreichbar) -- getrennte Regler halten den
@@ -176,6 +249,10 @@ class Settings:
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
     ammo_armor_damage_factor: float = 1.0
     ammo_cover_factor: float = 1.0
+    # Einzelsorten-Overrides {Ammo-SID: {param: faktor}}; ein Eintrag
+    # ERSETZT den globalen Regler fuer diesen Parameter an dieser Sorte
+    # (wie bei den Waffen), er multipliziert sich nicht dazu.
+    ammo_overrides: dict = field(default_factory=dict)
 
     # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
     # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
@@ -1029,21 +1106,32 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
     if s.ignore_equipped_weight:
         patches["[0]"] = {"IgnoreEquippedWeight": "true"}
 
-    # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte)
-    ammo_factors = {
-        "DamageMod": s.ammo_damage_factor,
-        "ArmorPiercingMod": s.ammo_piercing_factor,
-        "ArmorDamageMod": s.ammo_armor_damage_factor,
-        "CoverPiercingMod": s.ammo_cover_factor,
+    # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte).
+    # Kaskade: Einzelsorte > globaler Regler -- der Override ERSETZT den
+    # globalen Faktor, er stapelt sich nicht (vgl. _weapon_factor).
+    ammo_globals = {
+        "damage": s.ammo_damage_factor,
+        "piercing": s.ammo_piercing_factor,
+        "armordamage": s.ammo_armor_damage_factor,
+        "cover": s.ammo_cover_factor,
     }
-    if any(_neq(f, 1.0) for f in ammo_factors.values()):
+    # Ohne "or s.ammo_overrides" faende ein Pak mit AUSSCHLIESSLICH
+    # Einzelsorten-Overrides gar nicht statt.
+    if any(_neq(f, 1.0) for f in ammo_globals.values()) or s.ammo_overrides:
         for sid, mods in sorted(gd.ammo_mods().items()):
+            over = s.ammo_overrides.get(sid) or {}
             cfg = {}
-            for key, factor in ammo_factors.items():
-                if not _neq(factor, 1.0) or key not in mods:
+            for param in AMMO_PARAMS:          # Reihenfolge = Patch-Reihenfolge
+                key = AMMO_PARAM_KEYS[param]
+                if key not in mods:
+                    continue
+                factor = over.get(param, ammo_globals[param])
+                if not _neq(factor, 1.0):
                     continue
                 vanilla = mods[key]
                 scaled = vanilla * factor
+                # Vanilla 0 bleibt 0 -> _neq faengt es ab: kein Scheinpatch,
+                # kein Absturz (A545D ArmorPiercingMod ist 0.0).
                 if _neq(scaled, vanilla):
                     cfg[key] = _num(scaled)
             if cfg:
@@ -1339,6 +1427,15 @@ def summarize(s: Settings) -> list[str]:
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)
     f("Ammo cover penetration", s.ammo_cover_factor)
+    # Strenger als die Waffen-Schleife weiter unten: ein Muellschluessel aus
+    # einem von Hand bearbeiteten Preset darf hier kein KeyError werfen.
+    # Das Praefix "Ammo " haelt A545A davon ab, wie eine Waffen-SID zu wirken.
+    for sid, params in sorted(s.ammo_overrides.items()):
+        parts = [f"{AMMO_PARAM_LABELS[p].lower()} × {v:g}"
+                 for p, v in sorted(params.items())
+                 if p in AMMO_PARAM_LABELS and _neq(v, 1.0)]
+        if parts:
+            lines.append(f"Ammo {ammo_label(sid)}: " + ", ".join(parts))
 
     for cat, params in sorted(s.weapon_category_factors.items()):
         label = WEAPON_CATEGORY_LABELS.get(cat, cat)

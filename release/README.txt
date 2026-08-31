@@ -7,7 +7,7 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~155 tweaks in 7 tabs, including:
+~155 tweaks in 8 tabs, including:
 - NEW in 1.5.0: mutant overhaul (per-species health/speed/damage
   overrides, bloodsucker cloaking), ADS speed, magazine size, melee
   damage, anomaly damage per type, consumable strength, weather
@@ -31,6 +31,9 @@ with your other mods.
 - Weapon tweaks on THREE levels: global sliders, 8 weapon categories
   (damage, spread, recoil, durability, fire rate each) and per-weapon
   overrides for 79 weapons incl. all uniques
+- Ammo on its own tab, on TWO levels: global sliders (damage, armor
+  piercing, armor damage, cover penetration) and per-round overrides for
+  all 34 rounds in 14 calibers - a round's own factor beats the global one
 - NPCs & AI: accuracy, vision range, hearing range, grenade usage,
   "NPCs don't self-heal"
 - Anomaly damage, radiation, bleeding, hunger & sleepiness rates

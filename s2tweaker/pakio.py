@@ -52,6 +52,9 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path, repak_exe: Path | None = 
         # repak benutzt den Namen des Eingabeordners als Pak-Namen, deshalb
         # bauen wir einen Ordner, der exakt wie die Ziel-Pak (ohne .pak) heisst.
         staging = Path(tmp) / out_pak.stem
+        # Auch bei leerem cfg_files anlegen: repak bricht sonst mit
+        # "Input is not a directory" ab statt eine (leere) Pak zu bauen.
+        staging.mkdir(parents=True, exist_ok=True)
         for rel, content in cfg_files.items():
             if rel.startswith("//"):
                 target = staging / "Stalker2" / "Content" / rel[2:]

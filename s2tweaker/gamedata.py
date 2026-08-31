@@ -609,6 +609,24 @@ class GameData:
                 result[sid] = mods
         return result
 
+    def ammo_kinds(self) -> dict[str, tuple[str, str]]:
+        """{SID: (Kaliber-Kuerzel, Munitionsart)} aller Munitions-Items.
+
+        Beide Felder stehen als Enum in den Prototypen ("EAmmoCaliber::A545",
+        "EAmmoType::ArmorPiercing"); zurueckgegeben wird nur der Teil hinter
+        "::". Fehlt eines, steht "" drin -- der Baum zeigt das Item trotzdem.
+
+        Bewusst ueber ammo_mods() statt ueber self.items: so kann der Baum
+        strukturell keine Sorte anbieten, die _items_patch nicht kennt.
+        """
+        result: dict[str, tuple[str, str]] = {}
+        for sid in self.ammo_mods():
+            cal = self.resolve(self.items, sid, "Caliber") or ""
+            typ = self.resolve(self.items, sid, "AmmoType") or ""
+            result[sid] = (cal.split("::")[-1].strip(),
+                           typ.split("::")[-1].strip())
+        return result
+
     ARMOR_PROTECTION_KEYS = ("Strike", "Burn", "Shock", "ChemicalBurn",
                              "Radiation", "PSY")
 

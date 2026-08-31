@@ -86,6 +86,10 @@ it extracts from the game on "Confirm & load game data".
    (this invalidates old caches automatically).
 3. **[gui.py](s2tweaker/gui.py)** — add a `self._slider(...)` /
    `self._check(...)` row in `_build_body()` and map it in `_collect()`.
+   Two exceptions to that recipe: the per-weapon sliders (`IwWeaponRow`) and
+   the per-ammo sliders (`IaAmmoRow`) are built directly as `SliderRow(...)`
+   and are deliberately **not** registered in `self.sliders` — they live in
+   `self.weapon_overrides` / `self.ammo_overrides`.
 
 Golden rule: patch only what the user changed, compute from vanilla values of
 the *installed* version, and never hardcode game numbers.

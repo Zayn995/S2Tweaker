@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~155 tweaks in 7 tabs · pick your values · one click builds your .pak[/i]
+[i]~155 tweaks in 8 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]155 tweaks[/b], sorted into 7 tabs:
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]155 tweaks[/b], sorted into 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, World, Economy):
 
 [b]Player[/b]
 [list]
@@ -37,9 +37,11 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
 
-[b]Ammo[/b]
+[b]Ammo - its own tab, two levels[/b]
 [list]
-[*]Damage, armor piercing, armor damage and cover penetration - scaled per ammo type, so AP stays the armor king and buckshot stays bad at it, just more or less extreme
+[*][b]Global[/b] sliders for damage, armor piercing, armor damage and cover penetration - scaled per ammo type, so AP stays the armor king and buckshot stays bad at it, just more or less extreme
+[*][b]Per-round overrides[/b] for all [b]34 rounds in 14 calibers[/b] (9x18, 9x19, .45, 9x39, 5.45, 5.56, 7.62x39, 7.62 NATO, 7.62x54R, 12 gauge, gauss, VOG-25, 40 mm HEDP, PG-7V): open a caliber, open a round, set its factors - a round's own factor beats the global slider, everything left at (vanilla) falls through
+[*]Only values that can actually be scaled get a slider: many rounds have armor piercing and cover penetration at 0 in vanilla, and 0 x anything is still 0
 [/list]
 
 [b]Armor[/b]
