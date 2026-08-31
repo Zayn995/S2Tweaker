@@ -3,3 +3,8 @@ customtkinter>=5.2
 
 # Building the exe (optional)
 pyinstaller>=6.10
+
+# Screenshots for the mod page (optional, tools/make_screenshots.py only).
+# Never used by the app itself - build.bat excludes it from the exe on
+# purpose so the build is the same size on every machine.
+pillow>=10.0
