@@ -89,6 +89,7 @@ s = Settings(
                     "AVOG": {"piercing": 3.0}},
     detector_range_factor=2.0,
     fast_travel_cost_factor=0.5, trader_restock_factor=0.25,
+    stash_loot_factor=2.0, stash_chance_factor=1.5, stash_ammo_factor=2.0,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

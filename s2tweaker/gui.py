@@ -1645,6 +1645,30 @@ class App(ctk.CTk):
                      "no-emission zones stay untouched).")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Loot in stashes & on bodies")
+        ctk.CTkLabel(
+            f, text="   Covers the game's smart-loot lists: ammo, medicine, "
+                    "food and grenades in hidden stashes and on NPC bodies. "
+                    "Weapons, armor and artifacts come from a different "
+                    "system and are NOT affected by these sliders. Note that "
+                    "vanilla only puts smart loot on bodies on Easy and "
+                    "Medium difficulty – on Hard and Stalker there is nothing "
+                    "to scale on bodies, only in stashes.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "stash_loot", "Stash & body loot amount", 25, 400, 25, 100, fmt_pct,
+                     "How many items a stash or body yields (whole numbers, "
+                     "never below 1).")
+        self._slider(f, "stash_chance", "Stash & body find chance", 25, 400, 25, 100, fmt_pct,
+                     "Chance that a slot yields anything at all. Capped at "
+                     "100 %, so raising it helps less than the number suggests "
+                     "– many slots already sit close to the cap. Lowering it "
+                     "works in full.")
+        self._slider(f, "stash_ammo", "Stash & body ammo bonus", 25, 400, 25, 100, fmt_pct,
+                     "Extra rounds handed out to match the weapon caliber, on "
+                     "top of the item list above.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Artifacts")
         self._slider(f, "art_effect", "Artifact effect strength", 25, 300, 25, 100, fmt_pct,
                      "Scales what artifacts do on your belt – positive effects "
@@ -1992,6 +2016,9 @@ class App(ctk.CTk):
             consumable_factor=s["consumable"].get() / 100.0,
             rain_factor=s["rain"].get() / 100.0,
             emission_factor=s["emission"].get() / 100.0,
+            stash_loot_factor=s["stash_loot"].get() / 100.0,
+            stash_chance_factor=s["stash_chance"].get() / 100.0,
+            stash_ammo_factor=s["stash_ammo"].get() / 100.0,
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
@@ -2136,9 +2163,11 @@ class App(ctk.CTk):
         except (OSError, ValueError):
             messagebox.showerror(APP_TITLE, "Could not read that preset file.")
             return
-        self.weapon_overrides.clear()
-        self.ammo_overrides.clear()
-        self.mutant_overrides.clear()
+        # Erst auf Vanilla zuruecksetzen: ein Preset beschreibt einen
+        # KOMPLETTEN Zustand. Sonst blieben Regler stehen, die es beim
+        # Speichern des Presets noch gar nicht gab, und wanderten unbemerkt
+        # in die gebaute Pak.
+        self._reset_all()
         self._apply_ui_state(data)
         if self.gd is not None:
             self._iw_populate()

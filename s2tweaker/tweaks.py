@@ -272,6 +272,10 @@ class Settings:
     consumable_factor: float = 1.0           # Medkits/Verband/Essen usw.
     rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
     emission_factor: float = 1.0             # Emissions-Haeufigkeit
+    # --- Loot in Verstecken und auf Leichen (StashPrototypes) ---
+    stash_loot_factor: float = 1.0           # Stueckzahlen je Fund
+    stash_chance_factor: float = 1.0         # Fundwahrscheinlichkeit
+    stash_ammo_factor: float = 1.0           # Munition an gefundenen Waffen
     # --- Artefakte ---
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
@@ -325,6 +329,45 @@ def _scale_literal(raw: str, factor: float) -> str | None:
     except ValueError:
         return None
     return _num(value * factor) + suffix
+
+
+def _scale_count(raw: str | None, factor: float) -> str | None:
+    """Ganzzahlige Stueckzahl skalieren. 0 bleibt 0 (0 x Faktor = 0), sonst
+    mindestens 1. None = nichts zu patchen."""
+    if raw is None:
+        return None
+    try:
+        value = int(float(raw.strip().rstrip("fF").rstrip(".") or "0"))
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    scaled = max(1, int(round(value * factor)))
+    return str(scaled) if scaled != value else None
+
+
+def _scale_chance(raw: str | None, factor: float) -> str | None:
+    """Wahrscheinlichkeit 0..1 skalieren, bei 1.0 deckeln, Suffix erhalten.
+
+    Vanilla schreibt hier '0.7f', '0.5', '0' und sogar '0.' (nackter Punkt);
+    0-Werte bleiben 0, damit bewusst abgeschaltete Generatoren
+    (die beiden *_MainLoot) nicht versehentlich aktiviert werden."""
+    if raw is None:
+        return None
+    core = raw.strip()
+    suffix = "f" if core.endswith(("f", "F")) else ""
+    if suffix:
+        core = core[:-1]
+    try:
+        value = float(core or "0")
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    scaled = min(1.0, value * factor)
+    if not _neq(scaled, value):
+        return None
+    return _num(scaled) + suffix
 
 
 # ------------------------------------------------------------------ features
@@ -392,6 +435,66 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
 # Patch) steht in docs/ROADMAP.md fuer nach den In-Game-Tests.
 NPC_VISION_SKIP = {"Player", "NoVision", "ScarBoss", "Boss"}
 NPC_HEARING_SKIP = {"MutantsHearingSensor"}
+
+
+def _stash_patch(gd: GameData, s: Settings) -> dict:
+    """Loot in Verstecken und auf Leichen (StashPrototypes.cfg).
+
+    Aufbau je Eintrag: <SID>.ItemGenerators[i].SmartLootParams.<Gruppe>[j]
+    mit MinSpawnChance/MaxSpawnChance/MainWeaponAmmoCount und darunter
+    Items[k].MinCount/MaxCount. Raenge und Gruppen sind je Struct
+    unterschiedlich belegt und werden deshalb live gelesen; das Null-Schema
+    'empty' bleibt unangetastet (docs/GENERATOR_RESEARCH.md)."""
+    loot = _neq(s.stash_loot_factor, 1.0)
+    chance = _neq(s.stash_chance_factor, 1.0)
+    ammo = _neq(s.stash_ammo_factor, 1.0)
+    if not (loot or chance or ammo):
+        return {}
+
+    patches: dict = {}
+    for sid, gen_key, group, entry_key, entry in gd.stash_entries():
+        cfg: dict = {}
+        if chance:
+            for key in ("MinSpawnChance", "MaxSpawnChance"):
+                scaled = _scale_chance(entry.values.get(key), s.stash_chance_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+        if ammo:
+            scaled = _scale_count(entry.values.get("MainWeaponAmmoCount"),
+                                  s.stash_ammo_factor)
+            if scaled is not None:
+                cfg["MainWeaponAmmoCount"] = scaled
+        if loot:
+            items: dict = {}
+            items_node = entry.children.get("Items")
+            for item_key, item in (items_node.children.items() if items_node else ()):
+                new_min = _scale_count(item.values.get("MinCount"), s.stash_loot_factor)
+                new_max = _scale_count(item.values.get("MaxCount"), s.stash_loot_factor)
+                # Ein Vanilla-Eintrag hat Min 25 > Max 15. Den Widerspruch
+                # nicht verschaerfen — aber auch keinen neuen erzeugen.
+                if new_min is not None and new_max is not None:
+                    old_min = parse_number(item.values.get("MinCount"))
+                    old_max = parse_number(item.values.get("MaxCount"))
+                    if old_min <= old_max and int(new_min) > int(new_max):
+                        new_min = new_max
+                item_cfg: dict = {}
+                if new_min is not None:
+                    item_cfg["MinCount"] = new_min
+                if new_max is not None:
+                    item_cfg["MaxCount"] = new_max
+                if item_cfg:
+                    items[item_key] = item_cfg
+            if items:
+                cfg["Items"] = items
+        if not cfg:
+            continue
+        node = (patches.setdefault(sid, {})
+                       .setdefault("ItemGenerators", {})
+                       .setdefault(gen_key, {})
+                       .setdefault("SmartLootParams", {})
+                       .setdefault(group, {}))
+        node[entry_key] = cfg
+    return patches
 
 
 def _npc_heal_patch(gd: GameData, s: Settings) -> dict:
@@ -1315,6 +1418,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ObjHoldBreathParamsPrototypes/ObjHoldBreathParamsPrototypes_patch_{n}.cfg",
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
+    add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
@@ -1463,6 +1567,9 @@ def summarize(s: Settings) -> list[str]:
     f("Consumable strength", s.consumable_factor)
     f("Rain & storm frequency", s.rain_factor)
     f("Emission frequency", s.emission_factor)
+    f("Stash & body loot amount", s.stash_loot_factor)
+    f("Stash & body find chance", s.stash_chance_factor)
+    f("Stash & body ammo bonus", s.stash_ammo_factor)
     f("Radiation accumulation", s.radiation_factor)
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)

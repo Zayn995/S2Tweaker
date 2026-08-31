@@ -13,6 +13,7 @@ Vanilla-Werten der installierten Spielversion rechnen.
 from __future__ import annotations
 
 import os
+import shutil
 from functools import cached_property
 from pathlib import Path
 
@@ -45,10 +46,11 @@ NEEDED_FILES = [
     "AbilityPrototypes.cfg.bin",
     "MeleeWeaponPrototypes.cfg.bin",
     "WeatherSelectionPrototypes.cfg.bin",
+    "StashPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 8
+CACHE_SCHEMA = 9
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -73,6 +75,11 @@ SPECIES_ABILITY_PREFIXES = {
 }
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
+
+
+def _cfg_name(needed: str) -> str:
+    """NEEDED_FILES-Eintrag -> Name der lesbaren cfg nach der Konvertierung."""
+    return needed[: -len(".bin")] if needed.endswith(".cfg.bin") else needed
 
 # Kreatur-Fraktionen = Mutanten (Zombie-Stalker zaehlen als Menschen)
 MUTANT_FACTIONS = {
@@ -178,7 +185,24 @@ class GameData:
                     out.write_text(
                         "\n".join(r.to_string() for r in roots), encoding="utf-8"
                     )
+            # Erst pruefen, dann als fertig markieren: repak meldet Erfolg
+            # auch, wenn ein Include-Muster auf nichts passt. Ohne diesen
+            # Check bliebe ein unvollstaendiger Cache dauerhaft liegen und
+            # der Fehler taeuchte erst beim Bauen als Traceback auf.
+            missing = [name for name in NEEDED_FILES
+                       if not (gd / _cfg_name(name)).is_file()]
+            if missing:
+                raise FileNotFoundError(
+                    "These game files could not be extracted:\n  "
+                    + "\n  ".join(missing)
+                    + "\n\nYour game version may have moved or renamed them. "
+                      "Please report this together with your game version.")
             marker.write_text("ok", encoding="utf-8")
+            # Caches frueherer Schema-Versionen sind nie wieder nutzbar und
+            # liegen sonst dauerhaft neben der EXE (~90 MB je Generation).
+            for old in cache_root.glob("vanilla-*"):
+                if old.is_dir() and not old.name.endswith(f"-s{CACHE_SCHEMA}"):
+                    shutil.rmtree(old, ignore_errors=True)
         return cls(gd)
 
     # ---------------------------------------------------------------- parsing
@@ -236,6 +260,10 @@ class GameData:
     @cached_property
     def corevars(self) -> CfgStruct:
         return self._parse("CoreVariables.cfg")
+
+    @cached_property
+    def stashes(self) -> CfgStruct:
+        return self._parse("StashPrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:
@@ -468,6 +496,45 @@ class GameData:
 
     # Wetter: diese Sub-Structs gelten als "Regen/Sturm"
     RAIN_WEATHER_TYPES = ("Stormy", "LightRainy", "Rainy", "Thundery")
+
+    # Das Null-Schema, von dem alle 18 echten Stash-Prototypen erben. NIE
+    # patchen: es enthaelt nur Nullen und ItemPrototypeSID = empty; wuerde
+    # man dort etwas aktivieren, tauchen ueberall Eintraege auf, die auf ein
+    # nicht existierendes Item zeigen (docs/GENERATOR_RESEARCH.md, Warnung 17).
+    STASH_TEMPLATE = "empty"
+
+    # In Vanilla wirkungslos, deshalb nicht patchen (spart ~25 % Patch-Text):
+    # die beiden *_MainLoot-Generatoren stehen in ALLEN Eintraegen auf
+    # MaxSpawnChance = 0.f (von GSC bewusst abgeschaltet), die beiden
+    # *_Corpse-Structs werden im gesamten GameData nirgends referenziert.
+    STASH_UNUSED = {
+        "Stash_AmmoSNG_Smart_MainLoot", "Stash_AmmoNATO_Smart_MainLoot",
+        "StashMedicine_Corpse", "StashVodka_Corpse",
+    }
+
+    def stash_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
+        """Alle Smart-Loot-Eintraege der Verstecke/Leichen-Generatoren.
+
+        Liefert (Stash-SID, ItemGenerators-Schluessel, Gruppe,
+        Eintrags-Schluessel, Knoten) — die Schluessel kommen so, wie sie in
+        der Datei stehen. Nichts wird konstruiert: Raenge und Gruppen sind
+        je Struct unterschiedlich belegt (7 Structs haben nur [0], andere
+        [0..3]; einzelnen Raengen fehlen ganze Gruppen)."""
+        out: list[tuple[str, str, str, str, CfgStruct]] = []
+        for sid, node in self.stashes.children.items():
+            if sid == self.STASH_TEMPLATE or sid in self.STASH_UNUSED or "#" in sid:
+                continue
+            gens = node.children.get("ItemGenerators")
+            if gens is None:
+                continue
+            for gen_key, gen in gens.children.items():
+                params = gen.children.get("SmartLootParams")
+                if params is None:
+                    continue
+                for group, group_node in params.children.items():
+                    for entry_key, entry in group_node.children.items():
+                        out.append((sid, gen_key, group, entry_key, entry))
+        return out
 
     def npcs_with_regen(self) -> dict[str, float]:
         """{SID: RegenHP} aller menschlichen NPC-Prototypen mit
