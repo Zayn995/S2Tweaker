@@ -33,5 +33,8 @@ und den expliziten Interpreter-Pfad verwenden.
 
 ## Workflows
 
-- Neue Version veröffentlichen: Skill `release-version`
 - Neuen Tweak einbauen: Skill `add-tweak`
+- Großen, noch unerschlossenen cfg-Bereich analysieren (Vorstufe zum Bauen):
+  Skill `research-cfg-block`
+- Tweaks im Spiel gegenprüfen und Disclaimer pflegen: Skill `test-ingame`
+- Neue Version veröffentlichen: Skill `release-version`
