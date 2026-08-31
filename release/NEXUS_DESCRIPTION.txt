@@ -138,6 +138,14 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.6.1 - Bug fix: "Oodle loader error ... InvalidCertificate(UnknownIssuer)"[/b]
+[list]
+[*]If loading the game data failed with that error, this version fixes it - thanks to foxce for the report. Reading the game's config files needs Oodle's oo2core_9_win64.dll; until now the bundled repak fetched it and validated the connection against its own certificate list instead of the Windows one, so antivirus/proxy HTTPS inspection broke it. It was also stored in a temp folder that Windows wipes, so it was re-downloaded on every cold start
+[*]S2Tweaker now gets that library itself (Windows certificate store), verifies its official checksum, prefers a copy already on your PC and keeps it in a "tools" folder next to the exe - fetched once, offline afterwards. If your network blocks GitHub, just drop the DLL next to S2Tweaker.exe
+[*]If it still can't be obtained you now get a plain explanation with those steps instead of a Python error
+[*]No tweaks changed in this version
+[/list]
+
 [b]v1.6.0 - Ammo tab & weapon tree[/b] (~155 sliders + per-round ammo overrides)
 [list]
 [*]Ammo has its own tab now: the four global sliders (damage, armor piercing, armor damage, cover penetration) moved there out of the Weapons tab
