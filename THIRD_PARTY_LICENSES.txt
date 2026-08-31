@@ -57,5 +57,16 @@ customtkinter (MIT, Tom Schimansky) and Python itself (PSF licence) are
 linked into the built executable by PyInstaller.
 
 NOT part of this distribution: oo2core_9_win64.dll (Oodle, proprietary,
-(c) RAD Game Tools / Epic Games). It is only ever used from the player's
-own game installation and is never shipped with S2Tweaker.
+(c) RAD Game Tools / Epic Games). It is never shipped with S2Tweaker and
+never redistributed by this project.
+
+That library is required to decompress the game's own .pak archives. Note
+that S.T.A.L.K.E.R. 2 does not ship it as a separate file (Oodle is linked
+into the game executable), so it cannot be taken from the installation.
+S2Tweaker therefore obtains it the same way the bundled repak does: on
+first use it is fetched from the public OodleUE mirror
+(https://github.com/WorkingRobot/OodleUE), verified against the SHA-256
+checksum repak expects, and kept in the user's own S2Tweaker folder
+("tools" next to the executable; if that folder is not writable,
+%LOCALAPPDATA%\S2Tweaker\tools is used instead). A copy already present on
+the user's machine is preferred over downloading.

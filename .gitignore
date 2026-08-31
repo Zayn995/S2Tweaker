@@ -8,8 +8,12 @@ output/
 out/
 release/NEXUS_SUPPORT_EMAIL.txt
 
-# Proprietary Oodle DLL (auto-downloaded by repak, not redistributable)
-tools/oo2core*.dll
+# Proprietary Oodle DLL (fetched at runtime, never redistributable).
+# Deliberately without a .dll suffix so half-finished downloads
+# (oo2core_9_win64.dll.<pid>.part) can never slip into a commit either.
+tools/oo2core*
+.s2tweaker_write_test
+**/.s2tweaker_write_test
 
 # Build artifacts
 build/

@@ -165,11 +165,12 @@ class GameData:
         if not marker.is_file():
             cache.mkdir(parents=True, exist_ok=True)
             if progress:
-                progress("Extrahiere GameData aus pakchunk0 ...")
+                progress("Extracting game data from pakchunk0 ...")
             for name in NEEDED_FILES:
-                pakio.unpack(pak, cache, include=f"{GAMEDATA_REL}/{name}")
+                pakio.unpack(pak, cache, include=f"{GAMEDATA_REL}/{name}",
+                             progress=progress)
             if progress:
-                progress("Konvertiere cfg.bin nach cfg ...")
+                progress("Converting cfg.bin to readable cfg ...")
             for bin_path in sorted(gd.rglob("*.cfg.bin")):
                 out = bin_path.with_name(bin_path.name[: -len(".bin")])
                 if not out.exists():

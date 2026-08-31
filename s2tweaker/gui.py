@@ -1858,6 +1858,11 @@ class App(ctk.CTk):
                 f"Ready. Analyzed your game version: {n_items} items, "
                 f"{n_weap} weapons, {n_mut} mutant prototypes.")
             self._msgs.put(("ready", ""))
+        except pakio.OodleError as exc:
+            # Verstaendliche Klartext-Hilfe statt Python-Traceback
+            self._set_status("Missing Oodle library – see dialog for how to fix it.")
+            self._msgs.put(("loadfail", ""))
+            self._msgs.put(("error", str(exc)))
         except Exception:
             err = traceback.format_exc()
             self._set_status("Failed to load game data – see error dialog.")

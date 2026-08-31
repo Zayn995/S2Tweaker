@@ -94,6 +94,19 @@ NOTES
   any folder that contains Stalker2\Content\Paks).
 - Windows only. Some antivirus tools flag freshly built PyInstaller exes -
   that is a known false-positive pattern for Python-based tools.
+- Oodle library: to read the game's packed config files, a proprietary
+  decompression library (oo2core_9_win64.dll, 0.6 MB) is required. It cannot
+  be shipped with this tool, so on first use S2Tweaker downloads it from the
+  public OodleUE mirror on GitHub and verifies its official checksum. It is
+  then kept in a "tools" folder next to the exe, so it downloads only once
+  and everything works offline afterwards. (Only if that folder is not
+  writable - e.g. the exe sits in Program Files - it goes to
+  %LOCALAPPDATA%\S2Tweaker\tools instead.) If antivirus HTTPS inspection, a
+  proxy or a VPN blocks github.com, just put that DLL next to S2Tweaker.exe
+  yourself - the tool picks it up automatically. It has to be the exact build
+  repak expects; other Oodle 2.9.x builds are rejected, and the tool tells
+  you when it found one. Building a mod pak never needs Oodle; only reading
+  the vanilla values does.
 - DLC-specific items (Cost of Hope etc.) are not covered by the per-item
   weight slider; the global multipliers still apply to them.
 - The in-game "Custom Rules" difficulty writes some of the same multipliers;
