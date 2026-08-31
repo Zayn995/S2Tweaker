@@ -2,7 +2,7 @@
 
 ## 1. Mutant attack abilities with `Damage` — AbilityPrototypes.cfg
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/AbilityPrototypes.cfg` (11421 lines).
+File: `vanilla/Stalker2/Content/GameLite/GameData/AbilityPrototypes.cfg` (11421 lines).
 
 **Key placement:** `Damage` and `ArmorPiercing` sit at the **top level of each named ability struct** (path `<AbilityStructName>.Damage`), with ONE exception: the four `ChargeAbility_*` structs nest them under a `DamageParams` sub-struct (path `ChargeAbility_X.DamageParams.Damage`). `ArmorDamage`, `Bleeding`, `BleedingChanceIncrement`, `DamageSource` sit next to `Damage` at the same level. Struct headers look like `Bloodsucker_ClawAttack : struct.begin {refurl=../AbilityPrototypes.cfg;refkey=[0]}` (base = `BaseAttackAbility`, the file's first struct, which itself has `Damage = 0`, `ArmorPiercing = 0.f`). `_Left`/`_Right` run-attack variants inherit via `{refkey=<Base>}` but **each redefines Damage locally**, so every struct must be patched individually.
 
@@ -73,7 +73,7 @@ File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/Ga
 
 ## 2. InvisibilityFeatureData — ObjPrototypes.cfg
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/ObjPrototypes.cfg`. Exactly **5 prototypes** define it, always as a struct at the top level of the mutant prototype (path `<Prototype>.InvisibilityFeatureData.<Key>`):
+File: `vanilla/Stalker2/Content/GameLite/GameData/ObjPrototypes.cfg`. Exactly **5 prototypes** define it, always as a struct at the top level of the mutant prototype (path `<Prototype>.InvisibilityFeatureData.<Key>`):
 
 | Prototype (line) | ToVisibleSeconds | ToInvisibleSeconds | InvisibilityDeadChangeDurationSeconds | InvisibilityLossFromDamage | InvisibilityEffectsThreshold |
 |---|---|---|---|---|---|
@@ -103,7 +103,7 @@ Prototype headers: `Bloodsucker : struct.begin {refurl=MutantBase.cfg;refkey=[0]
 
 ## 3. Mutant hearing sensor — AIPrototypes/HearingSensorPrototypes.cfg
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/AIPrototypes/HearingSensorPrototypes.cfg` (423 lines, 6 top-level structs: BaseHearingSensor, DefaultNPC, ZombieHuman, MutantsHearingSensor, Default, HumanFWHearingSensor).
+File: `vanilla/Stalker2/Content/GameLite/GameData/AIPrototypes/HearingSensorPrototypes.cfg` (423 lines, 6 top-level structs: BaseHearingSensor, DefaultNPC, ZombieHuman, MutantsHearingSensor, Default, HumanFWHearingSensor).
 
 Shared mutant sensor: struct name **`MutantsHearingSensor`** (line 213), header `MutantsHearingSensor : struct.begin {refkey=DefaultNPC}`, keys: `SID = MutantsHearingSensor`, `HearingVolumeThreshold = 6.0`, `ID = 1` (last key, after SoundEvents). SoundEvents is an indexed array `SoundEvents : struct.begin` → `[N] : struct.begin` with keys `Type = ESoundEventType::<X>` and `HearingDistance = <val>`; patch path form: `MutantsHearingSensor.SoundEvents.[N].HearingDistance`.
 
@@ -143,7 +143,7 @@ WARNUNGEN:
 
 ## 1. AimingMovementSpeedModifier — WeaponGeneralSetupPrototypes.cfg
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/WeaponData/WeaponGeneralSetupPrototypes.cfg`
+File: `vanilla/Stalker2/Content/GameLite/GameData/WeaponData/WeaponGeneralSetupPrototypes.cfg`
 
 - **Position: TOP-LEVEL key directly inside each weapon struct** (3-space indent, depth 1). NOT nested in any sub-struct. Example: `TemplateWeapon : struct.begin` → line 11 `AimingMovementSpeedModifier = 1.0`.
 - The file contains exactly **92 top-level structs**, and **every single one of the 92 defines both `AimingMovementSpeedModifier` and `MaxAmmo` exactly once** (verified by count: 92 structs, 92 AMSM lines, 92 MaxAmmo lines; no duplicates, no inheritance holes). So per-weapon patches are always safe, and patching only templates would have **no effect** — every concrete weapon overrides both keys itself.
@@ -158,7 +158,7 @@ File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/Ga
 
 ## 2b. Magazine attachments — ItemPrototypes.cfg
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/ItemPrototypes.cfg`
+File: `vanilla/Stalker2/Content/GameLite/GameData/ItemPrototypes.cfg`
 
 - **Exact path: `<MagStruct> → Magazine (sub-struct) → MaxAmmo`** (i.e. `Magazine.MaxAmmo`, key at 6-space indent inside the `Magazine : struct.begin` block, which sits at depth 1 in the attachment struct). Sibling keys inside `Magazine`: `IsTwinMagazine`, `BindBulletsToAttach`, `PhysicsInteractionPrototypeSID`, `HasMultipleMeshes`, `MeshArray`.
 - The file has **218 `MaxAmmo` lines total**; **137 are `= 0`** and belong to `TemplateAttach` (line 28571) and all NON-magazine attachments (scopes, silencers, rails, etc. — every attachment inherits a `Magazine` block with `MaxAmmo = 0` from TemplateAttach) plus the 4 magazine templates. **Only 81 are non-zero — exactly the 81 concrete magazine attachment structs** (region lines 38694–46652).
@@ -168,7 +168,7 @@ File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/Ga
 
 ## 3. MeleeWeaponPrototypes.cfg — complete listing
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/MeleeWeaponPrototypes.cfg` (66 lines, only 3 structs):
+File: `vanilla/Stalker2/Content/GameLite/GameData/MeleeWeaponPrototypes.cfg` (66 lines, only 3 structs):
 
 1. **`Empty`** (line 1): stub — only `SID`, empty `DamageModifiers =`, empty `ImpulseModifiers =`. Nothing to scale.
 2. **`Knife`** (line 6, refkey=Empty), all keys top-level, float values written with `.f` suffix:
@@ -201,8 +201,8 @@ WARNUNGEN:
 # Anomaly damage per element type (Electro/Chemical/Fire/Gravity/PSY): AnomalyPrototypes.cfg -> EffectPrototypes.cfg mapping with vanilla values
 
 ## Files
-- Anomalies: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/AnomalyPrototypes.cfg` (1224 lines)
-- Effects: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/EffectPrototypes.cfg` (85868 lines)
+- Anomalies: `vanilla/Stalker2/Content/GameLite/GameData/AnomalyPrototypes.cfg` (1224 lines)
+- Effects: `vanilla/Stalker2/Content/GameLite/GameData/EffectPrototypes.cfg` (85868 lines)
 
 ## How anomalies reference damage
 Anomaly structs carry NO direct HP-damage numbers. Each anomaly lists effect SIDs in the arrays `InteractionEffectPrototypeSIDs`, `PostInteractionEffectPrototypeSIDs`, `PassiveEffectPrototypeSIDs` (entries `[0]`, `[1]`, ...). The actual numbers live in EffectPrototypes.cfg in structs whose name = the SID, keys `ValueMin` / `ValueMax` (damage per application; effects with `bIsPermanent = true` + `TimePerChargeMin/Max = 1.f` tick as DPS). All damage effects inherit `refkey=[0]` (base struct `[0]` at top of EffectPrototypes.cfg, `ValueMin/ValueMax = 0.f`).
@@ -320,7 +320,7 @@ WARNUNGEN:
 
 ### 1a. Items inheriting TemplateConsumable (ItemPrototypes.cfg)
 
-`TemplateConsumable` is defined at line 54017 (`TemplateConsumable : struct.begin {refurl=../ItemPrototypes.cfg;refkey=[0]}`). NOTE: this extraction has NO separate `ConsumablePrototypes.cfg` — everything is merged into `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/ItemPrototypes.cfg`; refurls like `{refurl=ConsumablePrototypes.cfg;refkey=Vodka}` resolve within this same file.
+`TemplateConsumable` is defined at line 54017 (`TemplateConsumable : struct.begin {refurl=../ItemPrototypes.cfg;refkey=[0]}`). NOTE: this extraction has NO separate `ConsumablePrototypes.cfg` — everything is merged into `vanilla/Stalker2/Content/GameLite/GameData/ItemPrototypes.cfg`; refurls like `{refurl=ConsumablePrototypes.cfg;refkey=Vodka}` resolve within this same file.
 
 Direct children (`{refkey=TemplateConsumable}`) and 2nd-level children, with their `EffectPrototypeSIDs` arrays (key path inside each item: `EffectPrototypeSIDs : struct.begin / [N] = SID / struct.end`):
 
@@ -435,7 +435,7 @@ Apply the scaler ONLY to the SIDs listed in 1b (never Type-wide — types like H
 
 ### 2a. WeatherSelectionPrototypes.cfg layout
 
-File: `C:/Users/Kathi/Desktop/stalker 2 mod/vanilla/Stalker2/Content/GameLite/GameData/WeatherSelectionPrototypes.cfg` (4230 lines, 45 top-level prototypes). Each prototype: `<Name> : struct.begin {refkey=...}` with keys `SID`, `Priority`, then TEN fixed weather-type sub-structs: `Clearly, Cloudy, Fogy, Stormy, LightRainy, Rainy, Thundery, Emission, CalmBeforeEmission, Underground`. Each sub-struct has exactly: `BlendWeight` (float, `40.f`/`20.0` style), `BlendWeightIncrease`, `WeatherDurationMin`, `WeatherDurationMax`, `MaximumRepeatAmount`, `MaximumCooldownWeatherAmount`, `bAllowInDialogueTransition`. Key path example: `SwampWeatherSelection.Rainy.BlendWeight`. Note some top-level structs are index-named: `[0]` (SID=Empty), `[1]` (SID=BaseWeatherHistory — the base almost everything refkeys), `[2]` (SID=VortexWeatherSelection), `[3]` (SID=EQ55_Weather), `[35]` (SID=E14_MQ02FoundationWeatherSelection) — bpatch must address them by struct name (`[1]`), not SID.
+File: `vanilla/Stalker2/Content/GameLite/GameData/WeatherSelectionPrototypes.cfg` (4230 lines, 45 top-level prototypes). Each prototype: `<Name> : struct.begin {refkey=...}` with keys `SID`, `Priority`, then TEN fixed weather-type sub-structs: `Clearly, Cloudy, Fogy, Stormy, LightRainy, Rainy, Thundery, Emission, CalmBeforeEmission, Underground`. Each sub-struct has exactly: `BlendWeight` (float, `40.f`/`20.0` style), `BlendWeightIncrease`, `WeatherDurationMin`, `WeatherDurationMax`, `MaximumRepeatAmount`, `MaximumCooldownWeatherAmount`, `bAllowInDialogueTransition`. Key path example: `SwampWeatherSelection.Rainy.BlendWeight`. Note some top-level structs are index-named: `[0]` (SID=Empty), `[1]` (SID=BaseWeatherHistory — the base almost everything refkeys), `[2]` (SID=VortexWeatherSelection), `[3]` (SID=EQ55_Weather), `[35]` (SID=E14_MQ02FoundationWeatherSelection) — bpatch must address them by struct name (`[1]`), not SID.
 
 BlendWeight table (vanilla, `.f`/decimals stripped; Emission/CalmBeforeEmission/Underground are 0 everywhere):
 

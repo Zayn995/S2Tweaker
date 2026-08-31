@@ -29,7 +29,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Weapons - a three-level system[/b]
 [list]
-[*]8 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 79 weapons[/b] incl. all uniques - single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]8 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 79 weapons[/b] incl. all uniques - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
 [*]The 8 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed
 [*]Magazine size - scales weapon base capacity and all 81 magazine attachments
 [*]Melee damage (knife & rifle butt strike)
@@ -91,7 +91,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [b]Tool features[/b]
 [list]
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
-[*][b]Search box[/b] to find any slider - highlights matches and shows which tab
+[*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
 [*][b]Only the values you CHANGE get patched[/b] - everything left on "(vanilla)" is untouched, so it won't conflict with your other mods
 [/list]
@@ -137,6 +137,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.6.0 - Ammo tab & weapon tree[/b] (~155 sliders + per-round ammo overrides)
+[list]
+[*]Ammo has its own tab now: the four global sliders (damage, armor piercing, armor damage, cover penetration) moved there out of the Weapons tab
+[*]Per-round overrides for all 34 rounds in 14 calibers - open a caliber, open a round, set its factors. A round's own factor REPLACES the global slider for that factor on that round (the two do not stack)
+[*]Only values that can actually be scaled get a slider: 18 of the 34 rounds have armor piercing and cover penetration at 0 in vanilla, and 0 x anything is still 0. Expanding rounds have negative piercing values, so a factor above 1 makes that penalty bigger - the tool says so
+[*]Single weapon overrides are a collapsible tree instead of a dropdown: category -> weapon -> its 8 factors. Changed weapons are highlighted ("2 of 8 factors changed"), categories show how many of their weapons are overridden
+[*]The search box now also finds weapon and ammo names and opens the matching categories for you
+[*]Building with nothing actually changed now shows a clear message instead of an error
+[/list]
+
 [b]v1.5.0 - Mutant overhaul, weapon extras & world package[/b] (~155 sliders total)
 [list]
 [*]Mutants: global mutant speed and mutant hearing sliders
@@ -151,11 +161,13 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.4.0 - Armor protection & artifact rarity[/b] (~130 sliders)
+[spoiler]
 [list]
 [*]Armor protection per damage type: physical (bullets/melee), burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
 [*]Rare artifact bias 25-500%: shifts the rarity roll toward Uncommon/Rare/Epic at Common's expense (total spawn chance unchanged; ranks that can't roll Rare/Epic in vanilla still won't)
 [/list]
+[/spoiler]
 
 [b]v1.3.0 - Ammo, range, detectors & economy[/b] (~120 sliders)
 [spoiler]

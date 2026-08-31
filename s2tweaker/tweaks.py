@@ -1371,8 +1371,13 @@ def summarize(s: Settings) -> list[str]:
     if s.no_overweight_penalty:
         lines.append("No overweight penalty (speed/stamina)")
     if _neq(s.item_weight_factor, 1.0):
-        cats = ", ".join(sorted(CATEGORY_LABELS[c] for c in s.item_weight_categories))
-        lines.append(f"Item weight × {s.item_weight_factor:g} ({cats})")
+        # Ohne angehakte Kategorie baut _item_weight_patch nichts -> das auch sagen
+        if s.item_weight_categories:
+            cats = ", ".join(sorted(CATEGORY_LABELS[c] for c in s.item_weight_categories))
+            lines.append(f"Item weight × {s.item_weight_factor:g} ({cats})")
+        else:
+            lines.append(f"Item weight × {s.item_weight_factor:g} "
+                         "(no category ticked - no effect)")
     if s.ignore_equipped_weight:
         lines.append("Equipped items are weightless")
 

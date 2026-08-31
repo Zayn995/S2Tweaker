@@ -7,7 +7,13 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~155 tweaks in 8 tabs, including:
+~155 tweaks in 8 tabs, plus per-weapon overrides for 79 weapons and
+per-round overrides for 34 ammo types - including:
+- NEW in 1.6.0: ammo has its own tab now, with per-round overrides for all
+  34 rounds in 14 calibers (a round's own factor replaces the global
+  slider); single-weapon overrides are a collapsible category > weapon
+  tree instead of a dropdown; the search box also finds weapon and ammo
+  names and opens their category for you
 - NEW in 1.5.0: mutant overhaul (per-species health/speed/damage
   overrides, bloodsucker cloaking), ADS speed, magazine size, melee
   damage, anomaly damage per type, consumable strength, weather
@@ -28,12 +34,15 @@ with your other mods.
 - Player/NPC/mutant damage & health, headshot multiplier, explosions
 - Weapon & armor durability, weapon jamming, spread, recoil
 - Scoped aim sway, breath hold
-- Weapon tweaks on THREE levels: global sliders, 8 weapon categories
-  (damage, spread, recoil, durability, fire rate each) and per-weapon
-  overrides for 79 weapons incl. all uniques
+- Weapon tweaks on THREE levels: global sliders, 8 weapon categories and
+  per-weapon overrides for 79 weapons incl. all uniques - 8 factors each
+  (damage, spread, recoil, durability, fire rate, effective range,
+  bleeding, ADS movement speed). Expand a category, then a weapon, to
+  edit its factors
 - Ammo on its own tab, on TWO levels: global sliders (damage, armor
   piercing, armor damage, cover penetration) and per-round overrides for
-  all 34 rounds in 14 calibers - a round's own factor beats the global one
+  all 34 rounds in 14 calibers - a round's own factor beats the global one.
+  Expand a caliber, then a round, to edit its factors
 - NPCs & AI: accuracy, vision range, hearing range, grenade usage,
   "NPCs don't self-heal"
 - Anomaly damage, radiation, bleeding, hunger & sleepiness rates
@@ -49,6 +58,15 @@ HOW TO USE
 3. Check the suggested game folder, then click "Confirm & load game data".
    First load extracts ~85 MB of config data from your game (10-20 seconds).
 4. Move sliders / tick checkboxes. Anything at "(vanilla)" stays untouched.
+   Single weapons and single ammo rounds live in trees: on the "Weapons" /
+   "Ammo" tab click a category ("Assault rifles") or a caliber to open it,
+   then click a weapon / round to open its own factors. Items you changed
+   are marked in amber ("N of 8 factors changed"). The search box at the
+   top also finds weapons and rounds by name and opens their category.
+   Note: a round's own factor replaces the global ammo slider for that
+   parameter (it does not stack), and rounds that have no armor piercing /
+   cover penetration in vanilla (18 of 34) get no slider for it - a
+   multiplier of zero could not do anything there.
 5. Click "Build pak -> output folder", then copy the .pak from the "output"
    folder into <Game>\Stalker2\Content\Paks\~mods\
    (or click "Install to ~mods" to do that in one step - the ~mods folder
@@ -85,13 +103,45 @@ NOTES
 
 CREDITS
 -------
-- repak by trumank (pak packing/unpacking, MIT/Apache-2.0)
+- repak by trumank (pak packing/unpacking, MIT OR Apache-2.0)
   https://github.com/trumank/repak
+  repak.exe is bundled inside S2Tweaker.exe; its MIT notice is reproduced
+  in full at the end of this file.
 - cfg.bin decoding based on bin2cfg.py by joric, building on S2CfgToJSON
   by sdwvit with binary reader by thexii (public domain / MIT)
   https://github.com/joric/stalker/wiki
   https://github.com/sdwvit/S2CfgToJSON
 - Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the
   {bpatch} config-patch system, and to GSC Game World for the game.
+
+
+LICENCES
+--------
+S2Tweaker itself is MIT licensed (source: https://github.com/Zayn995/S2Tweaker).
+
+Bundled component - repak (https://github.com/trumank/repak), dual licensed
+MIT OR Apache-2.0; MIT terms used:
+
+  MIT License
+
+  Copyright 2024 Truman Kilen, spuds
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
 

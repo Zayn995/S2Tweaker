@@ -21,18 +21,29 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-41 tweaks: health/stamina/regen, per-action stamina costs, fall damage,
-movement speed, jump height, carry weight + penalty threshold, item weights
-per category, player/NPC/mutant damage & health, headshots, explosions,
-durability, jamming, spread, recoil, scoped sway, breath hold, anomaly/
-radiation/bleeding, hunger/sleep rates, trader prices & min. durability,
-repair/upgrade costs, quest rewards.
+~155 tweaks in 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons,
+Ammo, World, Economy), plus per-weapon overrides for 79 weapons and
+per-round overrides for 34 ammo types: health/stamina/regen, per-action
+stamina costs, fall damage, movement speed, jump height, carry weight +
+penalty threshold, item weights per category, player/NPC/mutant damage &
+health (incl. per-species mutant overrides and bloodsucker cloaking),
+headshots, explosions, armor protection per damage type, weapon damage/
+spread/recoil/durability/fire rate/range/bleeding/ADS speed on three
+levels, magazine size, melee, jamming, scoped sway, breath hold, ammo
+damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
+hearing/grenades, artifacts & detectors, anomaly/radiation/bleeding,
+hunger/sleep rates, weather & emissions, trader prices & min. durability,
+repair/upgrade costs, fast travel, quest rewards.
+
+The two override trees add up to 632 weapon and 100 ammo sliders on top of
+the fixed ones — they are built lazily when you expand a category, so
+startup stays fast.
 
 ## How it works (the important mechanics)
 
 | Layer | Details |
 |---|---|
-| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only ~10 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
+| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 24 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |
 | Packing | [pakio.py](s2tweaker/pakio.py) stages the files and calls the bundled `tools/repak.exe` (defaults are exactly what the game wants: V8B, mount `../../../`, uncompressed). |
@@ -57,6 +68,7 @@ s2tweaker/
 tools/repak.exe         pak tool (MIT/Apache-2.0, by trumank)
 docs/SPEC.md            research: every tweak's mechanism + sources
 release/README.txt      end-user readme shipped with the exe
+THIRD_PARTY_LICENSES.txt licences of the bundled components
 test_generate.py        end-to-end dev test (builds a test pak)
 build.bat               builds dist/S2Tweaker.exe
 ```
@@ -98,8 +110,12 @@ the *installed* version, and never hardcode game numbers.
 
 - **Never commit or upload extracted game files** (`vanilla/`, `cache/`) —
   that content is copyrighted by GSC Game World. `.gitignore` covers this.
-- Tool code is MIT (see [LICENSE](LICENSE)). Bundled: repak (MIT/Apache-2.0),
-  cfg.bin decoder based on public-domain code by joric/sdwvit/thexii.
+- Tool code is MIT (see [LICENSE](LICENSE)). Bundled: repak (MIT OR
+  Apache-2.0), cfg.bin decoder based on public-domain code by
+  joric/sdwvit/thexii. Their licence texts ship with the tool:
+  [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) in the source, and the
+  repak MIT notice is also reprinted in `release/README.txt` (the file inside
+  the player ZIP, since repak.exe is embedded in the exe).
 - Known limits: DLC items aren't covered by the per-item weight slider;
   iron-sight sway is animation-driven (not cfg-tweakable); the in-game
   "Custom Rules" difficulty overlaps some multipliers (precedence untested).
