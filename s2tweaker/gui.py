@@ -60,6 +60,10 @@ ctk.set_default_color_theme("dark-blue")
 
 PAD = {"padx": 12, "pady": 3}
 
+# Bernstein: eine einzige Quelle fuer Suchtreffer, Warnhinweise und
+# Override-Marker im Waffenbaum.
+ACCENT = "#d9a648"
+
 
 class SliderRow:
     """Label + Slider + Wertanzeige + Reset auf Vanilla."""
@@ -113,7 +117,7 @@ class SliderRow:
     def set_highlight(self, mode: str):
         """Suchfilter: 'match' = hervorheben, 'dim' = abdunkeln."""
         if mode == "match":
-            color = "#d9a648"
+            color = ACCENT
         elif mode == "dim":
             color = "gray35"
         else:
@@ -141,6 +145,299 @@ def fmt_dec(v: float) -> str:
     return f"{v:g}"
 
 
+class IwWeaponRow:
+    """Aufklappbare Zeile EINER Waffe im Overrides-Baum.
+
+    Die 8 Regler entstehen erst beim ERSTEN Aufklappen (lazy) und werden
+    danach wiederverwendet. Einzige Wahrheit bleibt app.weapon_overrides —
+    eine nie geoeffnete Waffe hat gar keine Widgets, die veralten koennten.
+    """
+
+    def __init__(self, app, parent, sid: str, cat: str):
+        self.app = app
+        self.sid = sid
+        self.cat = cat
+        self.body = None                       # CTkFrame, erst bei build()
+        self.sliders: dict[str, SliderRow] = {}
+        self.reset_btn = None
+        self.expanded = False
+        self._highlight = "normal"
+        self._state = app._iw_state            # zuletzt durchgereichter Zustand
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_row,
+            command=self.toggle, state=app._iw_state)
+        self.btn.pack(fill="x", padx=(16, 8), pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.refresh()
+
+    # ------------------------------------------------------------ Aufbau
+    def build(self):
+        """Lazy: Hinweis, 8 Regler und Reset-Knopf einmalig erzeugen."""
+        if self.body is not None:
+            return
+        self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
+        shared = self.app._iw_share.get(self.sid)
+        if shared:
+            ctk.CTkLabel(
+                self.body,
+                text="   shares combat stats with: " + ", ".join(shared),
+                anchor="w", justify="left", wraplength=700,
+                font=self.app._iw_font_hint, text_color="gray60",
+            ).pack(fill="x", padx=12, pady=(2, 0))
+        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
+        # und damit _changed auf — ohne Sperre wuerde der halb gefuellte
+        # Regler-Satz den gespeicherten Override der Waffe ueberschreiben.
+        # Alten Wert merken und zuruecklegen, damit ein verschachtelter
+        # Aufruf (z. B. aus _iw_refresh_all heraus) die Sperre nicht loest.
+        prev = self.app._iw_loading
+        self.app._iw_loading = True
+        # Der Aufbau der 8 Regler dauert spuerbar (~0,4 s): Sanduhr zeigen,
+        # damit der erste Klick auf eine Waffe nicht wie ein Haenger wirkt.
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for param in WEAPON_PARAMS:
+                self.sliders[param] = SliderRow(
+                    self.body, WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    fmt_factor, on_change=self._changed)
+        finally:
+            self.app._iw_loading = prev
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+        self.reset_btn = ctk.CTkButton(
+            self.body, text="↺  Reset this weapon", width=170,
+            fg_color="transparent", border_width=1, command=self.reset)
+        self.reset_btn.pack(anchor="w", padx=12, pady=(2, 4))
+        # Duenne Trennlinie: sonst klebt der Knopf optisch an der naechsten Waffe
+        ctk.CTkFrame(self.body, height=2, corner_radius=0,
+                     fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
+        self.load_values()                      # setzt _iw_loading selbst
+        # Leerer Merkwert erzwingt das Durchreichen an die NEUEN Regler,
+        # auch wenn sich der Zustand seit dem Zeilenbau nicht geaendert hat.
+        self._state = ""
+        self.set_state(self.app._iw_state)      # koennte noch gesperrt sein
+
+    def toggle(self):
+        # Jede Interaktion in einer Kategorie macht sie zur Benutzer-Kategorie:
+        # das Leeren des Suchfelds darf sie danach nicht mehr zuklappen.
+        self.app._iw_auto_opened.discard(self.cat)
+        if self.expanded:
+            self.body.pack_forget()
+            self.expanded = False
+        else:
+            self.build()
+            # Tiefer eingerueckt als der Waffenknopf: die Knopfbeschriftung
+            # sitzt selbst schon ~20 px innen, sonst stuenden die Regler-
+            # Beschriftungen genau unter dem Waffennamen statt darunter-innen.
+            self.body.pack(fill="x", padx=(36, 0), after=self.btn)
+            self.expanded = True
+        self.refresh()
+
+    # ------------------------------------------------------------- Werte
+    def load_values(self):
+        """weapon_overrides -> Regler, ohne dass _changed zurueckschreibt."""
+        if self.sliders:
+            stored = self.app.weapon_overrides.get(self.sid, {})
+            prev = self.app._iw_loading
+            self.app._iw_loading = True
+            try:
+                for param, row in self.sliders.items():
+                    row.set(stored.get(param, 1.0))
+            finally:
+                self.app._iw_loading = prev
+        self.refresh()
+
+    def _changed(self):
+        """Reglerbewegung NUR dieser Waffe in weapon_overrides schreiben."""
+        if self.app._iw_loading or not self.sliders:
+            return
+        self.app._iw_auto_opened.discard(self.cat)   # siehe toggle()
+        values = {p: r.get() for p, r in self.sliders.items()}
+        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
+        if values:
+            self.app.weapon_overrides[self.sid] = values
+        else:
+            self.app.weapon_overrides.pop(self.sid, None)
+        self.refresh()
+        self.app._iw_after_change(self.cat)
+
+    def reset(self):
+        self.app.weapon_overrides.pop(self.sid, None)
+        self.load_values()
+        self.app._iw_after_change(self.cat)
+
+    # -------------------------------------------------------- Darstellung
+    def refresh(self):
+        n = len(self.app.weapon_overrides.get(self.sid, {}))
+        arrow = "▾" if self.expanded else "▸"
+        # "N of 8 factors" statt "N overrides": die Kategorie-Kopfzeile zaehlt
+        # WAFFEN, diese Zeile zaehlt PARAMETER — gleiche Zahl, andere Einheit.
+        mark = f"     ●  {n} of {len(WEAPON_PARAMS)} factors changed" if n else ""
+        self.btn.configure(text=f"{arrow}  {self.sid}{mark}")
+        self._apply_color(n)
+
+    def _apply_color(self, n: int):
+        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str):
+        self._highlight = mode
+        self._apply_color(len(self.app.weapon_overrides.get(self.sid, {})))
+
+    def set_state(self, state: str):
+        # Frueh raus, wenn sich nichts aendert: bei 79 offenen Waffen haengen
+        # sonst 632 Regler an einem einzigen "Reload"-Klick.
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        if self.reset_btn is not None:
+            self.reset_btn.configure(state=state)
+        for row in self.sliders.values():
+            row.set_state(state)
+
+
+class IwCategoryBlock:
+    """Aufklappbarer Kategorie-Block im Overrides-Baum.
+
+    Die Waffenzeilen entstehen beim ERSTEN Aufklappen (lazy) und bleiben
+    dann bis zum naechsten Neuaufbau des Baums bestehen.
+    """
+
+    def __init__(self, app, parent, cat: str, label: str, sids: list[str]):
+        self.app = app
+        self.cat = cat
+        self.label = label
+        self.sids = sids                        # bereits sortiert
+        self.rows: dict[str, IwWeaponRow] = {}  # leer bis zum ersten Oeffnen
+        self.expanded = False
+        self._highlight = "normal"
+        self._note = ""                         # Zusatz in der Kopfzeile
+        self._note_hint = False                 # zugeklappt: "click to show"
+        self._state = app._iw_state             # zuletzt durchgereicht
+        # Treffersatz der laufenden Suche; None = keine Suche aktiv. Wird
+        # gebraucht, damit SPAETER gebaute Zeilen die Suchfarbe erben.
+        self._hitset: set[str] | None = None
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_cat,
+            command=self.toggle, state=app._iw_state)
+        self.btn.pack(fill="x", padx=8, pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.content = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.refresh()
+
+    def ensure_rows(self):
+        """Lazy: die Waffenzeilen dieser Kategorie einmalig erzeugen."""
+        if self.rows:
+            return
+        # Bis zu 25 Zeilen auf einmal dauern spuerbar — Sanduhr wie beim
+        # Aufklappen einer einzelnen Waffe (IwWeaponRow.build).
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for sid in self.sids:
+                row = IwWeaponRow(self.app, self.content, sid, self.cat)
+                row.set_highlight(self._row_mode(sid))  # laufende Suche erben
+                self.rows[sid] = row
+        finally:
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+
+    def _row_mode(self, sid: str) -> str:
+        if self._hitset is None:
+            return "normal"
+        return "match" if sid in self._hitset else "dim"
+
+    def set_row_filter(self, hitset: "set[str] | None"):
+        """Treffersatz merken und alle SCHON gebauten Zeilen einfaerben."""
+        self._hitset = hitset
+        for sid, row in self.rows.items():
+            row.set_highlight(self._row_mode(sid))
+
+    def expand(self):
+        if self.expanded:
+            return
+        self.ensure_rows()
+        self.content.pack(fill="x", padx=(8, 0), after=self.btn)
+        self.expanded = True
+        self.refresh()
+
+    def collapse(self):
+        if not self.expanded:
+            return
+        self.content.pack_forget()
+        self.expanded = False
+        self.refresh()
+
+    def toggle(self):
+        # Benutzer-Klick hebt das Auto-Aufklappen der Suche auf
+        self.app._iw_auto_opened.discard(self.cat)
+        self.collapse() if self.expanded else self.expand()
+
+    def refresh(self):
+        n_over = sum(1 for sid in self.sids
+                     if sid in self.app.weapon_overrides)
+        arrow = "▾" if self.expanded else "▸"
+        extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
+                 if n_over else "")
+        extra += self._note
+        # Nur an einem zugeklappten Block — hier und nicht beim Suchen
+        # angehaengt, sonst bliebe der Hinweis nach einem Klick auf den
+        # Kopf ueber den dann sichtbaren Waffen stehen.
+        if self._note_hint and not self.expanded:
+            extra += "     click to show"
+        # Trenner statt Klammern: "Marksman rifles (DMR)" traegt selbst schon eine
+        self.btn.configure(
+            text=f"{arrow}  {self.label}  ·  {len(self.sids)}{extra}")
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n_over:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str, note: str = "", hint: bool = False):
+        """note: fertig formatierter Zusatz der Suche (inkl. Abstand).
+
+        hint: Block enthaelt Treffer -> zugeklappt "click to show" anzeigen.
+        """
+        self._highlight = mode
+        self._note = note
+        self._note_hint = hint
+        self.refresh()
+
+    def set_state(self, state: str):
+        if state == self._state:      # siehe IwWeaponRow.set_state
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        for row in self.rows.values():
+            row.set_state(state)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -166,11 +463,23 @@ class App(ctk.CTk):
         self._mut_current: str | None = None
         self._mut_loading = False
         self._mut_species: list[str] = []
-        self.iw_sliders: dict[str, SliderRow] = {}
-        self._iw_current: str | None = None
         self._iw_loading = False
         self._iw_categories: dict[str, str] = {}
         self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
+        self._iw_blocks: dict[str, IwCategoryBlock] = {}
+        self._iw_auto_opened: set[str] = set()     # von der Suche aufgeklappt
+        # Kategorie-Knoepfe im Abschnitt "Weapon categories": {cat: (btn, label, farbe)}
+        self._wcat_btns: dict[str, tuple] = {}
+        self._wcat_notes: dict[str, str] = {}   # Suchzusatz je Kategorie-Kopf
+        self._iw_expand_job: str | None = None  # laufender after()-Auftrag
+        # Statuszeile vor dem ersten Tastendruck im Suchfeld
+        self._status_before_search: str | None = None
+        self._iw_state = "disabled"                # gilt fuer lazy Widgets
+        # Schriften EINMAL bauen und an alle Baum-Zeilen weiterreichen —
+        # CTkFont-Objekte sind teuer, 79 Waffen x eigene Font waere Verschwendung
+        self._iw_font_cat = ctk.CTkFont(size=13)
+        self._iw_font_row = ctk.CTkFont(size=12)
+        self._iw_font_hint = ctk.CTkFont(size=11)
         self._msgs: "queue.Queue[tuple[str, str]]" = queue.Queue()
 
         self._build_header()
@@ -203,7 +512,6 @@ class App(ctk.CTk):
         head = ctk.CTkFrame(self)
         head.pack(fill="x", padx=10, pady=(10, 4))
         self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w")
-        self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
         self.btn_confirm = ctk.CTkButton(
             head, text="✓ Confirm & load game data", width=200,
             fg_color="#2d6a3f", hover_color="#377f4c", command=self._confirm_game)
@@ -211,9 +519,14 @@ class App(ctk.CTk):
         self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
                                         command=self._pick_game_dir)
         self.btn_browse.pack(side="right", padx=4, pady=8)
-        self.search_entry = ctk.CTkEntry(head, width=180,
-                                         placeholder_text="🔍 Find a slider …")
+        # Breit genug, damit der Platzhaltertext ganz hineinpasst
+        self.search_entry = ctk.CTkEntry(head, width=230,
+                                         placeholder_text="🔍 Find a slider or weapon …")
         self.search_entry.pack(side="right", padx=4, pady=8)
+        # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
+        # sonst draengt ein langer Spielpfad die Knoepfe und das Suchfeld
+        # zusammen und schneidet den Platzhaltertext ab.
+        self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
@@ -232,7 +545,7 @@ class App(ctk.CTk):
         """Auffaelliger (bernsteinfarbener) Hinweis unterhalb von Reglern."""
         ctk.CTkLabel(parent, text="⚠ " + text, anchor="w", justify="left",
                      wraplength=780, font=ctk.CTkFont(size=11),
-                     text_color="#d9a648").pack(fill="x", padx=12, pady=(2, 4))
+                     text_color=ACCENT).pack(fill="x", padx=12, pady=(2, 4))
 
     def _collapsible_category(self, parent, cat: str, label: str) -> None:
         """Aufklappbarer Block mit den 5 Parameter-Reglern einer Kategorie."""
@@ -241,6 +554,10 @@ class App(ctk.CTk):
                             font=ctk.CTkFont(size=13))
         btn.pack(fill="x", padx=8, pady=1)
         content = ctk.CTkFrame(parent, fg_color="transparent")
+        # Fuer die Suche merken: sonst bliebe dieser Block als einziger
+        # Kategorie-Knopf im Fenster ungefaerbt, waehrend der gleich
+        # aussehende Knopf im Overrides-Baum aufleuchtet.
+        self._wcat_btns[cat] = (btn, label, btn.cget("text_color"), content)
         for param in WEAPON_PARAMS:
             self._slider(content, f"wcat_{cat}_{param}",
                          WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1, fmt_factor)
@@ -248,16 +565,34 @@ class App(ctk.CTk):
         def toggle():
             if content.winfo_manager():
                 content.pack_forget()
-                btn.configure(text="▸  " + label)
             else:
                 content.pack(fill="x", padx=16, after=btn)
-                btn.configure(text="▾  " + label)
+            self._wcat_render(cat)
 
         btn.configure(command=toggle)
+        self._wcat_render(cat)
+
+    def _wcat_render(self, cat: str) -> None:
+        """Beschriftung eines 'Weapon categories'-Knopfes neu zusammensetzen.
+
+        Pfeil und Suchzusatz stecken beide in derselben Beschriftung — ohne
+        diese eine Stelle wuerde das Auf-/Zuklappen den Suchhinweis wieder
+        loeschen (und umgekehrt).
+        """
+        btn, label, _orig, content = self._wcat_btns[cat]
+        open_ = bool(content.winfo_manager())
+        arrow = "▾" if open_ else "▸"
+        note = self._wcat_notes.get(cat, "")
+        # Der Hinweis gehoert NUR an einen zugeklappten Block — er wird hier
+        # und nicht beim Suchen angehaengt, sonst bliebe er nach einem Klick
+        # auf den Kopf stehen ("click to show" ueber offenen Reglern).
+        if note and not open_:
+            note += "     click to show"
+        btn.configure(text=f"{arrow}  {label}{note}")
 
     # -------------------------------------------- Einzelwaffen-Overrides
     def _iw_populate(self):
-        """Waffenliste fuellen, sobald GameData geladen ist."""
+        """Waffenliste einlesen und den Overrides-Baum neu aufbauen."""
         if self.gd is None:
             return
         weapons = self.gd.player_weapons()
@@ -280,46 +615,50 @@ class App(ctk.CTk):
             sid: params for sid, params in self.weapon_overrides.items()
             if sid in self._iw_categories
         }
-        values = sorted(self._iw_categories)
-        if not values:
-            return
-        self.iw_menu.configure(values=values, state="normal")
-        if self._iw_current in self._iw_categories:
-            current = self._iw_current
-        elif "GunAK74_ST" in self._iw_categories:
-            current = "GunAK74_ST"
-        else:
-            current = values[0]
-        self.iw_menu.set(current)
-        self._iw_select(current)
+        self._iw_build_tree()
 
-    def _iw_select(self, sid: str):
-        self._iw_current = sid
-        if self.iw_menu.get() != sid:
-            self.iw_menu.set(sid)  # Anzeige auch bei programmatischem Aufruf
-        self._iw_loading = True
-        stored = self.weapon_overrides.get(sid, {})
-        for param, slider_row in self.iw_sliders.items():
-            slider_row.set(stored.get(param, 1.0))
-        self._iw_loading = False
-        cat = self._iw_categories.get(sid)
-        text = WEAPON_CATEGORY_LABELS.get(cat, cat or "")
-        shared = self._iw_share.get(sid)
-        if shared:
-            text += "  ·  shares combat stats with: " + ", ".join(shared)
-        self.iw_cat_label.configure(text=text)
+    def _iw_build_tree(self):
+        """Baum verwerfen und neu aufbauen.
+
+        Erst die Python-Referenzen loeschen, DANN die Widgets zerstoeren:
+        danach kann kein Dict und keine Callback mehr auf einen zerstoerten
+        Regler zeigen. Alles kommt zugeklappt zurueck.
+        """
+        # Ein noch wartendes Auto-Aufklappen wuerde gleich auf zerstoerte
+        # Bloecke zugreifen — vor dem Abriss abbestellen.
+        self._iw_cancel_expand()
+        self._iw_blocks.clear()
+        self._iw_auto_opened.clear()
+        for child in list(self.iw_tree.winfo_children()):
+            child.destroy()
+        if not self._iw_categories:
+            # Ohne Spieldaten: Aufforderung. MIT Spieldaten, aber ohne Waffen:
+            # ehrliche Meldung statt einer schon erledigten Aufforderung.
+            text = ("   – load game data first –" if self.gd is None else
+                    "   – no player weapons found in this game version –")
+            ctk.CTkLabel(self.iw_tree, text=text,
+                         anchor="w", font=self._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12)
+            self._iw_update_info()
+            return
+        by_cat: dict[str, list[str]] = {}
+        for sid, cat in self._iw_categories.items():
+            by_cat.setdefault(cat, []).append(sid)
+        for cat, label in WEAPON_CATEGORY_LABELS.items():
+            if by_cat.get(cat):
+                self._iw_blocks[cat] = IwCategoryBlock(
+                    self, self.iw_tree, cat, label, sorted(by_cat[cat]))
+        # Unbekannte Kategorien (kuenftige Spiel-Patches) nicht verstecken
+        for cat in sorted(set(by_cat) - set(WEAPON_CATEGORY_LABELS)):
+            self._iw_blocks[cat] = IwCategoryBlock(
+                self, self.iw_tree, cat, cat.title(), sorted(by_cat[cat]))
         self._iw_update_info()
 
-    def _iw_changed(self):
-        """Slider-Aenderung in den Overrides-Dict der aktuellen Waffe schreiben."""
-        if self._iw_loading or self._iw_current is None:
-            return
-        values = {p: row.get() for p, row in self.iw_sliders.items()}
-        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
-        if values:
-            self.weapon_overrides[self._iw_current] = values
-        else:
-            self.weapon_overrides.pop(self._iw_current, None)
+    def _iw_after_change(self, cat: str):
+        """Nach einer Aenderung: Kategorie-Zaehler und Info-Zeile auffrischen."""
+        block = self._iw_blocks.get(cat)
+        if block is not None:
+            block.refresh()
         self._iw_update_info()
 
     def _iw_update_info(self):
@@ -329,11 +668,113 @@ class App(ctk.CTk):
             text = "No per-weapon overrides set."
         self.iw_info.configure(text=text)
 
+    def _iw_refresh_all(self):
+        """Alle GEBAUTEN Regler und Marker an weapon_overrides angleichen."""
+        for block in self._iw_blocks.values():
+            for row in block.rows.values():
+                row.load_values()
+            block.refresh()
+        self._iw_update_info()
+
     def _iw_clear_all(self):
         self.weapon_overrides.clear()
-        if self._iw_current is not None:
-            self._iw_select(self._iw_current)
-        self._iw_update_info()
+        self._iw_refresh_all()
+
+    def _iw_note(self, block, cat_hit: bool, sid_hits: list, hits) -> None:
+        """Kopfzeile eines Kategorie-Blocks fuer die laufende Suche setzen."""
+        if sid_hits:
+            note = (f"     {len(sid_hits)} match"
+                    f"{'es' if len(sid_hits) != 1 else ''}")
+        elif cat_hit:
+            note = "     category match"   # keine Zahl: siehe _iw_filter
+        else:
+            note = ""
+        block.set_highlight("match" if hits else "dim", note, bool(hits))
+
+    def _iw_cancel_expand(self) -> None:
+        if self._iw_expand_job is not None:
+            try:
+                self.after_cancel(self._iw_expand_job)
+            except Exception:
+                pass
+            self._iw_expand_job = None
+
+    def _iw_filter(self, query: str) -> int:
+        """Suchfeld auf den Waffenbaum anwenden; liefert die Trefferzahl.
+
+        Gesucht wird in block.sids / block.label (reine Strings), gefaerbt
+        wird nur, was schon gebaut ist -- daher nie ein Absturz auf noch
+        nicht aufgeklappten Zeilen. Der Treffersatz bleibt im Block liegen
+        (set_row_filter), damit spaeter gebaute Zeilen die Farbe erben.
+
+        Faerben passiert SOFORT, das Auto-Aufklappen erst verzoegert in
+        _iw_auto_expand: das Bauen von Waffenzeilen kostet spuerbar Zeit,
+        und beim Tippen von "rifle" waere das Fenster sonst mitten im Wort
+        mehrfach eingefroren.
+        """
+        self._iw_cancel_expand()
+        if not query:
+            for cat in list(self._iw_auto_opened):
+                block = self._iw_blocks.get(cat)
+                if block is not None:
+                    block.collapse()
+            self._iw_auto_opened.clear()
+            for block in self._iw_blocks.values():
+                block.set_highlight("normal", "")
+                block.set_row_filter(None)
+            return 0
+        hits_total = 0
+        for cat, block in self._iw_blocks.items():
+            cat_hit = query in block.label.lower() or query in cat.lower()
+            sid_hits = [sid for sid in block.sids if query in sid.lower()]
+            # Hervorgehoben wird bei einem Kategorie-Treffer die ganze
+            # Kategorie, gezaehlt werden aber nur echte Waffentreffer bzw.
+            # EIN Treffer fuer die Kategorie -- Kopfzeile und Statuszeile
+            # muessen dieselbe Zahl nennen.
+            hits = block.sids if cat_hit else sid_hits
+            hits_total += len(sid_hits) if sid_hits else (1 if cat_hit else 0)
+            # Treffersatz VOR dem Aufklappen setzen, damit frisch gebaute
+            # Zeilen sofort in der richtigen Farbe erscheinen.
+            block.set_row_filter(set(hits))
+            # Kategorien, die die Suche frueher aufgeklappt hat und die jetzt
+            # nicht mehr passen, wieder zuklappen (von Hand geoeffnete nicht:
+            # die stehen dank IwCategoryBlock.toggle nicht in _iw_auto_opened).
+            if not hits and cat in self._iw_auto_opened:
+                block.collapse()
+                self._iw_auto_opened.discard(cat)
+            self._iw_note(block, cat_hit, sid_hits, hits)
+        if self._iw_blocks:
+            self._iw_expand_job = self.after(
+                250, lambda q=query: self._iw_auto_expand(q))
+        return hits_total
+
+    def _iw_auto_expand(self, query: str) -> None:
+        """Verzoegerter Teil der Suche: passende Kategorien aufklappen.
+
+        Laeuft erst, wenn 250 ms lang nichts mehr getippt wurde, und bricht
+        ab, falls das Suchfeld inzwischen etwas anderes enthaelt.
+        """
+        self._iw_expand_job = None
+        if self.search_entry.get().strip().lower() != query:
+            return
+        built = 0            # in DIESEM Durchgang neu erzeugte Waffenzeilen
+        for cat, block in self._iw_blocks.items():
+            cat_hit = query in block.label.lower() or query in cat.lower()
+            sid_hits = [sid for sid in block.sids if query in sid.lower()]
+            hits = block.sids if cat_hit else sid_hits
+            # Auto-Aufklappen nur bei einer GEZIELTEN Suche und nur, solange
+            # das Budget an neu zu bauenden Zeilen reicht. Entscheidend ist,
+            # wie viele Zeilen dabei entstehen -- nicht wie viele Treffer es
+            # gibt: jede Waffen-SID beginnt mit "Gun", ein "gu" haette sonst
+            # den halben Baum im Hintergrund erzeugt. Schon gebaute
+            # Kategorien kosten nichts und duerfen immer wieder auf.
+            specific = len(sid_hits) <= 8      # nicht "passt sowieso alles"
+            if hits and specific and len(query) >= 3 and not block.expanded:
+                cost = 0 if block.rows else len(block.sids)
+                if built + cost <= 30:
+                    built += cost
+                    block.expand()   # refresh() nimmt den Hinweis selbst weg
+                    self._iw_auto_opened.add(cat)
 
     # -------------------------------------------- Mutanten-Overrides
     def _mut_populate(self):
@@ -621,35 +1062,30 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single weapon overrides (advanced)")
-        row = ctk.CTkFrame(f, fg_color="transparent")
-        row.pack(fill="x", **PAD)
-        ctk.CTkLabel(row, text="Weapon", width=260, anchor="w").pack(side="left")
-        self.iw_menu = ctk.CTkOptionMenu(
-            row, values=["– load game data first –"], command=self._iw_select,
-            state="disabled", width=320, dynamic_resizing=False)
-        self.iw_menu.set("– load game data first –")
-        self.iw_menu.pack(side="left", padx=8)
-        self.iw_cat_label = ctk.CTkLabel(row, text="", anchor="w",
-                                         justify="left", wraplength=360,
-                                         text_color="gray60")
-        self.iw_cat_label.pack(side="left", padx=8)
         ctk.CTkLabel(
             f, text="   ×1 (vanilla) = no override – the category/global "
                     "factors still apply to this weapon.",
             anchor="w", font=ctk.CTkFont(size=11),
             text_color="gray60").pack(fill="x", padx=12)
-        for param in WEAPON_PARAMS:
-            self.iw_sliders[param] = SliderRow(
-                f, WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1, fmt_factor,
-                on_change=self._iw_changed)
+        ctk.CTkLabel(
+            f, text="   Expand a category, then a weapon, to edit its factors.",
+            anchor="w", font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+        # Uebersicht und "alles loeschen" stehen UEBER dem Baum: der kann auf
+        # 79 Zeilen anwachsen, darunter waeren beide nur mit Scrollen erreichbar.
         self.iw_info = ctk.CTkLabel(
             f, text="No per-weapon overrides set.", anchor="w", justify="left",
-            wraplength=780, font=ctk.CTkFont(size=11), text_color="gray60")
+            wraplength=780, font=self._iw_font_hint, text_color="gray60")
         self.iw_info.pack(fill="x", padx=12, pady=(2, 2))
         self.iw_clear_btn = ctk.CTkButton(
             f, text="Clear all weapon overrides", width=200,
             command=self._iw_clear_all)
-        self.iw_clear_btn.pack(anchor="w", padx=12, pady=(2, 8))
+        self.iw_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
+        # Container fuer den Baum: wird EINMAL gepackt und nie neu gepackt,
+        # nur sein Inhalt wird bei _iw_build_tree() ausgetauscht.
+        self.iw_tree = ctk.CTkFrame(f, fg_color="transparent")
+        self.iw_tree.pack(fill="x", pady=(2, 2))
+        self._iw_build_tree()            # zeigt zunaechst nur den Platzhalter
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("World")
@@ -781,23 +1217,33 @@ class App(ctk.CTk):
 
     def _set_body_state(self, enabled: bool):
         state = "normal" if enabled else "disabled"
+        self._iw_state = state   # gilt auch fuer spaeter gebaute Zeilen/Regler
         for row in self.sliders.values():
-            row.set_state(state)
-        for row in self.iw_sliders.values():
             row.set_state(state)
         for row in self.mut_sliders.values():
             row.set_state(state)
         for box in list(self.checks.values()) + list(self.cat_checks.values()):
             box.configure(state=state)
         self.iw_clear_btn.configure(state=state)
-        # Dropdowns nur aktivieren, wenn die Listen geladen sind
-        self.iw_menu.configure(
-            state=state if (enabled and self._iw_categories) else "disabled")
+        for block in self._iw_blocks.values():
+            block.set_state(state)
+        # Dropdown nur aktivieren, wenn die Liste geladen ist
         self.mut_menu.configure(
             state=state if (enabled and self._mut_species) else "disabled")
 
     def _set_status(self, text: str):
         self._msgs.put(("status", text))
+
+    def _status_write(self, text: str):
+        """Statuszeile schreiben UND den Merkwert der Suche verwerfen.
+
+        Das Suchfeld legt die vorherige Meldung beiseite und stellt sie beim
+        Leeren wieder her. Ohne dieses Verwerfen kaeme bei aktiver Suche eine
+        laengst ueberholte Meldung zurueck ("… load game data" nach dem
+        Laden, statt "Built: …").
+        """
+        self._status_before_search = None
+        self.status.configure(text=text)
 
     def _poll_msgs(self):
         """Nachrichten des Hintergrund-Threads im GUI-Thread verarbeiten."""
@@ -805,7 +1251,7 @@ class App(ctk.CTk):
             while True:
                 kind, payload = self._msgs.get_nowait()
                 if kind == "status":
-                    self.status.configure(text=payload)
+                    self._status_write(payload)
                 elif kind == "game_label":
                     self.game_label.configure(text=payload)
                 elif kind == "ready":
@@ -813,6 +1259,8 @@ class App(ctk.CTk):
                     self._mut_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
+                    # Laufende Suche auf den frisch gebauten Baum anwenden
+                    self._apply_filter()
                     self.btn_confirm.configure(state="normal",
                                                text="↻ Reload game data")
                     self.btn_browse.configure(state="normal")
@@ -1039,12 +1487,46 @@ class App(ctk.CTk):
                 counts[tab] = counts.get(tab, 0) + 1
             else:
                 row.set_highlight("dim")
+        # Kategorie-Knoepfe des Abschnitts "Weapon categories" mitfaerben.
+        # Ein Block zaehlt auch dann als Treffer, wenn NUR seine (zugeklappt
+        # unsichtbaren) Regler passen — sonst meldet die Statuszeile Treffer,
+        # die der Benutzer nirgends aufleuchten sieht.
+        for cat, (btn, label, orig, content) in self._wcat_btns.items():
+            if not query:
+                self._wcat_notes.pop(cat, None)
+                btn.configure(text_color=orig)
+            else:
+                n_in = sum(
+                    1 for param in WEAPON_PARAMS
+                    if query in self.sliders[
+                        f"wcat_{cat}_{param}"].label.cget("text").lower())
+                label_hit = query in label.lower() or query in cat.lower()
+                if n_in:
+                    note = f"     {n_in} match{'es' if n_in != 1 else ''}"
+                elif label_hit:
+                    note = "     category match"
+                else:
+                    note = ""
+                self._wcat_notes[cat] = note
+                btn.configure(text_color=ACCENT if note else "gray35")
+            self._wcat_render(cat)
+        iw_hits = self._iw_filter(query)
+        if query and iw_hits:
+            counts["Weapons"] = counts.get("Weapons", 0) + iw_hits
         if query:
+            if self._status_before_search is None:
+                self._status_before_search = self.status.cget("text")
             if counts:
                 self.status.configure(text="Matches: " + ", ".join(
                     f"{tab} ({n})" for tab, n in counts.items()))
             else:
-                self.status.configure(text="No slider matches your search.")
+                self.status.configure(
+                    text="No slider or weapon matches your search.")
+        elif self._status_before_search is not None:
+            # Suchfeld geleert: alte Meldung zurueck statt eines stehen
+            # gebliebenen "No slider or weapon matches your search."
+            self.status.configure(text=self._status_before_search)
+            self._status_before_search = None
 
     def _reset_all(self):
         for slider in self.sliders.values():
@@ -1092,7 +1574,7 @@ class App(ctk.CTk):
         try:
             Path(path).write_text(
                 json.dumps(self._ui_state(), indent=2), encoding="utf-8")
-            self.status.configure(text=f"Preset saved: {path}")
+            self._status_write(f"Preset saved: {path}")
         except OSError:
             messagebox.showerror(APP_TITLE, traceback.format_exc())
 
@@ -1114,7 +1596,10 @@ class App(ctk.CTk):
         if self.gd is not None:
             self._iw_populate()
             self._mut_populate()
-        self.status.configure(text=f"Preset loaded: {path}")
+        # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
+        # laufende Suche wieder auf den neu gebauten Baum anwenden.
+        self._apply_filter()
+        self._status_write(f"Preset loaded: {path}")
 
     def _load_ui_settings(self):
         try:
@@ -1170,8 +1655,15 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.mutant_overrides[species] = clean
+        # Bereits gebaute Waffen-Regler auf die geladenen Werte ziehen (und
+        # entfallene Overrides zurueck auf ×1). Ohne gebaute Zeilen faellt das
+        # auf die reine Info-Zeile zurueck, gilt also auch ohne Spieldaten.
+        self._iw_refresh_all()
 
     def _on_close(self):
+        # Ein wartendes Auto-Aufklappen wuerde sonst noch Widgets in einem
+        # gerade zerstoerten Fenster bauen wollen.
+        self._iw_cancel_expand()
         self._save_ui_settings()
         self.destroy()
 
@@ -1216,7 +1708,7 @@ class App(ctk.CTk):
             out.mkdir(parents=True, exist_ok=True)
             target = out / self._out_name()
             if self._generate(target):
-                self.status.configure(text=f"Built: {target}")
+                self._status_write(f"Built: {target}")
         except Exception:
             messagebox.showerror(APP_TITLE, traceback.format_exc())
 
@@ -1228,7 +1720,7 @@ class App(ctk.CTk):
         mods.mkdir(parents=True, exist_ok=True)
         try:
             if self._generate(mods / self._out_name()):
-                self.status.configure(text=f"Installed: {mods / self._out_name()}")
+                self._status_write(f"Installed: {mods / self._out_name()}")
         except Exception:
             messagebox.showerror(APP_TITLE, traceback.format_exc())
 
@@ -1249,7 +1741,7 @@ class App(ctk.CTk):
         target = game.mods_dir(self.game_dir) / self._out_name()
         if target.is_file():
             target.unlink()
-            self.status.configure(text=f"Removed: {target}")
+            self._status_write(f"Removed: {target}")
             messagebox.showinfo(APP_TITLE, f"Mod removed:\n{target}")
         else:
             messagebox.showinfo(APP_TITLE, f"No mod file found:\n{target}")
