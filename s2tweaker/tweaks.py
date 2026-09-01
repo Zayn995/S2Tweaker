@@ -270,6 +270,7 @@ class Settings:
     hunger_rate_factor: float = 1.0          # 0 = kein Hunger
     sleepiness_rate_factor: float = 1.0      # 0 = keine Muedigkeit
     consumable_factor: float = 1.0           # Medkits/Verband/Essen usw.
+    healing_factor: float = 1.0              # NUR Medizin-Heilung (Nexus-Wunsch)
     rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
     emission_factor: float = 1.0             # Emissions-Haeufigkeit
     # --- Loot in Verstecken und auf Leichen (StashPrototypes) ---
@@ -1151,15 +1152,26 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
 
-    # Consumable-Staerke (dynamische Whitelist ueber Item-Referenzen + Typ)
-    if _neq(s.consumable_factor, 1.0):
+    # Consumable-Staerke (dynamische Whitelist ueber Item-Referenzen + Typ).
+    # Der Heil-Regler stapelt MULTIPLIKATIV auf den Health-Effekten
+    # medizinischer Items (Medkits/Verbaende, live erkannt) — beide auf
+    # 200 % ergibt also x4 Heilung; Essen/Getraenke sieht nur den
+    # Consumable-Faktor. Ein Effekt wird genau EINMAL mit dem kombinierten
+    # Faktor emittiert, es entstehen keine doppelten Patch-Zeilen.
+    if _neq(s.consumable_factor, 1.0) or _neq(s.healing_factor, 1.0):
+        healing_sids = gd.medical_healing_effects()
         for sid, node in sorted(gd.consumable_effects().items()):
+            factor = s.consumable_factor
+            if sid in healing_sids:
+                factor *= s.healing_factor
+            if not _neq(factor, 1.0):
+                continue
             cfg = {}
             for key in ("ValueMin", "ValueMax"):
                 raw = node.values.get(key)
                 if raw is None:
                     continue
-                scaled = _scale_literal(raw, s.consumable_factor)
+                scaled = _scale_literal(raw, factor)
                 if scaled is not None and scaled != raw.strip():
                     cfg[key] = scaled
             if cfg:
@@ -1604,6 +1616,7 @@ def summarize(s: Settings) -> list[str]:
     f("Anomaly damage: fire", s.anomaly_fire_factor)
     f("Anomaly damage: gravity", s.anomaly_gravity_factor)
     f("Consumable strength", s.consumable_factor)
+    f("Medkit & bandage healing", s.healing_factor)
     f("Rain & storm frequency", s.rain_factor)
     f("Emission frequency", s.emission_factor)
     f("Stash & body loot amount", s.stash_loot_factor)

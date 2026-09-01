@@ -456,6 +456,41 @@ class GameData:
     CONSUMABLE_NEGATIVE_ONLY = {"EEffectType::HungerPoints",
                                 "EEffectType::Drunkness"}
 
+    def medical_healing_effects(self) -> set[str]:
+        """Effekt-SIDs der GESUNDHEITS-Wirkung medizinischer Items.
+
+        "Medizinisch" wird live aus den Daten abgeleitet, nicht ueber Namen:
+        ein Consumable gilt als Medizin, wenn es AUCH einen
+        blutungsstillenden Effekt referenziert (Bleeding mit negativem
+        Wert). Das trifft Medkit/ArmyMedkit/EcoMedkit/Bandage — Essen und
+        Getraenke stillen nie Blutungen. Geliefert werden nur deren
+        positive Health-Effekte (das eigentliche Heilen)."""
+        out: set[str] = set()
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "consumable":
+                continue
+            effect_sids: list[str] = []
+            for node in self._resolve_chain(self.items, sid):
+                effects = node.children.get("EffectPrototypeSIDs")
+                if effects is not None:
+                    effect_sids = [v for v in effects.values.values()]
+                    break
+            nodes = [self.effects.children.get(e) for e in effect_sids]
+            nodes = [n for n in nodes if n is not None]
+            stops_bleeding = any(
+                n.values.get("Type") == "EEffectType::Bleeding"
+                and parse_number(n.values.get("ValueMin")) < 0
+                for n in nodes)
+            if not stops_bleeding:
+                continue
+            for effect_sid, node in zip(effect_sids, nodes):
+                if (node.values.get("Type") == "EEffectType::Health"
+                        and parse_number(node.values.get("ValueMin")) > 0):
+                    out.add(effect_sid)
+        return out
+
     def consumable_effects(self) -> dict[str, CfgStruct]:
         """{Effekt-SID: Effekt-Node} aller von Consumables referenzierten,
         gefahrlos skalierbaren Effekte."""

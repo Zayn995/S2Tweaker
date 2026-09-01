@@ -279,7 +279,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "anom_fire": "anomaly_fire_factor", "anom_grav": "anomaly_gravity_factor",
     "radiation": "radiation_factor", "bleeding": "bleeding_factor",
     "hunger": "hunger_rate_factor", "sleep": "sleepiness_rate_factor",
-    "consumable": "consumable_factor", "rain": "rain_factor",
+    "consumable": "consumable_factor", "healing": "healing_factor",
+    "rain": "rain_factor",
     "emission": "emission_factor", "stash_loot": "stash_loot_factor",
     "stash_chance": "stash_chance_factor", "stash_ammo": "stash_ammo_factor",
     "loot_amount": "loot_amount_factor", "art_effect": "artifact_effect_factor",
@@ -1765,6 +1766,11 @@ class App(ctk.CTk):
                     "weapons are affected too.",
             anchor="w", justify="left", wraplength=780,
             font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._warning(f, "Known issue since game patch 2.0 (20 Aug 2026): a Nexus "
+                         "user reports the fire-rate factor desyncs the firing "
+                         "animation and sound from the actual shots \u2013 same "
+                         "engine limitation as movement speed. Test in-game "
+                         "before settling on values. (Status: 01 Sep 2026)")
         for cat, cat_label in WEAPON_CATEGORY_LABELS.items():
             self._collapsible_category(f, cat, cat_label)
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -1863,6 +1869,11 @@ class App(ctk.CTk):
                      "Medkits, bandages, food, drinks: healing, bleeding/"
                      "radiation removal, stamina etc. Penalties (drunkness, "
                      "spoiled food) stay vanilla.")
+        self._slider(f, "healing", "Medkit & bandage healing", 25, 400, 25, 100, fmt_pct,
+                     "Health restored by medical items only (medkits and "
+                     "bandages, vanilla 20\u2013100 HP) \u2013 food and drink healing "
+                     "is not affected. Stacks with Consumable strength: "
+                     "both at 200 % = 4\u00d7 healing.")
         self._slider(f, "rain", "Rain & storm frequency", 0, 300, 25, 100, fmt_pct,
                      "Weight of rainy/stormy/thunder weather in the rotation. "
                      "0 % = practically always dry.")
@@ -2288,6 +2299,7 @@ class App(ctk.CTk):
             hunger_rate_factor=s["hunger"].get() / 100.0,
             sleepiness_rate_factor=s["sleep"].get() / 100.0,
             consumable_factor=s["consumable"].get() / 100.0,
+            healing_factor=s["healing"].get() / 100.0,
             rain_factor=s["rain"].get() / 100.0,
             emission_factor=s["emission"].get() / 100.0,
             stash_loot_factor=s["stash_loot"].get() / 100.0,
