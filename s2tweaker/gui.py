@@ -2133,6 +2133,35 @@ class App(ctk.CTk):
                          "Test in-game before settling on values. "
                          "(Status: 29 Aug 2026)")
         self._slider(f, "jump", "Jump height", 50, 200, 5, 100, fmt_pct)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Stamina costs (per action)")
+        self._slider(f, "st_sprint", "Sprint (incl. continuous drain)", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_jump", "Jump", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_melee_l", "Melee attack (light)", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_melee_s", "Melee attack (strong)", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_butt", "Rifle butt strike", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_vault", "Vault / climb", 0, 200, 5, 100, fmt_pct)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Vaulting")
+        # Eigener Tab (Wunsch des Besitzers): 7 Regler + 2 Schalter sind zu
+        # viel fuer den Player-Tab. Die Schluessel bleiben identisch ->
+        # settings.json, Presets und Pak-Manifeste laufen unveraendert.
+        f = self._section(body, "Vaulting & climbing")
+        ctk.CTkLabel(
+            f, text="   How Skif climbs and vaults over obstacles. All "
+                    "values are detection limits in the game's units "
+                    "(roughly centimeters - the vanilla max vault height of "
+                    "130 is about 1.3 m). The sliders scale vanilla, or the "
+                    "community preset when it is enabled - they stack. "
+                    "Rebuilt from the vault mod that broke with game patch "
+                    "2.0 (thanks to BigTinz on GitHub for the request and "
+                    "the old values). Not play-tested in-game yet: whether "
+                    "the vault animation keeps up with extreme values is "
+                    "exactly what needs testing.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
         self._slider(f, "vault_height", "Max vault height", 50, 250, 10, 100, fmt_pct,
                      "How high an obstacle you can still vault or climb over "
                      "(vanilla detection limit ~1.3 m). All vault sliders "
@@ -2169,15 +2198,6 @@ class App(ctk.CTk):
                     "in-game effect is NOT verified yet - it reads like "
                     "'vault can trigger while sprint is held'. Try it and "
                     "tell us.")
-        ctk.CTkLabel(f, text="", height=2).pack()
-
-        f = self._section(body, "Stamina costs (per action)")
-        self._slider(f, "st_sprint", "Sprint (incl. continuous drain)", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_jump", "Jump", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_melee_l", "Melee attack (light)", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_melee_s", "Melee attack (strong)", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_butt", "Rifle butt strike", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_vault", "Vault / climb", 0, 200, 5, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weight & items")

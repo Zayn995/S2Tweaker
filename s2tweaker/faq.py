@@ -174,7 +174,7 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
-        "a": "Yes - Player tab: seven vault sliders (max height, trigger "
+        "a": "Yes - there is a whole Vaulting tab: seven sliders (max height, trigger "
              "distance, approach angle, min obstacle height, landing "
              "tolerance, vault-over thickness and landing distance), "
              "an experimental 'vault while sprinting' toggle, "

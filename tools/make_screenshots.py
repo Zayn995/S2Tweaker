@@ -96,13 +96,22 @@ S["jump"].set(120)
 scroll_top(app.tabs.tab("Player"))
 shot("01_player.png")
 
+# ------------------------------------------------------------ 2 Vaulting
+app.tabs.set("Vaulting")
+S["vault_height"].set(150)
+S["vault_distance"].set(400)
+app.checks["improved_vaulting"].select()
+scroll_top(app.tabs.tab("Vaulting"))
+shot("02_vaulting.png")
+app.checks["improved_vaulting"].deselect()
+
 # ------------------------------------------------------- 2 Weight & items
 app.tabs.set("Weight & items")
 S["carry"].set(250)
 S["penalty"].set(200)
 S["weight"].set(0.5)
 scroll_top(app.tabs.tab("Weight & items"))
-shot("02_weight.png")
+shot("03_weight.png")
 
 # ------------------------------------------------------------- 3 Combat
 app.tabs.set("Combat")
@@ -110,7 +119,7 @@ S["pdmg"].set(1.5)
 S["npcdmg"].set(0.75)
 S["headshot"].set(2)
 scroll_top(app.tabs.tab("Combat"))
-shot("03_combat.png")
+shot("04_combat.png")
 
 # ------------------------------------- 4 Weapons: global + category blocks
 app.tabs.set("Weapons")
@@ -123,7 +132,7 @@ S["wcat_shotgun_firerate"].set(1.25)
 S["wcat_pistol_recoil"].set(0.75)
 S["wcat_sniper_damage"].set(1.5)
 scroll_to(app._wcat_btns["pistol"][0], margin=95)   # Abschnitts-Titel mit drauf
-shot("04_weapon_categories.png")
+shot("05_weapon_categories.png")
 
 # --------------------------------------------- 5 Weapons: per-weapon tree
 app._wcat_btns["shotgun"][0].invoke()      # wieder zuklappen
@@ -140,7 +149,7 @@ other.sliders["spread"].set(0.5)
 other.toggle()
 app.update()
 scroll_to(blk.btn, margin=20)
-shot("05_weapon_tree.png")
+shot("06_weapon_tree.png")
 
 # ------------------------------------------------------------- 6 Ammo tab
 app.tabs.set("Ammo")
@@ -158,7 +167,7 @@ erow.sliders["damage"].set(1.25)
 erow.toggle()
 app.update()
 scroll_to(app._ia_blocks["A918"].btn, margin=48)   # Knopf darueber nicht anschneiden
-shot("06_ammo_tree.png")
+shot("07_ammo_tree.png")
 
 # ------------------------------------------------------------ 7 Armor tab
 app.tabs.set("Armor")
@@ -176,7 +185,7 @@ seva.sliders["radiation"].set(2.0)
 seva.toggle()
 app.update()
 scroll_to(exo.btn, margin=48)
-shot("07_armor_tree.png")
+shot("08_armor_tree.png")
 
 # ------------------------------------------------------------- 8 NPCs & AI
 app.tabs.set("NPCs & AI")
@@ -185,7 +194,7 @@ S["npc_vision"].set(40)
 S["npc_hearing"].set(30)
 S["npc_grenades"].set(0)
 scroll_top(app.tabs.tab("NPCs & AI"))
-shot("08_npcs_ai.png")
+shot("09_npcs_ai.png")
 
 # -------------------------------------------------------------- 9 Search
 app.tabs.set("Weapons")
@@ -197,7 +206,7 @@ while time.perf_counter() < end:
     app.update()
     time.sleep(0.01)
 scroll_to(app._iw_blocks["rifle"].btn, margin=20)
-shot("09_search.png")
+shot("10_search.png")
 app.search_entry.delete(0, "end")
 app._apply_filter()
 
@@ -207,7 +216,7 @@ S["anomaly"].set(1.5)
 S["radiation"].set(0.5)
 S["hunger"].set(50)
 scroll_top(app.tabs.tab("World"))
-shot("10_world.png")
+shot("11_world.png")
 
 # ------------------------------------------------------------ 11 Economy
 app.tabs.set("Economy")
@@ -215,7 +224,7 @@ S["buyprice"].set(1.5)
 S["sellprice"].set(0.75)
 S["repair"].set(0.5)
 scroll_top(app.tabs.tab("Economy"))
-shot("11_economy.png")
+shot("12_economy.png")
 
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)

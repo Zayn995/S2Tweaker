@@ -21,8 +21,8 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~160 tweaks in 9 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons,
-Ammo, Armor, World, Economy), plus per-weapon overrides for 79 weapons,
+~160 tweaks in 10 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides for 79 weapons,
 per-round overrides for 34 ammo types and per-piece overrides for 52
 armors/helmets: health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +
