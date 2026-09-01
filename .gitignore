@@ -27,3 +27,5 @@ release/*.zip
 
 # Screenshots: jederzeit per tools/make_screenshots.py neu erzeugbar
 release/screenshots/
+tests/_tmp/
+tests/_tmp/
