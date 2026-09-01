@@ -66,7 +66,8 @@ dots — the foreign mods are still installed; only a re-scan updates them.
 
 Mechanics ([modscan.py](s2tweaker/modscan.py)): per pak only the cfg entries
 under `GameData`/`DLCGameData` are listed (recursively — UE5 mounts `~mods`
-subfolders too, which is where e.g. OXA installs) and extracted in one
+subfolders too, and players commonly sort their mods into subfolders) and
+extracted in one
 batched, glob-escaped `repak` call (`.cfg.bin` is converted; the official
 `Base.cfg_patch_<Mod>` naming without a trailing `.cfg` counts as a config
 too). IoStore mods are reported as unreadable. Each slider's "footprint" is

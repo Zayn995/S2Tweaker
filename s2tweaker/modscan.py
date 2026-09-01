@@ -1,8 +1,9 @@
 """Fremde Mods in ~mods scannen und mit den eigenen Reglern abgleichen.
 
 Ablauf (GUI ruft das hier auf, siehe gui.App._run_modscan):
-  1. .pak-Dateien in ~mods finden, auch in Unterordnern (UE5 laedt Paks
-     rekursiv; OXA z.B. liegt in ~mods\\oxa\\). Eigene Ausgabe-Pak ausnehmen.
+  1. .pak-Dateien in ~mods finden, auch in Unterordnern: UE5 laedt Paks
+     rekursiv, und Spieler sortieren ihre Mods gern selbst in
+     Unterordner (z.B. ~mods\\oxa\\). Eigene Ausgabe-Pak ausnehmen.
   2. Je Pak nur die cfg-Eintraege unter GameData/DLCGameData listen und in
      EINEM gebuendelten repak-Aufruf extrahieren — NIE die ganze Pak
      (Overhaul-Mods sind bis zu 2 GB gross).
@@ -75,8 +76,9 @@ class ModInfo:
 
 
 def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
-    """Alle fremden .pak-Dateien in ~mods, REKURSIV (UE5 mountet auch
-    Unterordner; OXA installiert sich nach ~mods\\oxa\\)."""
+    """Alle fremden .pak-Dateien in ~mods, REKURSIV: UE5 mountet auch
+    Unterordner, und Spieler legen sich dort gern eine eigene Ordnung
+    an (manche Mods liefern Unterordner auch selbst mit)."""
     if not mods_dir.is_dir():
         return []
     excl = {n.lower() for n in exclude_names}
