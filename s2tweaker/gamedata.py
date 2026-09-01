@@ -562,9 +562,14 @@ class GameData:
     # NICHT ueber TradePrototypes.cfg verlinkt sind und sonst durchrutschen.
     LOOT_UNSAFE_NAME = re.compile(
         r"(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)|Quest|QSBIG|GDEQ|Reward|^C_"
-        r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena|GamePass"
+        r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena"
         r"|(?:^|_)Key|(?:^|_)Safe|Icon|PDA|Trade"
     )
+    # "GamePass" steht bewusst NICHT in der Blacklist (Review 01.09.): die 17
+    # GamePass_Stash_*-Tabellen sind gewoehnliche Welt-Verstecke der Basis-
+    # Version (167 Container mit SpawnOnStart auf der Hauptkarte, DLC=None),
+    # inhaltlich 1:1-Klone der Stash_Cheap/Medium/Expensive-Tabellen. Die
+    # Inhaltspruefung plus der Geldkarten-Skip decken sie vollstaendig ab.
 
     # Unikat-Konvention auf Item-Ebene: Gun_<Name>_<Klasse> (Unterstrich nach
     # "Gun"), im Gegensatz zu Serienwaffen wie GunAK74_ST.

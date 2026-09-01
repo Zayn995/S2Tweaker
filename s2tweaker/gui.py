@@ -1688,13 +1688,14 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
         self._slider(f, "loot_amount", "Loot amount (NPCs, containers, world)",
                      25, 400, 25, 100, fmt_pct,
-                     "Stack sizes in loot lists: ammo, medkits and food, "
-                     "grenades, junk, artifacts and detectors. Weapons and "
-                     "armor almost always come as a single item, so they "
-                     "barely change.")
+                     "Only ammo and part of the food & medicine lists come as "
+                     "real stacks and scale smoothly. Almost everything else "
+                     "(detectors, grenades, artifacts, weapons, armor, mutant "
+                     "parts) is one item per slot: unchanged below 150 %, "
+                     "then 2 from 150 %, 3 from 275 % and so on.")
         self._warning(
             f, "This is by far the largest patch this tool can build "
-               "(around 24,000 lines). If the game starts noticeably slower "
+               "(around 25,000 lines). If the game starts noticeably slower "
                "afterwards, put this slider back to 100 %.")
         ctk.CTkLabel(f, text="", height=2).pack()
 

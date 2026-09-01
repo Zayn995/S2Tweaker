@@ -94,9 +94,13 @@ from the file — 226 generators are keyed `[N]` rather than by their SID, and
 724 slots are named (`Head`, `BodyArmor`, …) instead of indexed, so a
 constructed path would create a new node instead of patching an existing one.
 
-What survives on the current game data: **2,010 of 3,085 generators**, 3,095
-scalable count entries, and at 200 % a patch of about 24,000 lines — by far
-the largest file the tool produces.
+What survives on the current game data: **2,026 of 3,085 generators**, 3,310
+scalable count entries, and at 200 % a patch of about 25,000 lines — by far
+the largest file the tool produces. (`GamePass` is deliberately NOT a
+blacklist token: the 17 `GamePass_Stash_*` tables are ordinary base-game
+world stashes — 167 live containers on the main map, content-identical to
+the `Stash_Cheap/Medium/Expensive` tables — and the content check plus the
+money skip cover them fully.)
 
 ## Project structure
 
