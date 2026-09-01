@@ -174,11 +174,12 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
-        "a": "Yes - Player tab: 'Max vault height' raises the detection "
-             "limit for what you can vault over, and 'Improved vaulting "
-             "(community preset)' restores the tuned vaulting of the "
-             "pre-2.0 vault mod (steeper angles, vault from farther away, "
-             "more generous landing). Player only - NPCs keep vanilla "
+        "a": "Yes - Player tab: five vault sliders (max height, trigger "
+             "distance, approach angle, min obstacle height, landing "
+             "tolerance), an experimental 'vault while sprinting' toggle, "
+             "and the 'Improved vaulting (community preset)' checkbox that "
+             "restores the tuned set of the pre-2.0 vault mod. The sliders "
+             "stack on top of the preset. Player only - NPCs keep vanilla "
              "vaulting.",
         "k": "vault vaulting climb climbing mantle parkour jump over "
              "obstacle fence window ledge",

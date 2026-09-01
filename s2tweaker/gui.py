@@ -328,6 +328,10 @@ SLIDER_FIELDS: dict[str, str] = {
     "sp_regen": "stamina_regen", "fall": "fall_damage_pct",
     "walk": "walk_speed_factor", "run": "run_speed_factor",
     "jump": "jump_height_factor", "vault_height": "vault_height_factor",
+    "vault_distance": "vault_distance_factor",
+    "vault_angle": "vault_angle_factor",
+    "vault_min_height": "vault_min_height_factor",
+    "vault_landing": "vault_landing_factor",
     "st_sprint": "stamina_sprint",
     "st_jump": "stamina_jump", "st_melee_l": "stamina_melee_light",
     "st_melee_s": "stamina_melee_strong", "st_butt": "stamina_buttstock",
@@ -377,6 +381,7 @@ SLIDER_FIELDS: dict[str, str] = {
 
 CHECK_FIELDS: dict[str, str] = {
     "improved_vaulting": "improved_vaulting",
+    "vault_sprint": "vault_sprint",
     "no_overweight": "no_overweight_penalty",
     "ignore_equipped": "ignore_equipped_weight",
     "npc_no_heal": "npc_no_heal",
@@ -2128,14 +2133,32 @@ class App(ctk.CTk):
         self._slider(f, "jump", "Jump height", 50, 200, 5, 100, fmt_pct)
         self._slider(f, "vault_height", "Max vault height", 50, 250, 10, 100, fmt_pct,
                      "How high an obstacle you can still vault or climb over "
-                     "(vanilla detection limit ~1.3 m). Stacks on top of the "
-                     "preset below when both are used.")
+                     "(vanilla detection limit ~1.3 m). All vault sliders "
+                     "stack on top of the preset below when both are used.")
+        self._slider(f, "vault_distance", "Vault trigger distance", 100, 800, 50, 100, fmt_pct,
+                     "From how far away vaulting triggers (vanilla is very "
+                     "strict - the old vault mod used roughly 750 %).")
+        self._slider(f, "vault_angle", "Vault approach angle", 100, 240, 10, 100, fmt_pct,
+                     "How far off-center you may face an obstacle and still "
+                     "vault it (capped at 180\u00b0).")
+        self._slider(f, "vault_min_height", "Vault min obstacle height", 50, 200, 10, 100, fmt_pct,
+                     "Below 100 % even small crates trigger vaulting; above, "
+                     "only taller obstacles do.")
+        self._slider(f, "vault_landing", "Vault landing tolerance", 100, 600, 25, 100, fmt_pct,
+                     "How forgiving the landing check is: farther, steeper "
+                     "and lower landing spots count (three game values "
+                     "scaled together).")
         self._check(f, "improved_vaulting", "Improved vaulting (community preset)",
                     "Restores the tuned vaulting of the pre-2.0 vault mod "
                     "(broken since the game's 2.0 update): steeper approach "
                     "angles, vault from farther away, higher obstacles, more "
                     "generous landing. Player only - NPCs keep vanilla "
                     "vaulting. Not play-tested on 2.0.x yet.")
+        self._check(f, "vault_sprint", "Start vaulting while sprinting (experimental)",
+                    "Sets the game's StartWithSprintPressed flag. Its exact "
+                    "in-game effect is NOT verified yet - it reads like "
+                    "'vault can trigger while sprint is held'. Try it and "
+                    "tell us.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Stamina costs (per action)")
@@ -2819,6 +2842,11 @@ class App(ctk.CTk):
             run_speed_factor=s["run"].get() / 100.0,
             jump_height_factor=s["jump"].get() / 100.0,
             vault_height_factor=s["vault_height"].get() / 100.0,
+            vault_distance_factor=s["vault_distance"].get() / 100.0,
+            vault_angle_factor=s["vault_angle"].get() / 100.0,
+            vault_min_height_factor=s["vault_min_height"].get() / 100.0,
+            vault_landing_factor=s["vault_landing"].get() / 100.0,
+            vault_sprint=bool(self.checks["vault_sprint"].get()),
             improved_vaulting=bool(self.checks["improved_vaulting"].get()),
             stamina_sprint=s["st_sprint"].get() / 100.0,
             stamina_jump=s["st_jump"].get() / 100.0,

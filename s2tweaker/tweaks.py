@@ -262,6 +262,11 @@ class Settings:
     run_speed_factor: float = 1.0            # Laufen + Sprinten
     jump_height_factor: float = 1.0
     vault_height_factor: float = 1.0         # MaxObstacleHeight x Faktor
+    vault_distance_factor: float = 1.0       # MaxTestDistance+StartDistance
+    vault_angle_factor: float = 1.0          # MaxAngle (Deckel 180 Grad)
+    vault_min_height_factor: float = 1.0     # MinObstacleHeight
+    vault_landing_factor: float = 1.0        # Lande-Toleranz (3 Schluessel)
+    vault_sprint: bool = False               # StartWithSprintPressed
     improved_vaulting: bool = False          # Preset der alten Vault-Mod          # JumpSpeedCoef
 
     # --- Ausdauer-Kosten einzeln (Faktor, 1.0 = Vanilla) ---
@@ -516,13 +521,50 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             if current is None or _neq(parse_number(value),
                                        parse_number(current)):
                 vault[key] = value
+
+    def vault_base(key: str, fallback: float) -> float:
+        """Basis fuer die Vault-Regler: Preset-Wert, wenn das Preset an ist
+        und diesen Schluessel setzt, sonst der live gelesene Vanilla-Wert.
+        Dieselbe Stapel-Regel wie beim Hoehen-Regler seit v1.10.0."""
+        if s.improved_vaulting and key in VAULT_PRESET:
+            return parse_number(VAULT_PRESET[key])
+        return parse_number(
+            gd.resolve(gd.obj, "Player", f"VaultingParams.{key}"), fallback)
+
     if _neq(s.vault_height_factor, 1.0) and s.vault_height_factor > 0:
-        if s.improved_vaulting:
-            base = parse_number(VAULT_PRESET["MaxObstacleHeight"])
-        else:
-            base = parse_number(gd.resolve(
-                gd.obj, "Player", "VaultingParams.MaxObstacleHeight"), 130.0)
-        vault["MaxObstacleHeight"] = _num(base * s.vault_height_factor)
+        vault["MaxObstacleHeight"] = _num(
+            vault_base("MaxObstacleHeight", 130.0) * s.vault_height_factor)
+    if _neq(s.vault_distance_factor, 1.0) and s.vault_distance_factor > 0:
+        # Beide Distanzen zusammen: die Erkennung (MaxTestDistance) und der
+        # fruehestmoegliche Start (StartDistance) gehoeren zusammen — die
+        # alte Mod hat auch beide angehoben.
+        vault["MaxTestDistance"] = _num(
+            vault_base("MaxTestDistance", 15.0) * s.vault_distance_factor)
+        vault["StartDistance"] = _num(
+            vault_base("StartDistance", 10.0) * s.vault_distance_factor)
+    if _neq(s.vault_angle_factor, 1.0) and s.vault_angle_factor > 0:
+        # 180 Grad = frontal bis seitlich; mehr ergibt geometrisch keinen Sinn
+        vault["MaxAngle"] = _num(min(
+            180.0, vault_base("MaxAngle", 75.0) * s.vault_angle_factor))
+    if _neq(s.vault_min_height_factor, 1.0) and s.vault_min_height_factor > 0:
+        vault["MinObstacleHeight"] = _num(
+            vault_base("MinObstacleHeight", 70.0) * s.vault_min_height_factor)
+    if _neq(s.vault_landing_factor, 1.0) and s.vault_landing_factor > 0:
+        # Ein Knopf, drei zusammengehoerige Schluessel: weiter entfernt
+        # landen duerfen (Offset x f), auf steilerem Untergrund (Slope x f,
+        # Deckel 90 Grad) und auf niedrigeren Kanten (MinHeight / f, nie
+        # unter 5 — 0 waere "in der Luft landen").
+        vault["MaxLandingOffset"] = _num(
+            vault_base("MaxLandingOffset", 50.0) * s.vault_landing_factor)
+        vault["LandingMaxSlope"] = _num(min(
+            90.0, vault_base("LandingMaxSlope", 45.0) * s.vault_landing_factor))
+        vault["LandingMinHeight"] = _num(max(
+            5.0, vault_base("LandingMinHeight", 30.0) / s.vault_landing_factor))
+    if s.vault_sprint:
+        current = (gd.resolve(gd.obj, "Player",
+                              "VaultingParams.StartWithSprintPressed") or "")
+        if current.strip().rstrip(";").strip().lower() != "true":
+            vault["StartWithSprintPressed"] = "true"
     if movement:
         player["MovementParams"] = movement
 
@@ -1621,6 +1663,12 @@ def summarize(s: Settings) -> list[str]:
     if s.improved_vaulting:
         lines.append("Improved vaulting (community preset)")
     f("Max vault height", s.vault_height_factor)
+    f("Vault trigger distance", s.vault_distance_factor)
+    f("Vault approach angle", s.vault_angle_factor)
+    f("Vault min obstacle height", s.vault_min_height_factor)
+    f("Vault landing tolerance", s.vault_landing_factor)
+    if s.vault_sprint:
+        lines.append("Vault while sprinting (experimental)")
     if _neq(s.max_stamina, 100):
         lines.append(f"Max stamina {s.max_stamina:g} (vanilla 100)")
     if _neq(s.stamina_regen, 5):
