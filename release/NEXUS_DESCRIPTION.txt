@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~160 tweaks in 8 tabs · pick your values · one click builds your .pak[/i]
+[i]~160 tweaks in 9 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, World, Economy):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 9 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, Armor, World, Economy):
 
 [b]Player[/b]
 [list]
@@ -44,9 +44,10 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Only values that can actually be scaled get a slider: many rounds have armor piercing and cover penetration at 0 in vanilla, and 0 x anything is still 0
 [/list]
 
-[b]Armor[/b]
+[b]Armor - its own tab, two levels[/b]
 [list]
-[*]Protection per damage type: physical, burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
+[*][b]Global[/b] protection sliders per damage type: physical, burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
+[*][b]Per-armor overrides for all 52 armors and helmets[/b]: open Body armor or Helmets, open the piece ("Exoskeleton (Duty)", "SEVA (Loners)" ...), set its protection factors - a piece's own factor beats the global slider, everything left at (vanilla) falls through. Only protection types the piece actually has get a slider
 [*]Armor durability (separate from weapon durability)
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
 [/list]
@@ -142,6 +143,15 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.9.0 - Armor tab with per-armor overrides[/b] (~160 sliders, 9 tabs)
+[list]
+[*][b]New Armor tab[/b]: the global protection sliders, armor durability and the carry-weight bonuses moved there out of Combat (your saved settings and presets keep working), joined by the third override tree
+[*][b]Per-armor overrides[/b]: Body armor (42) and Helmets (10) - open a piece, set its protection factors (physical, burn, shock, chemical, radiation, PSY). A piece's own factor REPLACES the global slider for that type; protection types that are 0 in vanilla get no slider, and NPC-only armor is deliberately not listed
+[*]Readable names ("Exoskeleton (Duty)", "SEVA (Loners)", "Light helmet (Bandits)") with the piece's vanilla protection shown when you expand it; the search box finds armor pieces by name and jumps to the Armor tab
+[*]Durability and carry bonuses stay global on purpose - they work through different game systems than the per-piece protection values
+[*]New FAQ entry to match ("Can I tune ONE specific armor or helmet?")
+[/list]
+
 [b]v1.8.0 - Mod scan, built-in FAQ & community requests[/b] (~160 sliders)
 [list]
 [*][b]Mod scan[/b]: after loading the game data the tool offers ONCE to scan the other mods in your ~mods folder (it never scans unasked - big overhaul paks stay untouched until you say so; there is also a "Scan ~mods" button). The result is a plain-language list per mod, and every slider a mod also changes keeps a colored dot: blue = the mod changes it while you are at (vanilla), violet = you changed it too - the tooltip says whose value wins, including the case where a mod's pak loads AFTER this tool's. Mods in the unreadable IoStore format are honestly listed as "data I can't read". Subfolders are scanned too
@@ -153,6 +163,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.7.0 - Loot amounts[/b] (~160 sliders)
+[spoiler]
 [list]
 [*][b]Stashes & bodies[/b] - three sliders for the game's smart-loot lists: how much a stash or body yields, the chance a slot yields anything at all, and the bonus ammo handed out to match a found weapon's caliber. Honest limits, so you know what to expect: those lists hold ammo, medicine, food and grenades - no weapons, armor or artifacts - and vanilla only puts smart loot on bodies on Easy and Medium difficulty
 [*][b]Loot amount (NPCs, containers, world)[/b] - the game's other, much larger loot system: the item generators behind dead stalkers and mutants and behind the stashes scattered around the Zone. The slider changes how many of an item a slot yields, not how often you find something and not which items show up
@@ -162,6 +173,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Also fixed: loading a preset now resets everything to vanilla first, so sliders that did not exist when the preset was saved can no longer sneak into your pak; a failed or incomplete game-data extraction is detected instead of leaving a broken cache behind; caches from older tool versions are deleted instead of piling up
 [*]The tool now extracts two more game files, so the first start after updating takes a few seconds longer than usual
 [/list]
+[/spoiler]
 
 [b]v1.6.1 - Bug fix: "Oodle loader error ... InvalidCertificate(UnknownIssuer)"[/b]
 [spoiler]
