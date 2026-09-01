@@ -296,10 +296,15 @@ FAQ_ENTRIES = [
              "and its zzz_ name loads after most mods, so your values win "
              "shared conflicts. Use 'Scan ~mods' to see which of your "
              "installed mods change the same settings - affected sliders "
-             "get a colored dot. Careful with mods whose pak name sorts "
-             "AFTER zzz_<YourModName>_P.pak: those load later and win.",
+             "get a colored dot. For a guaranteed hands-off setup, turn on "
+             "'Avoid conflicts' in the scan results: it resets and locks "
+             "every setting those mods change, and you can unlock single "
+             "settings on purpose with their unlock button. Careful with "
+             "mods whose pak name sorts AFTER zzz_<YourModName>_P.pak: "
+             "those load later and win.",
         "k": "compatible conflict other mods load order zzz overwrite "
-             "together combine priority",
+             "together combine priority avoid oxa lock locked compatibility "
+             "mode",
     },
     {
         "q": "What do the colored dots next to some sliders mean?",

@@ -163,6 +163,9 @@ class SliderRow:
         self.row = row
         self.conflict_mods: list[str] = []   # Mod-Scan: wer aendert das auch?
         self.conflict_after: set[str] = set()
+        self.locked = False                  # Avoid-conflicts-Sperre
+        self._on_unlock = None
+        self._base_state = "normal"
         self.dot: ctk.CTkLabel | None = None
         self._dot_tip = ""
         self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w")
@@ -186,7 +189,8 @@ class SliderRow:
     def _changed(self, _=None):
         value = self.get()
         vanilla = "  (vanilla)" if abs(value - self.default) < 1e-9 else ""
-        self.value_label.configure(text=self.fmt(value) + vanilla)
+        lock = "  \U0001f512" if self.locked else ""
+        self.value_label.configure(text=self.fmt(value) + vanilla + lock)
         if self.conflict_mods:
             self._update_dot()
         if self.on_change is not None:
@@ -203,8 +207,33 @@ class SliderRow:
         self.set(self.default)
 
     def set_state(self, state: str):
-        self.slider.configure(state=state)
+        # Basiszustand merken: eine Avoid-Sperre haelt den Regler auch dann
+        # deaktiviert, wenn die GUI insgesamt wieder freigeschaltet wird.
+        self._base_state = state
+        self.slider.configure(state="disabled" if self.locked else state)
         self.reset_btn.configure(state=state)
+
+    def set_locked(self, locked: bool, on_unlock=None):
+        """Avoid-conflicts-Sperre: Regler deaktiviert, der Reset-Knopf wird
+        zum Entsperr-Knopf (bewusstes Freischalten je Regler)."""
+        if locked == self.locked:
+            self._on_unlock = on_unlock or self._on_unlock
+            return
+        self.locked = locked
+        self._on_unlock = on_unlock
+        if locked:
+            self.slider.configure(state="disabled")
+            self.reset_btn.configure(text="\U0001f513", command=self._unlock)
+        else:
+            self.slider.configure(state=self._base_state)
+            self.reset_btn.configure(text="\u21ba", command=self.reset)
+        self._changed()
+        if self.conflict_mods:
+            self._update_dot()
+
+    def _unlock(self):
+        if self._on_unlock is not None:
+            self._on_unlock()
 
     def set_highlight(self, mode: str):
         """Suchfilter: 'match' = hervorheben, 'dim' = abdunkeln."""
@@ -241,7 +270,11 @@ class SliderRow:
             self.dot = ctk.CTkLabel(self.row, text="\u25cf", width=16)
             HoverTip(self.dot, lambda: self._dot_tip)
         names = ", ".join(self.conflict_mods)
-        if abs(self.get() - self.default) < 1e-9:
+        if self.locked:
+            self.dot.configure(text_color=MARK_INFO)
+            self._dot_tip = (f"locked by Avoid conflicts \u2014 {names} changes "
+                             "this; click \U0001f513 to unlock this slider")
+        elif abs(self.get() - self.default) < 1e-9:
             self.dot.configure(text_color=MARK_INFO)
             self._dot_tip = f"also changed by {names}"
         else:
@@ -1324,6 +1357,11 @@ class App(ctk.CTk):
         self._modscan_payload = None
         self._scan_running = False
         self._mods_after: set[str] = set()   # Paks, die NACH unserer laden
+        # Avoid-conflicts-Modus: betroffene Regler auf Vanilla + gesperrt.
+        self.avoid_conflicts = False
+        self.avoid_unlocked: set[str] = set()   # bewusst freigeschaltet
+        self._avoid_saved: dict[str, float | bool] = {}  # Werte vor der Sperre
+        self._locked_checks: set[str] = set()
         self.check_dots: dict[str, ctk.CTkLabel] = {}
         self._check_tips: dict[str, str] = {}
 
@@ -2034,6 +2072,10 @@ class App(ctk.CTk):
         dot.pack(side="left")
         self.check_dots[key] = dot
         HoverTip(dot, lambda k=key: self._check_tips.get(k, ""))
+        # Klick auf das Schloss schaltet eine Avoid-Sperre frei
+        dot.bind("<Button-1>",
+                 lambda _e, k=key: (k in self._locked_checks
+                                    and self._avoid_unlock("check:" + k)))
         if tooltip:
             ctk.CTkLabel(parent, text="      " + tooltip, anchor="w",
                          font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
@@ -2566,7 +2608,10 @@ class App(ctk.CTk):
             row.set_state(state)
         for row in self.mut_sliders.values():
             row.set_state(state)
-        for box in list(self.checks.values()) + list(self.cat_checks.values()):
+        for key, box in self.checks.items():
+            locked = key in self._locked_checks
+            box.configure(state="disabled" if locked else state)
+        for box in self.cat_checks.values():
             box.configure(state=state)
         self.iw_clear_btn.configure(state=state)
         for block in self._iw_blocks.values():
@@ -3130,9 +3175,14 @@ class App(ctk.CTk):
                             if info.path.name.lower() > own}
         self._apply_conflict_marks()
         if conflicts:
+            extra = ""
+            if self.avoid_conflicts:
+                n = self._avoid_lock_count()
+                extra = f" Avoid conflicts: {n} locked."
             self._status_write(
                 f"Scanned {len(infos)} mod(s): {len(conflicts)} of this "
-                "tool's settings are also changed by them (see the dots).")
+                f"tool's settings are also changed by them (see the dots)."
+                f"{extra}")
         else:
             self._status_write(
                 f"Scanned {len(infos)} mod(s): no overlap with this "
@@ -3142,7 +3192,97 @@ class App(ctk.CTk):
     def _apply_conflict_marks(self):
         for key, row in self.sliders.items():
             row.set_conflict(self.mod_conflicts.get(key), self._mods_after)
+        self._apply_conflict_locks()
         self._refresh_check_dots()
+
+    # ------------------------------------------------ Avoid-conflicts-Modus
+    def _apply_conflict_locks(self):
+        """Avoid-conflicts anwenden: jeden vom Scan gemeldeten Regler auf
+        Vanilla setzen und sperren — ausser der Benutzer hat ihn bewusst
+        freigeschaltet. Beim Sperren wird der bisherige Wert gemerkt und
+        beim Entsperren (in DIESER Sitzung) zurueckgelegt."""
+        conflicted = set(self.mod_conflicts) if self.avoid_conflicts else set()
+        for key, row in self.sliders.items():
+            want = key in conflicted and key not in self.avoid_unlocked
+            if want and not row.locked:
+                current = row.get()
+                if abs(current - row.default) > 1e-9:
+                    self._avoid_saved[key] = current
+                row.set(row.default)
+                row.set_locked(True, lambda k=key: self._avoid_unlock(k))
+            elif not want and row.locked:
+                row.set_locked(False)
+                saved = self._avoid_saved.pop(key, None)
+                if saved is not None:
+                    row.set(saved)
+            elif want:
+                # schon gesperrt: Unlock-Callback aktuell halten UND die
+                # Sperre durchsetzen — ein Preset-Load schreibt sonst einen
+                # Wert auf den gesperrten Regler und die Pak waere nicht
+                # mehr neutral (empirisch belegt).
+                row.set_locked(True, lambda k=key: self._avoid_unlock(k))
+                if abs(row.get() - row.default) > 1e-9:
+                    self._avoid_saved[key] = row.get()
+                    row.set(row.default)
+        for key, box in self.checks.items():
+            ckey = "check:" + key
+            want = ckey in conflicted and ckey not in self.avoid_unlocked
+            locked_now = key in self._locked_checks
+            if want and not locked_now:
+                if bool(box.get()):
+                    self._avoid_saved[ckey] = True
+                box.deselect()
+                box.configure(state="disabled")
+                self._locked_checks.add(key)
+            elif not want and locked_now:
+                self._locked_checks.discard(key)
+                box.configure(state=self._body_enabled_state())
+                if self._avoid_saved.pop(ckey, None):
+                    box.select()
+        self._refresh_check_dots()
+
+    def _body_enabled_state(self) -> str:
+        """Aktueller Grundzustand der Bedienelemente (an _iw_state gekoppelt,
+        das _set_body_state fuer alle Baeume pflegt)."""
+        return self._iw_state
+
+    def _avoid_unlock(self, key: str):
+        """EINEN Regler bewusst freischalten (bleibt ueber Re-Scans und —
+        weil persistiert — auch ueber Neustarts hinweg frei)."""
+        self.avoid_unlocked.add(key)
+        self._apply_conflict_locks()
+        label = key
+        if key.startswith("check:"):
+            box = self.checks.get(key[len("check:"):])
+            if box is not None:
+                label = str(box.cget("text"))
+        elif key in self.sliders:
+            label = str(self.sliders[key].label.cget("text"))
+        self._status_write(f"Unlocked: {label} — your value applies again "
+                           "even though another mod changes it too.")
+
+    def _avoid_lock_count(self) -> int:
+        return (sum(1 for r in self.sliders.values() if r.locked)
+                + len(self._locked_checks))
+
+    def _set_avoid_mode(self, enabled: bool):
+        # Bewusstes EINSCHALTEN sperrt wieder ALLES: sonst gaebe es keinen
+        # Weg, einen frueher freigeschalteten Regler je wieder zu sperren.
+        # Solange der Modus an bleibt (auch ueber Neustarts), gelten die
+        # Freischaltungen weiter — nur der explizite Schalter setzt sie
+        # zurueck.
+        if enabled:
+            self.avoid_unlocked.clear()
+        self.avoid_conflicts = enabled
+        self._apply_conflict_locks()
+        if enabled:
+            n = self._avoid_lock_count()
+            self._status_write(
+                f"Avoid conflicts ON: {n} setting{'s' if n != 1 else ''} "
+                "reset to vanilla and locked (\U0001f513 unlocks one).")
+        else:
+            self._status_write("Avoid conflicts OFF: all settings unlocked "
+                               "(previous values restored).")
 
     def _refresh_check_dots(self):
         for key in self.check_dots:
@@ -3158,6 +3298,12 @@ class App(ctk.CTk):
             self._check_tips[key] = ""
             return
         names = ", ".join(sorted(mods))
+        if key in self._locked_checks:
+            dot.configure(text="\U0001f512", text_color=MARK_INFO)
+            self._check_tips[key] = (
+                f"locked by Avoid conflicts \u2014 {names} changes this; "
+                "click the lock to unlock this setting")
+            return
         if bool(self.checks[key].get()):
             dot.configure(text="\u25cf", text_color=MARK_WARN)
             losers = sorted(set(mods) & self._mods_after)
@@ -3229,6 +3375,43 @@ class App(ctk.CTk):
              "Your pak usually wins shared values because its zzz_ name "
              "loads last. The dots stay until you scan again.",
              text_color="gray60")
+
+        foot = ctk.CTkFrame(win, fg_color="transparent")
+        foot.pack(fill="x", padx=12, pady=(0, 10))
+        avoid_box = ctk.CTkCheckBox(
+            foot, text="Avoid conflicts – reset & lock every setting "
+                       "these mods change")
+        if self.avoid_conflicts:
+            avoid_box.select()
+        avoid_hint = ctk.CTkLabel(
+            foot, text="", anchor="w", justify="left", wraplength=580,
+            font=ctk.CTkFont(size=11), text_color="gray60")
+
+        def refresh_hint():
+            if self.avoid_conflicts:
+                n = self._avoid_lock_count()
+                avoid_hint.configure(
+                    text=f"{n} setting{'s' if n != 1 else ''} locked at "
+                         "(vanilla). Unlock one with its \U0001f513 button "
+                         "– unlocks are remembered while this stays on; "
+                         "re-ticking the box locks everything again. The "
+                         "override trees (weapons/ammo/armor) are not "
+                         "locked; their global sliders are.")
+            else:
+                avoid_hint.configure(
+                    text="Locks the marked settings at (vanilla) so this "
+                         "tool cannot fight the mods above. Your current "
+                         "values come back when you turn it off.")
+
+        def on_avoid():
+            self._set_avoid_mode(bool(avoid_box.get()))
+            refresh_hint()
+
+        avoid_box.configure(command=on_avoid)
+        if self.mod_conflicts:
+            avoid_box.pack(anchor="w", pady=(0, 2))
+            refresh_hint()
+            avoid_hint.pack(fill="x", padx=28)
         ctk.CTkButton(win, text="Close", width=100,
                       command=win.destroy).pack(pady=(0, 10))
 
@@ -3247,6 +3430,9 @@ class App(ctk.CTk):
             self._mut_select(self._mut_current)
         # Scan-Punkte bleiben absichtlich stehen (die fremden Mods sind ja
         # weiterhin installiert) — nur die Stufe faellt auf Info zurueck.
+        # Gemerkte Vor-Sperr-Werte verfallen: nach "Reset all to vanilla"
+        # soll ein spaeteres Entsperren nicht einen alten Wert zurueckholen.
+        self._avoid_saved.clear()
         self._refresh_check_dots()
 
     def _ui_state(self) -> dict:
@@ -3269,6 +3455,8 @@ class App(ctk.CTk):
                 "mod_name": self.name_entry.get(),
                 "debug_cfg": bool(self.debug_check.get()),
                 "modscan_pref": self.modscan_pref,
+                "modscan_avoid": self.avoid_conflicts,
+                "modscan_unlocked": sorted(self.avoid_unlocked),
                 **self._ui_state(),
             }
             SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -3334,6 +3522,9 @@ class App(ctk.CTk):
             self.debug_check.select()
         if data.get("modscan_pref") in ("ask", "never"):
             self.modscan_pref = data["modscan_pref"]
+        self.avoid_conflicts = bool(data.get("modscan_avoid"))
+        self.avoid_unlocked = {str(k) for k in
+                               (data.get("modscan_unlocked") or [])}
         self._apply_ui_state(data)
 
     def _apply_ui_state(self, data: dict):
@@ -3398,8 +3589,11 @@ class App(ctk.CTk):
         self._iw_refresh_all()
         self._ia_refresh_all()
         self._ir_refresh_all()
-        # select()/deselect() feuern kein command — Scan-Punkte nachziehen
-        self._refresh_check_dots()
+        # Avoid-Sperren wieder durchsetzen: das Preset kann Werte auf
+        # gesperrte Regler geschrieben haben (werden gemerkt + auf Vanilla
+        # zurueckgesetzt). Beim Start ohne Scan ist mod_conflicts leer ->
+        # No-Op. Zieht auch die Scan-Punkte nach.
+        self._apply_conflict_locks()
 
     def _on_close(self):
         # Ein wartendes Auto-Aufklappen wuerde sonst noch Widgets in einem
