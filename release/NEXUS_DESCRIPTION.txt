@@ -22,6 +22,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [list]
 [*]Health, stamina (incl. per-action costs), fall damage, jump height, breath hold
 [*]Walk/crouch and run/sprint speed as separate sliders
+[*]Vaulting: max vault height slider plus an 'Improved vaulting' preset that restores the tuned values of the broken pre-2.0 vault mod (player only)
 [*]Max carry weight, overweight penalty start, item weights per category
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
 [*]Hit camera shake / aim punch 0-300%
@@ -92,7 +93,9 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Tool features[/b]
 [list]
-[*][b]Mod scan[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot (mod name in the tooltip) - so you know about conflicts before you build
+[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
+[*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
+[*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
 [*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 37 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
@@ -143,6 +146,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.10.0 - Compatibility mode & quality of life[/b] (~160 sliders, 9 tabs)
+[list]
+[*][b]Avoid conflicts[/b]: after a mod scan, one checkbox resets and LOCKS every setting your other installed mods change - guaranteed hands-off compatibility. Unlock single settings on purpose with their unlock button (unlocks are remembered while the mode stays on; re-ticking the box locks everything again). So the answer to "compatible with X?" is now: scan your mods, then enable Avoid conflicts
+[*][b]Improved vaulting[/b] (GitHub request - thank you!): a checkbox restores the tuned vaulting of the vault mod that broke with game patch 2.0 (steeper approach angles, vault from farther away, higher obstacles, more generous landing - player only, NPCs stay vanilla), plus a "Max vault height" slider (50-250%) on top
+[*][b]Every built pak is now an editable preset[/b]: paks embed a small manifest (tool version, build date, game version, ALL settings). "Load preset ..." accepts .pak files and restores your sliders, overrides and mod name exactly - great for sharing setups, and bug reports become reproducible
+[*][b]"Changed only" view[/b]: a header button dims everything still at (vanilla) and filters the weapon/ammo/armor trees to your overrides - see your whole mod at a glance
+[*][b]Compatibility report[/b]: export a plain-text report from the scan results - scanned mods, load order, the exact overlapping game properties per setting, and what the tool could not read. If someone asks "does it work with X?", just send the report
+[*]The built-in FAQ grew to 42 searchable entries
+[/list]
+
 [b]v1.9.0 - Armor tab with per-armor overrides[/b] (~160 sliders, 9 tabs)
 [list]
 [*][b]New Armor tab[/b]: the global protection sliders, armor durability and the carry-weight bonuses moved there out of Combat (your saved settings and presets keep working), joined by the third override tree
@@ -153,6 +166,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.8.0 - Mod scan, built-in FAQ & community requests[/b] (~160 sliders)
+[spoiler]
 [list]
 [*][b]Mod scan[/b]: after loading the game data the tool offers ONCE to scan the other mods in your ~mods folder (it never scans unasked - big overhaul paks stay untouched until you say so; there is also a "Scan ~mods" button). The result is a plain-language list per mod, and every slider a mod also changes keeps a colored dot: blue = the mod changes it while you are at (vanilla), violet = you changed it too - the tooltip says whose value wins, including the case where a mod's pak loads AFTER this tool's. Mods in the unreadable IoStore format are honestly listed as "data I can't read". Subfolders are scanned too
 [*][b]Built-in FAQ[/b]: the new "? FAQ" button opens a searchable FAQ (37 questions) covering things that are easy to miss - search by keywords like "health pack", "carry weight", "stealth" or "antivirus"; matching answers open automatically
@@ -161,6 +175,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Loot-amount fix: 16 ordinary world-stash loot tables were wrongly excluded by the safety filter (their internal names start with "GamePass_", but they are regular base-game stashes - 167 containers on the main map) and now scale too. The slider tooltip now also says correctly that detectors, grenades and artifacts come as single items that only change from 150 % up
 [*]The loot patch is now ~25,000 lines at 200 % - still by far the largest file the tool builds; the in-app warning was updated
 [/list]
+[/spoiler]
 
 [b]v1.7.0 - Loot amounts[/b] (~160 sliders)
 [spoiler]
