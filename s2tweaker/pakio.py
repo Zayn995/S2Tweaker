@@ -302,13 +302,20 @@ def find_repak() -> Path | None:
     return None
 
 
-def pack_mod(cfg_files: dict[str, str], out_pak: Path, repak_exe: Path | None = None) -> Path:
+def pack_mod(cfg_files: dict[str, str], out_pak: Path,
+             repak_exe: Path | None = None,
+             root_files: dict[str, str] | None = None) -> Path:
     """cfg-Dateien in eine Mod-Pak packen.
 
     cfg_files: {"ObjPrototypes/zzz_S2Tweaker_Player.cfg": "<cfg-Text>", ...}
                Pfade relativ zu Stalker2/Content/GameLite/GameData/.
                Absolute Sonderfaelle (DLC) koennen mit "//" beginnen und sind
                dann relativ zu Stalker2/Content/ zu verstehen.
+    root_files: Dateien DIREKT unter dem Pak-Mount (z.B. das eingebettete
+               S2Tweaker-Manifest). Bewusst NICHT unter GameData: den Ordner
+               durchsucht der Config-Scanner des Spiels, und Dateien, die
+               das Spiel nie anfragt, sind an der Wurzel garantiert
+               wirkungslos.
     out_pak:   Zielpfad der .pak-Datei (z.B. ...\\~mods\\zzz_S2Tweaker_P.pak).
     """
     repak = repak_exe or find_repak()
@@ -332,6 +339,8 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path, repak_exe: Path | None = 
                 target = staging / GAMEDATA_PREFIX / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
+        for rel, content in (root_files or {}).items():
+            (staging / rel).write_text(content, encoding="utf-8")
 
         result = subprocess.run(
             [str(repak), "pack", "-q", str(staging), str(out_pak)],

@@ -210,6 +210,39 @@ FAQ_ENTRIES = [
     },
     # ------------------------------------------------------------ setup & files
     {
+        "q": "How do I see only what I changed?",
+        "a": "Click 'Changed only' in the header: everything still at "
+             "(vanilla) is dimmed across all tabs, and the override trees "
+             "highlight just your overridden weapons, rounds and armor "
+             "pieces. Dimmed sliders stay usable. A search temporarily "
+             "takes over; clearing it brings the view back. The 'Build "
+             "pak' dialog also lists every active tweak.",
+        "k": "changed only show my tweaks overview filter what did i "
+             "change active editor view dim",
+    },
+    {
+        "q": "Can I load the settings back from a built .pak?",
+        "a": "Yes - every pak built with v1.10.0 or newer embeds a "
+             "manifest (tool version, build date, game version and ALL "
+             "settings). Click 'Load preset ...' and pick the .pak: your "
+             "sliders, overrides and the mod name come back exactly. "
+             "That also makes shared paks editable presets, and for bug "
+             "reports the author can see what was set. Older or foreign "
+             "paks carry no manifest and cannot be imported.",
+        "k": "import pak load settings from pak manifest restore recover "
+             "share preset which settings reproduce",
+    },
+    {
+        "q": "Someone says my mod conflicts with theirs - how do I check?",
+        "a": "Run 'Scan ~mods', then click 'Export report ...' in the "
+             "results window: you get a plain-text compatibility report "
+             "listing every scanned mod, the load order, which settings "
+             "overlap (down to the exact game properties) and what the "
+             "tool could not read. Perfect to attach to a Nexus comment.",
+        "k": "compatibility report export txt conflict proof debug "
+             "doesnt work with send report analyze",
+    },
+    {
         "q": "How do I install the mod I built?",
         "a": "Click 'Install to ~mods' - it builds the pak and copies it "
              "to <game>\\Stalker2\\Content\\Paks\\~mods\\ (creating the "

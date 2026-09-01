@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import queue
@@ -65,6 +66,11 @@ def presets_dir() -> Path:
 
 
 SETTINGS_FILE = app_dir() / "settings.json"
+
+# Eingebettetes Manifest an der Pak-WURZEL (nicht unter GameData — dort
+# scannt das Spiel nach Configs; an der Wurzel ist die Datei garantiert
+# wirkungslos). Macht jede gebaute Pak zu einem wieder ladbaren Preset.
+MANIFEST_NAME = "S2Tweaker_Manifest.json"
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
@@ -1366,6 +1372,9 @@ class App(ctk.CTk):
         self._locked_checks: set[str] = set()
         self.check_dots: dict[str, ctk.CTkLabel] = {}
         self._check_tips: dict[str, str] = {}
+        # "Changed only": dimmt alles, was auf Vanilla steht
+        self.changed_only = False
+        self._oc_job: str | None = None
 
         self._build_header()
         self._build_body()
@@ -1412,6 +1421,10 @@ class App(ctk.CTk):
                                      fg_color="gray30", hover_color="gray25",
                                      command=self._show_faq)
         self.btn_faq.pack(side="right", padx=4, pady=8)
+        self.btn_changed = ctk.CTkButton(
+            head, text="Changed only", width=105, fg_color="gray30",
+            hover_color="gray25", command=self._toggle_changed_only)
+        self.btn_changed.pack(side="right", padx=4, pady=8)
         # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
         # sonst draengt ein langer Spielpfad die Knoepfe und das Suchfeld
         # zusammen und schneidet den Platzhaltertext ab.
@@ -2972,6 +2985,83 @@ class App(ctk.CTk):
             # gebliebenen "No slider, weapon or ammo matches your search."
             self.status.configure(text=self._status_before_search)
             self._status_before_search = None
+        # Ohne Suchbegriff uebernimmt die Changed-only-Ansicht das Dimmen;
+        # mit Suchbegriff hat die Suche Vorrang (Treffer sollen leuchten).
+        if not query and self.changed_only:
+            self._apply_changed_only()
+        elif not query:
+            self._clear_changed_only_view()
+
+    # -------------------------------------------------------- Changed only
+    def _toggle_changed_only(self):
+        """Alles dimmen, was auf Vanilla steht — S2Tweaker wird zur
+        Editor-Ansicht des aktuell gebauten Mods. Rein visuell (dimmen statt
+        ausblenden): Layout und Reihenfolge bleiben stabil, gedimmte Regler
+        sind weiter bedienbar. Eine laufende Suche hat Vorrang."""
+        self.changed_only = not self.changed_only
+        self.btn_changed.configure(
+            fg_color=ACCENT if self.changed_only else "gray30",
+            text_color="gray10" if self.changed_only else
+            self.btn_faq.cget("text_color"))
+        self._oc_cancel()
+        self._apply_filter()
+        if self.changed_only:
+            self._oc_job = self.after(700, self._oc_tick)
+
+    def _oc_cancel(self):
+        if self._oc_job is not None:
+            try:
+                self.after_cancel(self._oc_job)
+            except Exception:
+                pass
+            self._oc_job = None
+
+    def _oc_tick(self):
+        """Leichter Puls: haelt die Dimmung aktuell, wenn der Benutzer im
+        aktiven Modus Regler bewegt (ein bewegter Regler soll sofort hell
+        werden, ein zurueckgestellter wieder abdunkeln)."""
+        self._oc_job = None
+        if not self.changed_only:
+            return
+        if not self.search_entry.get().strip():
+            self._apply_changed_only()
+        self._oc_job = self.after(700, self._oc_tick)
+
+    def _slider_changed_from_vanilla(self, row) -> bool:
+        return abs(row.get() - row.default) > 1e-9
+
+    def _apply_changed_only(self):
+        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die drei
+        Override-Baeume filtern auf ihre Overrides."""
+        for key, row in self.sliders.items():
+            row.set_highlight(
+                "normal" if self._slider_changed_from_vanilla(row) else "dim")
+        for cat, (btn, label, orig, content) in self._wcat_btns.items():
+            n = sum(1 for param in WEAPON_PARAMS
+                    if self._slider_changed_from_vanilla(
+                        self.sliders[f"wcat_{cat}_{param}"]))
+            btn.configure(text_color=orig if n else "gray35")
+        for key, box in self.checks.items():
+            changed = bool(box.get()) or key in self._locked_checks
+            box.configure(text_color=("gray95" if changed else "gray45"))
+        for cat, box in self.cat_checks.items():
+            box.configure(text_color=(
+                "gray45" if bool(box.get()) else "gray95"))
+        for blocks, overrides in (
+                (self._iw_blocks, self.weapon_overrides),
+                (self._ia_blocks, self.ammo_overrides),
+                (self._ir_blocks, self.armor_overrides)):
+            for block in blocks.values():
+                hits = [sid for sid in block.sids if sid in overrides]
+                block.set_row_filter(set(hits))
+                block.set_highlight("match" if hits else "dim")
+
+    def _clear_changed_only_view(self):
+        """Dimmung zuruecknehmen (Toggle aus oder Suche uebernimmt)."""
+        for box in list(self.checks.values()) + list(self.cat_checks.values()):
+            box.configure(text_color="gray95")
+        for cat, (btn, label, orig, content) in self._wcat_btns.items():
+            btn.configure(text_color=orig)
 
     # ------------------------------------------------------------------ FAQ
     def _show_faq(self):
@@ -3347,6 +3437,84 @@ class App(ctk.CTk):
                 labels.append(str(self.sliders[key].label.cget("text")))
         return labels
 
+    def _build_compat_report(self) -> str:
+        """Kompatibilitaets-Bericht als Klartext — zum Anhaengen an
+        Nexus-Kommentare ("doesn't work with X" -> "send me the report")."""
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        own = self._out_name()
+        fp = self._game_fingerprint()
+        lines = [
+            "S2Tweaker compatibility report",
+            f"Generated: {now}  |  S2Tweaker {__version__}  |  "
+            f"game pak fingerprint: {fp if fp else 'n/a'}",
+            f"Own output pak: {own}  (load order in ~mods is alphabetical)",
+            f"Avoid-conflicts mode: {'ON' if self.avoid_conflicts else 'off'}"
+            + (f", consciously unlocked: "
+               + ", ".join(sorted(self.avoid_unlocked))
+               if self.avoid_conflicts and self.avoid_unlocked else ""),
+            "",
+            f"Scanned mods ({len(self.modscan_results)}):",
+        ]
+        for info in self.modscan_results:
+            order = ("loads AFTER your pak - ITS values win shared conflicts"
+                     if info.name in self._mods_after
+                     else "loads before your pak - your values win")
+            lines.append(f"  {info.path.name}")
+            if not info.readable:
+                lines.append(f"      {info.note}")
+                lines.append("      overlap unknown - this tool cannot "
+                             "look inside this format")
+                continue
+            labels = self._conflict_labels(info.name)
+            lines.append(f"      {info.n_cfg} config file"
+                         f"{'s' if info.n_cfg != 1 else ''}, {order}")
+            if labels:
+                lines.append("      overlapping settings: "
+                             + ", ".join(labels))
+            elif info.n_cfg:
+                lines.append("      no overlap with this tool's settings")
+            if info.note:
+                lines.append(f"      note: {info.note}")
+        if self.mod_conflicts:
+            lines += ["", "Details per setting (advanced - the game "
+                          "structs/properties both sides touch):"]
+            for key, mods in sorted(self.mod_conflicts.items()):
+                if key.startswith("check:"):
+                    box = self.checks.get(key[len("check:"):])
+                    label = str(box.cget("text")) if box else key
+                else:
+                    row = self.sliders.get(key)
+                    label = str(row.label.cget("text")) if row else key
+                lines.append(f"  {label}")
+                pairs = self._footprints.get(key) or set()
+                for info in self.modscan_results:
+                    if info.name not in mods:
+                        continue
+                    overlap = sorted(pairs & info.pairs)
+                    shown = ", ".join(f"{a}.{b}" for a, b in overlap[:10])
+                    more = ("" if len(overlap) <= 10
+                            else f" (+{len(overlap) - 10} more)")
+                    lines.append(f"      {info.name}: {shown}{more}")
+        lines += ["", "Notes: only values off (vanilla) are written to the "
+                      "pak; shared values are decided by ~mods load order "
+                      "(alphabetical).", ""]
+        return "\n".join(lines)
+
+    def _export_compat_report(self):
+        path = filedialog.asksaveasfilename(
+            title="Export compatibility report", defaultextension=".txt",
+            initialdir=output_dir(),
+            initialfile="S2Tweaker_Compatibility_Report.txt",
+            filetypes=[("Text file", "*.txt")])
+        if not path:
+            return
+        try:
+            Path(path).write_text(self._build_compat_report(),
+                                  encoding="utf-8")
+            self._status_write(f"Compatibility report saved: {path}")
+        except OSError:
+            messagebox.showerror(APP_TITLE, traceback.format_exc())
+
     def _show_modscan_results(self):
         win = ctk.CTkToplevel(self)
         win.title("What your other mods change")
@@ -3426,8 +3594,13 @@ class App(ctk.CTk):
             avoid_box.pack(anchor="w", pady=(0, 2))
             refresh_hint()
             avoid_hint.pack(fill="x", padx=28)
-        ctk.CTkButton(win, text="Close", width=100,
-                      command=win.destroy).pack(pady=(0, 10))
+        btns = ctk.CTkFrame(win, fg_color="transparent")
+        btns.pack(pady=(0, 10))
+        ctk.CTkButton(btns, text="Export report \u2026", width=140,
+                      command=self._export_compat_report).pack(
+            side="left", padx=6)
+        ctk.CTkButton(btns, text="Close", width=100,
+                      command=win.destroy).pack(side="left", padx=6)
 
     def _reset_all(self):
         for slider in self.sliders.values():
@@ -3470,6 +3643,7 @@ class App(ctk.CTk):
                 "debug_cfg": bool(self.debug_check.get()),
                 "modscan_pref": self.modscan_pref,
                 "modscan_avoid": self.avoid_conflicts,
+                "changed_only": self.changed_only,
                 "modscan_unlocked": sorted(self.avoid_unlocked),
                 **self._ui_state(),
             }
@@ -3495,9 +3669,16 @@ class App(ctk.CTk):
     def _load_preset(self):
         presets_dir().mkdir(parents=True, exist_ok=True)
         path = filedialog.askopenfilename(
-            title="Load preset", initialdir=presets_dir(),
-            filetypes=[("S2Tweaker preset", "*.json")])
+            title="Load preset or S2Tweaker pak", initialdir=presets_dir(),
+            filetypes=[("S2Tweaker preset or pak", "*.json;*.pak"),
+                       ("S2Tweaker preset", "*.json"),
+                       ("S2Tweaker pak", "*.pak")])
         if not path:
+            return
+        if path.lower().endswith(".pak"):
+            # Jede vom Tool gebaute Pak traegt ihr Manifest in sich und ist
+            # damit selbst ein Preset (GitHub-/ChatGPT-Wunschliste).
+            self._import_pak(Path(path))
             return
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -3537,6 +3718,9 @@ class App(ctk.CTk):
         if data.get("modscan_pref") in ("ask", "never"):
             self.modscan_pref = data["modscan_pref"]
         self.avoid_conflicts = bool(data.get("modscan_avoid"))
+        if data.get("changed_only"):
+            # Ueber den Toggle, damit Knopf-Farbe und Tick-Loop stimmen
+            self.after(200, self._toggle_changed_only)
         self.avoid_unlocked = {str(k) for k in
                                (data.get("modscan_unlocked") or [])}
         self._apply_ui_state(data)
@@ -3615,6 +3799,7 @@ class App(ctk.CTk):
         self._iw_cancel_expand()
         self._ia_cancel_expand()
         self._ir_cancel_expand()
+        self._oc_cancel()
         self._save_ui_settings()
         self.destroy()
 
@@ -3654,7 +3839,9 @@ class App(ctk.CTk):
                 "The values you changed have no effect on the game data – "
                 "nothing to patch." + why)
             return False
-        pakio.pack_mod(patches, out_pak)
+        pakio.pack_mod(patches, out_pak,
+                       root_files={MANIFEST_NAME:
+                                   self._build_manifest(s, active)})
 
         debug_note = ""
         if self.debug_check.get():
@@ -3671,6 +3858,85 @@ class App(ctk.CTk):
             "Mod pak created:\n" + str(out_pak) + debug_note
             + "\n\nActive tweaks:\n– " + "\n– ".join(active))
         return True
+
+    def _game_fingerprint(self) -> int | None:
+        """Groesse von pakchunk0 als billiger Versions-Fingerabdruck
+        (dasselbe Mass wie der Extraktions-Cache)."""
+        try:
+            if self.game_dir is not None:
+                pak = (Path(self.game_dir) / "Stalker2" / "Content" / "Paks"
+                       / "pakchunk0-Windows.pak")
+                if pak.is_file():
+                    return pak.stat().st_size
+        except OSError:
+            pass
+        return None
+
+    def _build_manifest(self, s, active: list[str]) -> str:
+        """Eingebettetes Manifest: macht jede gebaute Pak nachvollziehbar
+        (Support!) und ueber "Load preset ..." wieder ladbar."""
+        return json.dumps({
+            "manifest_version": 1,
+            "tool": f"S2Tweaker {__version__}",
+            "built": datetime.datetime.now().isoformat(timespec="seconds"),
+            "game_pak_fingerprint": self._game_fingerprint(),
+            "mod_name": s.mod_name,
+            "active_tweaks": active,
+            "ui_state": self._ui_state(),
+        }, indent=2)
+
+    def _import_pak(self, path: Path) -> None:
+        """Einstellungen aus einer vom Tool gebauten Pak zurueckladen."""
+        try:
+            entries = pakio.list_pak(path)
+        except Exception:
+            messagebox.showerror(
+                APP_TITLE, "That file could not be read as a .pak.")
+            return
+        if MANIFEST_NAME not in entries:
+            messagebox.showinfo(
+                APP_TITLE,
+                "This pak carries no S2Tweaker manifest.\n\n"
+                "Paks built with S2Tweaker 1.10.0 or newer embed their "
+                "settings; older or foreign paks cannot be imported.")
+            return
+        import tempfile
+        try:
+            with tempfile.TemporaryDirectory(prefix="s2tweaker_import_") as tmp:
+                pakio.unpack(path, Path(tmp), include=MANIFEST_NAME)
+                data = json.loads(
+                    (Path(tmp) / MANIFEST_NAME).read_text(encoding="utf-8"))
+        except Exception:
+            messagebox.showerror(
+                APP_TITLE, "The manifest in this pak could not be read.")
+            return
+        state = data.get("ui_state")
+        if not isinstance(state, dict):
+            messagebox.showerror(
+                APP_TITLE, "The manifest in this pak is incomplete.")
+            return
+        # Gleicher Weg wie ein Preset: erst Vanilla, dann anwenden
+        self._reset_all()
+        self._apply_ui_state(state)
+        if self.gd is not None:
+            self._iw_populate()
+            self._ia_populate()
+            self._ir_populate()
+            self._mut_populate()
+        self._apply_filter()
+        name = str(data.get("mod_name") or "").strip()
+        if name:
+            self.name_entry.delete(0, "end")
+            self.name_entry.insert(0, name)
+        note = ""
+        fp = data.get("game_pak_fingerprint")
+        if fp and self._game_fingerprint() and fp != self._game_fingerprint():
+            note = (" (built for a different game version - factors were "
+                    "re-applied to your current values)")
+        self._status_write(
+            f"Loaded settings from {path.name}"
+            f" - built {data.get('built', '?')} with "
+            f"{data.get('tool', 'S2Tweaker')}{note}")
 
     def _out_name(self) -> str:
         s = self._collect()
