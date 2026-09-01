@@ -999,6 +999,25 @@ class GameData:
                 result[sid] = values
         return result
 
+    def player_armors(self) -> dict[str, tuple[str, dict[str, float]]]:
+        """{SID: (Slot, {Schutzart: Vanilla-Wert})} aller Ruestungen/Helme,
+        die der SPIELER bekommen kann — fuer den Einzelruestungs-Baum.
+
+        NPC-only-Ruestungen (Invisible = true, z.B. NPC_Korshunov_Armor)
+        bleiben draussen: ihre Spieler-Protection ist im Spiel bedeutungslos
+        und wuerde den Baum nur aufblaehen. Der GLOBALE Schutz-Patch laeuft
+        weiter ueber armor_protection() (alle 86) — harmlos und unveraendert.
+        Slot ist "Body" oder "Head" (aus ItemSlotType, aufgeloest)."""
+        result: dict[str, tuple[str, dict[str, float]]] = {}
+        for sid, values in self.armor_protection().items():
+            invisible = (self.resolve(self.items, sid, "Invisible") or "")
+            if invisible.strip().rstrip(";").strip().lower() == "true":
+                continue
+            slot = (self.resolve(self.items, sid, "ItemSlotType") or "")
+            slot = slot.split("::")[-1].strip() or "Body"
+            result[sid] = (slot, values)
+        return result
+
     DETECTOR_RANGE_KEYS = ("ShowArtifactRadius", "MinDetectRadius",
                            "DetectorWorkRadius", "SonarRadius",
                            "AnomalyDetectionRadius")

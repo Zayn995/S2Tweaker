@@ -21,6 +21,8 @@ from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
     AMMO_CALIBER_LABELS,
+    ARMOR_PARAM_LABELS,
+    ARMOR_PARAMS,
     AMMO_PARAM_KEYS,
     AMMO_PARAM_LABELS,
     AMMO_PARAMS,
@@ -31,6 +33,7 @@ from .tweaks import (
     WEAPON_PARAMS,
     Settings,
     ammo_label,
+    armor_label,
     build_patches,
     summarize,
 )
@@ -982,6 +985,269 @@ class IaCaliberBlock:
             row.set_state(state)
 
 
+class IrArmorRow:
+    """Aufklappbare Zeile EINER Ruestung im Armor-Baum.
+
+    Dritte Zwillingsklasse neben IwWeaponRow und IaAmmoRow, bewusst KEINE
+    Ableitung — dieselbe Begruendung wie dort: die verifizierten Baeume
+    bleiben strukturell unangetastet. Wahrheit ist app.armor_overrides.
+    Regler nur fuer Schutzarten, die in Vanilla > 0 sind (0 x Faktor = 0)."""
+
+    def __init__(self, app, parent, sid: str, group: str):
+        self.app = app
+        self.sid = sid
+        self.group = group
+        self.label = app._ir_labels.get(sid, sid)
+        self.params = [p for p in ARMOR_PARAMS
+                       if p in app._ir_prot.get(sid, {})]
+        self.body = None
+        self.sliders: dict[str, SliderRow] = {}
+        self.reset_btn = None
+        self.expanded = False
+        self._highlight = "normal"
+        self._state = app._ir_state
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_row,
+            command=self.toggle, state=app._ir_state)
+        self.btn.pack(fill="x", padx=(16, 8), pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.refresh()
+
+    # ------------------------------------------------------------ Aufbau
+    def build(self):
+        if self.body is not None:
+            return
+        self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
+        prot = self.app._ir_prot.get(self.sid, {})
+        if prot:
+            parts = [f"{ARMOR_PARAM_LABELS[p].lower()} {prot[p]:g}"
+                     for p in ARMOR_PARAMS if p in prot]
+            text = "   vanilla protection: " + ", ".join(parts)
+            if len(self.params) < len(ARMOR_PARAMS):
+                text += ("\n   Protection types that are 0 in vanilla stay 0 "
+                         "\u2013 no slider is offered for them.")
+            ctk.CTkLabel(self.body, text=text, anchor="w", justify="left",
+                         wraplength=700, font=self.app._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12,
+                                                   pady=(2, 0))
+        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
+        # und damit _changed — ohne Sperre loescht der halb gebaute Satz den
+        # gespeicherten Override (die Lehre aus dem Waffenbaum-Review).
+        prev = self.app._ir_loading
+        self.app._ir_loading = True
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for param in self.params:
+                self.sliders[param] = SliderRow(
+                    self.body, ARMOR_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    fmt_factor, on_change=self._changed)
+        finally:
+            self.app._ir_loading = prev
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+        self.reset_btn = ctk.CTkButton(
+            self.body, text="\u21ba  Reset this armor", width=170,
+            fg_color="transparent", border_width=1, command=self.reset)
+        self.reset_btn.pack(anchor="w", padx=12, pady=(2, 4))
+        ctk.CTkFrame(self.body, height=2, corner_radius=0,
+                     fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
+        self.load_values()
+        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self.set_state(self.app._ir_state)
+
+    def toggle(self):
+        self.app._ir_auto_opened.discard(self.group)
+        if self.expanded:
+            self.body.pack_forget()
+            self.expanded = False
+        else:
+            self.build()
+            self.body.pack(fill="x", padx=(36, 0), after=self.btn)
+            self.expanded = True
+        self.refresh()
+
+    # ------------------------------------------------------------- Werte
+    def load_values(self):
+        if self.sliders:
+            stored = self.app.armor_overrides.get(self.sid, {})
+            prev = self.app._ir_loading
+            self.app._ir_loading = True
+            try:
+                for param, row in self.sliders.items():
+                    row.set(stored.get(param, 1.0))
+            finally:
+                self.app._ir_loading = prev
+        self.refresh()
+
+    def _changed(self):
+        if self.app._ir_loading or not self.sliders:
+            return
+        self.app._ir_auto_opened.discard(self.group)
+        values = {p: r.get() for p, r in self.sliders.items()}
+        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
+        if values:
+            self.app.armor_overrides[self.sid] = values
+        else:
+            self.app.armor_overrides.pop(self.sid, None)
+        self.refresh()
+        self.app._ir_after_change(self.group)
+
+    def reset(self):
+        self.app.armor_overrides.pop(self.sid, None)
+        self.load_values()
+        self.app._ir_after_change(self.group)
+
+    # -------------------------------------------------------- Darstellung
+    def refresh(self):
+        n = len(self.app.armor_overrides.get(self.sid, {}))
+        arrow = "\u25be" if self.expanded else "\u25b8"
+        mark = (f"     \u25cf  {n} of {len(self.params)} factors changed"
+                if n else "")
+        self.btn.configure(text=f"{arrow}  {self.label}{mark}")
+        self._apply_color(n)
+
+    def _apply_color(self, n: int):
+        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str):
+        self._highlight = mode
+        self._apply_color(len(self.app.armor_overrides.get(self.sid, {})))
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        if self.reset_btn is not None:
+            self.reset_btn.configure(state=state)
+        for row in self.sliders.values():
+            row.set_state(state)
+
+
+class IrGroupBlock:
+    """Aufklappbarer Gruppen-Block im Armor-Baum (Body armor / Helmets)."""
+
+    def __init__(self, app, parent, group: str, label: str, sids: list[str]):
+        self.app = app
+        self.group = group
+        self.label = label
+        self.sids = sids                       # bereits nach Label sortiert
+        self.rows: dict[str, IrArmorRow] = {}
+        self.expanded = False
+        self._highlight = "normal"
+        self._note = ""
+        self._note_hint = False
+        self._state = app._ir_state
+        self._hitset: set[str] | None = None
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_cat,
+            command=self.toggle, state=app._ir_state)
+        self.btn.pack(fill="x", padx=8, pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.content = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.refresh()
+
+    def ensure_rows(self):
+        """Lazy wie beim Waffenbaum: bis zu 42 Zeilen — mit Sanduhr."""
+        if self.rows:
+            return
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for sid in self.sids:
+                row = IrArmorRow(self.app, self.content, sid, self.group)
+                row.set_highlight(self._row_mode(sid))
+                self.rows[sid] = row
+        finally:
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+
+    def _row_mode(self, sid: str) -> str:
+        if self._hitset is None:
+            return "normal"
+        return "match" if sid in self._hitset else "dim"
+
+    def set_row_filter(self, hitset: "set[str] | None"):
+        self._hitset = hitset
+        for sid, row in self.rows.items():
+            row.set_highlight(self._row_mode(sid))
+
+    def expand(self):
+        if self.expanded:
+            return
+        self.ensure_rows()
+        self.content.pack(fill="x", padx=(8, 0), after=self.btn)
+        self.expanded = True
+        self.refresh()
+
+    def collapse(self):
+        if not self.expanded:
+            return
+        self.content.pack_forget()
+        self.expanded = False
+        self.refresh()
+
+    def toggle(self):
+        self.app._ir_auto_opened.discard(self.group)
+        self.collapse() if self.expanded else self.expand()
+
+    def refresh(self):
+        n_over = sum(1 for sid in self.sids if sid in self.app.armor_overrides)
+        arrow = "\u25be" if self.expanded else "\u25b8"
+        extra = (f"     \u25cf  {n_over} of {len(self.sids)} overridden"
+                 if n_over else "")
+        extra += self._note
+        if self._note_hint and not self.expanded:
+            extra += "     click to show"
+        self.btn.configure(
+            text=f"{arrow}  {self.label}  \u00b7  {len(self.sids)}{extra}")
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n_over:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str, note: str = "", hint: bool = False):
+        self._highlight = mode
+        self._note = note
+        self._note_hint = hint
+        self.refresh()
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        for row in self.rows.values():
+            row.set_state(state)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -1018,6 +1284,17 @@ class App(ctk.CTk):
         self._iw_expand_job: str | None = None  # laufender after()-Auftrag
         # Einzelmunitions-Overrides: {Ammo-SID: {param: faktor}} (nur != 1.0)
         self.ammo_overrides: dict[str, dict[str, float]] = {}
+        # Einzelruestungs-Overrides: {Item-SID: {param: faktor}} (nur != 1.0)
+        # Dritter Baum, dritter strikt eigener Namensraum (_ir_*).
+        self.armor_overrides: dict[str, dict[str, float]] = {}
+        self._ir_loading = False
+        self._ir_groups: dict[str, str] = {}              # SID -> Body/Head
+        self._ir_prot: dict[str, dict[str, float]] = {}   # SID -> Vanilla
+        self._ir_labels: dict[str, str] = {}              # SID -> Anzeige
+        self._ir_blocks: dict[str, IrGroupBlock] = {}
+        self._ir_auto_opened: set[str] = set()
+        self._ir_expand_job: str | None = None
+        self._ir_state = "disabled"
         # Strikt eigener Namensraum. NICHTS davon mit den _iw_*-Feldern
         # teilen: eine gemeinsame Sperre/ein gemeinsamer after()-Auftrag
         # wuerde Overrides der jeweils anderen Seite verschlucken.
@@ -1533,6 +1810,171 @@ class App(ctk.CTk):
                     block.expand()
                     self._ia_auto_opened.add(cal)
 
+    # -------------------------------------------- Einzelruestungs-Baum
+    ARMOR_GROUP_LABELS = {"Body": "Body armor", "Head": "Helmets"}
+
+    def _ir_populate(self):
+        """Ruestungsliste einlesen und den Armor-Baum neu aufbauen."""
+        if self.gd is None:
+            return
+        from .tweaks import ARMOR_PARAM_KEYS
+        key_to_param = {v: k for k, v in ARMOR_PARAM_KEYS.items()}
+        armors = self.gd.player_armors()
+        self._ir_groups = {sid: slot for sid, (slot, _v) in armors.items()}
+        self._ir_prot = {
+            sid: {key_to_param[key]: value for key, value in values.items()
+                  if key in key_to_param}
+            for sid, (_s, values) in armors.items()
+        }
+        self._ir_labels = {sid: armor_label(sid) for sid in armors}
+        # Verwaiste Overrides verwerfen (Spiel-Update, andere Installation);
+        # dazu Faktoren auf Schutzarten, die es an dieser Ruestung nicht
+        # gibt (0 in Vanilla -> kein Regler, kein Patch).
+        cleaned = {}
+        for sid, params in self.armor_overrides.items():
+            if sid not in self._ir_prot:
+                continue
+            kept = {p: v for p, v in params.items()
+                    if p in self._ir_prot[sid]}
+            if kept:
+                cleaned[sid] = kept
+        self.armor_overrides = cleaned
+        self._ir_build_tree()
+
+    def _ir_build_tree(self):
+        """Baum verwerfen und neu aufbauen (erst Referenzen, dann Widgets)."""
+        self._ir_cancel_expand()
+        self._ir_blocks.clear()
+        self._ir_auto_opened.clear()
+        for child in list(self.ir_tree.winfo_children()):
+            child.destroy()
+        if not self._ir_groups:
+            text = ("   \u2013 load game data first \u2013" if self.gd is None else
+                    "   \u2013 no armor found in this game version \u2013")
+            ctk.CTkLabel(self.ir_tree, text=text, anchor="w",
+                         font=self._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12)
+            self._ir_update_info()
+            return
+        by_group: dict[str, list[str]] = {}
+        for sid, group in self._ir_groups.items():
+            by_group.setdefault(group, []).append(sid)
+
+        def sort_key(sid: str):
+            return self._ir_labels.get(sid, sid).lower()
+
+        for group, label in self.ARMOR_GROUP_LABELS.items():
+            if by_group.get(group):
+                self._ir_blocks[group] = IrGroupBlock(
+                    self, self.ir_tree, group, label,
+                    sorted(by_group[group], key=sort_key))
+        # Unbekannte Slots kuenftiger Spiel-Patches nicht verstecken.
+        for group in sorted(set(by_group) - set(self.ARMOR_GROUP_LABELS)):
+            self._ir_blocks[group] = IrGroupBlock(
+                self, self.ir_tree, group, group or "Other",
+                sorted(by_group[group], key=sort_key))
+        self._ir_update_info()
+
+    def _ir_after_change(self, group: str):
+        block = self._ir_blocks.get(group)
+        if block is not None:
+            block.refresh()
+        self._ir_update_info()
+
+    def _ir_update_info(self):
+        if self.armor_overrides:
+            # armor_label als Fallback: VOR dem Laden der Spieldaten ist
+            # _ir_labels leer, rohe SIDs sollen trotzdem nie erscheinen
+            # (Gleichstand mit dem Ammo-Zwilling, der ammo_label nutzt).
+            text = "Overrides set for: " + ", ".join(
+                self._ir_labels.get(sid) or armor_label(sid)
+                for sid in sorted(self.armor_overrides))
+        else:
+            text = "No per-armor overrides set."
+        self.ir_info.configure(text=text)
+
+    def _ir_refresh_all(self):
+        """Alle GEBAUTEN Regler und Marker an armor_overrides angleichen.
+        Vertraegt einen leeren Baum -- laeuft auch ohne Spieldaten."""
+        for block in self._ir_blocks.values():
+            for row in block.rows.values():
+                row.load_values()
+            block.refresh()
+        self._ir_update_info()
+
+    def _ir_clear_all(self):
+        self.armor_overrides.clear()
+        self._ir_refresh_all()
+
+    def _ir_cancel_expand(self) -> None:
+        if self._ir_expand_job is not None:
+            try:
+                self.after_cancel(self._ir_expand_job)
+            except Exception:
+                pass
+            self._ir_expand_job = None
+
+    def _ir_sid_hit(self, sid: str, q: str) -> bool:
+        """SID oder lesbares Label ("SEVA (Loners)"): der Nutzer sucht nach
+        dem, was er im Spiel sieht, nicht nach SIDs."""
+        return q in sid.lower() or q in self._ir_labels.get(sid, "").lower()
+
+    def _ir_filter(self, query: str) -> int:
+        """Suchfeld auf den Armor-Baum anwenden; liefert die Trefferzahl."""
+        self._ir_cancel_expand()
+        if not query:
+            for group in list(self._ir_auto_opened):
+                block = self._ir_blocks.get(group)
+                if block is not None:
+                    block.collapse()
+            self._ir_auto_opened.clear()
+            for block in self._ir_blocks.values():
+                block.set_highlight("normal", "")
+                block.set_row_filter(None)
+            return 0
+        q = query.lower()
+        hits_total = 0
+        for group, block in self._ir_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            sid_hits = [sid for sid in block.sids if self._ir_sid_hit(sid, q)]
+            hits = block.sids if group_hit else sid_hits
+            hits_total += len(sid_hits) if sid_hits else (1 if group_hit else 0)
+            block.set_row_filter(set(hits))
+            if not hits and group in self._ir_auto_opened:
+                block.collapse()
+                self._ir_auto_opened.discard(group)
+            if sid_hits:
+                note = (f"     {len(sid_hits)} match"
+                        f"{'es' if len(sid_hits) != 1 else ''}")
+            elif group_hit:
+                note = "     group match"
+            else:
+                note = ""
+            block.set_highlight("match" if hits else "dim", note, bool(hits))
+        if self._ir_blocks:
+            self._ir_expand_job = self.after(
+                250, lambda x=q: self._ir_auto_expand(x))
+        return hits_total
+
+    def _ir_auto_expand(self, q: str) -> None:
+        """Verzoegerter Teil: passende Gruppen aufklappen. Eigenes Budget,
+        damit der Armor-Baum Waffen und Munition keine Zeilen wegnimmt."""
+        self._ir_expand_job = None
+        if self.search_entry.get().strip().lower() != q:
+            return
+        built = 0
+        for group, block in self._ir_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            sid_hits = [sid for sid in block.sids if self._ir_sid_hit(sid, q)]
+            hits = block.sids if group_hit else sid_hits
+            specific = len(sid_hits) <= 8
+            if hits and specific and len(q) >= 3 and not block.expanded:
+                cost = 0 if block.rows else len(block.sids)
+                if built + cost <= 45:
+                    built += cost
+                    block.expand()
+                    self._ir_auto_opened.add(group)
+
     # -------------------------------------------- Mutanten-Overrides
     def _mut_populate(self):
         if self.gd is None:
@@ -1673,8 +2115,6 @@ class App(ctk.CTk):
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.5, 1, fmt_factor,
                      "Weapons wear less per shot fired.")
-        self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.5, 1, fmt_factor,
-                     "Armor takes more punishment before breaking.")
         self._slider(f, "jam", "Weapon jamming", 0, 2, 0.1, 1, fmt_factor,
                      "× 0 = weapons never jam.")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -1715,24 +2155,6 @@ class App(ctk.CTk):
         self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
                      "Higher = hitting them breaks the cloak much harder. "
                      "× 0 = damage never reveals them.")
-        ctk.CTkLabel(f, text="", height=2).pack()
-
-        f = self._section(body, "Armor protection (all armor & helmets)")
-        ctk.CTkLabel(
-            f, text="   Scales YOUR armor's protection values per damage "
-                    "type. NPC armor is untouched (use 'NPC health' for "
-                    "that). Upgrade bonuses stay vanilla.",
-            anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "ap_strike", "Physical (bullets & melee)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_burn", "Burn (fire)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_shock", "Shock (electric)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_chem", "Chemical", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_rad", "Radiation", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_psy", "PSY", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
-                     "Exoskeleton & armor/upgrade carry bonuses. "
-                     "0 % = armor grants no extra carry weight.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("NPCs & AI")
@@ -1886,6 +2308,60 @@ class App(ctk.CTk):
         self.ia_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.ia_tree.pack(fill="x", pady=(2, 2))
         self._ia_build_tree()            # zeigt zunaechst nur den Platzhalter
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Armor")
+        # Die globalen Schutz-Regler standen frueher im Combat-Tab. Sie
+        # MUESSEN nach _tab("Armor") entstehen: _slider() stempelt den
+        # aktuellen Tab-Namen in slider_tabs (Suche nennt sonst den falschen
+        # Tab). Die Schluessel bleiben gleich -> settings.json und Presets
+        # laufen unveraendert weiter.
+        f = self._section(body, "Armor protection (all armor & helmets)")
+        ctk.CTkLabel(
+            f, text="   Scales YOUR armor's protection values per damage "
+                    "type. NPC armor is untouched (use 'NPC health' for "
+                    "that). Upgrade bonuses stay vanilla.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "ap_strike", "Physical (bullets & melee)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_burn", "Burn (fire)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_shock", "Shock (electric)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_chem", "Chemical", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_rad", "Radiation", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "ap_psy", "PSY", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.5, 1, fmt_factor,
+                     "Armor takes more punishment before breaking.")
+        self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
+                     "Exoskeleton & armor/upgrade carry bonuses. "
+                     "0 % = armor grants no extra carry weight.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Single armor overrides (advanced)")
+        ctk.CTkLabel(
+            f, text="   \u00d71 (vanilla) = no override \u2013 the global sliders "
+                    "above apply to this armor. Any other value REPLACES the "
+                    "global slider for that protection type on this piece "
+                    "\u2013 the two do not stack. Durability and carry bonuses "
+                    "stay global: they work through different game systems.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        ctk.CTkLabel(
+            f, text="   Expand a group, then an armor piece, to edit its "
+                    "protection factors.",
+            anchor="w", font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+        self.ir_info = ctk.CTkLabel(
+            f, text="No per-armor overrides set.", anchor="w", justify="left",
+            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+        self.ir_info.pack(fill="x", padx=12, pady=(2, 2))
+        self.ir_clear_btn = ctk.CTkButton(
+            f, text="Clear all armor overrides", width=200,
+            command=self._ir_clear_all)
+        self.ir_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
+        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        self.ir_tree = ctk.CTkFrame(f, fg_color="transparent")
+        self.ir_tree.pack(fill="x", pady=(2, 2))
+        self._ir_build_tree()            # zeigt zunaechst nur den Platzhalter
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("World")
@@ -2098,6 +2574,10 @@ class App(ctk.CTk):
         self.ia_clear_btn.configure(state=state)
         for block in self._ia_blocks.values():
             block.set_state(state)
+        self._ir_state = state   # dito fuer den Armor-Baum
+        self.ir_clear_btn.configure(state=state)
+        for block in self._ir_blocks.values():
+            block.set_state(state)
         # Dropdown nur aktivieren, wenn die Liste geladen ist
         self.mut_menu.configure(
             state=state if (enabled and self._mut_species) else "disabled")
@@ -2128,6 +2608,7 @@ class App(ctk.CTk):
                 elif kind == "ready":
                     self._iw_populate()
                     self._ia_populate()
+                    self._ir_populate()
                     self._mut_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
@@ -2330,6 +2811,8 @@ class App(ctk.CTk):
                               for sid, v in self.weapon_overrides.items()},
             ammo_overrides={sid: dict(v)
                             for sid, v in self.ammo_overrides.items()},
+            armor_overrides={sid: dict(v)
+                             for sid, v in self.armor_overrides.items()},
             anomaly_damage_factor=s["anomaly"].get(),
             anomaly_electro_factor=s["anom_electro"].get(),
             anomaly_chemical_factor=s["anom_chem"].get(),
@@ -2412,6 +2895,9 @@ class App(ctk.CTk):
         ia_hits = self._ia_filter(query)
         if query and ia_hits:
             counts["Ammo"] = counts.get("Ammo", 0) + ia_hits
+        ir_hits = self._ir_filter(query)
+        if query and ir_hits:
+            counts["Armor"] = counts.get("Armor", 0) + ir_hits
         if query:
             if self._status_before_search is None:
                 self._status_before_search = self.status.cget("text")
@@ -2420,7 +2906,8 @@ class App(ctk.CTk):
                     f"{tab} ({n})" for tab, n in counts.items()))
             else:
                 self.status.configure(
-                    text="No slider, weapon or ammo matches your search.")
+                    text="No slider, weapon, ammo or armor "
+                         "matches your search.")
         elif self._status_before_search is not None:
             # Suchfeld geleert: alte Meldung zurueck statt eines stehen
             # gebliebenen "No slider, weapon or ammo matches your search."
@@ -2754,6 +3241,7 @@ class App(ctk.CTk):
             box.select()
         self._iw_clear_all()
         self._ia_clear_all()
+        self._ir_clear_all()
         self.mutant_overrides.clear()
         if self._mut_current is not None:
             self._mut_select(self._mut_current)
@@ -2769,6 +3257,7 @@ class App(ctk.CTk):
             "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
             "weapon_overrides": self.weapon_overrides,
             "ammo_overrides": self.ammo_overrides,
+            "armor_overrides": self.armor_overrides,
             "mutant_overrides": self.mutant_overrides,
         }
 
@@ -2822,6 +3311,7 @@ class App(ctk.CTk):
         if self.gd is not None:
             self._iw_populate()
             self._ia_populate()
+            self._ir_populate()
             self._mut_populate()
         # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
         # laufende Suche wieder auf den neu gebauten Baum anwenden.
@@ -2892,6 +3382,14 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.ammo_overrides[sid] = clean
+        for sid, params in (data.get("armor_overrides") or {}).items():
+            try:
+                clean = {p: float(v) for p, v in params.items()
+                         if p in ARMOR_PARAMS and abs(float(v) - 1.0) > 1e-9}
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if clean:
+                self.armor_overrides[sid] = clean
         # Unbekannte SIDs koennen erst in _ia_populate weg (dort sind die
         # gueltigen Kaliber bekannt) -- genau wie beim Waffenbaum.
         # Bereits gebaute Waffen-Regler auf die geladenen Werte ziehen (und
@@ -2899,6 +3397,7 @@ class App(ctk.CTk):
         # auf die reine Info-Zeile zurueck, gilt also auch ohne Spieldaten.
         self._iw_refresh_all()
         self._ia_refresh_all()
+        self._ir_refresh_all()
         # select()/deselect() feuern kein command — Scan-Punkte nachziehen
         self._refresh_check_dots()
 
@@ -2907,6 +3406,7 @@ class App(ctk.CTk):
         # gerade zerstoerten Fenster bauen wollen.
         self._iw_cancel_expand()
         self._ia_cancel_expand()
+        self._ir_cancel_expand()
         self._save_ui_settings()
         self.destroy()
 

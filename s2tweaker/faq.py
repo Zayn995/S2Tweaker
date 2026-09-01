@@ -68,9 +68,22 @@ FAQ_ENTRIES = [
              "speed). A weapon's own factor beats its category factor, "
              "which beats the global sliders. Everything left at x1 "
              "(vanilla) falls through to the next level. The same idea "
-             "works per ammo round in the Ammo tab.",
+             "works per ammo round in the Ammo tab and per armor piece "
+             "in the Armor tab.",
         "k": "single weapon override individual gun buff nerf specific "
              "ak74 cascade category tree per weapon",
+    },
+    {
+        "q": "Can I tune ONE specific armor or helmet?",
+        "a": "Yes - Armor tab, 'Single armor overrides': open Body armor "
+             "or Helmets, open the piece, set its protection factors "
+             "(physical, burn, shock, chemical, radiation, PSY - only "
+             "types the piece actually has in vanilla get a slider). An "
+             "armor's own factor REPLACES the global protection sliders "
+             "above for that type. Durability and carry bonuses stay "
+             "global - they work through different game systems.",
+        "k": "armor helmet override individual specific exoskeleton seva "
+             "protection suit tune single piece body",
     },
     {
         "q": "Do the ammo overrides stack with the global ammo sliders?",

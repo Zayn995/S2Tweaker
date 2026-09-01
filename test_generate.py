@@ -87,6 +87,12 @@ s = Settings(
     ammo_overrides={"A545A": {"damage": 2.0, "piercing": 1.5},
                     "A012D": {"armordamage": 2.0},
                     "AVOG": {"piercing": 3.0}},
+    # Exoskelett: strike-Override ERSETZT den globalen ap_strike-Faktor.
+    # Battle_Dolg_Armor hat PSY = 0 in Vanilla -> dieser psy-Override darf
+    # KEINE Patch-Zeile erzeugen (0 x Faktor = 0, kein Schluessel anlegen).
+    armor_overrides={"Exoskeleton_Dolg_Armor": {"strike": 2.0},
+                     "Battle_Dolg_Armor": {"psy": 0.5},
+                     "Light_Bandit_Helmet": {"burn": 3.0}},
     detector_range_factor=2.0,
     fast_travel_cost_factor=0.5, trader_restock_factor=0.25,
     stash_loot_factor=2.0, stash_chance_factor=1.5, stash_ammo_factor=2.0,

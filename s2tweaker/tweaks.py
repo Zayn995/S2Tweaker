@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import re
+
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import GameData
@@ -159,6 +161,61 @@ def ammo_label(sid: str) -> str:
     return sid
 
 
+# Ruestungs-Overrides: Reihenfolge = Regler-Reihenfolge im Baum.
+ARMOR_PARAMS = ["strike", "burn", "shock", "chemical", "radiation", "psy"]
+ARMOR_PARAM_KEYS = {
+    "strike": "Strike", "burn": "Burn", "shock": "Shock",
+    "chemical": "ChemicalBurn", "radiation": "Radiation", "psy": "PSY",
+}
+ARMOR_PARAM_LABELS = {
+    "strike": "Physical (bullets & melee)", "burn": "Burn (fire)",
+    "shock": "Shock (electric)", "chemical": "Chemical",
+    "radiation": "Radiation", "psy": "PSY",
+}
+
+# Fraktions-Namen fuer lesbare Ruestungs-Labels (SID-Token -> Anzeige).
+ARMOR_FACTION_LABELS = {
+    "Dolg": "Duty", "Svoboda": "Freedom", "Neutral": "Loners",
+    "Bandit": "Bandits", "Military": "Military", "Monolith": "Monolith",
+    "Mercenaries": "Mercenaries", "Scientific": "Scientists",
+    "Spark": "Spark", "Varta": "Varta", "Duty": "Duty",
+}
+
+_CAMEL_SPLIT = re.compile(r"(?<=[a-z])(?=[A-Z0-9])")
+
+
+def armor_label(sid: str) -> str:
+    """'Exoskeleton_Dolg_Armor' -> 'Exoskeleton (Duty)'.
+
+    Nur aus der SID abgeleitet (summarize() hat keine GameData). Muster der
+    Spieldaten: <Modell>_<Fraktion>_Armor|Helmet[_Zusatz...]. Was nicht
+    passt (z.B. supack_vozmercform), bleibt die rohe SID -- lieber ehrlich
+    technisch als falsch geraten."""
+    parts = sid.split("_")
+    for kind_token, kind_text in (("Armor", ""), ("Helmet", " helmet")):
+        if kind_token not in parts:
+            continue
+        idx = parts.index(kind_token)
+        if idx < 2:
+            break
+        # Fraktion = das RECHTESTE bekannte Fraktions-Token vor Armor/Helmet
+        # (nicht stur Position idx-1: Battle_Dolg_End_Armor traegt seine
+        # Variante HINTER der Fraktion).
+        fac_idx = idx - 1
+        for j in range(idx - 1, 0, -1):
+            if parts[j] in ARMOR_FACTION_LABELS:
+                fac_idx = j
+                break
+        model = _CAMEL_SPLIT.sub(" ", "_".join(parts[:fac_idx]))
+        faction = ARMOR_FACTION_LABELS.get(parts[fac_idx], parts[fac_idx])
+        label = f"{model}{kind_text} ({faction})"
+        trailing = parts[fac_idx + 1:idx] + parts[idx + 1:]
+        if trailing:
+            label += " – " + " ".join(trailing)
+        return label
+    return sid
+
+
 # Gangarten getrennt regelbar: Animation/Schrittsound skalieren NICHT mit
 # (Engine-Assets, per cfg unerreichbar) -- getrennte Regler halten den
 # sichtbaren Versatz klein (Referenz: Nexus-Mod 2314 laesst Walk unangetastet).
@@ -258,6 +315,8 @@ class Settings:
     # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
     weapon_category_factors: dict = field(default_factory=dict)  # {kat: {param: f}}
     weapon_overrides: dict = field(default_factory=dict)         # {WGS-SID: {param: f}}
+    # Einzelruestungs-Overrides: {Item-SID: {strike/burn/...: faktor}}
+    armor_overrides: dict = field(default_factory=dict)
 
     # --- Welt & Survival ---
     anomaly_damage_factor: float = 1.0
@@ -1313,22 +1372,30 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
                     "MaxAmmo": str(scaled_int)}
 
     # Ruestungsschutz je Schadensart (nur die Spieler-Protection;
-    # ProtectionNPC bleibt unangetastet)
-    protection_factors = {
-        "Strike": s.armor_strike_factor,
-        "Burn": s.armor_burn_factor,
-        "Shock": s.armor_shock_factor,
-        "ChemicalBurn": s.armor_chemical_factor,
-        "Radiation": s.armor_radiation_factor,
-        "PSY": s.armor_psy_factor,
+    # ProtectionNPC bleibt unangetastet). Kaskade wie bei der Munition:
+    # der Einzelruestungs-Override ERSETZT den globalen Faktor fuer diesen
+    # Wert an dieser Ruestung, er stapelt sich nicht.
+    protection_globals = {
+        "strike": s.armor_strike_factor,
+        "burn": s.armor_burn_factor,
+        "shock": s.armor_shock_factor,
+        "chemical": s.armor_chemical_factor,
+        "radiation": s.armor_radiation_factor,
+        "psy": s.armor_psy_factor,
     }
-    if any(_neq(f, 1.0) for f in protection_factors.values()):
+    # Ohne "or s.armor_overrides" faende ein Pak mit AUSSCHLIESSLICH
+    # Einzelruestungs-Overrides gar nicht statt (vgl. Ammo oben).
+    if any(_neq(f, 1.0) for f in protection_globals.values()) or s.armor_overrides:
         for sid, values in sorted(gd.armor_protection().items()):
+            over = s.armor_overrides.get(sid) or {}
             cfg = {}
-            for key, vanilla in values.items():
-                factor = protection_factors[key]
+            for param in ARMOR_PARAMS:         # Reihenfolge = Patch-Reihenfolge
+                key = ARMOR_PARAM_KEYS[param]
+                if key not in values:          # 0 in Vanilla: kein Patch
+                    continue
+                factor = over.get(param, protection_globals[param])
                 if _neq(factor, 1.0):
-                    cfg[key] = _num(vanilla * factor)
+                    cfg[key] = _num(values[key] * factor)
             if cfg:
                 patches.setdefault(sid, {}).setdefault("Protection", {}).update(cfg)
     return patches
@@ -1564,6 +1631,12 @@ def summarize(s: Settings) -> list[str]:
     f("Weapon durability", s.durability_factor)
     f("Armor durability", s.armor_durability_factor)
     f("Weapon jamming", s.jamming_factor)
+    for sid, params in sorted(s.armor_overrides.items()):
+        for param, factor in sorted(params.items()):
+            if _neq(factor, 1.0):
+                lines.append(
+                    f"Armor {armor_label(sid)}: "
+                    f"{ARMOR_PARAM_LABELS.get(param, param).lower()} × {factor:g}")
     f("Armor protection: physical (strike)", s.armor_strike_factor)
     f("Armor protection: burn", s.armor_burn_factor)
     f("Armor protection: shock", s.armor_shock_factor)
