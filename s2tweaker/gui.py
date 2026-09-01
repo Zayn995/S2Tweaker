@@ -10,11 +10,13 @@ import sys
 import threading
 import traceback
 from pathlib import Path
+
+import tkinter as tk
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, game, pakio
+from . import __version__, game, modscan, pakio
 from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
@@ -70,6 +72,43 @@ PAD = {"padx": 12, "pady": 3}
 # Override-Marker im Waffenbaum.
 ACCENT = "#d9a648"
 
+# Mod-Scan-Markierungen: bewusst WEDER rot (Gefahr/Remove-Knopf) NOCH das
+# Bernstein der Warnhinweise und Suchtreffer — beides hat schon eine
+# Bedeutung. Blau = reine Information, Violett = Warnstufe.
+MARK_INFO = "#5da8dc"   # fremde Mod aendert den Wert, Regler steht auf (vanilla)
+MARK_WARN = "#b07fe0"   # fremde Mod aendert den Wert UND der Regler ist verstellt
+
+
+class HoverTip:
+    """Minimaler Hover-Tooltip (fuer die Scan-Punkte an Reglern/Checkboxen).
+
+    text_fn wird erst beim Zeigen ausgewertet — der Text eines Punkts
+    aendert sich mit dem Reglerzustand (Info- vs. Warnstufe)."""
+
+    def __init__(self, widget, text_fn):
+        self.widget = widget
+        self.text_fn = text_fn
+        self.tip = None
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, _event=None):
+        text = self.text_fn()
+        if not text or self.tip is not None:
+            return
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(
+            f"+{self.widget.winfo_rootx() + 12}+{self.widget.winfo_rooty() + 24}")
+        tk.Label(self.tip, text=text, justify="left", bg="#1f1f1f",
+                 fg="#e6e6e6", relief="solid", borderwidth=1,
+                 font=("Segoe UI", 9), padx=8, pady=4, wraplength=380).pack()
+
+    def _hide(self, _event=None):
+        if self.tip is not None:
+            self.tip.destroy()
+            self.tip = None
+
 
 class SliderRow:
     """Label + Slider + Wertanzeige + Reset auf Vanilla."""
@@ -81,6 +120,11 @@ class SliderRow:
         self.on_change = on_change
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", **PAD)
+        self.row = row
+        self.conflict_mods: list[str] = []   # Mod-Scan: wer aendert das auch?
+        self.conflict_after: set[str] = set()
+        self.dot: ctk.CTkLabel | None = None
+        self._dot_tip = ""
         self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w")
         self.label.pack(side="left")
         steps = max(1, int(round((to - from_) / step)))
@@ -103,6 +147,8 @@ class SliderRow:
         value = self.get()
         vanilla = "  (vanilla)" if abs(value - self.default) < 1e-9 else ""
         self.value_label.configure(text=self.fmt(value) + vanilla)
+        if self.conflict_mods:
+            self._update_dot()
         if self.on_change is not None:
             self.on_change()
 
@@ -130,6 +176,47 @@ class SliderRow:
             color = self._orig_color
         self.label.configure(text_color=color)
 
+    # ------------------------------------------------- Mod-Scan-Markierung
+    def set_conflict(self, mods, loads_after=()):
+        """Farbpunkt "eine andere Mod aendert das auch" setzen/entfernen.
+
+        loads_after: Teilmenge der Mods, deren Pak ALPHABETISCH nach der
+        eigenen Ausgabe-Pak laedt — dort gewinnt im Konfliktfall die fremde
+        Mod, und der Tooltip darf nicht "your value wins" behaupten.
+
+        Der Punkt haengt NICHT am Reglerwert: "Reset all to vanilla" laesst
+        ihn absichtlich stehen (die fremde Mod ist ja weiterhin installiert)
+        — nur seine Stufe wechselt dann von Warnung auf Information."""
+        self.conflict_mods = sorted(mods or [])
+        self.conflict_after = set(loads_after) & set(self.conflict_mods)
+        self._update_dot()
+
+    def _update_dot(self):
+        if not self.conflict_mods:
+            if self.dot is not None:
+                self.dot.pack_forget()
+            self._dot_tip = ""
+            return
+        if self.dot is None:
+            self.dot = ctk.CTkLabel(self.row, text="\u25cf", width=16)
+            HoverTip(self.dot, lambda: self._dot_tip)
+        names = ", ".join(self.conflict_mods)
+        if abs(self.get() - self.default) < 1e-9:
+            self.dot.configure(text_color=MARK_INFO)
+            self._dot_tip = f"also changed by {names}"
+        else:
+            self.dot.configure(text_color=MARK_WARN)
+            if self.conflict_after:
+                losers = ", ".join(sorted(self.conflict_after))
+                self._dot_tip = (
+                    f"{names} changes this too \u2014 and {losers} loads "
+                    "AFTER your pak, so its value may win")
+            else:
+                self._dot_tip = (
+                    f"{names} changes this too \u2014 your value wins")
+        if not self.dot.winfo_manager():
+            self.dot.pack(side="left", after=self.label)
+
 
 def fmt_int(v: float) -> str:
     return f"{v:.0f}"
@@ -149,6 +236,127 @@ def fmt_kg(v: float) -> str:
 
 def fmt_dec(v: float) -> str:
     return f"{v:g}"
+
+
+# ------------------------------------------------------------------ Mod-Scan
+# Zuordnung GUI-Schluessel -> Settings-Feld. Wird NUR vom Mod-Scan benutzt,
+# um den Fussabdruck EINES Reglers zu bestimmen (build_patches mit genau
+# einem verstellten Wert -> welche (Struct, Blatt)-Paare entstehen?).
+# Der Release-GUI-Test prueft die Vollstaendigkeit gegen app.sliders —
+# ein neuer Regler ohne Eintrag hier faellt dort auf, nicht erst auf Nexus.
+SLIDER_FIELDS: dict[str, str] = {
+    "hp": "max_hp", "hp_regen": "hp_regen", "sp": "max_stamina",
+    "sp_regen": "stamina_regen", "fall": "fall_damage_pct",
+    "walk": "walk_speed_factor", "run": "run_speed_factor",
+    "jump": "jump_height_factor", "st_sprint": "stamina_sprint",
+    "st_jump": "stamina_jump", "st_melee_l": "stamina_melee_light",
+    "st_melee_s": "stamina_melee_strong", "st_butt": "stamina_buttstock",
+    "st_vault": "stamina_vault", "carry": "max_carry_weight",
+    "penalty": "penalty_start_weight", "weight": "item_weight_factor",
+    "pdmg": "player_damage_factor", "headshot": "headshot_factor",
+    "aimpunch": "aim_punch_factor", "npcdmg": "npc_damage_factor",
+    "npchp": "npc_hp_factor", "npc_acc": "npc_accuracy_factor",
+    "npc_vision": "npc_vision_factor", "npc_hearing": "npc_hearing_factor",
+    "npc_reaction": "npc_reaction_factor", "npc_grenades": "npc_grenade_factor",
+    "alife_agents": "max_agents_factor", "alife_distance": "spawn_distance_factor",
+    "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
+    "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
+    "bs_cloak": "bloodsucker_cloak_factor", "bs_uncloak": "bloodsucker_uncloak_factor",
+    "expl": "explosion_damage_factor", "dur": "durability_factor",
+    "dur_armor": "armor_durability_factor", "jam": "jamming_factor",
+    "ap_strike": "armor_strike_factor", "ap_burn": "armor_burn_factor",
+    "ap_shock": "armor_shock_factor", "ap_chem": "armor_chemical_factor",
+    "ap_rad": "armor_radiation_factor", "ap_psy": "armor_psy_factor",
+    "ap_carry": "armor_carry_bonus_factor", "sway": "scope_sway_pct",
+    "breath_drain": "breath_drain_factor", "breath_regen": "breath_regen_factor",
+    "spread": "spread_factor", "recoil": "recoil_factor",
+    "wrange": "weapon_range_factor", "wbleed": "weapon_bleeding_factor",
+    "adsmove": "ads_speed_factor", "magazine": "magazine_factor",
+    "melee": "melee_damage_factor", "ammo_dmg": "ammo_damage_factor",
+    "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
+    "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
+    "anom_electro": "anomaly_electro_factor", "anom_chem": "anomaly_chemical_factor",
+    "anom_fire": "anomaly_fire_factor", "anom_grav": "anomaly_gravity_factor",
+    "radiation": "radiation_factor", "bleeding": "bleeding_factor",
+    "hunger": "hunger_rate_factor", "sleep": "sleepiness_rate_factor",
+    "consumable": "consumable_factor", "rain": "rain_factor",
+    "emission": "emission_factor", "stash_loot": "stash_loot_factor",
+    "stash_chance": "stash_chance_factor", "stash_ammo": "stash_ammo_factor",
+    "loot_amount": "loot_amount_factor", "art_effect": "artifact_effect_factor",
+    "art_radiation": "artifact_radiation_factor", "art_spawn": "artifact_spawn_factor",
+    "art_rarity": "artifact_rarity_factor", "detector": "detector_range_factor",
+    "fasttravel": "fast_travel_cost_factor", "restock": "trader_restock_factor",
+    "trader_dur": "trader_min_durability_pct", "buyprice": "trader_buy_price_factor",
+    "sellprice": "trader_sell_price_factor", "repair": "repair_cost_factor",
+    "upgrade": "upgrade_cost_factor", "questreward": "quest_reward_factor",
+    "price_weapon": "weapon_price_factor", "price_armor": "armor_price_factor",
+    "price_ammo": "ammo_price_factor", "price_artifact": "artifact_price_factor",
+    "price_consumable": "consumable_price_factor",
+}
+
+CHECK_FIELDS: dict[str, str] = {
+    "no_overweight": "no_overweight_penalty",
+    "ignore_equipped": "ignore_equipped_weight",
+    "npc_no_heal": "npc_no_heal",
+}
+
+# Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
+FOOTPRINT_PROBES: dict[str, float] = {
+    "fall_damage_pct": 50.0,
+    "scope_sway_pct": 50.0,
+    "trader_min_durability_pct": 0.0,
+}
+
+# Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
+# etwas Passendes anfassen — loot_amount parst sonst grundlos die
+# 9,3-MB-Datei, npc_no_heal geht ueber 1.601 NPC-Prototypen. Zwei billige
+# Ausloeser je Schluessel: der Basis-Dateiname taucht in einem Pfadsegment
+# auf ODER eines der typischen Blattfelder in den gescannten Paaren —
+# {bpatch}-Dateien duerfen naemlich unter voellig freiem Namen irgendwo
+# unter GameData liegen, der Dateiname allein reicht nachweislich nicht.
+EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
+    "loot_amount": ("ItemGeneratorPrototypes",
+                    frozenset({"MinCount", "MaxCount"})),
+    "stash_loot": ("StashPrototypes",
+                   frozenset({"MinCount", "MaxCount"})),
+    "stash_chance": ("StashPrototypes",
+                     frozenset({"MinSpawnChance", "MaxSpawnChance"})),
+    "stash_ammo": ("StashPrototypes",
+                   frozenset({"MainWeaponAmmoCount"})),
+    "check:npc_no_heal": ("ObjPrototypes", frozenset({"RegenHP"})),
+}
+
+
+def footprint_settings(key: str) -> list[Settings] | None:
+    """Settings-Sonden mit GENAU EINEM verstellten Regler (Fussabdruck).
+
+    Liefert bis zu ZWEI Sonden (Default x2 UND x0.5): Builder mit Deckel
+    oder Boden emittieren sonst nur die halbe Wahrheit — bei x2 fehlen z.B.
+    alle Fundchancen, die in Vanilla schon auf 1.0 stehen (nachgewiesen:
+    9 von 19 Stash-Prototypen), bei x0.5 die Werte am unteren Anschlag.
+    Der Fussabdruck ist die VEREINIGUNG beider Sonden.
+
+    None = Schluessel bewusst nicht markierbar: die wcat_-Kategorie- und die
+    Baum-Regler (Waffen/Munition/Mutanten) laufen ueber die globalen Regler
+    mit — deren Fussabdruck deckt dieselben Dateien ab."""
+    if key.startswith("check:"):
+        field_name = CHECK_FIELDS.get(key[len("check:"):])
+        return None if field_name is None else [Settings(**{field_name: True})]
+    field_name = SLIDER_FIELDS.get(key)
+    if field_name is None:
+        return None
+    default = getattr(Settings(), field_name)
+    if field_name in FOOTPRINT_PROBES:
+        probes = [FOOTPRINT_PROBES[field_name]]
+    elif default:
+        probes = [default * 2, default * 0.5]
+    else:
+        probes = [1.0]
+    extra = {}
+    if field_name == "item_weight_factor":
+        # Der Gewichts-Builder patcht nur die angehakten Kategorien
+        extra["item_weight_categories"] = set(ALL_CATEGORIES)
+    return [Settings(**{field_name: p}, **extra) for p in probes]
 
 
 class IwWeaponRow:
@@ -792,6 +1000,17 @@ class App(ctk.CTk):
         self._iw_font_row = ctk.CTkFont(size=12)
         self._iw_font_hint = ctk.CTkFont(size=11)
         self._msgs: "queue.Queue[tuple[str, str]]" = queue.Queue()
+        # Mod-Scan (Vorab-Scan fremder Paks in ~mods)
+        self.modscan_pref = "ask"               # "ask" | "never"
+        self.mod_conflicts: dict[str, list[str]] = {}
+        self.modscan_results: list[modscan.ModInfo] = []
+        self._footprints: dict[str, set | None] = {}
+        self._modscan_offered = False
+        self._modscan_payload = None
+        self._scan_running = False
+        self._mods_after: set[str] = set()   # Paks, die NACH unserer laden
+        self.check_dots: dict[str, ctk.CTkLabel] = {}
+        self._check_tips: dict[str, str] = {}
 
         self._build_header()
         self._build_body()
@@ -1321,9 +1540,16 @@ class App(ctk.CTk):
             self.mut_info.configure(text="No species overrides set.")
 
     def _check(self, parent, key: str, label: str, tooltip: str = "") -> None:
-        box = ctk.CTkCheckBox(parent, text=label)
-        box.pack(anchor="w", **PAD)
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(anchor="w", fill="x", **PAD)
+        box = ctk.CTkCheckBox(row, text=label,
+                              command=lambda k=key: self._update_check_dot(k))
+        box.pack(side="left")
         self.checks[key] = box
+        dot = ctk.CTkLabel(row, text="", width=16)
+        dot.pack(side="left")
+        self.check_dots[key] = dot
+        HoverTip(dot, lambda k=key: self._check_tips.get(k, ""))
         if tooltip:
             ctk.CTkLabel(parent, text="      " + tooltip, anchor="w",
                          font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
@@ -1774,6 +2000,14 @@ class App(ctk.CTk):
         self.btn_open = ctk.CTkButton(row2, text="Open output", width=100,
                                       command=self._open_output)
         self.btn_open.pack(side="left", padx=4)
+        # In row2 statt row1: row1 ist mit Mod-Name + Debug + 3 Preset-
+        # Knoepfen schon voll — dort wuerde der Scan-Knopf beim
+        # 880-px-Minimum als erstes abgeschnitten. row2 hat den breiten
+        # Build-Knopf als Puffer (expand=True schrumpft zuerst).
+        self.btn_scan = ctk.CTkButton(row2, text="Scan ~mods", width=110,
+                                      state="disabled",
+                                      command=self._start_modscan)
+        self.btn_scan.pack(side="left", padx=4)
         self.btn_remove = ctk.CTkButton(row2, text="Remove from ~mods", width=150,
                                         fg_color="#7a2d2d", hover_color="#8f3838",
                                         command=self._remove_mod)
@@ -1850,9 +2084,18 @@ class App(ctk.CTk):
                     self.btn_confirm.configure(state="normal",
                                                text="↻ Reload game data")
                     self.btn_browse.configure(state="normal")
+                    # Nach einem (Neu-)Laden sind alte Fussabdruecke wertlos:
+                    # sie wurden gegen die vorherigen Spieldaten gerechnet.
+                    self._footprints.clear()
+                    self.btn_scan.configure(state="normal")
+                    self.after(400, self._maybe_offer_modscan)
+                elif kind == "modscan_done":
+                    self._finish_modscan()
                 elif kind == "loadfail":
                     self.btn_confirm.configure(state="normal")
                     self.btn_browse.configure(state="normal")
+                    if self.gd is not None:      # alte Daten weiter nutzbar
+                        self.btn_scan.configure(state="normal")
                 elif kind == "error":
                     messagebox.showerror(APP_TITLE, payload)
         except queue.Empty:
@@ -1885,6 +2128,7 @@ class App(ctk.CTk):
             return
         self.btn_confirm.configure(state="disabled")
         self.btn_browse.configure(state="disabled")
+        self.btn_scan.configure(state="disabled")
         self._set_busy(True)
         self._set_body_state(False)
         threading.Thread(target=self._load_gamedata, daemon=True).start()
@@ -2130,6 +2374,253 @@ class App(ctk.CTk):
             self.status.configure(text=self._status_before_search)
             self._status_before_search = None
 
+    # ------------------------------------------------------------ mod scan
+    def _maybe_offer_modscan(self):
+        """Nach dem Laden der Spieldaten EINMAL fragen, ob fremde Mods in
+        ~mods gescannt werden sollen. NIE ungefragt scannen — Overhaul-Mods
+        koennen 2 GB gross sein, und der Besitzer soll entscheiden."""
+        if (self._modscan_offered or self.modscan_pref == "never"
+                or self.gd is None or self.game_dir is None
+                or self._scan_running):
+            return
+        paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
+                                     {self._out_name()})
+        if not paks:
+            return
+        self._modscan_offered = True
+        n = len(paks)
+        win = ctk.CTkToplevel(self)
+        win.title("Other mods found")
+        win.transient(self)
+        win.grab_set()
+        ctk.CTkLabel(
+            win, wraplength=430, justify="left",
+            text=f"Found {n} mod file{'s' if n != 1 else ''} in your ~mods "
+                 "folder. Scan them to see what they change?\n\n"
+                 "The scan reads only config entries, never whole paks, so "
+                 "it is quick even for very large mods.").pack(
+            padx=18, pady=(18, 10))
+        row = ctk.CTkFrame(win, fg_color="transparent")
+        row.pack(pady=(4, 16))
+
+        def answer(what):
+            win.destroy()
+            if what == "scan":
+                self._start_modscan()
+            elif what == "never":
+                self.modscan_pref = "never"
+
+        ctk.CTkButton(row, text="Scan now", width=110,
+                      command=lambda: answer("scan")).pack(side="left", padx=6)
+        ctk.CTkButton(row, text="Not now", width=100, fg_color="gray35",
+                      hover_color="gray25",
+                      command=lambda: answer("later")).pack(side="left", padx=6)
+        ctk.CTkButton(row, text="Don't ask again", width=120, fg_color="gray35",
+                      hover_color="gray25",
+                      command=lambda: answer("never")).pack(side="left", padx=6)
+
+    def _start_modscan(self):
+        if self.gd is None or self.game_dir is None or self._scan_running:
+            return
+        paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
+                                     {self._out_name()})
+        if not paks:
+            # Fruehere Markierungen aufraeumen — die Mods sind offenbar weg
+            self.mod_conflicts = {}
+            self.modscan_results = []
+            self._mods_after = set()
+            self._apply_conflict_marks()
+            self._status_write("No other mods found in ~mods.")
+            return
+        # Scan und (Neu-)Laden schliessen sich gegenseitig aus: sonst
+        # rechnet der Worker gegen halb ausgetauschte Spieldaten und
+        # fuellt den frisch geleerten Fussabdruck-Cache mit alten Werten.
+        self._scan_running = True
+        self.btn_scan.configure(state="disabled")
+        self.btn_confirm.configure(state="disabled")
+        self.btn_browse.configure(state="disabled")
+        threading.Thread(target=self._run_modscan, args=(self.gd, paks),
+                         daemon=True).start()
+
+    def _run_modscan(self, gd, paks):
+        """Hintergrund-Thread: Paks scannen und mit den Reglern abgleichen.
+
+        gd ist ein SNAPSHOT — der Worker darf nie self.gd lesen, sonst
+        crasht er, wenn der Besitzer waehrenddessen den Spielordner
+        wechselt (self.gd wird dort auf None gesetzt)."""
+        try:
+            self._set_status("Indexing vanilla values ...")
+            vanilla = modscan.build_vanilla_index(gd)
+            infos = [modscan.scan_pak(p, progress=self._set_status,
+                                      vanilla_index=vanilla)
+                     for p in paks]
+            self._set_status("Comparing with this tool's settings ...")
+            conflicts = self._match_conflicts(gd, infos)
+            self._modscan_payload = (infos, conflicts)
+            self._msgs.put(("modscan_done", ""))
+        except Exception:
+            self._msgs.put(("modscan_done", ""))
+            self._msgs.put(("error", traceback.format_exc()))
+
+    def _footprint(self, gd, key: str) -> set | None:
+        """Fussabdruck eines Reglers, im Speicher gecacht: welche
+        (Top-Level-Struct, Blattname)-Paare patcht er? Vereinigung der
+        Sonden aus footprint_settings (x2 UND x0.5)."""
+        if key not in self._footprints:
+            probes = footprint_settings(key)
+            if probes is None:
+                self._footprints[key] = None
+            else:
+                pairs: set = set()
+                for s in probes:
+                    pairs |= modscan.pairs_from_patches(build_patches(gd, s))
+                self._footprints[key] = pairs
+        return self._footprints[key]
+
+    def _match_conflicts(self, gd, infos) -> dict[str, list[str]]:
+        segments: set[str] = set()
+        leaves: set[str] = set()
+        for info in infos:
+            segments |= info.base_names
+            leaves |= {leaf for _, leaf in info.pairs}
+        conflicts: dict[str, list[str]] = {}
+        keys = list(self.sliders) + ["check:" + k for k in self.checks]
+        for key in keys:
+            guard = EXPENSIVE_FOOTPRINTS.get(key)
+            if guard and key not in self._footprints:
+                fragment, guard_leaves = guard
+                if (not any(fragment in seg for seg in segments)
+                        and not (guard_leaves & leaves)):
+                    continue
+            pairs = self._footprint(gd, key)
+            if not pairs:
+                continue
+            mods = [info.name for info in infos if info.pairs & pairs]
+            if mods:
+                conflicts[key] = mods
+        return conflicts
+
+    def _finish_modscan(self):
+        self._scan_running = False
+        self.btn_scan.configure(state="normal")
+        self.btn_confirm.configure(state="normal")
+        self.btn_browse.configure(state="normal")
+        if self._modscan_payload is None:
+            return
+        infos, conflicts = self._modscan_payload
+        self._modscan_payload = None
+        self.modscan_results = infos
+        self.mod_conflicts = conflicts
+        # Ladereihenfolge in ~mods ist alphabetisch (deshalb das zzz_-
+        # Praefix). Mods, deren Pak NACH unserer sortiert, ueberschreiben
+        # gemeinsame Werte — "your value wins" waere dort gelogen.
+        own = self._out_name().lower()
+        self._mods_after = {info.name for info in infos
+                            if info.path.name.lower() > own}
+        self._apply_conflict_marks()
+        if conflicts:
+            self._status_write(
+                f"Scanned {len(infos)} mod(s): {len(conflicts)} of this "
+                "tool's settings are also changed by them (see the dots).")
+        else:
+            self._status_write(
+                f"Scanned {len(infos)} mod(s): no overlap with this "
+                "tool's settings.")
+        self._show_modscan_results()
+
+    def _apply_conflict_marks(self):
+        for key, row in self.sliders.items():
+            row.set_conflict(self.mod_conflicts.get(key), self._mods_after)
+        self._refresh_check_dots()
+
+    def _refresh_check_dots(self):
+        for key in self.check_dots:
+            self._update_check_dot(key)
+
+    def _update_check_dot(self, key: str):
+        dot = self.check_dots.get(key)
+        if dot is None:
+            return
+        mods = self.mod_conflicts.get("check:" + key) or []
+        if not mods:
+            dot.configure(text="")
+            self._check_tips[key] = ""
+            return
+        names = ", ".join(sorted(mods))
+        if bool(self.checks[key].get()):
+            dot.configure(text="\u25cf", text_color=MARK_WARN)
+            losers = sorted(set(mods) & self._mods_after)
+            if losers:
+                self._check_tips[key] = (
+                    f"{names} changes this too \u2014 and "
+                    f"{', '.join(losers)} loads AFTER your pak, "
+                    "so its value may win")
+            else:
+                self._check_tips[key] = (
+                    f"{names} changes this too \u2014 your value wins")
+        else:
+            dot.configure(text="\u25cf", text_color=MARK_INFO)
+            self._check_tips[key] = f"also changed by {names}"
+
+    def _conflict_labels(self, mod_name: str) -> list[str]:
+        """Lesbare Regler-Namen, die sich mit einer Mod ueberschneiden."""
+        labels = []
+        for key, mods in sorted(self.mod_conflicts.items()):
+            if mod_name not in mods:
+                continue
+            if key.startswith("check:"):
+                box = self.checks.get(key[len("check:"):])
+                if box is not None:
+                    labels.append(str(box.cget("text")))
+            elif key in self.sliders:
+                labels.append(str(self.sliders[key].label.cget("text")))
+        return labels
+
+    def _show_modscan_results(self):
+        win = ctk.CTkToplevel(self)
+        win.title("What your other mods change")
+        win.geometry("660x520")
+        win.transient(self)
+        frame = ctk.CTkScrollableFrame(win)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        bold = ctk.CTkFont(size=13, weight="bold")
+
+        def line(text, **kw):
+            ctk.CTkLabel(frame, text=text, anchor="w", justify="left",
+                         wraplength=580, **kw).pack(fill="x", padx=8, pady=2)
+
+        readable = [i for i in self.modscan_results if i.readable]
+        broken = [i for i in self.modscan_results if not i.readable]
+        for info in readable:
+            line(info.name, font=bold)
+            labels = self._conflict_labels(info.name)
+            if labels:
+                line("Changes settings this tool also covers: "
+                     + ", ".join(labels), text_color="gray80")
+            elif info.n_cfg:
+                line("Changes game configs, but none that overlap with "
+                     "this tool's settings.", text_color="gray60")
+            if info.note:
+                line(info.note, text_color="gray60")
+        if broken:
+            line("These mods contain data I can't read:", font=bold)
+            for info in broken:
+                line(f"{info.name} \u2014 {info.note}", text_color="gray60")
+        after = sorted(self._mods_after
+                       & {i.name for i in self.modscan_results})
+        if after:
+            line("\u26a0 " + ", ".join(after) + " load(s) AFTER this "
+                 "tool's pak (~mods loads alphabetically) \u2014 for any "
+                 "shared value THAT mod wins, not your slider.",
+                 text_color=ACCENT)
+        line("Affected settings are marked with a dot: blue = a mod changes "
+             "it while you are at (vanilla), violet = you changed it too. "
+             "Your pak usually wins shared values because its zzz_ name "
+             "loads last. The dots stay until you scan again.",
+             text_color="gray60")
+        ctk.CTkButton(win, text="Close", width=100,
+                      command=win.destroy).pack(pady=(0, 10))
+
     def _reset_all(self):
         for slider in self.sliders.values():
             slider.reset()
@@ -2142,6 +2633,9 @@ class App(ctk.CTk):
         self.mutant_overrides.clear()
         if self._mut_current is not None:
             self._mut_select(self._mut_current)
+        # Scan-Punkte bleiben absichtlich stehen (die fremden Mods sind ja
+        # weiterhin installiert) — nur die Stufe faellt auf Info zurueck.
+        self._refresh_check_dots()
 
     def _ui_state(self) -> dict:
         """Kompletter Regler-Zustand (fuer settings.json UND Presets)."""
@@ -2161,6 +2655,7 @@ class App(ctk.CTk):
                 "game_dir": str(self.game_dir) if self.game_dir else None,
                 "mod_name": self.name_entry.get(),
                 "debug_cfg": bool(self.debug_check.get()),
+                "modscan_pref": self.modscan_pref,
                 **self._ui_state(),
             }
             SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -2223,6 +2718,8 @@ class App(ctk.CTk):
             self.name_entry.insert(0, data["mod_name"])
         if data.get("debug_cfg"):
             self.debug_check.select()
+        if data.get("modscan_pref") in ("ask", "never"):
+            self.modscan_pref = data["modscan_pref"]
         self._apply_ui_state(data)
 
     def _apply_ui_state(self, data: dict):
@@ -2278,6 +2775,8 @@ class App(ctk.CTk):
         # auf die reine Info-Zeile zurueck, gilt also auch ohne Spieldaten.
         self._iw_refresh_all()
         self._ia_refresh_all()
+        # select()/deselect() feuern kein command — Scan-Punkte nachziehen
+        self._refresh_check_dots()
 
     def _on_close(self):
         # Ein wartendes Auto-Aufklappen wuerde sonst noch Widgets in einem

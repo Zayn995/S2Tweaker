@@ -54,6 +54,37 @@ startup stays fast.
 Deep research notes with sources, vanilla values and risk analysis:
 [docs/SPEC.md](docs/SPEC.md).
 
+## The ~mods pre-scan
+
+On request the tool scans the OTHER mods in the game's `~mods` folder (never
+without asking — overhaul paks can be 2 GB) and tells the user in plain
+language which of its own settings those mods also change. Affected sliders
+keep a colored dot: blue while the slider sits at (vanilla) ("also changed by
+X"), violet once the user moves it ("X changes this too — your value wins",
+because the tool's `zzz_` pak loads last). "Reset all to vanilla" keeps the
+dots — the foreign mods are still installed; only a re-scan updates them.
+
+Mechanics ([modscan.py](s2tweaker/modscan.py)): per pak only the cfg entries
+under `GameData`/`DLCGameData` are listed (recursively — UE5 mounts `~mods`
+subfolders too, which is where e.g. OXA installs) and extracted in one
+batched, glob-escaped `repak` call (`.cfg.bin` is converted; the official
+`Base.cfg_patch_<Mod>` naming without a trailing `.cfg` counts as a config
+too). IoStore mods are reported as unreadable. Each slider's "footprint" is
+computed dynamically — `build_patches()` probed in BOTH directions (×2 and
+×0.5, so capped values are covered) — and compared against the mod's content
+on the level of (top-level struct + leaf key), deliberately not the full
+path: foreign mods patch the same values through different file layouts.
+Three refinements keep the matches honest: legacy `refkey` patches under a
+free struct name are counted under their target prototype; full-file copies
+are value-compared against vanilla so a 60 MB overhaul only marks what it
+actually changes; and re-emitted anchor keys (`Type`) plus the ambiguous
+nested `Weight` are excluded from the comparison. Expensive footprints (the
+9.3 MB loot file, the 1,601-prototype no-heal walk) are only computed when a
+scanned mod plausibly touches them. The scan runs in a worker thread against
+a GameData snapshot; Browse/Reload are locked while it runs. If a foreign
+pak sorts alphabetically AFTER the tool's `zzz_` pak, the tooltip and the
+results dialog say so instead of claiming "your value wins".
+
 ## The loot-amount safety filter
 
 `ItemGeneratorPrototypes.cfg` holds 3,085 loot generators, and the same field

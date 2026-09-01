@@ -347,6 +347,77 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path, repak_exe: Path | None = 
     return out_pak
 
 
+def list_pak(pak: Path, repak_exe: Path | None = None) -> list[str]:
+    """Dateiliste einer Pak (fuer den Mod-Scan). Liest nur den Index —
+    braucht kein Oodle und ist auch bei 2-GB-Paks schnell."""
+    repak = repak_exe or find_repak()
+    if repak is None:
+        raise FileNotFoundError("repak.exe nicht gefunden")
+    result = subprocess.run(
+        [str(repak), "list", str(pak)],
+        capture_output=True,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"repak list fehlgeschlagen: {result.stderr.strip()}")
+    return [line.strip().strip('"')
+            for line in result.stdout.splitlines() if line.strip()]
+
+
+def unpack_many(pak: Path, out_dir: Path, includes: list[str],
+                repak_exe: Path | None = None, progress=None) -> None:
+    """Mehrere Eintraege in EINEM Rutsch entpacken (fuer den Mod-Scan).
+
+    repak akzeptiert -i mehrfach; gebuendelt ist das um Groessenordnungen
+    schneller als ein Prozess pro Datei. Gegen das Windows-Limit fuer
+    Kommandozeilen (~32k Zeichen) wird in Bloecke aufgeteilt."""
+    repak = repak_exe or find_repak()
+    if repak is None:
+        raise FileNotFoundError("repak.exe nicht gefunden")
+    # Oodle wird NICHT vorab besorgt: Mod-Paks sind fast immer unkomprimiert
+    # oder Zlib (repak kann beides ohne die DLL). Erst wenn repak wirklich
+    # ueber Oodle stolpert, wird die DLL einmal beschafft und der Block
+    # wiederholt — sonst wuerde ein Offline-Rechner ohne gecachte DLL jede
+    # harmlose Mod als unlesbar melden.
+    chunk: list[str] = []
+    length = 0
+    chunks: list[list[str]] = []
+    for inc in includes:
+        if chunk and length + len(inc) > 24000:
+            chunks.append(chunk)
+            chunk, length = [], 0
+        chunk.append(inc)
+        length += len(inc) + 5
+    if chunk:
+        chunks.append(chunk)
+
+    def run(part: list[str]):
+        cmd = [str(repak), "unpack", str(pak), "-o", str(out_dir), "-q", "-f"]
+        for inc in part:
+            cmd += ["-i", inc]
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+
+    oodle_ready = False
+    for part in chunks:
+        result = run(part)
+        if result.returncode != 0 and "oodle" in result.stderr.lower() \
+                and not oodle_ready:
+            ensure_oodle(repak, pak=Path(pak), progress=progress)
+            oodle_ready = True
+            result = run(part)
+        if result.returncode != 0:
+            err = result.stderr.strip()
+            if "oodle" in err.lower():
+                raise _oodle_error(err)
+            raise RuntimeError(f"repak unpack fehlgeschlagen: {err}")
+
+
 def unpack(pak: Path, out_dir: Path, include: str | None = None,
            repak_exe: Path | None = None, progress=None) -> None:
     """Pak entpacken (fuer die Vanilla-GameData-Extraktion).
