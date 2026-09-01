@@ -16,7 +16,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, game, modscan, pakio
+from . import __version__, faq, game, modscan, pakio
 from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
@@ -77,6 +77,43 @@ ACCENT = "#d9a648"
 # Bedeutung. Blau = reine Information, Violett = Warnstufe.
 MARK_INFO = "#5da8dc"   # fremde Mod aendert den Wert, Regler steht auf (vanilla)
 MARK_WARN = "#b07fe0"   # fremde Mod aendert den Wert UND der Regler ist verstellt
+
+
+class FaqRow:
+    """Eine Frage im FAQ-Fenster: Frage-Knopf, Antwort klappt auf.
+
+    Die Suche laeuft ueber q + a + die unsichtbaren Schlagworte (k) aus
+    faq.py — so findet "health pack" auch den Consumable-Regler."""
+
+    def __init__(self, parent, entry: dict, font_q, font_a):
+        self.entry = entry
+        self.haystack = " ".join(
+            (entry["q"], entry["a"], entry.get("k", ""))).lower()
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.btn = ctk.CTkButton(
+            self.frame, text="\u25b8  " + entry["q"], anchor="w",
+            fg_color="transparent", hover_color="gray25", font=font_q,
+            command=self.toggle)
+        self.btn.pack(fill="x")
+        self.answer = ctk.CTkLabel(
+            self.frame, text=entry["a"], anchor="w", justify="left",
+            wraplength=640, font=font_a, text_color="gray80")
+        self.open = False
+
+    def toggle(self):
+        self.set_open(not self.open)
+
+    def set_open(self, open_: bool):
+        self.open = open_
+        if open_:
+            self.answer.pack(fill="x", padx=24, pady=(0, 6))
+            self.btn.configure(text="\u25be  " + self.entry["q"])
+        else:
+            self.answer.pack_forget()
+            self.btn.configure(text="\u25b8  " + self.entry["q"])
+
+    def matches(self, words: list[str]) -> bool:
+        return all(w in self.haystack for w in words)
 
 
 class HoverTip:
@@ -1054,6 +1091,10 @@ class App(ctk.CTk):
         self.search_entry = ctk.CTkEntry(head, width=230,
                                          placeholder_text="🔍 Find a slider, weapon or ammo …")
         self.search_entry.pack(side="right", padx=4, pady=8)
+        self.btn_faq = ctk.CTkButton(head, text="? FAQ", width=70,
+                                     fg_color="gray30", hover_color="gray25",
+                                     command=self._show_faq)
+        self.btn_faq.pack(side="right", padx=4, pady=8)
         # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
         # sonst draengt ein langer Spielpfad die Knoepfe und das Suchfeld
         # zusammen und schneidet den Platzhaltertext ab.
@@ -2385,6 +2426,77 @@ class App(ctk.CTk):
             # gebliebenen "No slider, weapon or ammo matches your search."
             self.status.configure(text=self._status_before_search)
             self._status_before_search = None
+
+    # ------------------------------------------------------------------ FAQ
+    def _show_faq(self):
+        """Durchsuchbares FAQ-Fenster (Inhalt: s2tweaker/faq.py).
+
+        Nicht modal — man soll nebenher an den Reglern arbeiten koennen.
+        Ein zweiter Klick holt das offene Fenster nach vorn, statt ein
+        weiteres zu bauen."""
+        existing = getattr(self, "_faq_win", None)
+        if existing is not None and existing.winfo_exists():
+            existing.deiconify()
+            existing.lift()
+            existing.focus_set()
+            return
+        win = ctk.CTkToplevel(self)
+        self._faq_win = win
+        win.title("S2Tweaker FAQ")
+        win.geometry("760x560")
+        # Ohne minsize laesst sich das Fenster so schmal ziehen, dass die
+        # fest umbrochenen Antworten (wraplength) rechts abgeschnitten sind.
+        win.minsize(700, 320)
+        win.transient(self)
+
+        top = ctk.CTkFrame(win, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(10, 4))
+        search = ctk.CTkEntry(
+            top, placeholder_text="🔍 Search the FAQ … (e.g. medkit, loot, "
+                                  "animation, antivirus)")
+        search.pack(side="left", fill="x", expand=True)
+        count = ctk.CTkLabel(top, text="", width=150, anchor="e",
+                             text_color="gray60")
+        count.pack(side="left", padx=(8, 0))
+
+        body = ctk.CTkScrollableFrame(win)
+        body.pack(fill="both", expand=True, padx=10, pady=(2, 10))
+        font_q = ctk.CTkFont(size=13)
+        font_a = ctk.CTkFont(size=12)
+        rows = [FaqRow(body, entry, font_q, font_a)
+                for entry in faq.FAQ_ENTRIES]
+
+        def apply_filter(_event=None):
+            words = search.get().strip().lower().split()
+            visible = [r for r in rows if r.matches(words)] if words else rows
+            # Reihenfolge bleibt stabil: erst alle raus, dann die
+            # sichtbaren in Originalreihenfolge wieder rein (pack haengt
+            # sonst wieder Eingeblendete ans Ende).
+            for row in rows:
+                row.frame.pack_forget()
+            for row in visible:
+                row.frame.pack(fill="x", padx=4, pady=1)
+                # Treffer direkt aufklappen — wer sucht, will die Antwort
+                # sehen; ohne Suchbegriff wieder kompakt zuklappen.
+                row.set_open(bool(words))
+            if not words:
+                count.configure(text=f"{len(rows)} questions")
+            elif visible:
+                count.configure(text=f"{len(visible)} match"
+                                     f"{'es' if len(visible) != 1 else ''}")
+            else:
+                count.configure(text="no matches \u2013 try another word")
+
+        search.bind("<KeyRelease>", apply_filter)
+        # Fuer Tests erreichbar machen (KeyRelease landet am inneren
+        # tk-Widget der CTkEntry und ist per event_generate nicht triggerbar)
+        win._faq_rows = rows
+        win._faq_search = search
+        win._faq_apply_filter = apply_filter
+        apply_filter()
+        # CTkToplevel zieht den Fokus waehrend seiner withdraw/deiconify-
+        # Einrichtung wieder weg — direkt gesetzter Fokus geht verloren.
+        win.after(250, search.focus_set)
 
     # ------------------------------------------------------------ mod scan
     def _maybe_offer_modscan(self):
