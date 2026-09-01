@@ -321,7 +321,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "hp": "max_hp", "hp_regen": "hp_regen", "sp": "max_stamina",
     "sp_regen": "stamina_regen", "fall": "fall_damage_pct",
     "walk": "walk_speed_factor", "run": "run_speed_factor",
-    "jump": "jump_height_factor", "st_sprint": "stamina_sprint",
+    "jump": "jump_height_factor", "vault_height": "vault_height_factor",
+    "st_sprint": "stamina_sprint",
     "st_jump": "stamina_jump", "st_melee_l": "stamina_melee_light",
     "st_melee_s": "stamina_melee_strong", "st_butt": "stamina_buttstock",
     "st_vault": "stamina_vault", "carry": "max_carry_weight",
@@ -369,6 +370,7 @@ SLIDER_FIELDS: dict[str, str] = {
 }
 
 CHECK_FIELDS: dict[str, str] = {
+    "improved_vaulting": "improved_vaulting",
     "no_overweight": "no_overweight_penalty",
     "ignore_equipped": "ignore_equipped_weight",
     "npc_no_heal": "npc_no_heal",
@@ -2111,6 +2113,16 @@ class App(ctk.CTk):
                          "Test in-game before settling on values. "
                          "(Status: 29 Aug 2026)")
         self._slider(f, "jump", "Jump height", 50, 200, 5, 100, fmt_pct)
+        self._slider(f, "vault_height", "Max vault height", 50, 250, 10, 100, fmt_pct,
+                     "How high an obstacle you can still vault or climb over "
+                     "(vanilla detection limit ~1.3 m). Stacks on top of the "
+                     "preset below when both are used.")
+        self._check(f, "improved_vaulting", "Improved vaulting (community preset)",
+                    "Restores the tuned vaulting of the pre-2.0 vault mod "
+                    "(broken since the game's 2.0 update): steeper approach "
+                    "angles, vault from farther away, higher obstacles, more "
+                    "generous landing. Player only - NPCs keep vanilla "
+                    "vaulting. Not play-tested on 2.0.x yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Stamina costs (per action)")
@@ -2793,6 +2805,8 @@ class App(ctk.CTk):
             walk_speed_factor=s["walk"].get() / 100.0,
             run_speed_factor=s["run"].get() / 100.0,
             jump_height_factor=s["jump"].get() / 100.0,
+            vault_height_factor=s["vault_height"].get() / 100.0,
+            improved_vaulting=bool(self.checks["improved_vaulting"].get()),
             stamina_sprint=s["st_sprint"].get() / 100.0,
             stamina_jump=s["st_jump"].get() / 100.0,
             stamina_melee_light=s["st_melee_l"].get() / 100.0,

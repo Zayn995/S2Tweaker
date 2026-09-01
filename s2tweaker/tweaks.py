@@ -216,6 +216,31 @@ def armor_label(sid: str) -> str:
     return sid
 
 
+# "Improved vaulting": die 14 Werte, die die (seit Patch 2.0 kaputte)
+# Vault-Mod gegenueber Vanilla aenderte — rekonstruiert aus GitHub Issue #2
+# (BigTinz hat den kompletten Block der alten Mod gepostet; der Diff gegen
+# die echten Vanilla-Daten ergab genau diese 14 Schluessel). Bewusst
+# ABSOLUTE Zielwerte statt Faktoren: die Trace-Parameter haengen zusammen
+# und die Mod war ein abgestimmtes Set. Gepatcht wird NUR der Player —
+# NPCs und Mutanten haben eigene VaultingParams-Bloecke und bleiben vanilla.
+# Emittiert wird je Schluessel nur, was vom LIVE gelesenen Vanilla abweicht.
+VAULT_PRESET = {
+    "MaxAngle": "115",              # Vanilla 75: steilere Anlaufwinkel
+    "MaxTestDistance": "115",       # Vanilla 15: aus groesserem Abstand
+    "StartDistance": "20",          # Vanilla 10
+    "VaultOverMaxDepth": "25",      # Vanilla 50
+    "VaultOverLandOffset": "100",   # Vanilla 20
+    "MinObstacleHeight": "85",      # Vanilla 70
+    "MaxObstacleHeight": "200",     # Vanilla 130: hoehere Hindernisse
+    "FrontSearchRadiusModifier": "1",       # Vanilla 0.5
+    "DepthTraceRadiusModifier": "0.8",      # Vanilla 0.5
+    "LandingMinHeight": "10",       # Vanilla 30
+    "MaxWindowDetectionIterations": "20",   # Vanilla 10
+    "MaxLandingDetectionIterations": "15",  # Vanilla 5
+    "MaxLandingOffset": "300",      # Vanilla 50
+    "LandingMaxSlope": "90",        # Vanilla 45
+}
+
 # Gangarten getrennt regelbar: Animation/Schrittsound skalieren NICHT mit
 # (Engine-Assets, per cfg unerreichbar) -- getrennte Regler halten den
 # sichtbaren Versatz klein (Referenz: Nexus-Mod 2314 laesst Walk unangetastet).
@@ -235,7 +260,9 @@ class Settings:
     fall_damage_pct: float = 100.0           # 100 = Vanilla, 0 = kein Fallschaden
     walk_speed_factor: float = 1.0           # Gehen + Schleichen
     run_speed_factor: float = 1.0            # Laufen + Sprinten
-    jump_height_factor: float = 1.0          # JumpSpeedCoef
+    jump_height_factor: float = 1.0
+    vault_height_factor: float = 1.0         # MaxObstacleHeight x Faktor
+    improved_vaulting: bool = False          # Preset der alten Vault-Mod          # JumpSpeedCoef
 
     # --- Ausdauer-Kosten einzeln (Faktor, 1.0 = Vanilla) ---
     stamina_sprint: float = 1.0
@@ -479,9 +506,28 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if _neq(s.jump_height_factor, 1.0):
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.JumpSpeedCoef"), 1.0)
         movement["JumpSpeedCoef"] = _num(vanilla * s.jump_height_factor)
+
+    # Vaulting: Preset (nur vom Vanilla abweichende Werte) + Hoehen-Faktor.
+    # Der Faktor skaliert auf der jeweils aktiven Basis (Preset an: 200).
+    vault: dict = {}
+    if s.improved_vaulting:
+        for key, value in VAULT_PRESET.items():
+            current = gd.resolve(gd.obj, "Player", f"VaultingParams.{key}")
+            if current is None or _neq(parse_number(value),
+                                       parse_number(current)):
+                vault[key] = value
+    if _neq(s.vault_height_factor, 1.0) and s.vault_height_factor > 0:
+        if s.improved_vaulting:
+            base = parse_number(VAULT_PRESET["MaxObstacleHeight"])
+        else:
+            base = parse_number(gd.resolve(
+                gd.obj, "Player", "VaultingParams.MaxObstacleHeight"), 130.0)
+        vault["MaxObstacleHeight"] = _num(base * s.vault_height_factor)
     if movement:
         player["MovementParams"] = movement
 
+    if vault:
+        player["VaultingParams"] = vault
     if _neq(s.fall_damage_pct, 100):
         # Protection.Fall ist prozentualer Schutz: 100 = kein Fallschaden
         player["Protection"] = {"Fall": _num(100.0 - s.fall_damage_pct)}
@@ -1572,6 +1618,9 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Max health {s.max_hp:g} (vanilla 100)")
     if _neq(s.hp_regen, 0):
         lines.append(f"Passive health regen {s.hp_regen:g} HP/s")
+    if s.improved_vaulting:
+        lines.append("Improved vaulting (community preset)")
+    f("Max vault height", s.vault_height_factor)
     if _neq(s.max_stamina, 100):
         lines.append(f"Max stamina {s.max_stamina:g} (vanilla 100)")
     if _neq(s.stamina_regen, 5):

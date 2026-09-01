@@ -173,6 +173,17 @@ FAQ_ENTRIES = [
              "distance empty world performance fps",
     },
     {
+        "q": "Can I vault or climb over higher obstacles?",
+        "a": "Yes - Player tab: 'Max vault height' raises the detection "
+             "limit for what you can vault over, and 'Improved vaulting "
+             "(community preset)' restores the tuned vaulting of the "
+             "pre-2.0 vault mod (steeper angles, vault from farther away, "
+             "more generous landing). Player only - NPCs keep vanilla "
+             "vaulting.",
+        "k": "vault vaulting climb climbing mantle parkour jump over "
+             "obstacle fence window ledge",
+    },
+    {
         "q": "Why is there no bullet time / slow motion tweak?",
         "a": "Bullet time is not possible through config files - it would "
              "need script injection (UE4SS), which is fragile after every "
