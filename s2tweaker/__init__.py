@@ -4,6 +4,6 @@ Erzeugt aus per GUI gewaehlten Tweaks (Tragegewicht, Ausdauer, Haendler,
 Haltbarkeit, Mutanten usw.) eine Mod-Pak-Datei fuer den ~mods-Ordner.
 """
 
-__version__ = "1.7.0"
+__version__ = "1.8.0"
 
 
