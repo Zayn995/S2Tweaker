@@ -21,7 +21,7 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~155 tweaks in 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons,
+~160 tweaks in 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons,
 Ammo, World, Economy), plus per-weapon overrides for 79 weapons and
 per-round overrides for 34 ammo types: health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +
@@ -32,7 +32,8 @@ spread/recoil/durability/fire rate/range/bleeding/ADS speed on three
 levels, magazine size, melee, jamming, scoped sway, breath hold, ammo
 damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
 hearing/grenades, artifacts & detectors, anomaly/radiation/bleeding,
-hunger/sleep rates, weather & emissions, trader prices & min. durability,
+hunger/sleep rates, weather & emissions, loot amounts in stashes, on bodies
+and in the world's item generators, trader prices & min. durability,
 repair/upgrade costs, fast travel, quest rewards.
 
 The two override trees add up to 632 weapon and 100 ammo sliders on top of
@@ -43,15 +44,59 @@ startup stays fast.
 
 | Layer | Details |
 |---|---|
-| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 25 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
+| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 26 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
 | Oodle | Those pak entries are Oodle-compressed, so unpacking needs the proprietary `oo2core_9_win64.dll` (the game does **not** ship it — Oodle is linked into the game exe). repak would fetch it itself, but it validates TLS against its own built-in roots, which breaks behind AV/proxy HTTPS inspection, and in the frozen exe it would land in PyInstaller's temp dir and be lost every run. [pakio.py](s2tweaker/pakio.py) therefore obtains it: local copies first, else one checksum-verified HTTPS download, cached in `tools/` next to the app. Packing never needs it. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |
 | Packing | [pakio.py](s2tweaker/pakio.py) stages the files and calls the bundled `tools/repak.exe` (defaults are exactly what the game wants: V8B, mount `../../../`, uncompressed). |
-| Key game files | `ObjPrototypes` (player + mutants), `ItemPrototypes`, `TradePrototypes`, `DifficultyPrototypes` (per-difficulty multiplier groups), `EffectPrototypes` (overweight effects), `FloatProviderPrototypes` (scope-sway constant — patched instead of the sway effects so offset-aiming keeps working), `WeaponData/*` (damage, wear, spread, recoil), `CoreVariables` (repair costs, stamina drain), `ObjWeightParamsPrototypes` (carry weight), `ObjHoldBreathParamsPrototypes`. |
+| Key game files | `ObjPrototypes` (player + mutants), `ItemPrototypes`, `TradePrototypes`, `DifficultyPrototypes` (per-difficulty multiplier groups), `EffectPrototypes` (overweight effects), `FloatProviderPrototypes` (scope-sway constant — patched instead of the sway effects so offset-aiming keeps working), `WeaponData/*` (damage, wear, spread, recoil), `CoreVariables` (repair costs, stamina drain), `ObjWeightParamsPrototypes` (carry weight), `ObjHoldBreathParamsPrototypes`, `StashPrototypes` (smart loot in stashes and on bodies), `ItemGeneratorPrototypes` (9.3 MB — the world's loot generators; only `MinCount`/`MaxCount` under `PossibleItems` is scaled, and only on generators that pass a two-stage safety filter, see below). |
 
 Deep research notes with sources, vanilla values and risk analysis:
 [docs/SPEC.md](docs/SPEC.md).
+
+## The loot-amount safety filter
+
+`ItemGeneratorPrototypes.cfg` holds 3,085 loot generators, and the same field
+names (`MinCount`/`MaxCount`) mean *stack size* under `PossibleItems` and
+*coupons* under `MoneyGenerator`. There is no quest flag in that file at all,
+so [gamedata.py](s2tweaker/gamedata.py) filters in two stages before anything
+is patched (`loot_generators()`):
+
+1. **By name**, on both the struct key *and* its SID: story/quest prefixes
+   (`MQ`/`EQ`/`SQ`/`RSQ`/`ANCQ`), `Reward`, `Container`, `BP_`, `UAID_`,
+   `Key`, `Safe`, `PDA`, `Icon`, `Boss`, `Player`, `Template`, `Trade` …
+2. **By content**: every `ItemPrototypeSID` in the block is resolved against
+   `ItemPrototypes.cfg`. If one of them is a quest item, matches the
+   unique-weapon pattern `^Gun_[A-Z]`, or cannot be found there at all, the
+   whole generator is dropped. Both quest markers count — `IsQuestItem` and
+   `IsQuestItemPrototype`; 291 items carry only the second one, among them the
+   note PDAs wired to `OnPlayerGetItemEvent`.
+
+Two item kinds are skipped per *entry* instead, so the rest of an otherwise
+ordinary generator still scales: **money cards** (identified live by their
+pickup effect `EEffectType::AddMoney`, not by name — currency exists as a
+regular item in `PossibleItems`, not just in the `MoneyGenerator` branch) and
+items whose *name* matches the quest pattern without carrying a quest marker
+(in practice the invisible `GuardQuestItem` marker on 31 guard generators).
+
+Plus the structural exclusions: the base template `[0]` (1,773 generators
+inherit from it) and the developer `All*` generators that already ship with
+`MinCount = 900`. Trader stock is excluded as well, but carefully: the
+transitive hull is taken only from generators `TradePrototypes.cfg` actually
+references, while generators that merely carry "Trade" in their name are
+excluded themselves without propagating — otherwise a single bartender drags
+`GeneralNPC_Consumables_*` out with it, and those blocks supply the medicine
+and food of 239 and 281 ordinary NPCs.
+
+Stage 1 alone provably leaks quest keys and unique weapons, which is why both
+stages are mandatory. Struct keys, slot keys and array indices are always read
+from the file — 226 generators are keyed `[N]` rather than by their SID, and
+724 slots are named (`Head`, `BodyArmor`, …) instead of indexed, so a
+constructed path would create a new node instead of patching an existing one.
+
+What survives on the current game data: **2,010 of 3,085 generators**, 3,095
+scalable count entries, and at 200 % a patch of about 24,000 lines — by far
+the largest file the tool produces.
 
 ## Project structure
 

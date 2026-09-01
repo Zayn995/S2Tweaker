@@ -276,6 +276,8 @@ class Settings:
     stash_loot_factor: float = 1.0           # Stueckzahlen je Fund
     stash_chance_factor: float = 1.0         # Fundwahrscheinlichkeit
     stash_ammo_factor: float = 1.0           # Munition an gefundenen Waffen
+    # --- Loot-Mengen im grossen Generator (ItemGeneratorPrototypes) ---
+    loot_amount_factor: float = 1.0          # Stueckzahlen je Fundstelle
     # --- Artefakte ---
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
@@ -494,6 +496,41 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
                        .setdefault("SmartLootParams", {})
                        .setdefault(group, {}))
         node[entry_key] = cfg
+    return patches
+
+
+def _loot_patch(gd: GameData, s: Settings) -> dict:
+    """Stueckzahlen im grossen Loot-Generator (ItemGeneratorPrototypes.cfg).
+
+    Pfad je Eintrag: <Prototyp>.ItemGenerator.<Slot>.PossibleItems[j] mit
+    MinCount/MaxCount. Welche Prototypen sicher sind, entscheidet der
+    zweistufige Filter in gamedata.loot_generators(); MoneyGenerator (Kupons)
+    und das Basis-Template [0] werden dort gar nicht erst geliefert.
+
+    Es werden nur vorhandene Schluessel skaliert - 814 Eintraege haben
+    MinCount ohne MaxCount, und ein Patch darf dort nichts anlegen."""
+    if not _neq(s.loot_amount_factor, 1.0):
+        return {}
+
+    patches: dict = {}
+    for sid, gen_key, slot_key, item_key, item in gd.loot_count_entries():
+        new_min = _scale_count(item.values.get("MinCount"), s.loot_amount_factor)
+        new_max = _scale_count(item.values.get("MaxCount"), s.loot_amount_factor)
+        # Rundung darf keinen Widerspruch Min > Max erzeugen (Vanilla hat in
+        # dieser Datei keinen einzigen solchen Fall).
+        if new_min is not None and new_max is not None and int(new_min) > int(new_max):
+            new_min = new_max
+        cfg: dict = {}
+        if new_min is not None:
+            cfg["MinCount"] = new_min
+        if new_max is not None:
+            cfg["MaxCount"] = new_max
+        if not cfg:
+            continue
+        (patches.setdefault(sid, {})
+                .setdefault(gen_key, {})
+                .setdefault(slot_key, {})
+                .setdefault("PossibleItems", {}))[item_key] = cfg
     return patches
 
 
@@ -1419,6 +1456,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
+    add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
+        _loot_patch(gd, s))
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
@@ -1570,6 +1609,7 @@ def summarize(s: Settings) -> list[str]:
     f("Stash & body loot amount", s.stash_loot_factor)
     f("Stash & body find chance", s.stash_chance_factor)
     f("Stash & body ammo bonus", s.stash_ammo_factor)
+    f("Loot amount (NPCs, containers, world)", s.loot_amount_factor)
     f("Radiation accumulation", s.radiation_factor)
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)

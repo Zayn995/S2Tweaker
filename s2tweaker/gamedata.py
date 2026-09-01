@@ -13,6 +13,7 @@ Vanilla-Werten der installierten Spielversion rechnen.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from functools import cached_property
 from pathlib import Path
@@ -47,10 +48,11 @@ NEEDED_FILES = [
     "MeleeWeaponPrototypes.cfg.bin",
     "WeatherSelectionPrototypes.cfg.bin",
     "StashPrototypes.cfg.bin",
+    "ItemGeneratorPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 9
+CACHE_SCHEMA = 10
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -264,6 +266,10 @@ class GameData:
     @cached_property
     def stashes(self) -> CfgStruct:
         return self._parse("StashPrototypes.cfg")
+
+    @cached_property
+    def itemgenerators(self) -> CfgStruct:
+        return self._parse("ItemGeneratorPrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:
@@ -534,6 +540,243 @@ class GameData:
                 for group, group_node in params.children.items():
                     for entry_key, entry in group_node.children.items():
                         out.append((sid, gen_key, group, entry_key, entry))
+        return out
+
+    # ------------------------------------------------- Loot-Mengen (Generator)
+    # ItemGeneratorPrototypes.cfg ist die grosse Loot-Datei (3.085 Prototypen).
+    # Nur MinCount/MaxCount unter PossibleItems duerfen skaliert werden; die
+    # gleichnamigen Felder unter MoneyGenerator sind Kupons und bleiben tabu
+    # (Maximum 72.500 - ein Faktor darauf waere ein Wirtschafts-Exploit).
+    # Der Sicherheitsfilter arbeitet ZWEISTUFIG, weil die Datei selbst keinen
+    # Quest-Marker kennt (docs/GENERATOR_RESEARCH.md, Abschnitt 5):
+    #   Stufe 1  Namensmuster auf Struct-Schluessel UND SID
+    #   Stufe 2  jede ItemPrototypeSID des Blocks gegen ItemPrototypes.cfg
+    # Stufe 1 allein laesst nachweislich Quest-Schluessel und Unikate durch.
+
+    # Das leere Basis-Template, von dem 1.773 Prototypen erben. NIE patchen.
+    LOOT_TEMPLATE_KEY = "[0]"
+
+    # Stufe 1: Story-, Belohnungs-, Container-, Haendler- und Dev-Namen.
+    # "Trade" steht mit drin, weil 13 Haendler-Lager (u.a.
+    # MainTraderItemGeneratorV1 = Bestand von 32 Technikern/Medics/Guides)
+    # NICHT ueber TradePrototypes.cfg verlinkt sind und sonst durchrutschen.
+    LOOT_UNSAFE_NAME = re.compile(
+        r"(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)|Quest|QSBIG|GDEQ|Reward|^C_"
+        r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena|GamePass"
+        r"|(?:^|_)Key|(?:^|_)Safe|Icon|PDA|Trade"
+    )
+
+    # Unikat-Konvention auf Item-Ebene: Gun_<Name>_<Klasse> (Unterstrich nach
+    # "Gun"), im Gegensatz zu Serienwaffen wie GunAK74_ST.
+    LOOT_UNIQUE_ITEM = re.compile(r"^Gun_[A-Z]")
+
+    # Platzhalter-Item; taucht 710x auf und existiert bewusst nicht in
+    # ItemPrototypes.cfg. Kein Grund, einen Block zu verwerfen.
+    LOOT_EMPTY_ITEMS = {"empty", "Empty"}
+
+    # Faellt durch beide Stufen: der Elektrohalsband-Generator (Quest-Sache
+    # ohne IsQuestItem-Marker; doppelte Exemplare koennen den Questfortschritt
+    # blockieren - docs/GENERATOR_RESEARCH.md, Warnung 6).
+    LOOT_DENY_SIDS = {"MutantElectrocollarGenerator"}
+
+    # ItemPrototypes.cfg fuehrt ZWEI unabhaengige Quest-Marker. IsQuestItem
+    # allein reicht nicht: 291 Items sind nur ueber IsQuestItemPrototype
+    # markiert, darunter die Notiz-PDAs, die an OnPlayerGetItemEvent haengen.
+    LOOT_QUEST_FLAGS = ("IsQuestItem", "IsQuestItemPrototype")
+
+    # Geld ist in dieser Datei nicht nur der MoneyGenerator-Zweig: es liegt
+    # auch als normales Item in PossibleItems (Geldkarten mit 500 bis 15.000
+    # Kupons). Erkannt wird das am Effekt, nicht am Namen - ein Item ist
+    # Waehrung, wenn einer seiner Aufsammel-Effekte diesen Typ hat.
+    LOOT_MONEY_EFFECT = "EEffectType::AddMoney"
+    LOOT_EFFECT_KEYS = ("EffectOnPickPrototypeSIDs", "EffectPrototypeSIDs")
+
+    @cached_property
+    def _quest_item_sids(self) -> set[str]:
+        """Alle Item-SIDs mit einem der beiden Quest-Marker (refkey-Kette
+        aufgeloest)."""
+        out: set[str] = set()
+        for sid in self.items.children:
+            for flag in self.LOOT_QUEST_FLAGS:
+                value = self.resolve(self.items, sid, flag)
+                if value is None:
+                    continue
+                if value.strip().rstrip(";").strip().lower() in ("true", "1"):
+                    out.add(sid)
+                    break
+        return out
+
+    @cached_property
+    def _money_item_sids(self) -> set[str]:
+        """Item-SIDs, die beim Aufsammeln Kupons gutschreiben (Geldkarten).
+
+        Live ueber den Effekt-Typ bestimmt, nicht ueber Namen: erst alle
+        Effekte mit AddMoney sammeln, dann die Items, die einen davon
+        auslesen (auch geerbt)."""
+        money_effects = {
+            sid for sid, node in self.effects.children.items()
+            if self.LOOT_MONEY_EFFECT in (node.values.get("Type") or "")
+        }
+        if not money_effects:
+            return set()
+        out: set[str] = set()
+        for sid in self.items.children:
+            for node in self._resolve_chain(self.items, sid):
+                for key in self.LOOT_EFFECT_KEYS:
+                    child = node.children.get(key)
+                    if child and any(v.strip() in money_effects
+                                     for v in child.values.values()):
+                        out.add(sid)
+                        break
+                if sid in out:
+                    break
+        return out
+
+    @cached_property
+    def _generator_key_by_sid(self) -> dict[str, str]:
+        """SID -> Struct-Schluessel. 226 Prototypen heissen [N] statt wie ihre
+        SID; ein Patch MUSS den echten Schluessel treffen, sonst legt bpatch
+        einen neuen Knoten an, statt zu patchen."""
+        out: dict[str, str] = {}
+        for key, node in self.itemgenerators.children.items():
+            out.setdefault((node.values.get("SID") or key).strip(), key)
+            out.setdefault(key, key)
+        return out
+
+    @cached_property
+    def _trade_generator_keys(self) -> set[str]:
+        """Alle Generatoren, die Haendler-Bestand erzeugen (transitiv).
+
+        Zwei Quellen, die unterschiedlich behandelt werden:
+
+        1. Die in TradePrototypes.cfg verlinkten Wurzeln - das ist die echte
+           Handelskette. Von dort wird transitiv weitergegangen, weil sich
+           mehrere Haendler Bausteine wie Trader_T2_Ammo teilen.
+        2. Generatoren mit "Trade" im Namen. Die gehoeren 13x zu Haendlern,
+           die NICHT ueber TradePrototypes verlinkt sind (z.B.
+           MainTraderItemGeneratorV1, der Bestand von 32 Technikern und
+           Medics). Sie werden selbst ausgeschlossen, geben ihre Sperre aber
+           NICHT weiter: sonst reisst z.B. TraderEugene die Bausteine
+           GeneralNPC_Consumables_Recon/_Stormtrooper mit hinaus, die 239
+           bzw. 281 gewoehnliche NPC-Prototypen fuer ihre Medizin und
+           Nahrung benutzen - dann wuerde der Leichen-Loot gar nicht mehr
+           skalieren, also genau das, was der Regler verspricht.
+
+        Haendler-Bestand ist bewusst NICHT Teil des Loot-Reglers."""
+        root = self.itemgenerators
+        roots: set[str] = set()
+        for node in self.trade.children.values():
+            for sub in node.walk():
+                value = sub.values.get("ItemGeneratorPrototypeSID")
+                key = self._generator_key_by_sid.get((value or "").strip())
+                if key:
+                    roots.add(key)
+
+        hull: set[str] = set()
+        stack = list(roots)
+        while stack:
+            key = stack.pop()
+            if key in hull:
+                continue
+            hull.add(key)
+            node = root.children.get(key)
+            for sub in (node.walk() if node else ()):
+                value = sub.values.get("ItemGeneratorPrototypeSID")
+                child = self._generator_key_by_sid.get((value or "").strip())
+                if child and child not in hull:
+                    stack.append(child)
+
+        hull.update(key for key, node in root.children.items()
+                    if "Trade" in key or "Trade" in (node.values.get("SID") or ""))
+        return hull
+
+    def _loot_block_is_safe(self, node: CfgStruct) -> bool:
+        """Stufe 2: jede ItemPrototypeSID des Blocks inhaltlich pruefen.
+
+        Verworfen wird der GANZE Prototyp, sobald ein enthaltenes Item ein
+        Quest-Item oder ein Unikat ist oder in ItemPrototypes.cfg gar nicht
+        vorkommt (dann laesst es sich nicht pruefen - im Zweifel Finger weg;
+        so fallen u.a. E07_MQ01PsySuit und E03_MQ02_HunterNote heraus)."""
+        for gen_key, gen in node.children.items():
+            if gen_key != "ItemGenerator":
+                continue
+            for slot in gen.children.values():
+                items = slot.children.get("PossibleItems")
+                for item in (items.children.values() if items else ()):
+                    sid = (item.values.get("ItemPrototypeSID") or "").strip()
+                    if not sid or sid in self.LOOT_EMPTY_ITEMS:
+                        continue
+                    if sid in self._quest_item_sids:
+                        return False
+                    if self.LOOT_UNIQUE_ITEM.match(sid):
+                        return False
+                    if sid not in self.items.children:
+                        return False
+        return True
+
+    def loot_generators(self) -> list[str]:
+        """Struct-Schluessel aller Prototypen, deren Stueckzahlen skaliert
+        werden duerfen (Filter siehe oben)."""
+        safe: list[str] = []
+        for key, node in self.itemgenerators.children.items():
+            sid = (node.values.get("SID") or key).strip()
+            if key == self.LOOT_TEMPLATE_KEY or "#" in key:
+                continue
+            if key in self.LOOT_DENY_SIDS or sid in self.LOOT_DENY_SIDS:
+                continue
+            if key in self._trade_generator_keys:
+                continue
+            if sid.startswith("All"):        # Dev-Sammelgeneratoren (900 Stk.)
+                continue
+            if (self.LOOT_UNSAFE_NAME.search(key)
+                    or self.LOOT_UNSAFE_NAME.search(sid)):
+                continue
+            if not self._loot_block_is_safe(node):
+                continue
+            safe.append(key)
+        return safe
+
+    def _loot_item_is_skippable(self, sid: str) -> bool:
+        """Eintraege mit diesem Item ueberspringen, ohne den ganzen Prototyp
+        zu verwerfen.
+
+        Zwei Faelle, beide harmlose Einzelposten in sonst normalem Loot:
+        Geldkarten (sonst waere der Regler ein Wirtschafts-Exploit, und die
+        GUI verspricht ausdruecklich, Geld nicht anzufassen) und Items, deren
+        NAME das Quest-Muster trifft, ohne einen Quest-Marker zu tragen -
+        praktisch nur der unsichtbare Marker GuardQuestItem bei 31 Wachen
+        und ein Debug-Artefakt auf der Testkarte."""
+        if sid in self._money_item_sids:
+            return True
+        return bool(self.LOOT_UNSAFE_NAME.search(sid))
+
+    def loot_count_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
+        """Alle skalierbaren Mengen-Eintraege der sicheren Prototypen.
+
+        Liefert (Struct-Schluessel, Generator-Schluessel, Slot-Schluessel,
+        Item-Schluessel, Knoten). Saemtliche Schluessel kommen aus der Datei:
+        724 Slots heissen Head/BodyArmor/... statt [i]. Betreten wird nur der
+        Zweig ItemGenerator - MoneyGenerator liegt daneben und bleibt
+        unberuehrt."""
+        out: list[tuple[str, str, str, str, CfgStruct]] = []
+        root = self.itemgenerators
+        for key in self.loot_generators():
+            node = root.children[key]
+            for gen_key, gen in node.children.items():
+                if gen_key != "ItemGenerator":
+                    continue
+                for slot_key, slot in gen.children.items():
+                    if "#" in slot_key:
+                        continue
+                    items = slot.children.get("PossibleItems")
+                    for item_key, item in (items.children.items() if items else ()):
+                        if "#" in item_key:
+                            continue
+                        item_sid = (item.values.get("ItemPrototypeSID") or "").strip()
+                        if item_sid and self._loot_item_is_skippable(item_sid):
+                            continue
+                        if "MinCount" in item.values or "MaxCount" in item.values:
+                            out.append((key, gen_key, slot_key, item_key, item))
         return out
 
     def npcs_with_regen(self) -> dict[str, float]:

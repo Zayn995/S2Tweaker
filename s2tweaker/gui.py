@@ -1669,6 +1669,35 @@ class App(ctk.CTk):
                      "top of the item list above.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Loot amount (NPCs, containers, world)")
+        ctk.CTkLabel(
+            f, text="   The game's other, much larger loot system: the item "
+                    "generators behind dead stalkers and mutants and behind "
+                    "the stashes scattered around the Zone. The slider changes "
+                    "HOW MANY of an item a slot yields – not how often you "
+                    "find something, and not which items show up. Amounts are "
+                    "whole numbers and never drop below 1, so a slot that "
+                    "yields a single item stays at 1 until you reach 150 %. "
+                    "Coupons are never scaled: neither a generator's money "
+                    "block nor the money cards lying in stashes. Quest, "
+                    "story-reward, unique-weapon and trader-stock generators "
+                    "are skipped, and so are quest marker items sitting in "
+                    "otherwise normal loot – so scripted items are left alone, "
+                    "and a named trader's stock stays vanilla.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "loot_amount", "Loot amount (NPCs, containers, world)",
+                     25, 400, 25, 100, fmt_pct,
+                     "Stack sizes in loot lists: ammo, medkits and food, "
+                     "grenades, junk, artifacts and detectors. Weapons and "
+                     "armor almost always come as a single item, so they "
+                     "barely change.")
+        self._warning(
+            f, "This is by far the largest patch this tool can build "
+               "(around 24,000 lines). If the game starts noticeably slower "
+               "afterwards, put this slider back to 100 %.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Artifacts")
         self._slider(f, "art_effect", "Artifact effect strength", 25, 300, 25, 100, fmt_pct,
                      "Scales what artifacts do on your belt – positive effects "
@@ -2019,6 +2048,7 @@ class App(ctk.CTk):
             stash_loot_factor=s["stash_loot"].get() / 100.0,
             stash_chance_factor=s["stash_chance"].get() / 100.0,
             stash_ammo_factor=s["stash_ammo"].get() / 100.0,
+            loot_amount_factor=s["loot_amount"].get() / 100.0,
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,

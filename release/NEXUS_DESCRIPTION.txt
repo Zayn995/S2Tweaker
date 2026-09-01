@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~155 tweaks in 8 tabs · pick your values · one click builds your .pak[/i]
+[i]~160 tweaks in 8 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]155 tweaks[/b], sorted into 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, World, Economy):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 8 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, World, Economy):
 
 [b]Player[/b]
 [list]
@@ -79,6 +79,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Anomaly damage - one global slider plus per element type: electro / chemical / fire / gravity
 [*]Consumable strength: medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
 [*]Rain & storm frequency, emission frequency
+[*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
 [/list]
 
 [b]Economy[/b]
@@ -138,6 +139,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.7.0 - Loot amounts[/b] (~160 sliders)
+[list]
+[*][b]Stashes & bodies[/b] - three sliders for the game's smart-loot lists: how much a stash or body yields, the chance a slot yields anything at all, and the bonus ammo handed out to match a found weapon's caliber. Honest limits, so you know what to expect: those lists hold ammo, medicine, food and grenades - no weapons, armor or artifacts - and vanilla only puts smart loot on bodies on Easy and Medium difficulty
+[*][b]Loot amount (NPCs, containers, world)[/b] - the game's other, much larger loot system: the item generators behind dead stalkers and mutants and behind the stashes scattered around the Zone. The slider changes how many of an item a slot yields, not how often you find something and not which items show up
+[*]What it deliberately does NOT touch: coupons (neither a generator's money block nor the money cards lying in stashes), quest items, story rewards, unique weapons, and trader stock - a named trader's shelves stay vanilla. Amounts are whole numbers and never drop below 1, so a slot that yields a single item only changes from 150 % upward
+[*]The safety filter checks every single item a generator can produce against the game's own item database (both quest markers) - 2,010 of the game's 3,085 loot generators pass it, the rest is left alone
+[*]Heads-up: this is by far the largest patch the tool can build (~24,000 lines). If the game starts noticeably slower afterwards, put that slider back to 100 %
+[*]Also fixed: loading a preset now resets everything to vanilla first, so sliders that did not exist when the preset was saved can no longer sneak into your pak; a failed or incomplete game-data extraction is detected instead of leaving a broken cache behind; caches from older tool versions are deleted instead of piling up
+[*]The tool now extracts two more game files, so the first start after updating takes a few seconds longer than usual
+[/list]
+
 [b]v1.6.1 - Bug fix: "Oodle loader error ... InvalidCertificate(UnknownIssuer)"[/b]
 [list]
 [*]If loading the game data failed with that error, this version fixes it - thanks to foxce for the report. Reading the game's config files needs Oodle's oo2core_9_win64.dll; until now the bundled repak fetched it and validated the connection against its own certificate list instead of the Windows one, so antivirus/proxy HTTPS inspection broke it. It was also stored in a temp folder that Windows wipes, so it was re-downloaded on every cold start
@@ -157,6 +169,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.5.0 - Mutant overhaul, weapon extras & world package[/b] (~155 sliders total)
+[spoiler]
 [list]
 [*]Mutants: global mutant speed and mutant hearing sliders
 [*]Mutants: per-species overrides (dropdown) for health, speed and damage of every species - damage scales each attack individually (claw/jump/charge ...). Poltergeist & Rat deal damage indirectly, so damage overrides don't apply there
@@ -168,6 +181,7 @@ If the ~mods folder doesn't exist, create it.
 [*]World: consumable strength - medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
 [*]World: rain & storm frequency and emission frequency
 [/list]
+[/spoiler]
 
 [b]v1.4.0 - Armor protection & artifact rarity[/b] (~130 sliders)
 [spoiler]

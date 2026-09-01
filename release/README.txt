@@ -7,7 +7,7 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~155 tweaks in 8 tabs, plus per-weapon overrides for 79 weapons and
+~160 tweaks in 8 tabs, plus per-weapon overrides for 79 weapons and
 per-round overrides for 34 ammo types - including:
 - NEW in 1.6.0: ammo has its own tab now, with per-round overrides for all
   34 rounds in 14 calibers (a round's own factor replaces the global

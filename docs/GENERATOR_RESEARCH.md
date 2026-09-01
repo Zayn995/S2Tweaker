@@ -4,6 +4,18 @@ Recherche-Stand **2026-09-01**, erstellt mit der Skill `research-cfg-block`
 (6 parallele Agents auf den lokalen `vanilla/`-Dateien). **Kein Code** — dieses
 Dokument ist die Grundlage für eine spätere Umsetzung mit `add-tweak`.
 
+> **Nachtrag 01.09. (Stufe 1+2 sind gebaut).** Der gegnerische Review vor dem
+> Commit hat vier Lücken in diesem Dokument gefunden — Geld existiert auch als
+> *Item* (`MoneyCommon/Rare/Epic/Legendary`, Effekt `EEffectType::AddMoney`),
+> es gibt einen **zweiten** Quest-Marker `IsQuestItemPrototype` (291 Items
+> tragen nur ihn), die Händler-Hülle darf ihre Sperre nicht transitiv
+> weitergeben, und der Namensfilter gehört auch auf Item-SIDs. Details und die
+> daraus gebaute Filterlogik: `docs/ROADMAP.md`, Abschnitt „Was der Review an
+> der Recherche korrigiert hat", sowie `README.md`. Zwei Angaben unten sind
+> falsch: `LesserZone_Cabin` gibt es **nicht** 4× als gleichnamigen Schlüssel
+> (die Datei hat 0 doppelte Top-Level-Schlüssel), und `Electrocollar` ist
+> **kein** Quest-Item (`IsQuestItem = false`).
+
 Alle Zahlen sind gezählt, nicht geschätzt; die Zählmethode steht jeweils dabei.
 Werte gehören in dieses Dokument, **nicht in den Code** — dort immer live über
 `gd.resolve(...)` lesen (eiserne Regel, siehe CLAUDE.md).
