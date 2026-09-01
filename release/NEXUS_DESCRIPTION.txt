@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~160 tweaks in 9 tabs · pick your values · one click builds your .pak[/i]
+[i]~160 tweaks in 10 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,16 +16,23 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 9 tabs (Player, Weight & items, Combat, NPCs & AI, Weapons, Ammo, Armor, World, Economy):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 10 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Weapons, Ammo, Armor, World, Economy):
 
 [b]Player[/b]
 [list]
 [*]Health, stamina (incl. per-action costs), fall damage, jump height, breath hold
 [*]Walk/crouch and run/sprint speed as separate sliders
-[*]Vaulting: max vault height slider plus an 'Improved vaulting' preset that restores the tuned values of the broken pre-2.0 vault mod (player only)
 [*]Max carry weight, overweight penalty start, item weights per category
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
 [*]Hit camera shake / aim punch 0-300%
+[/list]
+
+[b]Vaulting - its own tab[/b]
+[list]
+[*]Seven sliders for how Skif climbs and vaults: max vault height, trigger distance, approach angle, min obstacle height, landing tolerance, vault-over thickness and vault-over landing distance
+[*]'Improved vaulting' preset restores the tuned set of the vault mod that broke with game patch 2.0 - the sliders stack on top of it
+[*]Experimental 'start vaulting while sprinting' toggle (effect not verified yet - feedback welcome)
+[*]Player only - NPCs keep vanilla vaulting. The game's internal trace values (search radii, detection iterations) stay in the preset on purpose: as sliders they would be unexplainable
 [/list]
 
 [b]Weapons - a three-level system[/b]
@@ -146,6 +153,14 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.11.0 - Vaulting gets its own tab[/b] (~160 sliders, 10 tabs)
+[list]
+[*][b]New Vaulting tab[/b] (second position): vaulting grew from a checkbox and one slider into seven sliders - max vault height, trigger distance (how far away vaulting triggers), approach angle (capped at 180°), min obstacle height (below 100 % even small crates trigger), landing tolerance (three landing values in one knob), vault-over thickness and vault-over landing distance (clean jumps over fences instead of stopping on them)
+[*]Plus an experimental 'start vaulting while sprinting' toggle - honestly labeled: its exact in-game effect is not verified yet
+[*]All sliders stack on top of the 'Improved vaulting' community preset (the preset value becomes the slider's base while it is on)
+[*]Every value from the original vault mod is now covered: 12 individually adjustable, the rest via the preset. The remaining engine-internal trace values (search radii, detection iterations, window detection) deliberately did NOT become sliders - their effect direction cannot be honestly labeled, and the tool does not ship sliders it cannot explain
+[/list]
+
 [b]v1.10.0 - Compatibility mode & quality of life[/b] (~160 sliders, 9 tabs)
 [list]
 [*][b]Avoid conflicts[/b]: after a mod scan, one checkbox resets and LOCKS every setting your other installed mods change - guaranteed hands-off compatibility. Unlock single settings on purpose with their unlock button (unlocks are remembered while the mode stays on; re-ticking the box locks everything again). So the answer to "compatible with X?" is now: scan your mods, then enable Avoid conflicts
@@ -157,6 +172,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.9.0 - Armor tab with per-armor overrides[/b] (~160 sliders, 9 tabs)
+[spoiler]
 [list]
 [*][b]New Armor tab[/b]: the global protection sliders, armor durability and the carry-weight bonuses moved there out of Combat (your saved settings and presets keep working), joined by the third override tree
 [*][b]Per-armor overrides[/b]: Body armor (42) and Helmets (10) - open a piece, set its protection factors (physical, burn, shock, chemical, radiation, PSY). A piece's own factor REPLACES the global slider for that type; protection types that are 0 in vanilla get no slider, and NPC-only armor is deliberately not listed
@@ -164,6 +180,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Durability and carry bonuses stay global on purpose - they work through different game systems than the per-piece protection values
 [*]New FAQ entry to match ("Can I tune ONE specific armor or helmet?")
 [/list]
+[/spoiler]
 
 [b]v1.8.0 - Mod scan, built-in FAQ & community requests[/b] (~160 sliders)
 [spoiler]
