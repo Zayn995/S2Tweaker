@@ -332,6 +332,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "vault_angle": "vault_angle_factor",
     "vault_min_height": "vault_min_height_factor",
     "vault_landing": "vault_landing_factor",
+    "vault_over_depth": "vault_over_depth_factor",
+    "vault_over_offset": "vault_over_offset_factor",
     "st_sprint": "stamina_sprint",
     "st_jump": "stamina_jump", "st_melee_l": "stamina_melee_light",
     "st_melee_s": "stamina_melee_strong", "st_butt": "stamina_buttstock",
@@ -2148,6 +2150,14 @@ class App(ctk.CTk):
                      "How forgiving the landing check is: farther, steeper "
                      "and lower landing spots count (three game values "
                      "scaled together).")
+        self._slider(f, "vault_over_depth", "Vault-over max thickness", 50, 300, 25, 100, fmt_pct,
+                     "How deep/thick an obstacle may be and still be cleared "
+                     "in one vault-over. The old vault mod HALVED this, "
+                     "preferring quick climbs onto thick objects.")
+        self._slider(f, "vault_over_offset", "Vault-over landing distance", 100, 500, 25, 100, fmt_pct,
+                     "How far beyond the obstacle you land when vaulting "
+                     "over it (the old mod used 500 % - clean jumps over "
+                     "fences instead of stopping on them).")
         self._check(f, "improved_vaulting", "Improved vaulting (community preset)",
                     "Restores the tuned vaulting of the pre-2.0 vault mod "
                     "(broken since the game's 2.0 update): steeper approach "
@@ -2846,6 +2856,8 @@ class App(ctk.CTk):
             vault_angle_factor=s["vault_angle"].get() / 100.0,
             vault_min_height_factor=s["vault_min_height"].get() / 100.0,
             vault_landing_factor=s["vault_landing"].get() / 100.0,
+            vault_over_depth_factor=s["vault_over_depth"].get() / 100.0,
+            vault_over_offset_factor=s["vault_over_offset"].get() / 100.0,
             vault_sprint=bool(self.checks["vault_sprint"].get()),
             improved_vaulting=bool(self.checks["improved_vaulting"].get()),
             stamina_sprint=s["st_sprint"].get() / 100.0,

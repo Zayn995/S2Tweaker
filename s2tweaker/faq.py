@@ -174,9 +174,10 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
-        "a": "Yes - Player tab: five vault sliders (max height, trigger "
+        "a": "Yes - Player tab: seven vault sliders (max height, trigger "
              "distance, approach angle, min obstacle height, landing "
-             "tolerance), an experimental 'vault while sprinting' toggle, "
+             "tolerance, vault-over thickness and landing distance), "
+             "an experimental 'vault while sprinting' toggle, "
              "and the 'Improved vaulting (community preset)' checkbox that "
              "restores the tuned set of the pre-2.0 vault mod. The sliders "
              "stack on top of the preset. Player only - NPCs keep vanilla "

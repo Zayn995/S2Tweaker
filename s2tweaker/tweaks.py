@@ -266,6 +266,8 @@ class Settings:
     vault_angle_factor: float = 1.0          # MaxAngle (Deckel 180 Grad)
     vault_min_height_factor: float = 1.0     # MinObstacleHeight
     vault_landing_factor: float = 1.0        # Lande-Toleranz (3 Schluessel)
+    vault_over_depth_factor: float = 1.0     # VaultOverMaxDepth
+    vault_over_offset_factor: float = 1.0    # VaultOverLandOffset
     vault_sprint: bool = False               # StartWithSprintPressed
     improved_vaulting: bool = False          # Preset der alten Vault-Mod          # JumpSpeedCoef
 
@@ -560,6 +562,13 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             90.0, vault_base("LandingMaxSlope", 45.0) * s.vault_landing_factor))
         vault["LandingMinHeight"] = _num(max(
             5.0, vault_base("LandingMinHeight", 30.0) / s.vault_landing_factor))
+    if _neq(s.vault_over_depth_factor, 1.0) and s.vault_over_depth_factor > 0:
+        vault["VaultOverMaxDepth"] = _num(
+            vault_base("VaultOverMaxDepth", 50.0) * s.vault_over_depth_factor)
+    if _neq(s.vault_over_offset_factor, 1.0) and s.vault_over_offset_factor > 0:
+        vault["VaultOverLandOffset"] = _num(
+            vault_base("VaultOverLandOffset", 20.0)
+            * s.vault_over_offset_factor)
     if s.vault_sprint:
         current = (gd.resolve(gd.obj, "Player",
                               "VaultingParams.StartWithSprintPressed") or "")
@@ -1667,6 +1676,8 @@ def summarize(s: Settings) -> list[str]:
     f("Vault approach angle", s.vault_angle_factor)
     f("Vault min obstacle height", s.vault_min_height_factor)
     f("Vault landing tolerance", s.vault_landing_factor)
+    f("Vault-over max thickness", s.vault_over_depth_factor)
+    f("Vault-over landing distance", s.vault_over_offset_factor)
     if s.vault_sprint:
         lines.append("Vault while sprinting (experimental)")
     if _neq(s.max_stamina, 100):

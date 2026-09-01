@@ -99,6 +99,7 @@ s = Settings(
     loot_amount_factor=2.0, healing_factor=1.5,
     vault_height_factor=1.5, improved_vaulting=True,
     vault_distance_factor=2.0, vault_landing_factor=6.0, vault_sprint=True,
+    vault_over_offset_factor=5.0,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")
