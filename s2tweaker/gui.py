@@ -129,6 +129,27 @@ def fmt_relation(value: float) -> str:
     return f"{int(round(value))} · {relation_level(value)}"
 
 
+# Editions-Waffen, deren ANZEIGENAME nicht in der SID steckt (Mapping vom
+# Besitzer bestaetigt, 02.09.): "Riemann" ist der Integral-Umbau der
+# Deluxe-Edition, "Lullaby" der Fora-221-Umbau der Ultimate-Edition.
+# Reine UI-/Suchhilfe — Spielwerte kommen weiterhin live aus den Daten.
+EDITION_GUN_ALIASES = {
+    "Gun_Logarithm_SMG_GS": "Riemann",
+    "Gun_Novator_AR_GS": "Lullaby",
+}
+
+
+def weapon_display(sid: str) -> str:
+    alias = EDITION_GUN_ALIASES.get(sid)
+    return f"{sid}  ·  „{alias}“" if alias else sid
+
+
+def weapon_sid_hit(sid: str, query: str) -> bool:
+    """Suchtreffer auf SID ODER Anzeigenamen (Riemann/Lullaby & Co.)."""
+    return (query in sid.lower()
+            or query in EDITION_GUN_ALIASES.get(sid, "").lower())
+
+
 def fmt_trade_level(value: float) -> str:
     """Handels-Schwelle als Levelname (0..3; Vanilla = Disaffected)."""
     level = max(0, min(3, int(round(value))))
@@ -708,7 +729,7 @@ class IwWeaponRow:
         # "N of 8 factors" statt "N overrides": die Kategorie-Kopfzeile zaehlt
         # WAFFEN, diese Zeile zaehlt PARAMETER — gleiche Zahl, andere Einheit.
         mark = f"     ●  {n} of {len(WEAPON_PARAMS)} factors changed" if n else ""
-        self.btn.configure(text=f"{arrow}  {self.sid}{mark}")
+        self.btn.configure(text=f"{arrow}  {weapon_display(self.sid)}{mark}")
         self._apply_color(n)
 
     def _apply_color(self, n: int):
@@ -2192,7 +2213,8 @@ class App(ctk.CTk):
         hits_total = 0
         for cat, block in self._iw_blocks.items():
             cat_hit = query in block.label.lower() or query in cat.lower()
-            sid_hits = [sid for sid in block.sids if query in sid.lower()]
+            sid_hits = [sid for sid in block.sids
+                        if weapon_sid_hit(sid, query)]
             # Hervorgehoben wird bei einem Kategorie-Treffer die ganze
             # Kategorie, gezaehlt werden aber nur echte Waffentreffer bzw.
             # EIN Treffer fuer die Kategorie -- Kopfzeile und Statuszeile
@@ -2226,7 +2248,8 @@ class App(ctk.CTk):
         built = 0            # in DIESEM Durchgang neu erzeugte Waffenzeilen
         for cat, block in self._iw_blocks.items():
             cat_hit = query in block.label.lower() or query in cat.lower()
-            sid_hits = [sid for sid in block.sids if query in sid.lower()]
+            sid_hits = [sid for sid in block.sids
+                        if weapon_sid_hit(sid, query)]
             hits = block.sids if cat_hit else sid_hits
             # Auto-Aufklappen nur bei einer GEZIELTEN Suche und nur, solange
             # das Budget an neu zu bauenden Zeilen reicht. Entscheidend ist,

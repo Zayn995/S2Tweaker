@@ -76,7 +76,8 @@ FAQ_ENTRIES = [
              "works per ammo round in the Ammo tab and per armor piece "
              "in the Armor tab.",
         "k": "single weapon override individual gun buff nerf specific "
-             "ak74 cascade category tree per weapon",
+             "ak74 cascade category tree per weapon riemann lullaby "
+             "gabion veteran monolith edition deluxe ultimate preorder",
     },
     {
         "q": "Can I tune ONE specific armor or helmet?",
