@@ -23,7 +23,8 @@ Everyone is free to use it. This README tells you everything you need.
 
 ~180 tweaks in 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders), plus per-weapon overrides
-for 80 weapons (unique named guns included), per-round overrides for 34
+for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
+edition guns included), per-round overrides for 34
 ammo types and per-piece
 overrides for 52 armors/helmets: health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +

@@ -1301,17 +1301,25 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
-def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
+def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     """WeaponGeneralSetup: Streuung, Rueckstoss, Feuerrate (Kaskade).
 
     Gepatcht werden Structs, die den Wert SELBST definieren — Erben
     skalieren ueber den Eltern-Patch automatisch mit. Einzelwaffen-
     Overrides werden zusaetzlich am eigenen Struct emittiert (Wert via
-    gd.resolve aufgeloest), falls die Waffe den Wert nur erbt."""
-    patches: dict = {}
+    gd.resolve aufgeloest), falls die Waffe den Wert nur erbt.
 
-    def emit(sid: str, path: str, value: float):
-        node = patches.setdefault(sid, {})
+    Liefert (Basis-Patches, {Edition: Patches}): die Editions-Waffen
+    (Gabion & Co.) haben ihre Setup-Structs in EIGENEN DLC-Dateien —
+    was sie von der Basis erben, deckt der Basis-Patch ab; was sie
+    selbst definieren (und ihre Einzel-Overrides), landet im Patch des
+    jeweiligen DLCGameData-Zweigs."""
+    patches: dict = {}
+    dlc_patches: dict[str, dict] = {}
+    dlc_eds = gd.dlc_weapon_editions()
+
+    def emit(bucket: dict, sid: str, path: str, value: float):
+        node = bucket.setdefault(sid, {})
         parts = path.split(".")
         for part in parts[:-1]:
             node = node.setdefault(part, {})
@@ -1325,14 +1333,31 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
                                global_factor)
             if not _neq(f, 1.0) or f <= 0:
                 continue
-            emit(sid, path, value / f if invert else value * f)
+            emit(patches, sid, path, value / f if invert else value * f)
+        dlc_values = gd.dlc_weapon_general_values(path)
+        for (ed, sid), value in sorted(dlc_values.items()):
+            f = _weapon_factor(s, gd.dlc_weapon_category(ed, sid), sid,
+                               param, global_factor)
+            if not _neq(f, 1.0) or f <= 0:
+                continue
+            emit(dlc_patches.setdefault(ed, {}), sid, path,
+                 value / f if invert else value * f)
+        dlc_defined = {sid for _ed, sid in dlc_values}
         for sid, params in sorted(s.weapon_overrides.items()):
             f = params.get(param)
-            if f is None or sid in values or not _neq(f, 1.0) or f <= 0:
+            if (f is None or sid in values or sid in dlc_defined
+                    or not _neq(f, 1.0) or f <= 0):
+                continue
+            ed = dlc_eds.get(sid)
+            if ed is not None:
+                value = parse_number(gd.dlc_resolve_weapon(ed, sid, path))
+                if value > 0:
+                    emit(dlc_patches.setdefault(ed, {}), sid, path,
+                         value / f if invert else value * f)
                 continue
             value = parse_number(gd.resolve(gd.weapongeneral, sid, path))
             if value > 0:
-                emit(sid, path, value / f if invert else value * f)
+                emit(patches, sid, path, value / f if invert else value * f)
 
     scale("DispersionParams.FirstShotDispersionRadius", "spread",
           s.spread_factor)
@@ -1354,7 +1379,13 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
             scaled_int = max(1, int(round(value * s.magazine_factor)))
             if scaled_int != int(value):
                 patches.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
-    return patches
+        for (ed, sid), value in sorted(
+                gd.dlc_weapon_general_values("MaxAmmo").items()):
+            scaled_int = max(1, int(round(value * s.magazine_factor)))
+            if scaled_int != int(value):
+                dlc_patches.setdefault(ed, {}).setdefault(sid, {})[
+                    "MaxAmmo"] = str(scaled_int)
+    return patches, dlc_patches
 
 
 def _weight_params_patch(gd: GameData, s: Settings) -> dict:
@@ -1957,11 +1988,21 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         f"CharacterWeaponSettingsPrototypes_patch_{n}.cfg",
         cws_patches,
     )
+    wgs_patches, wgs_dlc = _weapon_general_patch(gd, s)
     add(
         "WeaponData/WeaponGeneralSetupPrototypes/"
         f"WeaponGeneralSetupPrototypes_patch_{n}.cfg",
-        _weapon_general_patch(gd, s),
+        wgs_patches,
     )
+    # Editions-Waffen: eigene Patch-Dateien im DLCGameData-Zweig
+    # ("//" = relativ zu Stalker2/Content/, siehe pakio.pack_mod)
+    for edition, ed_patches in sorted(wgs_dlc.items()):
+        add(
+            f"//GameLite/DLCGameData/{edition}/WeaponData/"
+            "WeaponGeneralSetupPrototypes/"
+            f"WeaponGeneralSetupPrototypes_patch_{n}.cfg",
+            ed_patches,
+        )
     add(f"ObjWeightParamsPrototypes/ObjWeightParamsPrototypes_patch_{n}.cfg",
         _weight_params_patch(gd, s))
     add(f"ObjEffectMaxParamsPrototypes/ObjEffectMaxParamsPrototypes_patch_{n}.cfg",

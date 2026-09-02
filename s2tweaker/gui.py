@@ -603,6 +603,17 @@ class IwWeaponRow:
                 anchor="w", justify="left", wraplength=700,
                 font=self.app._iw_font_hint, text_color="gray60",
             ).pack(fill="x", padx=12, pady=(2, 0))
+        edition = self.app._iw_dlc.get(self.sid)
+        if edition:
+            name = {"PreOrder": "Pre-order"}.get(edition, edition)
+            ctk.CTkLabel(
+                self.body,
+                text=f"   {name}-edition weapon – overrides on it patch "
+                     "the DLC config branch (untested in-game; harmless "
+                     "if you don't own that edition).",
+                anchor="w", justify="left", wraplength=700,
+                font=self.app._iw_font_hint, text_color="gray60",
+            ).pack(fill="x", padx=12, pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed auf — ohne Sperre wuerde der halb gefuellte
         # Regler-Satz den gespeicherten Override der Waffe ueberschreiben.
@@ -1843,6 +1854,7 @@ class App(ctk.CTk):
         self._iw_loading = False
         self._iw_categories: dict[str, str] = {}
         self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
+        self._iw_dlc: dict[str, str] = {}          # WGS-SID -> DLC-Edition
         self._iw_blocks: dict[str, IwCategoryBlock] = {}
         self._iw_auto_opened: set[str] = set()     # von der Suche aufgeklappt
         # Kategorie-Knoepfe im Abschnitt "Weapon categories": {cat: (btn, label, farbe)}
@@ -2040,6 +2052,7 @@ class App(ctk.CTk):
         self._iw_categories = {
             sid: cat for sid, (cat, _cws) in weapons.items() if cat
         }
+        self._iw_dlc = self.gd.dlc_weapon_editions()
         # Waffen, die sich ein CharacterWeaponSettings-Struct teilen
         # (damage/spread/durability wirken dann auf die ganze Gruppe)
         by_cws: dict[str, list[str]] = {}

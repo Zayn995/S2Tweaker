@@ -55,7 +55,12 @@ assert "aimtime" in WEAPON_PARAMS and len(WEAPON_PARAMS) == 9
 p = build_patches(gd, Settings(aim_time_factor=2.0))
 wgs_key = ("WeaponData/WeaponGeneralSetupPrototypes/"
            "WeaponGeneralSetupPrototypes_patch_S2Tweaker.cfg")
-assert list(p) == [wgs_key], list(p)
+# Seit den Editions-Waffen (02.09.) duerfen zusaetzlich DLC-Patchdateien
+# derselben WGS-Familie entstehen (deren Structs definieren Zeiten selbst)
+assert wgs_key in p, list(p)
+assert all(k == wgs_key
+           or ("DLCGameData" in k and "WeaponGeneralSetup" in k)
+           for k in p), list(p)
 text = p[wgs_key]
 # TemplateWeapon definiert alle vier Zeiten (0.5/0.6/0.3/0.6) selbst
 vanilla = {k: gd.weapon_general_values(k)["TemplateWeapon"]

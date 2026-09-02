@@ -81,6 +81,19 @@ SPECIES_ABILITY_PREFIXES = {
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
+# --- DLC-Editionen (Nexus-Wunsch zDusty 02.09.): die Editions-Waffen
+# (Gabion, Veteran, Monolith-Set ...) liegen in EIGENEN Paks und einem
+# eigenen DLCGameData-Zweig. Fehlende Paks sind KEIN Fehler — das Tool
+# laeuft dann einfach ohne DLC-Waffen weiter.
+DLCGAMEDATA_REL = "Stalker2/Content/GameLite/DLCGameData"
+DLC_SOURCES = {
+    "PreOrder": "pakchunk101-Windows.pak",
+    "Deluxe": "pakchunk102-Windows.pak",
+    "Ultimate": "pakchunk104-Windows.pak",
+}
+DLC_FILES = ("ItemPrototypes.cfg.bin",
+             "WeaponData/WeaponGeneralSetupPrototypes.cfg.bin")
+
 
 def _cfg_name(needed: str) -> str:
     """NEEDED_FILES-Eintrag -> Name der lesbaren cfg nach der Konvertierung."""
@@ -181,9 +194,25 @@ class GameData:
             for name in NEEDED_FILES:
                 pakio.unpack(pak, cache, include=f"{GAMEDATA_REL}/{name}",
                              progress=progress)
+            # DLC-Editionen (optional): eigene Paks, eigener cfg-Zweig.
+            # Bewusst fehlertolerant — ohne Editions-Pak gibt es einfach
+            # keine DLC-Waffen im Baum, alles andere laeuft normal.
+            for edition, pakname in DLC_SOURCES.items():
+                dlc_pak = Path(game_dir) / "Stalker2/Content/Paks" / pakname
+                if not dlc_pak.is_file():
+                    continue
+                for name in DLC_FILES:
+                    try:
+                        pakio.unpack(
+                            dlc_pak, cache,
+                            include=f"{DLCGAMEDATA_REL}/{edition}/{name}",
+                            progress=progress)
+                    except Exception:
+                        break
             if progress:
                 progress("Converting cfg.bin to readable cfg ...")
-            for bin_path in sorted(gd.rglob("*.cfg.bin")):
+            for bin_path in sorted((cache / "Stalker2/Content/GameLite")
+                                   .rglob("*.cfg.bin")):
                 out = bin_path.with_name(bin_path.name[: -len(".bin")])
                 if not out.exists():
                     roots = vendor_bin2cfg.read_binary_cfg(bin_path.read_bytes())
@@ -1108,6 +1137,122 @@ class GameData:
                 cws = self.resolve(self.weaponattributes, attrs,
                                    "DefaultWeaponSettingsSID") or attrs
             result[wgs] = (self.weapon_category(wgs), cws)
+        # Editions-Waffen ergaenzen (Gabion & Co.); Skins wie
+        # Deluxe_GunAK74_ST zeigen auf ein BASIS-Setup und werden nicht
+        # doppelt gelistet.
+        for wgs, (cat, cws, _ed) in self.dlc_player_weapons().items():
+            if wgs not in result:
+                result[wgs] = (cat, cws)
+        return result
+
+    # ------------------------------------------------------- DLC-Editionen
+    @cached_property
+    def dlc_editions(self) -> dict[str, dict[str, CfgStruct]]:
+        """{Edition: {"items"/"weapongeneral": Baum}} der vorhandenen
+        DLCGameData-Zweige. Ohne Editions-Paks / mit aelterem Cache leer —
+        dann gibt es schlicht keine DLC-Waffen, sonst aendert sich nichts."""
+        result: dict[str, dict[str, CfgStruct]] = {}
+        base = self.dir.parent / "DLCGameData"
+        if not base.is_dir():
+            return result
+        for ed_dir in sorted(base.iterdir()):
+            if not ed_dir.is_dir():
+                continue
+            entry: dict[str, CfgStruct] = {}
+            items = ed_dir / "ItemPrototypes.cfg"
+            wgs = ed_dir / "WeaponData" / "WeaponGeneralSetupPrototypes.cfg"
+            if items.is_file():
+                entry["items"] = cfgparse.parse_file(items)
+            if wgs.is_file():
+                entry["weapongeneral"] = cfgparse.parse_file(wgs)
+            if entry:
+                result[ed_dir.name] = entry
+        return result
+
+    def dlc_weapon_chain(self, edition: str, sid: str) -> list[CfgStruct]:
+        """Vererbungskette eines DLC-WGS-Structs: beginnt im Editions-Baum
+        und springt beim refurl auf ../GameData/WeaponData/... in die
+        Basis-Datei (dort geht es per normalem refkey weiter)."""
+        tree = self.dlc_editions.get(edition, {}).get("weapongeneral")
+        if tree is None:
+            return self._resolve_chain(self.weapongeneral, sid)
+        chain: list[CfgStruct] = []
+        seen: set[str] = set()
+        current: str | None = sid
+        while current and current not in seen:
+            seen.add(current)
+            node = tree.children.get(current)
+            if node is None:
+                # Kein Struct im Editions-Baum -> in der Basis weiter
+                return chain + self._resolve_chain(self.weapongeneral, current)
+            chain.append(node)
+            attrs = node.attr_dict()
+            nxt = attrs.get("refkey")
+            if nxt and "WeaponGeneralSetupPrototypes" in (
+                    attrs.get("refurl") or ""):
+                return chain + self._resolve_chain(self.weapongeneral, nxt)
+            current = nxt
+        return chain
+
+    def dlc_weapon_category(self, edition: str, sid: str) -> str | None:
+        for node in self.dlc_weapon_chain(edition, sid):
+            if node.name in WEAPON_CATEGORY_OVERRIDES:
+                return WEAPON_CATEGORY_OVERRIDES[node.name]
+            if node.name in WEAPON_CATEGORY_TEMPLATES:
+                return WEAPON_CATEGORY_TEMPLATES[node.name]
+        return None
+
+    def dlc_resolve_weapon(self, edition: str, sid: str,
+                           path: str) -> str | None:
+        return self._chain_get(self.dlc_weapon_chain(edition, sid), path)
+
+    def dlc_player_weapons(self) -> dict[str, tuple[str | None, str | None, str]]:
+        """{WGS-SID: (Kategorie, CWS-SID, Edition)} aller Editions-Waffen,
+        deren Setup-Struct WIRKLICH im Editions-Baum liegt (Skins mit
+        Basis-Setup wie Deluxe_GunAK74_ST fallen heraus — sie sind
+        identisch mit der Basis-Waffe)."""
+        result: dict[str, tuple[str | None, str | None, str]] = {}
+        for edition, trees in self.dlc_editions.items():
+            items = trees.get("items")
+            wgs_tree = trees.get("weapongeneral")
+            for sid, node in (items.children.items() if items else ()):
+                wgs = (node.values.get("GeneralWeaponSetup") or "").strip()
+                if not wgs or wgs in result:
+                    continue
+                if wgs_tree is None or wgs not in wgs_tree.children:
+                    continue
+                attrs = (node.values.get("PlayerWeaponAttributes")
+                         or "").strip()
+                cws = None
+                if attrs:
+                    cws = self.resolve(self.weaponattributes, attrs,
+                                       "DefaultWeaponSettingsSID") or attrs
+                result[wgs] = (self.dlc_weapon_category(edition, wgs),
+                               cws, edition)
+        return result
+
+    def dlc_weapon_editions(self) -> dict[str, str]:
+        """{WGS-SID: Edition} der echten Editions-Setups (fuer Patch-
+        Zuordnung und GUI-Hinweis)."""
+        return {wgs: ed
+                for wgs, (_c, _w, ed) in self.dlc_player_weapons().items()}
+
+    def dlc_weapon_general_values(self, path: str) -> dict[tuple[str, str], float]:
+        """{(Edition, SID): Wert} aller DLC-WGS-Structs, die den Pfad
+        SELBST definieren (Wert > 0) — Pendant zu weapon_general_values;
+        geerbte Werte skalieren ueber den Basis-Patch automatisch mit."""
+        result: dict[tuple[str, str], float] = {}
+        for edition, trees in self.dlc_editions.items():
+            tree = trees.get("weapongeneral")
+            for sid, node in (tree.children.items() if tree else ()):
+                if "#" in sid:
+                    continue
+                raw = node.get(path)
+                if raw is None:
+                    continue
+                value = parse_number(raw)
+                if value > 0:
+                    result[(edition, sid)] = value
         return result
 
     def weapon_general_values(self, path: str) -> dict[str, float]:
