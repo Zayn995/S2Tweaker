@@ -10,6 +10,8 @@ import subprocess
 import sys
 import threading
 import traceback
+import urllib.request
+import webbrowser
 from pathlib import Path
 
 import tkinter as tk
@@ -40,6 +42,29 @@ from .tweaks import (
 )
 
 APP_TITLE = f"S2Tweaker {__version__} – S.T.A.L.K.E.R. 2 Mod Generator"
+
+# Update-Check (GitHub Issue #3): EIN GET auf Wunsch des Nutzers, nie im
+# Hintergrund — die Support-Mail an Nexus verspricht "keine Telemetrie".
+UPDATE_API_URL = "https://api.github.com/repos/Zayn995/S2Tweaker/releases/latest"
+RELEASES_PAGE = "https://github.com/Zayn995/S2Tweaker/releases"
+
+
+def _version_tuple(text: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for chunk in str(text).strip().lstrip("vV").split("."):
+        digits = "".join(ch for ch in chunk if ch.isdigit())
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts)
+
+
+def update_verdict(tag: str | None, current: str) -> str:
+    """'newer' | 'current' | 'error' — pur, damit Tests es ohne Netz pruefen."""
+    latest = _version_tuple(tag) if tag else ()
+    if not latest:
+        return "error"
+    return "newer" if latest > _version_tuple(current) else "current"
 
 
 def app_dir() -> Path:
@@ -1954,6 +1979,7 @@ class App(ctk.CTk):
         # "Changed only": dimmt alles, was auf Vanilla steht
         self.changed_only = False
         self._oc_job: str | None = None
+        self._update_running = False        # Update-Check laeuft gerade
 
         self._build_header()
         self._build_body()
@@ -1982,6 +2008,8 @@ class App(ctk.CTk):
 
     # ------------------------------------------------------------ layout
     def _build_header(self):
+        # Zeile 1: NUR der Spielordner (Wunsch des Besitzers: erst Ordner
+        # bestaetigen, dann kommen die Werkzeuge — nichts vermischen)
         head = ctk.CTkFrame(self)
         head.pack(fill="x", padx=10, pady=(10, 4))
         self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w")
@@ -1992,22 +2020,30 @@ class App(ctk.CTk):
         self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
                                         command=self._pick_game_dir)
         self.btn_browse.pack(side="right", padx=4, pady=8)
-        # Breit genug, damit der Platzhaltertext ganz hineinpasst
-        self.search_entry = ctk.CTkEntry(head, width=230,
+        # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
+        # sonst draengt ein langer Spielpfad die Knoepfe zusammen.
+        self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
+
+        # Zeile 2: Werkzeuge — Suche (waechst mit), Changed only, FAQ,
+        # Update-Check (GitHub Issue #3)
+        tools = ctk.CTkFrame(self)
+        tools.pack(fill="x", padx=10, pady=(0, 4))
+        self.search_entry = ctk.CTkEntry(tools, width=230,
                                          placeholder_text="🔍 Find a slider, weapon or ammo …")
-        self.search_entry.pack(side="right", padx=4, pady=8)
-        self.btn_faq = ctk.CTkButton(head, text="? FAQ", width=70,
+        self.search_entry.pack(side="left", padx=(10, 4), pady=8,
+                               fill="x", expand=True)
+        self.btn_update = ctk.CTkButton(
+            tools, text="⟳ Check for updates", width=150, fg_color="gray30",
+            hover_color="gray25", command=self._check_updates)
+        self.btn_update.pack(side="right", padx=(4, 10), pady=8)
+        self.btn_faq = ctk.CTkButton(tools, text="? FAQ", width=70,
                                      fg_color="gray30", hover_color="gray25",
                                      command=self._show_faq)
         self.btn_faq.pack(side="right", padx=4, pady=8)
         self.btn_changed = ctk.CTkButton(
-            head, text="Changed only", width=105, fg_color="gray30",
+            tools, text="Changed only", width=105, fg_color="gray30",
             hover_color="gray25", command=self._toggle_changed_only)
         self.btn_changed.pack(side="right", padx=4, pady=8)
-        # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
-        # sonst draengt ein langer Spielpfad die Knoepfe und das Suchfeld
-        # zusammen und schneidet den Platzhaltertext ab.
-        self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
@@ -3795,11 +3831,59 @@ class App(ctk.CTk):
                     self.btn_browse.configure(state="normal")
                     if self.gd is not None:      # alte Daten weiter nutzbar
                         self.btn_scan.configure(state="normal")
+                elif kind == "update_result":
+                    self._update_running = False
+                    self.btn_update.configure(state="normal",
+                                              text="⟳ Check for updates")
+                    self._show_update_result(payload)
                 elif kind == "error":
                     messagebox.showerror(APP_TITLE, payload)
         except queue.Empty:
             pass
         self.after(100, self._poll_msgs)
+
+    # ------------------------------------------------- update check (#3)
+    def _check_updates(self):
+        """EIN GET auf Knopfdruck — nie automatisch (keine Telemetrie)."""
+        if self._update_running:
+            return
+        self._update_running = True
+        self.btn_update.configure(state="disabled", text="⟳ Checking …")
+        threading.Thread(target=self._fetch_latest_release,
+                         daemon=True).start()
+
+    def _fetch_latest_release(self):
+        try:
+            request = urllib.request.Request(
+                UPDATE_API_URL, headers={"User-Agent": "S2Tweaker"})
+            with urllib.request.urlopen(request, timeout=10) as resp:
+                data = json.load(resp)
+            self._msgs.put(("update_result", str(data.get("tag_name") or "")))
+        except Exception:
+            self._msgs.put(("update_result", None))
+
+    def _show_update_result(self, tag: str | None):
+        verdict = update_verdict(tag, __version__)
+        if verdict == "error":
+            messagebox.showwarning(
+                APP_TITLE,
+                "Could not reach github.com to check for updates.\n"
+                "Are you offline, or is GitHub blocked by a firewall?\n\n"
+                f"You can always check manually:\n{RELEASES_PAGE}")
+        elif verdict == "newer":
+            latest = str(tag).lstrip("vV")
+            if messagebox.askyesno(
+                    APP_TITLE,
+                    f"A newer version is available: {latest} "
+                    f"(you have {__version__}).\n\n"
+                    "Open the download page in your browser?\n\n"
+                    "Updating is easy: download the new ZIP and replace "
+                    "S2Tweaker.exe - your settings, presets and cache "
+                    "stay where they are."):
+                webbrowser.open(RELEASES_PAGE + "/latest")
+        else:
+            messagebox.showinfo(
+                APP_TITLE, f"You are up to date ({__version__}).")
 
     def _prefill_game(self):
         """Beim Start: Spielordner nur VORSCHLAGEN, nichts laden."""

@@ -570,6 +570,18 @@ FAQ_ENTRIES = [
              "bisect culprit",
     },
     {
+        "q": "How do I update the tool? Is there an auto-update?",
+        "a": "Click '⟳ Check for updates' (top right): the tool asks "
+             "github.com once whether a newer release exists and offers "
+             "to open the download page. Nothing is downloaded or "
+             "installed silently, and the tool never checks in the "
+             "background. Updating is easy: replace S2Tweaker.exe with "
+             "the new one - settings, presets, output and cache all "
+             "stay where they are.",
+        "k": "update autoupdate upgrade new version release download "
+             "github check latest newer patch tool",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "
