@@ -126,10 +126,10 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Tool features[/b]
 [list]
-[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
+[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 50 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 51 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
@@ -181,6 +181,14 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.16.0 - The mod scan now covers Steam Workshop mods[/b] (~195 tweaks, 13 tabs)
+[list]
+[*][b]Steam Workshop in the mod scan[/b]: Steam stores subscribed mods in its own workshop folder, NOT in ~mods - so far they went right past the scan. Now the scan lists them too, under their real mod names, and marks every slider they also change
+[*][b]Honest limits, spelled out in-app[/b]: whether a subscribed mod is actually ACTIVE is decided in the game's own mods menu (the tool cannot know), and its load order versus this tool's pak is managed by the game - so for Workshop overlaps the tooltip honestly says "its value may win" instead of guessing a winner. Workshop mods in the packed IoStore format are listed but marked as "data I can't read", as always
+[*]The compatibility report and the Avoid-conflicts mode cover the Workshop mods as well
+[*]FAQ grew to 51 searchable entries, 20 automated test suites
+[/list]
+
 [b]v1.15.0 - Update button, auto-updater & a cleaner header[/b] (~195 tweaks, 13 tabs)
 [list]
 [*][b]Check for updates[/b] (GitHub request - thank you!): a new header button asks github.com once, on click, whether a newer release exists - the tool still never talks to the internet in the background
@@ -191,6 +199,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.14.0 - Edition weapons & armor, real item names, emission duration, NPC gear quality[/b] (~195 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Edition content in the trees[/b] (Nexus request - thank you!): the 11 Deluxe/Ultimate/Pre-order weapons (Gabion, Veteran, the Monolith set ...) and the 5 edition armor pieces are now in the weapon and armor trees - [b]91 weapons / 57 armors and helmets[/b]. Their patches go into the game's own DLC data branch; honestly labeled in-app: untested in-game, and harmless if you don't own that edition. A new [b]DLC checker[/b] in the status line tells you which edition content the tool actually found in your install
 [*][b]Real item names[/b]: weapons now show their in-game name next to the internal ID ("GunAK74_ST · AKM-74S"), armor pieces are listed under their official names ("Cuirass Exoskeleton", "SEVA Suit" ...), and the search finds both spellings - 82 weapon and 54 armor names, every single one verified against the game data
@@ -200,6 +209,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The tool now also reads the edition paks, so the first start after updating re-extracts the game data once (10-20 seconds)
 [*]FAQ grew to 49 searchable entries, 18 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.13.0 - Mutants tab, Traders tab, dropped weapon condition[/b] (~180 tweaks, 13 tabs)
 [spoiler]
