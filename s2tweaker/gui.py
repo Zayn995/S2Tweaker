@@ -398,7 +398,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "breath_drain": "breath_drain_factor", "breath_regen": "breath_regen_factor",
     "spread": "spread_factor", "recoil": "recoil_factor",
     "wrange": "weapon_range_factor", "wbleed": "weapon_bleeding_factor",
-    "adsmove": "ads_speed_factor", "magazine": "magazine_factor",
+    "adsmove": "ads_speed_factor", "aimspeed": "aim_time_factor",
+    "magazine": "magazine_factor",
     "melee": "melee_damage_factor", "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -417,6 +418,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "trader_dur": "trader_min_durability_pct", "buyprice": "trader_buy_price_factor",
     "sellprice": "trader_sell_price_factor", "repair": "repair_cost_factor",
     "upgrade": "upgrade_cost_factor", "questreward": "quest_reward_factor",
+    "rq_cooldown": "repeatable_quest_factor",
     "price_weapon": "weapon_price_factor", "price_armor": "armor_price_factor",
     "price_ammo": "ammo_price_factor", "price_artifact": "artifact_price_factor",
     "price_consumable": "consumable_price_factor",
@@ -446,6 +448,8 @@ FOOTPRINT_PROBES: dict[str, float] = {
 # {bpatch}-Dateien duerfen naemlich unter voellig freiem Namen irgendwo
 # unter GameData liegen, der Dateiname allein reicht nachweislich nicht.
 EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
+    "rq_cooldown": ("QuestNodePrototypes",
+                    frozenset({"InGameHours"})),
     "loot_amount": ("ItemGeneratorPrototypes",
                     frozenset({"MinCount", "MaxCount"})),
     "stash_loot": ("StashPrototypes",
@@ -2770,6 +2774,11 @@ class App(ctk.CTk):
         self._slider(f, "adsmove", "ADS movement speed", 50, 200, 10, 100, fmt_pct,
                      "How fast you move while aiming down sights "
                      "(vanilla varies 58–150 % of run speed per weapon).")
+        self._slider(f, "aimspeed", "ADS aim-in speed", 25, 400, 25, 100, fmt_pct,
+                     "How fast the weapon comes up into the sights, incl. "
+                     "offset and lean aiming (vanilla ~0.5 s). 200 % = "
+                     "twice as snappy. Not play-tested yet – watch for "
+                     "aim animation glitches and report back.")
         self._slider(f, "magazine", "Magazine size", 50, 300, 25, 100, fmt_pct,
                      "Scales weapon base capacity AND all magazine "
                      "attachments (launchers never drop below 1 round).")
@@ -3038,6 +3047,11 @@ class App(ctk.CTk):
                      "0 % = free repairs.")
         self._slider(f, "upgrade", "Upgrade cost", 0, 200, 5, 100, fmt_pct)
         self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.25, 1, fmt_factor)
+        self._slider(f, "rq_cooldown", "Repeatable quest cooldown", 0, 400, 25, 100, fmt_pct,
+                     "Wait time until task givers offer new repeatable "
+                     "jobs (vanilla 24 in-game hours). 0 % = new jobs "
+                     "right away. A cooldown already ticking in your "
+                     "save finishes at its old pace first.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 25, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "restock", "Trader restock time", 25, 400, 25, 100, fmt_pct,
@@ -3374,6 +3388,7 @@ class App(ctk.CTk):
             weapon_range_factor=s["wrange"].get() / 100.0,
             weapon_bleeding_factor=s["wbleed"].get() / 100.0,
             ads_speed_factor=s["adsmove"].get() / 100.0,
+            aim_time_factor=s["aimspeed"].get() / 100.0,
             magazine_factor=s["magazine"].get() / 100.0,
             melee_damage_factor=s["melee"].get() / 100.0,
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,

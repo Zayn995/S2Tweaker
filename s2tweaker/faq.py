@@ -63,9 +63,11 @@ FAQ_ENTRIES = [
     {
         "q": "Can I make ONE specific weapon stronger?",
         "a": "Yes - Weapons tab, 'Single weapon overrides': open a "
-             "category, open the weapon, set its 8 factors (damage, "
+             "category, open the weapon, set its 9 factors (damage, "
              "spread, recoil, durability, fire rate, range, bleeding, ADS "
-             "speed). A weapon's own factor beats its category factor, "
+             "move speed, ADS aim-in speed). Unique named weapons are in "
+             "there too - search e.g. 'Decider' or 'Sharpshooter'. A "
+             "weapon's own factor beats its category factor, "
              "which beats the global sliders. Everything left at x1 "
              "(vanilla) falls through to the next level. The same idea "
              "works per ammo round in the Ammo tab and per armor piece "
@@ -121,6 +123,19 @@ FAQ_ENTRIES = [
              "artifacts radiation-free on your belt.",
         "k": "hunger sleep tired radiation bleeding disable survival "
              "needs eat food artifact radiation clean",
+    },
+    {
+        "q": "Can I get new repeatable jobs faster (or instantly)?",
+        "a": "Yes - Economy tab, 'Repeatable quest cooldown'. Vanilla "
+             "makes task givers wait 24 in-game hours before offering "
+             "new repeatable jobs; the slider scales that from instant "
+             "(0 %) to four days (400 %). Only the repeatable-job timers "
+             "are touched - story and side quest timers stay vanilla. A "
+             "cooldown already ticking in your save finishes at its old "
+             "pace first.",
+        "k": "repeatable quests jobs tasks side missions cooldown timer "
+             "delay 24 hours barkeep warlock sidorovich grind reputation "
+             "money farming instant",
     },
     {
         "q": "Can I get free repairs, upgrades or fast travel?",

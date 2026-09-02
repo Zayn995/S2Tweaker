@@ -25,6 +25,7 @@ ORDER = [
     "test_gui_modscan.py",
     "test_modscan_e2e.py",
     "test_gui_factions.py",
+    "test_quest_ads.py",
     "test_gui_layout.py",
 ]
 

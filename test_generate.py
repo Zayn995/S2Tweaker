@@ -59,9 +59,9 @@ s = Settings(
     weapon_price_factor=1.5, armor_price_factor=0.75, ammo_price_factor=0.5,
     artifact_price_factor=2.0, consumable_price_factor=1.25,
     weapon_category_factors={"shotgun": {"damage": 2.0, "firerate": 1.5},
-                             "pistol": {"spread": 0.5}},
+                             "pistol": {"spread": 0.5, "aimtime": 2.0}},
     weapon_overrides={"GunM860_SG": {"damage": 3.0},
-                      "GunAK74_ST": {"recoil": 0.5}},
+                      "GunAK74_ST": {"recoil": 0.5, "aimtime": 1.5}},
     npc_accuracy_factor=2.0, npc_vision_factor=0.5, npc_hearing_factor=0.5,
     npc_grenade_factor=2.0, npc_no_heal=True,
     aim_punch_factor=2.0, npc_reaction_factor=2.0,
@@ -107,6 +107,8 @@ s = Settings(
                        "Freedom<->Duty": -800,
                        "Mutant<->Player": -800},
     relation_rollback_factor=0.5,
+    aim_time_factor=2.0,             # global: alle Aiming-Zeiten halbiert
+    repeatable_quest_factor=0.25,    # 24 h -> 6 h (parst die 75-MB-Datei)
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

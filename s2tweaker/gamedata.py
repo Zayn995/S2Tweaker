@@ -50,6 +50,7 @@ NEEDED_FILES = [
     "StashPrototypes.cfg.bin",
     "ItemGeneratorPrototypes.cfg.bin",
     "RelationPrototypes.cfg.bin",
+    "QuestNodePrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -275,6 +276,13 @@ class GameData:
     @cached_property
     def relations(self) -> CfgStruct:
         return self._parse("RelationPrototypes.cfg")
+
+    @cached_property
+    def questnodes(self) -> CfgStruct:
+        """ACHTUNG: 75-MB-Datei, ~84.000 Structs, Parse ~3 s. NUR lazy
+        anfassen — d.h. erst, wenn der Quest-Cooldown-Regler wirklich
+        nicht auf 100 % steht (dasselbe Muster wie itemgenerators)."""
+        return self._parse("QuestNodePrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:
@@ -1111,6 +1119,29 @@ class GameData:
         if node is None:
             return default
         return parse_number(node.get(key), default)
+
+    # ------------------------------------------- wiederholbare Quest-Timer
+    def repeatable_quest_timers(self) -> dict[str, float]:
+        """{Knoten-SID: InGameHours} aller SetTimer-Knoten von RSQ-Quests
+        (repeatable side quests; Vanilla: 8 Knoten, alle 24 h). Story-
+        und Nebenquest-Timer (E*/SQ*/EQ*) bleiben bewusst draussen.
+        Parst die 75-MB-Datei — nur aufrufen, wenn wirklich noetig."""
+        result: dict[str, float] = {}
+        for sid, node in self.questnodes.children.items():
+            if "#" in sid:
+                continue
+            if not (node.values.get("QuestSID") or "").strip().startswith("RSQ"):
+                continue
+            ntype = (node.values.get("NodeType") or "").strip()
+            if ntype != "EQuestNodeType::SetTimer":
+                continue
+            hours = node.values.get("InGameHours")
+            if hours is None:
+                continue
+            value = parse_number(hours)
+            if value > 0:
+                result[sid] = value
+        return result
 
     # ------------------------------------------------- Fraktionsbeziehungen
     # Recherche: docs/FACTION_RELATIONS_RESEARCH.md (582 Paare, Stand 2.0.x)

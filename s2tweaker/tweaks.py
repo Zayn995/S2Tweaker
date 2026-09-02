@@ -59,7 +59,7 @@ SPRINT_DRAIN_TAGS = {
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
-                 "range", "bleeding", "adsspeed"]
+                 "range", "bleeding", "adsspeed", "aimtime"]
 
 WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -70,7 +70,13 @@ WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "range": "Effective range",
     "bleeding": "Bleeding",
     "adsspeed": "ADS move speed",
+    "aimtime": "ADS aim-in speed",
 }
+
+# Die vier Ziel-Zeiten skalieren ZUSAMMEN (rein, seitlich, gelehnt, wieder
+# raus) — ein Snappiness-Gefuehl, wie bei den vier Range-Schluesseln.
+WEAPON_AIMTIME_KEYS = ("AimingTime", "OffsetAimingTime", "LeanAimingTime",
+                       "LeanAimingRestoreTime")
 
 # CWS-Schluessel, die der Range-Faktor gemeinsam skaliert
 WEAPON_RANGE_KEYS = ("EffectiveFireDistanceMin", "EffectiveFireDistanceMax",
@@ -333,6 +339,7 @@ class Settings:
     weapon_range_factor: float = 1.0         # effektive Reichweite (Kaskade)
     weapon_bleeding_factor: float = 1.0      # Blutungs-Chance/-Staerke (Kaskade)
     ads_speed_factor: float = 1.0            # Bewegungstempo beim Zielen (Kaskade)
+    aim_time_factor: float = 1.0             # Ziel-Geschwindigkeit (Kaskade)
     magazine_factor: float = 1.0             # Magazingroesse (Waffe + Magazine)
     melee_damage_factor: float = 1.0         # Messer + Kolbenschlag
     # --- Munition (global ueber alle Munitionstypen) ---
@@ -397,6 +404,7 @@ class Settings:
     repair_cost_factor: float = 1.0
     upgrade_cost_factor: float = 1.0
     quest_reward_factor: float = 1.0
+    repeatable_quest_factor: float = 1.0     # Cooldown wiederholbarer Jobs
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
     armor_price_factor: float = 1.0
@@ -1163,6 +1171,11 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> dict:
     scale("FireInterval", "firerate", invert=True)
     scale("RecoilInterval", "firerate", invert=True)
     scale("AimingMovementSpeedModifier", "adsspeed", s.ads_speed_factor)
+    # Ziel-Geschwindigkeit: Faktor 2 = doppelt so schnell im Ziel ->
+    # Zeiten halbieren (Nexus-Wunsch "change ADS speed"; der aeltere
+    # adsspeed-Regler ist nur das BEWEGUNGSTEMPO waehrend des Zielens)
+    for key in WEAPON_AIMTIME_KEYS:
+        scale(key, "aimtime", s.aim_time_factor, invert=True)
 
     # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig
     if _neq(s.magazine_factor, 1.0) and s.magazine_factor > 0:
@@ -1591,6 +1604,27 @@ def _trade_patch(gd: GameData, s: Settings) -> dict:
 
 # ------------------------------------------------------------------ assembly
 
+def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
+    """Cooldown wiederholbarer Quests (Nexus-Wunsch).
+
+    Fundort: SetTimer-Knoten der RSQ-Quests in QuestNodePrototypes.cfg
+    (Vanilla: 8 Knoten, alle InGameHours = 24 — die Wartezeit, bis ein
+    Auftraggeber neue Jobs hat). NUR QuestSID "RSQ*" wird angefasst; die
+    78 uebrigen SetTimer gehoeren zu Story-/Nebenquests und bleiben tabu.
+    Die 75-MB-Datei wird wie beim Loot-Regler NUR geparst, wenn der
+    Faktor nicht auf 100 % steht. Faktor 0 = sofort neue Jobs (bewaehrtes
+    Muster der "No Quest Delay"-Mods). Bereits laufende Timer im Save
+    ticken mit ihrer alten Endzeit fertig."""
+    if not _neq(s.repeatable_quest_factor, 1.0) or s.repeatable_quest_factor < 0:
+        return {}
+    patches: dict = {}
+    for sid, hours in sorted(gd.repeatable_quest_timers().items()):
+        new = max(0, int(round(hours * s.repeatable_quest_factor)))
+        if new != int(hours):
+            patches[sid] = {"InGameHours": str(new)}
+    return patches
+
+
 def _relations_patch(gd: GameData, s: Settings) -> dict:
     """Fraktionsbeziehungen + Reputations-Rollback (RelationPrototypes.cfg).
 
@@ -1715,6 +1749,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", _trade_patch(gd, s))
     add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
         _relations_patch(gd, s))
+    add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg",
+        _quest_timer_patch(gd, s))
 
     return out
 
@@ -1885,6 +1921,8 @@ def summarize(s: Settings) -> list[str]:
     f("Repair cost", s.repair_cost_factor)
     f("Upgrade cost", s.upgrade_cost_factor)
     f("Quest money rewards", s.quest_reward_factor)
+    f("Repeatable quest cooldown", s.repeatable_quest_factor)
+    f("ADS aim-in speed", s.aim_time_factor)
     f("Weapon prices", s.weapon_price_factor)
     f("Armor prices", s.armor_price_factor)
     f("Ammo prices", s.ammo_price_factor)
