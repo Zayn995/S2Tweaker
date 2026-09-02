@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~180 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~195 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]180 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]195 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -37,7 +37,8 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Weapons - a three-level system[/b]
 [list]
-[*]9 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 80 weapons[/b] incl. all unique named guns (Decider, Sharpshooter, Sotnyk ...) - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]9 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 91 weapons[/b] incl. all unique named guns (Decider, Sharpshooter, Sotnyk ...) and the Deluxe/Ultimate/Pre-order edition guns - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]Weapons show their real in-game names next to the internal ID ("GunAK74_ST · AKM-74S") and the search box finds both spellings
 [*]The 9 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights)
 [*]Magazine size - scales weapon base capacity and all 81 magazine attachments
 [*]Melee damage (knife & rifle butt strike)
@@ -55,7 +56,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [b]Armor - its own tab, two levels[/b]
 [list]
 [*][b]Global[/b] protection sliders per damage type: physical, burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
-[*][b]Per-armor overrides for all 52 armors and helmets[/b]: open Body armor or Helmets, open the piece ("Exoskeleton (Duty)", "SEVA (Loners)" ...), set its protection factors - a piece's own factor beats the global slider, everything left at (vanilla) falls through. Only protection types the piece actually has get a slider
+[*][b]Per-armor overrides for all 57 armors and helmets[/b] incl. the edition pieces, listed under their real in-game names: open Body armor or Helmets, open the piece ("Cuirass Exoskeleton", "SEVA Suit" ...), set its protection factors - a piece's own factor beats the global slider, everything left at (vanilla) falls through. Only protection types the piece actually has get a slider
 [*]Armor durability (separate from weapon durability)
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
 [/list]
@@ -66,6 +67,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Vision and hearing range down to 10% - combine both for ghost-mode stealth
 [*]Grenade usage (0% = no more grenade spam) and reaction delay (how long NPCs take to alert their squad)
 [*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
+[*][b]NPC gear quality[/b]: tilts the random loadout pools toward the expensive end (or the cheap end, below 100 %) - the game's own price data is the quality rank. Honest limit: it only re-weights what a pool already contains, it never adds or removes items
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
 [/list]
 
@@ -74,6 +76,8 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Your standing with 13 factions[/b] (Loners, Bandits, Military, Ward, Duty, Freedom, Mercenaries, Monolith, Noontide, Spark, Corps, Scientists, and all mutants as one group) on the game's own scale: -800 = enemy / kill on sight, around -400 = wary but talking and trading still work, 0 = neutral, 600+ = friend
 [*][b]Faction vs. faction[/b]: expandable blocks with every pairing between the major factions - make Duty and Freedom go to war, or give the bandits friends
 [*][b]Reputation rollback time[/b]: how long the game remembers local hostility before forgiving it (vanilla 60 min)
+[*][b]Reputation reaction strength[/b]: how hard your deeds hit your reputation - scales every gain and loss in the game's reaction tables (help a faction, kill their members ...) from 25 to 400 %
+[*][b]Trading requires standing[/b]: a four-step slider (Enemy / Disaffected / Neutral / Friend) for how much a faction has to like you before its traders deal with you - vanilla is Disaffected, Enemy means everyone trades even with their worst enemy
 [*]The tool also raises the game's internal RelationVersion counter - the developers' own mechanism for pushing relation updates into existing saves. [b]Honestly: not verified in-game yet[/b], treat existing saves as untested and keep a backup. Story, boss and arena factions are deliberately not listed, and quests can still override relations at any time (by design)
 [/list]
 
@@ -96,6 +100,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Anomaly damage - one global slider plus per element type: electro / chemical / fire / gravity
 [*]Consumable strength: medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
 [*]Rain & storm frequency, emission frequency
+[*][b]Emission duration[/b]: stretch or shorten how long the regular emission takes (25-400 %) - all phases scale together so warning, wave and aftermath keep their vanilla rhythm. Story emissions are deliberately untouched
 [*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
 [*][b]Dropped weapon condition[/b]: sets the AVERAGE condition of weapons found on bodies and in the world (vanilla ~37.5 %) - the game keeps rolling randomly around it exactly like vanilla, so 80 % gives drops between roughly 67 and 93 %. Tick 'Exact condition' for a fixed value. Armor, helmets, artifacts and trader stock stay vanilla
 [/list]
@@ -121,7 +126,8 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 48 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 49 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -171,6 +177,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.14.0 - Edition weapons & armor, real item names, emission duration, NPC gear quality[/b] (~195 tweaks, 13 tabs)
+[list]
+[*][b]Edition content in the trees[/b] (Nexus request - thank you!): the 11 Deluxe/Ultimate/Pre-order weapons (Gabion, Veteran, the Monolith set ...) and the 5 edition armor pieces are now in the weapon and armor trees - [b]91 weapons / 57 armors and helmets[/b]. Their patches go into the game's own DLC data branch; honestly labeled in-app: untested in-game, and harmless if you don't own that edition. A new [b]DLC checker[/b] in the status line tells you which edition content the tool actually found in your install
+[*][b]Real item names[/b]: weapons now show their in-game name next to the internal ID ("GunAK74_ST · AKM-74S"), armor pieces are listed under their official names ("Cuirass Exoskeleton", "SEVA Suit" ...), and the search finds both spellings - 82 weapon and 54 armor names, every single one verified against the game data
+[*][b]Emission duration[/b] (World tab): stretch or shorten the regular emission from 25 to 400 % - all phases scale together, so warning, wave and aftermath keep their vanilla rhythm. Story emissions are deliberately untouched
+[*][b]NPC gear quality[/b] (NPCs & AI tab): tilts the random NPC loadout pools toward the expensive end (or the cheap end, below 100 %), using the game's own price data as the quality rank. It only re-weights what a pool already contains - never adds or removes items
+[*][b]Two new faction sliders[/b]: reputation reaction strength (how hard your deeds hit your reputation, 25-400 %) and "Trading requires standing" (a four-step slider for how much a faction has to like you before its traders deal with you)
+[*]The tool now also reads the edition paks, so the first start after updating re-extracts the game data once (10-20 seconds)
+[*]FAQ grew to 49 searchable entries, 18 automated test suites
+[/list]
+
 [b]v1.13.0 - Mutants tab, Traders tab, dropped weapon condition[/b] (~180 tweaks, 13 tabs)
 [list]
 [*][b]New Mutants tab[/b]: the mutant section grew up - global sliders plus a NEW health-regen slider (mutants passively regenerate like human NPCs; x0 = wounds stay), and the one-at-a-time species dropdown became a full [b]per-species tree[/b] in four size groups with up to four factors per species (health / speed / damage / regen) and each species' vanilla numbers shown. Honest offering: species whose damage works indirectly (Poltergeist, rat swarms) get no damage slider, and mutant sight is engine logic - no vision slider, on purpose
@@ -181,6 +198,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.12.0 - Faction relations, repeatable-quest cooldown, ADS speed[/b] (~170 tweaks, 11 tabs)
+[spoiler]
 [list]
 [*][b]New Factions tab[/b] (experimental): set your baseline standing with 13 factions and every faction-vs-faction pairing between the majors, on the game's own -800..800 scale, plus a reputation rollback-time slider. The tool raises the game's internal RelationVersion counter so existing saves should pick changes up - honestly: that mechanism is not play-tested yet, keep a backup save. Story/boss/arena factions are deliberately excluded, and quests can still override relations at any time
 [*][b]Repeatable quest cooldown[/b] (Economy tab, community request): vanilla task givers wait 24 in-game hours before offering new repeatable jobs - scale it from instant (0%) to four days (400%). Story and side quest timers stay vanilla
@@ -189,6 +207,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The mod scan now also covers faction relations: foreign mods touching the same relation pairs are reported in the scan results and on the Factions tab
 [*]FAQ grew to 45 searchable entries
 [/list]
+[/spoiler]
 
 [b]v1.11.0 - Vaulting gets its own tab[/b] (~160 sliders, 10 tabs)
 [spoiler]
