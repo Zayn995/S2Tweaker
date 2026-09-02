@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~170 tweaks in 11 tabs · pick your values · one click builds your .pak[/i]
+[i]~180 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]170 tweaks[/b], sorted into 11 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Factions, Weapons, Ammo, Armor, World, Economy):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]180 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -77,10 +77,10 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]The tool also raises the game's internal RelationVersion counter - the developers' own mechanism for pushing relation updates into existing saves. [b]Honestly: not verified in-game yet[/b], treat existing saves as untested and keep a backup. Story, boss and arena factions are deliberately not listed, and quests can still override relations at any time (by design)
 [/list]
 
-[b]Mutants[/b]
+[b]Mutants - its own tab[/b]
 [list]
-[*]Global mutant damage, health, speed and hearing sliders
-[*]Per-species overrides via dropdown: health, speed and damage for every species - damage scales each attack individually (claw / jump / charge ...)
+[*]Global sliders: mutant damage, health, speed, hearing - and [b]health regen[/b]: mutants passively regenerate just like human NPCs (44 of 47 prototypes); x0 = wounds stay, the mutant counterpart of 'NPCs don't self-heal'
+[*][b]Per-species tree[/b] in four size groups: open a species, set health / speed / damage / regen - each species shows its vanilla numbers (prototype count, HP range, attacks, regen). Damage scales each attack individually. Species only get sliders for things that really work: Poltergeist and rat swarms deal damage indirectly, so no damage slider there - and mutant sight is engine logic, so there is honestly no vision slider at all
 [*]Bloodsucker cloaking: cloaking speed, and how hard damage breaks the cloak (x0 = hits never reveal them)
 [/list]
 
@@ -97,14 +97,23 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Consumable strength: medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
 [*]Rain & storm frequency, emission frequency
 [*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
+[*][b]Dropped weapon condition[/b]: sets the AVERAGE condition of weapons found on bodies and in the world (vanilla ~37.5 %) - the game keeps rolling randomly around it exactly like vanilla, so 80 % gives drops between roughly 67 and 93 %. Tick 'Exact condition' for a fixed value. Armor, helmets, artifacts and trader stock stay vanilla
 [/list]
 
 [b]Economy[/b]
 [list]
-[*]Trader buy/sell prices, minimum durability traders accept, per-category price factors (weapons, armor, ammo, artifacts, consumables)
+[*]Trader buy/sell prices, per-category price factors (weapons, armor, ammo, artifacts, consumables)
 [*]Repair & upgrade costs, quest rewards
 [*]Repeatable quest cooldown 0-400% (vanilla: task givers wait 24 in-game hours for new jobs; 0% = new jobs right away)
-[*]Fast travel cost 0-400% (0% = guides are free), trader restock time
+[*]Fast travel cost 0-400% (0% = guides are free)
+[/list]
+
+[b]Traders - its own tab[/b]
+[list]
+[*][b]Stock amount[/b]: how much of everything is on the shelf (ammo boxes, medkit stacks ...)
+[*][b]Stock variety[/b]: each catalog item's chance to be in stock after a restock, capped at 100 % - fuller or patchier shelves. Honest limit: the tool never ADDS items to a trader's catalog
+[*][b]Restock time[/b] (moved here from Economy) and the minimum durability traders accept when buying your gear
+[*][b]Wallets[/b]: a money factor plus an 'unlimited money' checkbox - fun fact from the game data: 59 of 73 traders already have unlimited money in vanilla, so both only touch the 14 finite wallets (bartenders etc.)
 [/list]
 
 [b]Tool features[/b]
@@ -112,7 +121,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 45 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 48 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -162,6 +171,15 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.13.0 - Mutants tab, Traders tab, dropped weapon condition[/b] (~180 tweaks, 13 tabs)
+[list]
+[*][b]New Mutants tab[/b]: the mutant section grew up - global sliders plus a NEW health-regen slider (mutants passively regenerate like human NPCs; x0 = wounds stay), and the one-at-a-time species dropdown became a full [b]per-species tree[/b] in four size groups with up to four factors per species (health / speed / damage / regen) and each species' vanilla numbers shown. Honest offering: species whose damage works indirectly (Poltergeist, rat swarms) get no damage slider, and mutant sight is engine logic - no vision slider, on purpose
+[*][b]New Traders tab[/b]: stock amount, stock variety (chance per catalog item, capped at 100 %), restock time and min. buy durability moved here, plus trader wallets (money factor + unlimited-money checkbox - 59 of 73 traders are already unlimited in vanilla, only the 14 finite wallets change)
+[*][b]Dropped weapon condition[/b] (World tab): set the average condition of dropped weapons - the vanilla-style random spread moves with it (80 % gives ~67-93 % rolls), or tick 'Exact condition' for a fixed value. Weapons only; armor, artifacts and trader stock stay vanilla
+[*]Old presets keep working (the species overrides use the same storage as the dropdown era)
+[*]FAQ grew to 48 searchable entries, 15 automated test suites
+[/list]
+
 [b]v1.12.0 - Faction relations, repeatable-quest cooldown, ADS speed[/b] (~170 tweaks, 11 tabs)
 [list]
 [*][b]New Factions tab[/b] (experimental): set your baseline standing with 13 factions and every faction-vs-faction pairing between the majors, on the game's own -800..800 scale, plus a reputation rollback-time slider. The tool raises the game's internal RelationVersion counter so existing saves should pick changes up - honestly: that mechanism is not play-tested yet, keep a backup save. Story/boss/arena factions are deliberately excluded, and quests can still override relations at any time
@@ -173,12 +191,14 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.11.0 - Vaulting gets its own tab[/b] (~160 sliders, 10 tabs)
+[spoiler]
 [list]
 [*][b]New Vaulting tab[/b] (second position): vaulting grew from a checkbox and one slider into seven sliders - max vault height, trigger distance (how far away vaulting triggers), approach angle (capped at 180°), min obstacle height (below 100 % even small crates trigger), landing tolerance (three landing values in one knob), vault-over thickness and vault-over landing distance (clean jumps over fences instead of stopping on them)
 [*]Plus an experimental 'start vaulting while sprinting' toggle - honestly labeled: its exact in-game effect is not verified yet
 [*]All sliders stack on top of the 'Improved vaulting' community preset (the preset value becomes the slider's base while it is on)
 [*]Every value from the original vault mod is now covered: 12 individually adjustable, the rest via the preset. The remaining engine-internal trace values (search radii, detection iterations, window detection) deliberately did NOT become sliders - their effect direction cannot be honestly labeled, and the tool does not ship sliders it cannot explain
 [/list]
+[/spoiler]
 
 [b]v1.10.0 - Compatibility mode & quality of life[/b] (~160 sliders, 9 tabs)
 [spoiler]
