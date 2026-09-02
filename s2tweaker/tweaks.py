@@ -309,6 +309,7 @@ class Settings:
     # --- Mutanten (global; Overrides pro Art via mutant_overrides) ---
     mutant_speed_factor: float = 1.0     # Walk/Run/SprintSpeed aller Arten
     mutant_hearing_factor: float = 1.0   # der eine geteilte MutantsHearingSensor
+    mutant_regen_factor: float = 1.0     # VitalParams.RegenHP; 0 = keine Regen
     mutant_overrides: dict = field(default_factory=dict)  # {Art: {param: f}}
     bloodsucker_cloak_factor: float = 1.0    # >1 = tarnt sich schneller
     bloodsucker_uncloak_factor: float = 1.0  # >1 = Treffer enttarnen staerker
@@ -896,14 +897,27 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
         "hp" in p for p in s.mutant_overrides.values())
     speed_on = _neq(s.mutant_speed_factor, 1.0) or any(
         "speed" in p for p in s.mutant_overrides.values())
+    regen_on = _neq(s.mutant_regen_factor, 1.0) or any(
+        "regen" in p for p in s.mutant_overrides.values())
     patches: dict = {}
     if hp_on:
         for sid, hp in sorted(gd.mutants().items()):
             factor = _mutant_factor(s, gd.mutant_faction(sid), "hp",
                                     s.mutant_hp_factor)
             if _neq(factor, 1.0) and factor > 0:
-                patches.setdefault(sid, {})["VitalParams"] = {
-                    "MaxHP": _num(max(1.0, hp * factor))}
+                # setdefault-Merge: der Regen-Block unten schreibt in
+                # DENSELBEN VitalParams-Knoten
+                patches.setdefault(sid, {}).setdefault("VitalParams", {})[
+                    "MaxHP"] = _num(max(1.0, hp * factor))
+    if regen_on:
+        # Faktor 0 ist hier ausdruecklich erlaubt (Mutanten heilen nie) —
+        # das Gegenstueck zu "NPCs don't self-heal" auf der Menschen-Seite
+        for sid, regen in sorted(gd.mutant_regens().items()):
+            factor = _mutant_factor(s, gd.mutant_faction(sid), "regen",
+                                    s.mutant_regen_factor)
+            if _neq(factor, 1.0) and factor >= 0:
+                patches.setdefault(sid, {}).setdefault("VitalParams", {})[
+                    "RegenHP"] = _num(regen * factor)
     if speed_on:
         for sid, speeds in sorted(gd.mutant_speeds().items()):
             factor = _mutant_factor(s, gd.mutant_faction(sid), "speed",
@@ -1827,6 +1841,7 @@ def summarize(s: Settings) -> list[str]:
     f("Mutant damage", s.mutant_damage_factor)
     f("Mutant speed", s.mutant_speed_factor)
     f("Mutant hearing range", s.mutant_hearing_factor)
+    f("Mutant health regen", s.mutant_regen_factor)
     f("Bloodsucker cloaking speed", s.bloodsucker_cloak_factor)
     f("Bloodsucker uncloak from damage", s.bloodsucker_uncloak_factor)
     for species, params in sorted(s.mutant_overrides.items()):

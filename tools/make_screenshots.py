@@ -38,7 +38,7 @@ app._iw_populate()
 app._ia_populate()
 app._ir_populate()
 app._if_populate()
-app._mut_populate()
+app._im_populate()
 app._set_body_state(True)
 app.status.configure(text="Ready. Analyzed your game version – 80 weapons, "
                           "34 ammo types, 41 mutant prototypes.")
@@ -197,7 +197,21 @@ S["npc_grenades"].set(0)
 scroll_top(app.tabs.tab("NPCs & AI"))
 shot("09_npcs_ai.png")
 
-# ------------------------------------------------------------ 9 Factions
+# ------------------------------------------------------------ 9 Mutants
+app.tabs.set("Mutants")
+S["mhp"].set(1.5)
+S["mut_regen"].set(0)
+mblk = app._im_blocks["humanoid"]
+mblk.expand()
+mrow = mblk.rows["Bloodsucker"]
+mrow.toggle()
+mrow.sliders["hp"].set(2.0)
+mrow.sliders["damage"].set(0.5)
+app.update()
+scroll_top(app.tabs.tab("Mutants"))
+shot("10_mutants.png")
+
+# ------------------------------------------------------------ 10 Factions
 app.tabs.set("Factions")
 pkey = app.gd.relation_pair_key("Bandits", "Player")
 app._if_blocks["player"].rows[pkey].set(600)
@@ -206,9 +220,9 @@ dblk.expand()
 dblk.rows[app.gd.relation_pair_key("Duty", "Freedom")].set(-800)
 app.update()
 scroll_top(app.tabs.tab("Factions"))
-shot("10_factions.png")
+shot("11_factions.png")
 
-# -------------------------------------------------------------- 10 Search
+# -------------------------------------------------------------- 11 Search
 app.tabs.set("Weapons")
 app.search_entry.delete(0, "end")
 app.search_entry.insert(0, "ak74")
@@ -218,25 +232,25 @@ while time.perf_counter() < end:
     app.update()
     time.sleep(0.01)
 scroll_to(app._iw_blocks["rifle"].btn, margin=20)
-shot("11_search.png")
+shot("12_search.png")
 app.search_entry.delete(0, "end")
 app._apply_filter()
 
-# -------------------------------------------------------------- 11 World
+# -------------------------------------------------------------- 12 World
 app.tabs.set("World")
 S["anomaly"].set(1.5)
 S["radiation"].set(0.5)
 S["hunger"].set(50)
 scroll_top(app.tabs.tab("World"))
-shot("12_world.png")
+shot("13_world.png")
 
-# ------------------------------------------------------------ 12 Economy
+# ------------------------------------------------------------ 13 Economy
 app.tabs.set("Economy")
 S["buyprice"].set(1.5)
 S["sellprice"].set(0.75)
 S["repair"].set(0.5)
 scroll_top(app.tabs.tab("Economy"))
-shot("13_economy.png")
+shot("14_economy.png")
 
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)

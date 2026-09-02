@@ -129,6 +129,41 @@ def fmt_relation(value: float) -> str:
     return f"{int(round(value))} · {relation_level(value)}"
 
 
+# --- Mutanten-Tab: Arten-Baum --------------------------------------------
+MUT_PARAM_LABELS = {  # Reihenfolge = Regler-Reihenfolge je Art
+    "hp": "Health",
+    "speed": "Speed",
+    "damage": "Damage (each attack)",
+    "regen": "Health regen",
+}
+
+# Reine ANZEIGE-Gruppierung (nach Groesse/Charakter, keine Spielwerte);
+# Arten, die hier nicht stehen (kuenftige Spiel-Patches, "Mutant"-Generika),
+# landen automatisch im Block "Other species".
+MUT_GROUPS = [
+    ("small", "Small critters",
+     ["Rat", "Tushkan", "Blinddog", "MoldyBlinddog", "Bayun"]),
+    ("medium", "Medium beasts",
+     ["Boar", "Flesh", "Deer", "Pseudodog", "Snork"]),
+    ("humanoid", "Humanoids & psi mutants",
+     ["Bloodsucker", "Burer", "Controller", "Poltergeist"]),
+    ("large", "Large predators",
+     ["Chimera", "Pseudogiant"]),
+]
+
+MUT_SPECIES_LABELS = {
+    "Bayun": "Bayun (cat)",
+    "Blinddog": "Blind dog",
+    "MoldyBlinddog": "Moldy blind dog",
+    "Mutant": "Generic mutant",
+    "Rat": "Rat swarm",
+}
+
+
+def mutant_species_label(species: str) -> str:
+    return MUT_SPECIES_LABELS.get(species, species)
+
+
 class FaqRow:
     """Eine Frage im FAQ-Fenster: Frage-Knopf, Antwort klappt auf.
 
@@ -388,6 +423,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "alife_agents": "max_agents_factor", "alife_distance": "spawn_distance_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
+    "mut_regen": "mutant_regen_factor",
     "bs_cloak": "bloodsucker_cloak_factor", "bs_uncloak": "bloodsucker_uncloak_factor",
     "expl": "explosion_damage_factor", "dur": "durability_factor",
     "dur_armor": "armor_durability_factor", "jam": "jamming_factor",
@@ -1484,6 +1520,263 @@ class IfFactionBlock:
             row.set_state(state)
 
 
+class ImSpeciesRow:
+    """Aufklappbare Zeile EINER Mutanten-Art im Mutants-Baum.
+
+    Fuenfter Verwandter (Waffen/Ammo/Ruestung/Fraktionen), bewusst KEINE
+    Ableitung. Wahrheit ist app.mutant_overrides — dasselbe Dict wie zu
+    Dropdown-Zeiten, darum laufen alte Presets unveraendert. Regler nur
+    fuer Parameter, die die Art wirklich hat (app._im_params): kein
+    Damage-Regler fuer Poltergeist/Rat (indirekter Schaden), kein
+    Regen-Regler ohne Vanilla-Regeneration."""
+
+    def __init__(self, app, parent, species: str, group: str):
+        self.app = app
+        self.species = species
+        self.group = group
+        self.label = mutant_species_label(species)
+        self.params = list(app._im_params.get(species, []))
+        self.body = None
+        self.sliders: dict[str, SliderRow] = {}
+        self.reset_btn = None
+        self.expanded = False
+        self._highlight = "normal"
+        self._state = app._im_state
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_row,
+            command=self.toggle, state=app._im_state)
+        self.btn.pack(fill="x", padx=(16, 8), pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.refresh()
+
+    # ------------------------------------------------------------ Aufbau
+    def build(self):
+        if self.body is not None:
+            return
+        self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
+        hint = self.app._im_hints.get(self.species)
+        if hint:
+            ctk.CTkLabel(self.body, text="   " + hint, anchor="w",
+                         justify="left", wraplength=700,
+                         font=self.app._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12,
+                                                   pady=(2, 0))
+        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
+        # -> on_change (die Waffenbaum-Lehre, wie bei allen Baeumen).
+        prev = self.app._im_loading
+        self.app._im_loading = True
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for param in self.params:
+                lo, hi = (0.0, 4.0) if param == "regen" else (0.25, 5.0)
+                self.sliders[param] = SliderRow(
+                    self.body, MUT_PARAM_LABELS[param], lo, hi, 0.25, 1,
+                    fmt_factor, on_change=self._changed)
+        finally:
+            self.app._im_loading = prev
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+        self.reset_btn = ctk.CTkButton(
+            self.body, text="↺  Reset this species", width=170,
+            fg_color="transparent", border_width=1, command=self.reset)
+        self.reset_btn.pack(anchor="w", padx=12, pady=(2, 4))
+        ctk.CTkFrame(self.body, height=2, corner_radius=0,
+                     fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
+        self.load_values()
+        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self.set_state(self.app._im_state)
+
+    def toggle(self):
+        self.app._im_auto_opened.discard(self.group)
+        if self.expanded:
+            self.body.pack_forget()
+            self.expanded = False
+        else:
+            self.build()
+            self.body.pack(fill="x", padx=(36, 0), after=self.btn)
+            self.expanded = True
+        self.refresh()
+
+    # ------------------------------------------------------------- Werte
+    def load_values(self):
+        if self.sliders:
+            stored = self.app.mutant_overrides.get(self.species, {})
+            prev = self.app._im_loading
+            self.app._im_loading = True
+            try:
+                for param, row in self.sliders.items():
+                    row.set(stored.get(param, 1.0))
+            finally:
+                self.app._im_loading = prev
+        self.refresh()
+
+    def _changed(self):
+        if self.app._im_loading or not self.sliders:
+            return
+        self.app._im_auto_opened.discard(self.group)
+        values = {p: r.get() for p, r in self.sliders.items()}
+        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
+        if values:
+            self.app.mutant_overrides[self.species] = values
+        else:
+            self.app.mutant_overrides.pop(self.species, None)
+        self.refresh()
+        self.app._im_after_change(self.group)
+
+    def reset(self):
+        self.app.mutant_overrides.pop(self.species, None)
+        self.load_values()
+        self.app._im_after_change(self.group)
+
+    # -------------------------------------------------------- Darstellung
+    def refresh(self):
+        n = len(self.app.mutant_overrides.get(self.species, {}))
+        arrow = "▾" if self.expanded else "▸"
+        mark = (f"     ●  {n} of {len(self.params)} factors changed"
+                if n else "")
+        self.btn.configure(text=f"{arrow}  {self.label}{mark}")
+        self._apply_color(n)
+
+    def _apply_color(self, n: int):
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str):
+        self._highlight = mode
+        self._apply_color(len(self.app.mutant_overrides.get(self.species, {})))
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        if self.reset_btn is not None:
+            self.reset_btn.configure(state=state)
+        for row in self.sliders.values():
+            row.set_state(state)
+
+
+class ImGroupBlock:
+    """Aufklappbarer Groessen-Block im Mutanten-Baum."""
+
+    def __init__(self, app, parent, group: str, label: str, sids: list[str]):
+        self.app = app
+        self.group = group
+        self.label = label
+        self.sids = sids                       # Arten, bereits sortiert
+        self.rows: dict[str, ImSpeciesRow] = {}
+        self.expanded = False
+        self._highlight = "normal"
+        self._note = ""
+        self._note_hint = False
+        self._state = app._im_state
+        self._hitset: set[str] | None = None
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_cat,
+            command=self.toggle, state=app._im_state)
+        self.btn.pack(fill="x", padx=8, pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.content = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.refresh()
+
+    def ensure_rows(self):
+        if self.rows:
+            return
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for species in self.sids:
+                row = ImSpeciesRow(self.app, self.content, species, self.group)
+                row.set_highlight(self._row_mode(species))
+                self.rows[species] = row
+        finally:
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+
+    def _row_mode(self, species: str) -> str:
+        if self._hitset is None:
+            return "normal"
+        return "match" if species in self._hitset else "dim"
+
+    def set_row_filter(self, hitset: "set[str] | None"):
+        self._hitset = hitset
+        for species, row in self.rows.items():
+            row.set_highlight(self._row_mode(species))
+
+    def expand(self):
+        if self.expanded:
+            return
+        self.ensure_rows()
+        self.content.pack(fill="x", padx=(8, 0), after=self.btn)
+        self.expanded = True
+        self.refresh()
+
+    def collapse(self):
+        if not self.expanded:
+            return
+        self.content.pack_forget()
+        self.expanded = False
+        self.refresh()
+
+    def toggle(self):
+        self.app._im_auto_opened.discard(self.group)
+        self.collapse() if self.expanded else self.expand()
+
+    def refresh(self):
+        n_over = sum(1 for s in self.sids if s in self.app.mutant_overrides)
+        arrow = "▾" if self.expanded else "▸"
+        extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
+                 if n_over else "")
+        extra += self._note
+        if self._note_hint and not self.expanded:
+            extra += "     click to show"
+        self.btn.configure(
+            text=f"{arrow}  {self.label}  ·  {len(self.sids)}{extra}")
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n_over:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str, note: str = "", hint: bool = False):
+        self._highlight = mode
+        self._note = note
+        self._note_hint = hint
+        self.refresh()
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        for row in self.rows.values():
+            row.set_state(state)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -1503,12 +1796,19 @@ class App(ctk.CTk):
         self.cat_checks: dict[str, ctk.CTkCheckBox] = {}
         # Einzelwaffen-Overrides: {WGS-SID: {param: faktor}} (nur != 1.0)
         self.weapon_overrides: dict[str, dict[str, float]] = {}
-        # Mutanten-Overrides pro Art: {Art: {hp/speed/damage: faktor}}
+        # Mutanten-Overrides pro Art: {Art: {hp/speed/damage/regen: faktor}}
+        # Fuenfter Baum (Tab "Mutants"), fuenfter eigener Namensraum (_im_*).
+        # Das Dict hiess schon in der Dropdown-Aera so — settings.json,
+        # Presets und Pak-Manifeste laufen unveraendert weiter.
         self.mutant_overrides: dict[str, dict[str, float]] = {}
-        self.mut_sliders: dict[str, SliderRow] = {}
-        self._mut_current: str | None = None
-        self._mut_loading = False
-        self._mut_species: list[str] = []
+        self._im_loading = False
+        self._im_species: list[str] = []
+        self._im_params: dict[str, list[str]] = {}   # Art -> erlaubte Regler
+        self._im_hints: dict[str, str] = {}          # Art -> Vanilla-Infozeile
+        self._im_blocks: dict[str, "ImGroupBlock"] = {}
+        self._im_auto_opened: set[str] = set()
+        self._im_expand_job: str | None = None
+        self._im_state = "disabled"
         self._iw_loading = False
         self._iw_categories: dict[str, str] = {}
         self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
@@ -2427,52 +2727,186 @@ class App(ctk.CTk):
                     self._if_auto_opened.add(group)
 
     # -------------------------------------------- Mutanten-Overrides
-    def _mut_populate(self):
+    def _im_populate(self):
+        """Mutanten-Arten einlesen und den Arten-Baum neu aufbauen.
+
+        Je Art nur die Regler anbieten, die wirklich wirken: hp/speed
+        immer (jeder Prototyp hat MaxHP/MovementParams), damage nur bei
+        Arten mit Damage-Attacken in AbilityPrototypes (Poltergeist/Rat
+        wirken indirekt), regen nur bei Vanilla-Regeneration > 0."""
         if self.gd is None:
             return
-        species = sorted({f for f in (
-            self.gd.mutant_faction(sid) for sid in self.gd.mutants()) if f})
-        self._mut_species = species
-        self.mutant_overrides = {
-            sp: params for sp, params in self.mutant_overrides.items()
-            if sp in species
-        }
-        if not species:
+        hp_by_species: dict[str, list[float]] = {}
+        proto_count: dict[str, int] = {}
+        for sid, hp in self.gd.mutants().items():
+            species = self.gd.mutant_faction(sid)
+            if species:
+                hp_by_species.setdefault(species, []).append(hp)
+                proto_count[species] = proto_count.get(species, 0) + 1
+        regen_by_species: dict[str, list[float]] = {}
+        for sid, regen in self.gd.mutant_regens().items():
+            species = self.gd.mutant_faction(sid)
+            if species:
+                regen_by_species.setdefault(species, []).append(regen)
+        species_list = sorted(hp_by_species)
+        self._im_species = species_list
+        self._im_params = {}
+        self._im_hints = {}
+        for species in species_list:
+            params = ["hp", "speed"]
+            attacks = self.gd.mutant_attack_damages(species)
+            if attacks:
+                params.append("damage")
+            if regen_by_species.get(species):
+                params.append("regen")
+            self._im_params[species] = params
+            hps = hp_by_species[species]
+            parts = [f"{proto_count[species]} prototype"
+                     f"{'s' if proto_count[species] != 1 else ''}",
+                     (f"vanilla HP {min(hps):g}" if len(hps) == 1 or
+                      min(hps) == max(hps)
+                      else f"vanilla HP {min(hps):g}–{max(hps):g}")]
+            if attacks:
+                parts.append(f"{len(attacks)} attack"
+                             f"{'s' if len(attacks) != 1 else ''}")
+            else:
+                parts.append("damage dealt indirectly – no damage slider")
+            regs = regen_by_species.get(species)
+            if regs:
+                parts.append(f"regen {min(regs):g}"
+                             + ("" if min(regs) == max(regs)
+                                else f"–{max(regs):g}") + " HP/s")
+            self._im_hints[species] = " · ".join(parts)
+        # Verwaiste Arten/Parameter verwerfen (Spiel-Update, alter Preset)
+        cleaned: dict[str, dict[str, float]] = {}
+        for sp, params in self.mutant_overrides.items():
+            if sp not in self._im_params:
+                continue
+            kept = {p: v for p, v in params.items()
+                    if p in self._im_params[sp]}
+            if kept:
+                cleaned[sp] = kept
+        self.mutant_overrides = cleaned
+        self._im_build_tree()
+
+    def _im_build_tree(self):
+        self._im_cancel_expand()
+        self._im_blocks.clear()
+        self._im_auto_opened.clear()
+        for child in list(self.im_tree.winfo_children()):
+            child.destroy()
+        if not self._im_species:
+            text = ("   – load game data first –" if self.gd is None else
+                    "   – no mutants found in this game version –")
+            ctk.CTkLabel(self.im_tree, text=text, anchor="w",
+                         font=self._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12)
+            self._im_update_info()
             return
-        self.mut_menu.configure(values=species, state="normal")
-        current = (self._mut_current if self._mut_current in species
-                   else ("Bloodsucker" if "Bloodsucker" in species else species[0]))
-        self.mut_menu.set(current)
-        self._mut_select(current)
+        assigned: set[str] = set()
+        for group, label, members in MUT_GROUPS:
+            sids = [s for s in members if s in self._im_params]
+            if sids:
+                self._im_blocks[group] = ImGroupBlock(
+                    self, self.im_tree, group, label, sids)
+                assigned |= set(sids)
+        rest = sorted(set(self._im_species) - assigned,
+                      key=lambda s: mutant_species_label(s).lower())
+        if rest:
+            self._im_blocks["other"] = ImGroupBlock(
+                self, self.im_tree, "other", "Other species", rest)
+        self._im_update_info()
 
-    def _mut_select(self, species: str):
-        self._mut_current = species
-        if self.mut_menu.get() != species:
-            self.mut_menu.set(species)
-        self._mut_loading = True
-        stored = self.mutant_overrides.get(species, {})
-        for param, slider_row in self.mut_sliders.items():
-            slider_row.set(stored.get(param, 1.0))
-        self._mut_loading = False
-        self._mut_update_info()
+    def _im_after_change(self, group: str):
+        block = self._im_blocks.get(group)
+        if block is not None:
+            block.refresh()
+        self._im_update_info()
 
-    def _mut_changed(self):
-        if self._mut_loading or self._mut_current is None:
-            return
-        values = {p: row.get() for p, row in self.mut_sliders.items()}
-        values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
-        if values:
-            self.mutant_overrides[self._mut_current] = values
-        else:
-            self.mutant_overrides.pop(self._mut_current, None)
-        self._mut_update_info()
-
-    def _mut_update_info(self):
+    def _im_update_info(self):
         if self.mutant_overrides:
-            self.mut_info.configure(
-                text="Overrides: " + ", ".join(sorted(self.mutant_overrides)))
+            text = "Overrides set for: " + ", ".join(
+                mutant_species_label(s) for s in sorted(self.mutant_overrides))
         else:
-            self.mut_info.configure(text="No species overrides set.")
+            text = "No per-species overrides set."
+        self.im_info.configure(text=text)
+
+    def _im_refresh_all(self):
+        for block in self._im_blocks.values():
+            for row in block.rows.values():
+                row.load_values()
+            block.refresh()
+        self._im_update_info()
+
+    def _im_clear_all(self):
+        self.mutant_overrides.clear()
+        self._im_refresh_all()
+
+    def _im_cancel_expand(self) -> None:
+        if self._im_expand_job is not None:
+            try:
+                self.after_cancel(self._im_expand_job)
+            except Exception:
+                pass
+            self._im_expand_job = None
+
+    def _im_species_hit(self, species: str, q: str) -> bool:
+        return (q in species.lower()
+                or q in mutant_species_label(species).lower())
+
+    def _im_filter(self, query: str) -> int:
+        """Suchfeld auf den Mutanten-Baum anwenden; liefert Trefferzahl."""
+        self._im_cancel_expand()
+        if not query:
+            for group in list(self._im_auto_opened):
+                block = self._im_blocks.get(group)
+                if block is not None:
+                    block.collapse()
+            self._im_auto_opened.clear()
+            for block in self._im_blocks.values():
+                block.set_highlight("normal", "")
+                block.set_row_filter(None)
+            return 0
+        q = query.lower()
+        hits_total = 0
+        for group, block in self._im_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            sid_hits = [s for s in block.sids if self._im_species_hit(s, q)]
+            hits = block.sids if group_hit else sid_hits
+            hits_total += len(sid_hits) if sid_hits else (1 if group_hit else 0)
+            block.set_row_filter(set(hits))
+            if not hits and group in self._im_auto_opened:
+                block.collapse()
+                self._im_auto_opened.discard(group)
+            if sid_hits:
+                note = (f"     {len(sid_hits)} match"
+                        f"{'es' if len(sid_hits) != 1 else ''}")
+            elif group_hit:
+                note = "     group match"
+            else:
+                note = ""
+            block.set_highlight("match" if hits else "dim", note, bool(hits))
+        if self._im_blocks:
+            self._im_expand_job = self.after(
+                250, lambda x=q: self._im_auto_expand(x))
+        return hits_total
+
+    def _im_auto_expand(self, q: str) -> None:
+        self._im_expand_job = None
+        if self.search_entry.get().strip().lower() != q:
+            return
+        built = 0
+        for group, block in self._im_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            sid_hits = [s for s in block.sids if self._im_species_hit(s, q)]
+            hits = block.sids if group_hit else sid_hits
+            specific = len(sid_hits) <= 8
+            if hits and specific and len(q) >= 3 and not block.expanded:
+                cost = 0 if block.rows else len(block.sids)
+                if built + cost <= 45:
+                    built += cost
+                    block.expand()
+                    self._im_auto_opened.add(group)
 
     def _check(self, parent, key: str, label: str, tooltip: str = "") -> None:
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -2630,44 +3064,6 @@ class App(ctk.CTk):
                      "× 0 = weapons never jam.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
-        f = self._section(body, "Mutants")
-        self._slider(f, "mhp", "Mutant health (all species)", 0.1, 5, 0.1, 1, fmt_factor)
-        self._slider(f, "mdmg", "Mutant damage (all species)", 0.1, 5, 0.1, 1, fmt_factor,
-                     "Via difficulty multiplier – species overrides below "
-                     "scale the individual attack values on top.")
-        self._slider(f, "mspeed", "Mutant speed (all species)", 0.25, 2, 0.25, 1, fmt_factor,
-                     "Walk/run/sprint speed of every mutant species.")
-        self._slider(f, "mhearing", "Mutant hearing range", 10, 200, 5, 100, fmt_pct,
-                     "All mutant species share one hearing sensor.")
-        row = ctk.CTkFrame(f, fg_color="transparent")
-        row.pack(fill="x", **PAD)
-        ctk.CTkLabel(row, text="Species override", width=260, anchor="w").pack(side="left")
-        self.mut_menu = ctk.CTkOptionMenu(
-            row, values=["– load game data first –"], command=self._mut_select,
-            state="disabled", width=220, dynamic_resizing=False)
-        self.mut_menu.set("– load game data first –")
-        self.mut_menu.pack(side="left", padx=8)
-        self.mut_info = ctk.CTkLabel(row, text="", anchor="w", justify="left",
-                                     wraplength=420, text_color="gray60")
-        self.mut_info.pack(side="left", padx=8)
-        for param, label in (("hp", "Health"), ("speed", "Speed"), ("damage", "Damage")):
-            self.mut_sliders[param] = SliderRow(
-                f, label, 0.25, 5, 0.25, 1, fmt_factor,
-                on_change=self._mut_changed)
-        ctk.CTkLabel(
-            f, text="   ×1 (vanilla) = no override – the global mutant "
-                    "sliders above still apply to this species. Damage "
-                    "overrides scale each attack individually (Poltergeist "
-                    "& Rat deal damage indirectly – no effect there).",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "bs_cloak", "Bloodsucker cloaking speed", 0.25, 4, 0.25, 1, fmt_factor,
-                     "× 4 = bloodsuckers vanish almost instantly.")
-        self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
-                     "Higher = hitting them breaks the cloak much harder. "
-                     "× 0 = damage never reveals them.")
-        ctk.CTkLabel(f, text="", height=2).pack()
-
         body = self._tab("NPCs & AI")
         f = self._section(body, "Human NPCs")
         self._slider(f, "npcdmg", "NPC damage (to you)", 0.1, 5, 0.1, 1, fmt_factor)
@@ -2703,6 +3099,64 @@ class App(ctk.CTk):
         self._slider(f, "alife_distance", "A-Life spawn distance", 50, 200, 10, 100, fmt_pct,
                      "Vanilla: squads spawn ≥ 2500 m away. Lower = encounters "
                      "pop up closer to you; higher = quieter surroundings.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Mutants")
+        f = self._section(body, "All mutants (global)")
+        self._slider(f, "mhp", "Mutant health (all species)", 0.1, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "mdmg", "Mutant damage (all species)", 0.1, 5, 0.1, 1, fmt_factor,
+                     "Via difficulty multiplier – species overrides below "
+                     "scale the individual attack values on top.")
+        self._slider(f, "mspeed", "Mutant speed (all species)", 0.25, 2, 0.25, 1, fmt_factor,
+                     "Walk/run/sprint speed of every mutant species.")
+        self._slider(f, "mhearing", "Mutant hearing range", 10, 200, 5, 100, fmt_pct,
+                     "All mutant species share one hearing sensor. Mutants "
+                     "have no config-side vision range – sight is engine "
+                     "logic, so no slider is offered.")
+        self._slider(f, "mut_regen", "Mutant health regen", 0, 4, 0.25, 1, fmt_factor,
+                     "Mutants passively regenerate health, just like human "
+                     "NPCs (vanilla varies by species). × 0 = wounds stay "
+                     "– the mutant counterpart of 'NPCs don't self-heal'.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Bloodsucker cloaking")
+        self._slider(f, "bs_cloak", "Bloodsucker cloaking speed", 0.25, 4, 0.25, 1, fmt_factor,
+                     "× 4 = bloodsuckers vanish almost instantly.")
+        self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
+                     "Higher = hitting them breaks the cloak much harder. "
+                     "× 0 = damage never reveals them.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Per-species overrides (advanced)")
+        ctk.CTkLabel(
+            f, text="   ×1 (vanilla) = no override – the global sliders "
+                    "above still apply to that species. Health and speed "
+                    "scale the species' prototypes directly (incl. story "
+                    "variants), damage scales each attack individually. "
+                    "Species without a slider for something genuinely have "
+                    "nothing to scale there (Poltergeist & rat swarms deal "
+                    "damage indirectly).",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(
+            fill="x", padx=12)
+        ctk.CTkLabel(
+            f, text="   Expand a size group, then a species, to edit its "
+                    "factors.",
+            anchor="w", font=ctk.CTkFont(size=11),
+            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+        self.im_info = ctk.CTkLabel(
+            f, text="No per-species overrides set.", anchor="w",
+            justify="left", wraplength=780, font=self._iw_font_hint,
+            text_color="gray60")
+        self.im_info.pack(fill="x", padx=12, pady=(2, 2))
+        self.im_clear_btn = ctk.CTkButton(
+            f, text="Clear all species overrides", width=200,
+            command=self._im_clear_all)
+        self.im_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
+        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        self.im_tree = ctk.CTkFrame(f, fg_color="transparent")
+        self.im_tree.pack(fill="x", pady=(2, 2))
+        self._im_build_tree()            # zeigt zunaechst nur den Platzhalter
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Factions")
@@ -3135,8 +3589,6 @@ class App(ctk.CTk):
         self._ia_state = state   # dito fuer den Ammo-Baum
         for row in self.sliders.values():
             row.set_state(state)
-        for row in self.mut_sliders.values():
-            row.set_state(state)
         for key, box in self.checks.items():
             locked = key in self._locked_checks
             box.configure(state="disabled" if locked else state)
@@ -3156,9 +3608,10 @@ class App(ctk.CTk):
         self.if_clear_btn.configure(state=state)
         for block in self._if_blocks.values():
             block.set_state(state)
-        # Dropdown nur aktivieren, wenn die Liste geladen ist
-        self.mut_menu.configure(
-            state=state if (enabled and self._mut_species) else "disabled")
+        self._im_state = state   # dito fuer den Mutanten-Baum
+        self.im_clear_btn.configure(state=state)
+        for block in self._im_blocks.values():
+            block.set_state(state)
 
     def _set_status(self, text: str):
         self._msgs.put(("status", text))
@@ -3188,7 +3641,7 @@ class App(ctk.CTk):
                     self._ia_populate()
                     self._ir_populate()
                     self._if_populate()
-                    self._mut_populate()
+                    self._im_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
                     # Laufende Suche auf den frisch gebauten Baum anwenden
@@ -3365,6 +3818,7 @@ class App(ctk.CTk):
             mutant_damage_factor=s["mdmg"].get(),
             mutant_speed_factor=s["mspeed"].get(),
             mutant_hearing_factor=s["mhearing"].get() / 100.0,
+            mutant_regen_factor=s["mut_regen"].get(),
             mutant_overrides={sp: dict(v)
                               for sp, v in self.mutant_overrides.items()},
             bloodsucker_cloak_factor=s["bs_cloak"].get(),
@@ -3492,6 +3946,9 @@ class App(ctk.CTk):
         if_hits = self._if_filter(query)
         if query and if_hits:
             counts["Factions"] = counts.get("Factions", 0) + if_hits
+        im_hits = self._im_filter(query)
+        if query and im_hits:
+            counts["Mutants"] = counts.get("Mutants", 0) + im_hits
         if query:
             if self._status_before_search is None:
                 self._status_before_search = self.status.cget("text")
@@ -3500,8 +3957,8 @@ class App(ctk.CTk):
                     f"{tab} ({n})" for tab, n in counts.items()))
             else:
                 self.status.configure(
-                    text="No slider, weapon, ammo, armor or faction "
-                         "matches your search.")
+                    text="No slider, weapon, ammo, armor, mutant or "
+                         "faction matches your search.")
         elif self._status_before_search is not None:
             # Suchfeld geleert: alte Meldung zurueck statt eines stehen
             # gebliebenen "No slider, weapon or ammo matches your search."
@@ -3553,7 +4010,7 @@ class App(ctk.CTk):
         return abs(row.get() - row.default) > 1e-9
 
     def _apply_changed_only(self):
-        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die vier
+        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die fuenf
         Override-Baeume filtern auf ihre Overrides/geaenderten Paare."""
         for key, row in self.sliders.items():
             row.set_highlight(
@@ -3573,7 +4030,8 @@ class App(ctk.CTk):
                 (self._iw_blocks, self.weapon_overrides),
                 (self._ia_blocks, self.ammo_overrides),
                 (self._ir_blocks, self.armor_overrides),
-                (self._if_blocks, self.faction_relations)):
+                (self._if_blocks, self.faction_relations),
+                (self._im_blocks, self.mutant_overrides)):
             for block in blocks.values():
                 hits = [sid for sid in block.sids if sid in overrides]
                 block.set_row_filter(set(hits))
@@ -4199,9 +4657,7 @@ class App(ctk.CTk):
         self._ia_clear_all()
         self._ir_clear_all()
         self._if_clear_all()
-        self.mutant_overrides.clear()
-        if self._mut_current is not None:
-            self._mut_select(self._mut_current)
+        self._im_clear_all()
         # Scan-Punkte bleiben absichtlich stehen (die fremden Mods sind ja
         # weiterhin installiert) — nur die Stufe faellt auf Info zurueck.
         # Gemerkte Vor-Sperr-Werte verfallen: nach "Reset all to vanilla"
@@ -4284,7 +4740,7 @@ class App(ctk.CTk):
             self._ia_populate()
             self._ir_populate()
             self._if_populate()
-            self._mut_populate()
+            self._im_populate()
         # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
         # laufende Suche wieder auf den neu gebauten Baum anwenden.
         self._apply_filter()
@@ -4346,7 +4802,7 @@ class App(ctk.CTk):
         for species, params in (data.get("mutant_overrides") or {}).items():
             try:
                 clean = {p: float(v) for p, v in params.items()
-                         if p in ("hp", "speed", "damage")
+                         if p in ("hp", "speed", "damage", "regen")
                          and abs(float(v) - 1.0) > 1e-9}
             except (TypeError, ValueError, AttributeError):
                 continue
@@ -4384,6 +4840,7 @@ class App(ctk.CTk):
         self._ia_refresh_all()
         self._ir_refresh_all()
         self._if_refresh_all()
+        self._im_refresh_all()
         # Avoid-Sperren wieder durchsetzen: das Preset kann Werte auf
         # gesperrte Regler geschrieben haben (werden gemerkt + auf Vanilla
         # zurueckgesetzt). Beim Start ohne Scan ist mod_conflicts leer ->
@@ -4397,6 +4854,7 @@ class App(ctk.CTk):
         self._ia_cancel_expand()
         self._ir_cancel_expand()
         self._if_cancel_expand()
+        self._im_cancel_expand()
         self._oc_cancel()
         self._save_ui_settings()
         self.destroy()
@@ -4521,7 +4979,7 @@ class App(ctk.CTk):
             self._ia_populate()
             self._ir_populate()
             self._if_populate()
-            self._mut_populate()
+            self._im_populate()
         self._apply_filter()
         name = str(data.get("mod_name") or "").strip()
         if name:

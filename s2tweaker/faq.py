@@ -188,6 +188,23 @@ FAQ_ENTRIES = [
              "distance empty world performance fps",
     },
     {
+        "q": "Can I tune ONE mutant species - or stop mutants from "
+             "healing?",
+        "a": "Yes - the Mutants tab. Global sliders scale health, damage, "
+             "speed, hearing and health regen for ALL species (mutants "
+             "passively regenerate, just like human NPCs - 'Mutant health "
+             "regen' at x0 is the mutant version of 'NPCs don't "
+             "self-heal'). Below that, per-species overrides: open a size "
+             "group, open the species, set its factors. Species only get "
+             "sliders for things that really work - Poltergeist and rat "
+             "swarms deal damage indirectly, so they have no damage "
+             "slider. Mutant sight is engine logic, not config - no "
+             "vision slider, honestly.",
+        "k": "mutant species bloodsucker chimera pseudogiant controller "
+             "burer boar flesh snork single one specific nerf buff "
+             "regen heal regenerate tank spongy damage sponge",
+    },
+    {
         "q": "Can I change faction relations - make bandits friendly or "
              "start a faction war?",
         "a": "Yes - the Factions tab. 'You (Skif) <-> factions' sets your "

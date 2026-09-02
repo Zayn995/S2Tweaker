@@ -21,14 +21,16 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~160 tweaks in 11 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
-Factions, Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides
+~170 tweaks in 12 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+Mutants, Factions, Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides
 for 80 weapons (unique named guns included), per-round overrides for 34
 ammo types and per-piece
 overrides for 52 armors/helmets: health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +
 penalty threshold, item weights per category, player/NPC/mutant damage &
-health (incl. per-species mutant overrides and bloodsucker cloaking),
+health (incl. a per-species mutant tree with health/speed/damage/regen
+and bloodsucker cloaking; mutant health regen ×0 = the mutant version
+of "NPCs don't self-heal"),
 headshots, explosions, armor protection per damage type, weapon damage/
 spread/recoil/durability/fire rate/range/bleeding/ADS move speed/ADS
 aim-in speed on three levels, magazine size, melee, jamming, scoped sway,
@@ -42,8 +44,8 @@ and in the world's item generators, trader prices & min. durability,
 repair/upgrade costs, fast travel, quest rewards.
 
 The override trees add up to 720 weapon and 100 ammo sliders (plus the
-armor and faction trees) on top of the fixed ones — they are built lazily
-when you expand a category, so startup stays fast.
+armor, faction and mutant trees) on top of the fixed ones — they are
+built lazily when you expand a category, so startup stays fast.
 
 ## How it works (the important mechanics)
 

@@ -415,6 +415,18 @@ class GameData:
         faction = self._chain_get(self._resolve_chain(self.obj, sid), "Faction")
         return faction if faction in MUTANT_FACTIONS else None
 
+    def mutant_regens(self) -> dict[str, float]:
+        """{SID: VitalParams.RegenHP} aller Mutanten-Prototypen mit
+        Regeneration > 0 (2.0.x: 44 von 47 — Mutanten heilen sich, wie
+        die menschlichen NPCs)."""
+        result: dict[str, float] = {}
+        for sid in self.mutants():
+            value = parse_number(
+                self.resolve(self.obj, sid, "VitalParams.RegenHP"))
+            if value > 0:
+                result[sid] = value
+        return result
+
     def mutant_attack_damages(self, species: str) -> dict[str, tuple[str, float]]:
         """{Attacken-Struct: (Damage-Pfad, Vanilla-Wert)} einer Mutanten-Art.
 
