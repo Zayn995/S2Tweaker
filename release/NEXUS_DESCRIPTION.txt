@@ -2,7 +2,10 @@
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
 [i]~195 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
-[i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
+[i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i]
+
+[size=4][b][color=#ff3333]Alternative download while the file here is in review:[/color]
+[url=https://github.com/Zayn995/S2Tweaker/releases]GitHub → S2Tweaker Releases[/url][/b][/size][/center]
 
 [line]
 
