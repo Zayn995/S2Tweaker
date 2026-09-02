@@ -138,6 +138,32 @@ FAQ_ENTRIES = [
              "money farming instant",
     },
     {
+        "q": "Can dropped weapons spawn in better (or exact) condition?",
+        "a": "Yes - World tab, 'Dropped weapon condition'. The slider sets "
+             "the AVERAGE (vanilla ~37.5 % for primary weapons); the game "
+             "keeps rolling randomly around it exactly like vanilla, so "
+             "80 % gives drops between roughly 67 and 93 %. Tick 'Exact "
+             "condition' if you want every drop at precisely the set "
+             "value. Armor, helmets, artifacts and trader stock stay "
+             "vanilla. Fair warning: together with the loot slider this "
+             "is the biggest patch the tool can build.",
+        "k": "weapon condition durability dropped drops broken damaged "
+             "pristine random spread exact fixed loot state repair",
+    },
+    {
+        "q": "Can traders carry more stock, more variety or more money?",
+        "a": "Yes - the Traders tab: 'Stock amount' scales the quantities "
+             "on offer, 'Stock variety' raises each catalog item's chance "
+             "to be in stock after a restock (capped at 100 %), 'Restock "
+             "time' controls how often shelves refresh, and the wallet "
+             "sliders handle their money (most traders already have "
+             "unlimited money in vanilla - the checkbox converts the "
+             "rest). Honest limit: the tool never ADDS items to a "
+             "trader's catalog - what they can carry stays vanilla.",
+        "k": "trader stock shop shelves inventory restock refresh money "
+             "wallet coupons barkeep sell more items variety assortment",
+    },
+    {
         "q": "Can I get free repairs, upgrades or fast travel?",
         "a": "Economy tab: 'Repair cost' and 'Fast travel cost' at 0 % "
              "are completely free; 'Upgrade cost' scales down to 0 % as "

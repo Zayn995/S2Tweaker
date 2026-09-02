@@ -252,6 +252,16 @@ S["repair"].set(0.5)
 scroll_top(app.tabs.tab("Economy"))
 shot("14_economy.png")
 
+# ------------------------------------------------------------ 14 Traders
+app.tabs.set("Traders")
+S["trader_stock"].set(200)
+S["trader_variety"].set(150)
+S["restock"].set(50)
+app.checks["trader_inf_money"].select()
+scroll_top(app.tabs.tab("Traders"))
+shot("15_traders.png")
+app.checks["trader_inf_money"].deselect()
+
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)
 app.destroy()

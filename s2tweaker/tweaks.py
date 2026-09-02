@@ -380,6 +380,12 @@ class Settings:
     stash_ammo_factor: float = 1.0           # Munition an gefundenen Waffen
     # --- Loot-Mengen im grossen Generator (ItemGeneratorPrototypes) ---
     loot_amount_factor: float = 1.0          # Stueckzahlen je Fundstelle
+    # --- Zustand gedroppter Waffen (docs/GENERATOR_RESEARCH.md 3.3) ---
+    # Absoluter Mittelwert in % (Vanilla-Hauptcluster 0.25/0.5 -> 37.5);
+    # die Vanilla-SPANNE je Eintrag bleibt erhalten (das Spiel wuerfelt
+    # darin), ausser exact=True klemmt sie auf exakt den Mittelwert.
+    dropped_condition_pct: float = 37.5
+    dropped_condition_exact: bool = False
     # --- Artefakte ---
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
@@ -400,6 +406,11 @@ class Settings:
 
     # --- Wirtschaft ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
+    # --- Haendler-Bestand & Geldbeutel (Tab "Traders") ---
+    trader_stock_factor: float = 1.0         # Stueckzahlen der Ware
+    trader_variety_factor: float = 1.0       # Chance je Posten (Deckel 1.0)
+    trader_money_factor: float = 1.0         # Geldbeutel (nur endliche)
+    trader_infinite_money: bool = False      # bInfiniteMoney ueberall an
     trader_buy_price_factor: float = 1.0     # was Haendler DIR zahlen
     trader_sell_price_factor: float = 1.0    # was DU bezahlst
     repair_cost_factor: float = 1.0
@@ -704,6 +715,115 @@ def _loot_patch(gd: GameData, s: Settings) -> dict:
                 .setdefault(gen_key, {})
                 .setdefault(slot_key, {})
                 .setdefault("PossibleItems", {}))[item_key] = cfg
+    return patches
+
+
+def _merge_nested(dst: dict, src: dict) -> dict:
+    """Zwei Patch-Baeume (verschachtelte dicts, Blaetter = Strings)
+    zusammenfuehren — mehrere Builder schreiben in DIESELBE Zieldatei
+    und teilweise in denselben Knoten (z.B. MinCount + MinDurability am
+    selben PossibleItems-Eintrag)."""
+    for key, value in src.items():
+        if isinstance(value, dict) and isinstance(dst.get(key), dict):
+            _merge_nested(dst[key], value)
+        else:
+            dst[key] = value
+    return dst
+
+
+def _loot_condition_patch(gd: GameData, s: Settings) -> dict:
+    """Zustand gedroppter Waffen (MinDurability/MaxDurability).
+
+    Der Regler setzt den MITTELWERT absolut (Vanilla-Hauptcluster
+    0.25/0.5 = 37.5 %); die Vanilla-Spanne jedes Eintrags wandert mit —
+    das Spiel wuerfelt darin, genau wie vanilla (80 % ergibt also z.B.
+    67.5–92.5 % beim Hauptcluster). exact=True klemmt die Spanne auf 0.
+    Nur Waffen-Slots (Primary/Secondary/Pistol) der sicheren Loot-
+    Prototypen; Ruestung/Helme/Artefakte und Haendler-Ware bleiben
+    vanilla. Klammer 0..1, nie Min > Max (Recherche, Warnung 16)."""
+    move = _neq(s.dropped_condition_pct, 37.5)
+    if not (move or s.dropped_condition_exact):
+        return {}
+    patches: dict = {}
+    for sid, gen_key, slot_key, item_key, item in gd.loot_durability_entries():
+        vmin = parse_number(item.values.get("MinDurability"))
+        vmax = parse_number(item.values.get("MaxDurability"))
+        center = (vmin + vmax) / 2.0
+        width = 0.0 if s.dropped_condition_exact else (vmax - vmin) / 2.0
+        target = (s.dropped_condition_pct / 100.0) if move else center
+        new_min = min(1.0, max(0.0, target - width))
+        new_max = min(1.0, max(0.0, target + width))
+        if new_min > new_max:
+            new_min = new_max
+        cfg: dict = {}
+        if _neq(new_min, vmin):
+            cfg["MinDurability"] = _num(new_min)
+        if _neq(new_max, vmax):
+            cfg["MaxDurability"] = _num(new_max)
+        if cfg:
+            (patches.setdefault(sid, {})
+                    .setdefault(gen_key, {})
+                    .setdefault(slot_key, {})
+                    .setdefault("PossibleItems", {}))[item_key] = cfg
+    return patches
+
+
+def _trader_stock_patch(gd: GameData, s: Settings) -> dict:
+    """Haendler-Bestand: Stueckzahlen (MinCount/MaxCount) und Sortiments-
+    Chance je Posten (Deckel 1.0) in der Handelsketten-Huelle — strikt
+    getrennt vom Loot-Regler (docs/GENERATOR_RESEARCH.md, Kap. 7)."""
+    stock_on = _neq(s.trader_stock_factor, 1.0) and s.trader_stock_factor > 0
+    variety_on = (_neq(s.trader_variety_factor, 1.0)
+                  and s.trader_variety_factor > 0)
+    if not (stock_on or variety_on):
+        return {}
+    patches: dict = {}
+    for sid, gen_key, slot_key, item_key, item in gd.trader_stock_entries():
+        cfg: dict = {}
+        if stock_on:
+            new_min = _scale_count(item.values.get("MinCount"),
+                                   s.trader_stock_factor)
+            new_max = _scale_count(item.values.get("MaxCount"),
+                                   s.trader_stock_factor)
+            if (new_min is not None and new_max is not None
+                    and int(new_min) > int(new_max)):
+                new_min = new_max
+            if new_min is not None:
+                cfg["MinCount"] = new_min
+            if new_max is not None:
+                cfg["MaxCount"] = new_max
+        if variety_on:
+            raw = item.values.get("Chance")
+            if raw is not None:
+                value = parse_number(raw)
+                if value > 0:
+                    new = min(1.0, value * s.trader_variety_factor)
+                    if _neq(new, value):
+                        cfg["Chance"] = _num(new)
+        if cfg:
+            (patches.setdefault(sid, {})
+                    .setdefault(gen_key, {})
+                    .setdefault(slot_key, {})
+                    .setdefault("PossibleItems", {}))[item_key] = cfg
+    return patches
+
+
+def _trader_wallet_patch(gd: GameData, s: Settings) -> dict:
+    """Haendler-Geldbeutel in TradePrototypes.cfg: Money-Faktor (wirkt
+    nur auf die vanilla-endlichen Boersen) und bInfiniteMoney-Schalter
+    (patcht nur Haendler, die vanilla auf false stehen)."""
+    money_on = _neq(s.trader_money_factor, 1.0) and s.trader_money_factor > 0
+    if not (money_on or s.trader_infinite_money):
+        return {}
+    patches: dict = {}
+    for sid, (money, infinite) in sorted(gd.trader_wallets().items()):
+        cfg: dict = {}
+        if s.trader_infinite_money and not infinite:
+            cfg["bInfiniteMoney"] = "true"
+        if money_on and not infinite and money > 0:
+            cfg["Money"] = str(int(round(money * s.trader_money_factor)))
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -1740,8 +1860,13 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
+    # Drei Builder teilen sich die Generator-Datei (Mengen, Waffen-Zustand,
+    # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
+    gen_patches = _loot_patch(gd, s)
+    _merge_nested(gen_patches, _loot_condition_patch(gd, s))
+    _merge_nested(gen_patches, _trader_stock_patch(gd, s))
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
-        _loot_patch(gd, s))
+        gen_patches)
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
@@ -1760,7 +1885,9 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add("AIPrototypes/HearingSensorPrototypes/"
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", _items_patch(gd, s))
-    add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", _trade_patch(gd, s))
+    trade_patches = _trade_patch(gd, s)
+    _merge_nested(trade_patches, _trader_wallet_patch(gd, s))
+    add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", trade_patches)
     add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
         _relations_patch(gd, s))
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg",
@@ -1917,6 +2044,16 @@ def summarize(s: Settings) -> list[str]:
     f("Stash & body find chance", s.stash_chance_factor)
     f("Stash & body ammo bonus", s.stash_ammo_factor)
     f("Loot amount (NPCs, containers, world)", s.loot_amount_factor)
+    if _neq(s.dropped_condition_pct, 37.5):
+        lines.append(f"Dropped weapon condition ~{s.dropped_condition_pct:g} % "
+                     "(vanilla ~37.5)")
+    if s.dropped_condition_exact:
+        lines.append("Dropped weapon condition: exact (no random spread)")
+    f("Trader stock amount", s.trader_stock_factor)
+    f("Trader stock variety (chance per item)", s.trader_variety_factor)
+    f("Trader money (finite wallets)", s.trader_money_factor)
+    if s.trader_infinite_money:
+        lines.append("All traders have unlimited money")
     f("Radiation accumulation", s.radiation_factor)
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)

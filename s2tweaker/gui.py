@@ -451,7 +451,12 @@ SLIDER_FIELDS: dict[str, str] = {
     "art_radiation": "artifact_radiation_factor", "art_spawn": "artifact_spawn_factor",
     "art_rarity": "artifact_rarity_factor", "detector": "detector_range_factor",
     "fasttravel": "fast_travel_cost_factor", "restock": "trader_restock_factor",
-    "trader_dur": "trader_min_durability_pct", "buyprice": "trader_buy_price_factor",
+    "trader_dur": "trader_min_durability_pct",
+    "drop_cond": "dropped_condition_pct",
+    "trader_stock": "trader_stock_factor",
+    "trader_variety": "trader_variety_factor",
+    "trader_money": "trader_money_factor",
+    "buyprice": "trader_buy_price_factor",
     "sellprice": "trader_sell_price_factor", "repair": "repair_cost_factor",
     "upgrade": "upgrade_cost_factor", "questreward": "quest_reward_factor",
     "rq_cooldown": "repeatable_quest_factor",
@@ -467,6 +472,8 @@ CHECK_FIELDS: dict[str, str] = {
     "no_overweight": "no_overweight_penalty",
     "ignore_equipped": "ignore_equipped_weight",
     "npc_no_heal": "npc_no_heal",
+    "drop_cond_exact": "dropped_condition_exact",
+    "trader_inf_money": "trader_infinite_money",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -488,6 +495,14 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
                     frozenset({"InGameHours"})),
     "loot_amount": ("ItemGeneratorPrototypes",
                     frozenset({"MinCount", "MaxCount"})),
+    "drop_cond": ("ItemGeneratorPrototypes",
+                  frozenset({"MinDurability", "MaxDurability"})),
+    "check:drop_cond_exact": ("ItemGeneratorPrototypes",
+                              frozenset({"MinDurability", "MaxDurability"})),
+    "trader_stock": ("ItemGeneratorPrototypes",
+                     frozenset({"MinCount", "MaxCount"})),
+    "trader_variety": ("ItemGeneratorPrototypes",
+                       frozenset({"Chance"})),
     "stash_loot": ("StashPrototypes",
                    frozenset({"MinCount", "MaxCount"})),
     "stash_chance": ("StashPrototypes",
@@ -3467,6 +3482,17 @@ class App(ctk.CTk):
                      "(detectors, grenades, artifacts, weapons, armor, mutant "
                      "parts) is one item per slot: unchanged below 150 %, "
                      "then 2 from 150 %, 3 from 275 % and so on.")
+        self._slider(f, "drop_cond", "Dropped weapon condition", 10, 100, 2.5, 37.5, fmt_pct,
+                     "AVERAGE condition of weapons found on bodies and in "
+                     "the world (vanilla ~37.5 % for primary weapons). The "
+                     "game keeps rolling randomly around it, exactly like "
+                     "vanilla – at 80 % most drops land between ~67 and "
+                     "~93 %. Armor, helmets, artifacts and trader stock "
+                     "stay vanilla.")
+        self._check(f, "drop_cond_exact", "Exact condition (no random spread)",
+                    "Every dropped weapon spawns at exactly the value above "
+                    "(or at its own vanilla average if the slider is "
+                    "untouched).")
         self._warning(
             f, "This is by far the largest patch this tool can build "
                "(around 25,000 lines). If the game starts noticeably slower "
@@ -3493,8 +3519,6 @@ class App(ctk.CTk):
 
         body = self._tab("Economy")
         f = self._section(body, "Economy & traders")
-        self._slider(f, "trader_dur", "Traders buy gear from durability", 0, 100, 5, 40, fmt_pct,
-                     "0 % = traders buy weapons/armor in any condition (vanilla: 40 %).")
         self._slider(f, "buyprice", "Trader buy prices (what you get)", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "sellprice", "Trader sell prices (what you pay)", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "repair", "Repair cost", 0, 200, 5, 100, fmt_pct,
@@ -3508,10 +3532,6 @@ class App(ctk.CTk):
                      "save finishes at its old pace first.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 25, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
-        self._slider(f, "restock", "Trader restock time", 25, 400, 25, 100, fmt_pct,
-                     "How long traders take to refresh their stock "
-                     "(vanilla: 8 h to 7 days depending on the trader; "
-                     "day-based traders can't go below 1 day).")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.25, 1, fmt_factor,
                      "Per-category price multipliers – these stack with the "
                      "trader buy/sell sliders above.")
@@ -3519,6 +3539,37 @@ class App(ctk.CTk):
         self._slider(f, "price_ammo", "Ammo prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_artifact", "Artifact prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_consumable", "Consumable prices", 0.25, 4, 0.25, 1, fmt_factor)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Traders")
+        f = self._section(body, "Stock (what traders have on the shelf)")
+        self._slider(f, "trader_stock", "Trader stock amount", 25, 400, 25, 100, fmt_pct,
+                     "Scales the quantities on offer (ammo boxes, medkit "
+                     "stacks ...). Weapons and armor are single items – "
+                     "they only multiply from 150 % up, like loot.")
+        self._slider(f, "trader_variety", "Trader stock variety", 25, 400, 25, 100, fmt_pct,
+                     "Each catalog item has a chance to be in stock after a "
+                     "restock. Higher = fuller shelves (chance is capped at "
+                     "100 %), lower = patchier stock. What a trader CAN "
+                     "carry stays their vanilla catalog – honest limit: "
+                     "this tool does not add new items to traders.")
+        self._slider(f, "restock", "Trader restock time", 25, 400, 25, 100, fmt_pct,
+                     "How long traders take to refresh their stock "
+                     "(vanilla: 8 h to 7 days depending on the trader; "
+                     "day-based traders can't go below 1 day).")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Wallet & buying")
+        self._slider(f, "trader_money", "Trader money", 0.25, 10, 0.25, 1, fmt_factor,
+                     "Scales the coupon wallet traders pay you from. "
+                     "Honest note: most traders (59 of 73) already have "
+                     "unlimited money in vanilla – this affects the "
+                     "finite wallets (bartenders etc.).")
+        self._check(f, "trader_inf_money", "All traders have unlimited money",
+                    "Switches the remaining finite wallets to unlimited "
+                    "(most are already unlimited in vanilla).")
+        self._slider(f, "trader_dur", "Traders buy gear from durability", 0, 100, 5, 40, fmt_pct,
+                     "0 % = traders buy weapons/armor in any condition (vanilla: 40 %).")
         ctk.CTkLabel(f, text="", height=2).pack()
 
     def _build_footer(self):
@@ -3875,6 +3926,12 @@ class App(ctk.CTk):
             stash_chance_factor=s["stash_chance"].get() / 100.0,
             stash_ammo_factor=s["stash_ammo"].get() / 100.0,
             loot_amount_factor=s["loot_amount"].get() / 100.0,
+            dropped_condition_pct=s["drop_cond"].get(),
+            dropped_condition_exact=bool(self.checks["drop_cond_exact"].get()),
+            trader_stock_factor=s["trader_stock"].get() / 100.0,
+            trader_variety_factor=s["trader_variety"].get() / 100.0,
+            trader_money_factor=s["trader_money"].get(),
+            trader_infinite_money=bool(self.checks["trader_inf_money"].get()),
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,

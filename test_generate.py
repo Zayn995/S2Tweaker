@@ -98,6 +98,9 @@ s = Settings(
     fast_travel_cost_factor=0.5, trader_restock_factor=0.25,
     stash_loot_factor=2.0, stash_chance_factor=1.5, stash_ammo_factor=2.0,
     loot_amount_factor=2.0, healing_factor=1.5,
+    dropped_condition_pct=80.0,          # Mitte 0.375 -> 0.8, Spanne bleibt
+    trader_stock_factor=2.0, trader_variety_factor=1.5,
+    trader_money_factor=2.0, trader_infinite_money=True,
     vault_height_factor=1.5, improved_vaulting=True,
     vault_distance_factor=2.0, vault_landing_factor=6.0, vault_sprint=True,
     vault_over_offset_factor=5.0,

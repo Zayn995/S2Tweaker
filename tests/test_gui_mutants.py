@@ -47,8 +47,8 @@ req = app.tabs._segmented_button.winfo_reqwidth()
 assert req <= 860, f"Tab-Leiste {req}px - zu breit fuer das 880-px-Minimum"
 names = list(app.tabs._name_list)
 assert names.index("Mutants") == names.index("NPCs & AI") + 1
-assert len(names) == 12, names
-print(f"Tab-Leiste: {req}px bei 12 Tabs  OK")
+assert names[-1] == "Traders" and len(names) == 13, names
+print(f"Tab-Leiste: {req}px bei 13 Tabs  OK")
 
 # --- 3) Override setzen -> Patch mit VitalParams-MERGE ------------------
 blk = app._im_blocks["humanoid"]

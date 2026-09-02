@@ -631,6 +631,15 @@ class GameData:
     # inhaltlich 1:1-Klone der Stash_Cheap/Medium/Expensive-Tabellen. Die
     # Inhaltspruefung plus der Geldkarten-Skip decken sie vollstaendig ab.
 
+    # Dasselbe Muster fuer die HAENDLER-Huelle - natuerlich ohne "Trade",
+    # sonst filtert es genau die Structs weg, um die es geht (der
+    # Trader/Condition-Test hat das gefangen: Huelle schrumpfte auf 2).
+    TRADER_UNSAFE_NAME = re.compile(
+        r"(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)|Quest|QSBIG|GDEQ|Reward|^C_"
+        r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena"
+        r"|(?:^|_)Key|(?:^|_)Safe|Icon|PDA"
+    )
+
     # Unikat-Konvention auf Item-Ebene: Gun_<Name>_<Klasse> (Unterstrich nach
     # "Gun"), im Gegensatz zu Serienwaffen wie GunAK74_ST.
     LOOT_UNIQUE_ITEM = re.compile(r"^Gun_[A-Z]")
@@ -843,6 +852,137 @@ class GameData:
                         if "MinCount" in item.values or "MaxCount" in item.values:
                             out.append((key, gen_key, slot_key, item_key, item))
         return out
+
+    # Waffen-Slots fuer den Zustands-Regler (Category am SLOT-Knoten;
+    # Ruestung/Helme/Artefakte/Consumables bleiben bewusst draussen)
+    CONDITION_CATEGORIES = frozenset({
+        "EItemGenerationCategory::WeaponPrimary",
+        "EItemGenerationCategory::WeaponSecondary",
+        "EItemGenerationCategory::WeaponPistol",
+    })
+
+    def loot_durability_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
+        """Zustands-Eintraege (MinDurability+MaxDurability, Max > 0) in
+        Waffen-Slots der SICHEREN Loot-Prototypen. Haendler-Ware ist ueber
+        loot_generators() bereits ausgeschlossen; Eintraege mit nur einem
+        der beiden Schluessel werden uebersprungen (Recherche, Warnung 14:
+        ein Patch darf keinen neuen Schluessel anlegen)."""
+        out: list[tuple[str, str, str, str, CfgStruct]] = []
+        root = self.itemgenerators
+        for key in self.loot_generators():
+            node = root.children[key]
+            for gen_key, gen in node.children.items():
+                if gen_key != "ItemGenerator":
+                    continue
+                for slot_key, slot in gen.children.items():
+                    if "#" in slot_key:
+                        continue
+                    category = (slot.values.get("Category") or "").strip()
+                    if category not in self.CONDITION_CATEGORIES:
+                        continue
+                    items = slot.children.get("PossibleItems")
+                    for item_key, item in (items.children.items()
+                                           if items else ()):
+                        if "#" in item_key:
+                            continue
+                        if ("MinDurability" not in item.values
+                                or "MaxDurability" not in item.values):
+                            continue
+                        if parse_number(item.values.get("MaxDurability")) <= 0:
+                            continue
+                        item_sid = (item.values.get("ItemPrototypeSID")
+                                    or "").strip()
+                        if item_sid and self._loot_item_is_skippable(item_sid):
+                            continue
+                        out.append((key, gen_key, slot_key, item_key, item))
+        return out
+
+    def trader_stock_generators(self) -> list[str]:
+        """Struct-Schluessel der Handelsketten-Huelle: transitiv ab den in
+        TradePrototypes verlinkten Wurzeln (docs/GENERATOR_RESEARCH.md,
+        Kap. 7), ohne Dev-Sammler (All*) und ohne Quest-Muster-Treffer.
+        Das ist das GEGENSTUECK zum Loot-Regler, der genau diese Huelle
+        ausschliesst."""
+        root = self.itemgenerators
+        roots: set[str] = set()
+        for node in self.trade.children.values():
+            for sub in node.walk():
+                value = sub.values.get("ItemGeneratorPrototypeSID")
+                key = self._generator_key_by_sid.get((value or "").strip())
+                if key:
+                    roots.add(key)
+        hull: set[str] = set()
+        stack = list(roots)
+        while stack:
+            key = stack.pop()
+            if key in hull:
+                continue
+            hull.add(key)
+            node = root.children.get(key)
+            for sub in (node.walk() if node else ()):
+                value = sub.values.get("ItemGeneratorPrototypeSID")
+                child = self._generator_key_by_sid.get((value or "").strip())
+                if child and child not in hull:
+                    stack.append(child)
+        safe: list[str] = []
+        for key in sorted(hull):
+            node = root.children.get(key)
+            if node is None or "#" in key:
+                continue
+            sid = (node.values.get("SID") or key).strip()
+            if sid.startswith("All") or key.startswith("All"):
+                continue
+            if key in self.LOOT_DENY_SIDS or sid in self.LOOT_DENY_SIDS:
+                continue
+            if (self.TRADER_UNSAFE_NAME.search(key)
+                    or self.TRADER_UNSAFE_NAME.search(sid)):
+                continue
+            safe.append(key)
+        return safe
+
+    def trader_stock_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
+        """Bestands-Eintraege der Handelsketten-Huelle (Mengen und/oder
+        Chance). Geldkarten und Quest-Muster-Items werden je Eintrag
+        uebersprungen; der MoneyGenerator-Zweig wird nie betreten."""
+        out: list[tuple[str, str, str, str, CfgStruct]] = []
+        root = self.itemgenerators
+        for key in self.trader_stock_generators():
+            node = root.children[key]
+            for gen_key, gen in node.children.items():
+                if gen_key != "ItemGenerator":
+                    continue
+                for slot_key, slot in gen.children.items():
+                    if "#" in slot_key:
+                        continue
+                    items = slot.children.get("PossibleItems")
+                    for item_key, item in (items.children.items()
+                                           if items else ()):
+                        if "#" in item_key:
+                            continue
+                        item_sid = (item.values.get("ItemPrototypeSID")
+                                    or "").strip()
+                        if item_sid and self._loot_item_is_skippable(item_sid):
+                            continue
+                        if ("MinCount" in item.values
+                                or "MaxCount" in item.values
+                                or "Chance" in item.values):
+                            out.append((key, gen_key, slot_key, item_key, item))
+        return out
+
+    def trader_wallets(self) -> dict[str, tuple[float, bool]]:
+        """{Trader-SID: (Money, bInfiniteMoney)} aller Laeden mit
+        Money-Feld (2.0.x: 73, davon 59 vanilla unendlich)."""
+        result: dict[str, tuple[float, bool]] = {}
+        for sid, node in self.trade.children.items():
+            if sid == "[0]" or "#" in sid:
+                continue
+            raw = node.values.get("Money")
+            if raw is None:
+                continue
+            infinite = (node.values.get("bInfiniteMoney")
+                        or "").strip().lower() == "true"
+            result[sid] = (parse_number(raw), infinite)
+        return result
 
     def npcs_with_regen(self) -> dict[str, float]:
         """{SID: RegenHP} aller menschlichen NPC-Prototypen mit

@@ -21,8 +21,8 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~170 tweaks in 12 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
-Mutants, Factions, Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides
+~180 tweaks in 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders), plus per-weapon overrides
 for 80 weapons (unique named guns included), per-round overrides for 34
 ammo types and per-piece
 overrides for 52 armors/helmets: health/stamina/regen, per-action
@@ -40,8 +40,10 @@ hearing/grenades, faction relations (player-vs-faction and
 faction-vs-faction baselines plus reputation rollback time),
 artifacts & detectors, anomaly/radiation/bleeding,
 hunger/sleep rates, weather & emissions, loot amounts in stashes, on bodies
-and in the world's item generators, trader prices & min. durability,
-repair/upgrade costs, fast travel, quest rewards.
+and in the world's item generators, dropped-weapon condition (average +
+vanilla-style random spread, or exact), trader prices & min. durability,
+trader stock amount/variety/restock and wallets, repair/upgrade costs,
+fast travel, quest rewards.
 
 The override trees add up to 720 weapon and 100 ammo sliders (plus the
 armor, faction and mutant trees) on top of the fixed ones — they are
