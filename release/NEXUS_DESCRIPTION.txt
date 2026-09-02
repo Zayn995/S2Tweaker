@@ -129,8 +129,9 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 49 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 50 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
+[*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -180,6 +181,15 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.15.0 - Update button, auto-updater & a cleaner header[/b] (~195 tweaks, 13 tabs)
+[list]
+[*][b]Check for updates[/b] (GitHub request - thank you!): a new header button asks github.com once, on click, whether a newer release exists - the tool still never talks to the internet in the background
+[*][b]update.bat auto-updater[/b]: the ZIP now ships a small plain-text updater. Choose "update now" in the tool (or double-click update.bat) and it downloads the latest release from GitHub, keeps your old exe as S2Tweaker.exe.bak and swaps S2Tweaker.exe - settings, presets, cache and output stay untouched. It is readable plain text on purpose: open it and see exactly what it does
+[*][b]Cleaner header[/b]: the top row is now just the game folder (Browse / Confirm & load), while the search box, "Changed only", FAQ and the update button moved to their own second row - less confusing on first start
+[*]The README in the ZIP was rewritten to match the current feature set (it still described version 1.6)
+[*]FAQ grew to 50 searchable entries, 19 automated test suites
+[/list]
+
 [b]v1.14.0 - Edition weapons & armor, real item names, emission duration, NPC gear quality[/b] (~195 tweaks, 13 tabs)
 [list]
 [*][b]Edition content in the trees[/b] (Nexus request - thank you!): the 11 Deluxe/Ultimate/Pre-order weapons (Gabion, Veteran, the Monolith set ...) and the 5 edition armor pieces are now in the weapon and armor trees - [b]91 weapons / 57 armors and helmets[/b]. Their patches go into the game's own DLC data branch; honestly labeled in-app: untested in-game, and harmless if you don't own that edition. A new [b]DLC checker[/b] in the status line tells you which edition content the tool actually found in your install
@@ -192,6 +202,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.13.0 - Mutants tab, Traders tab, dropped weapon condition[/b] (~180 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]New Mutants tab[/b]: the mutant section grew up - global sliders plus a NEW health-regen slider (mutants passively regenerate like human NPCs; x0 = wounds stay), and the one-at-a-time species dropdown became a full [b]per-species tree[/b] in four size groups with up to four factors per species (health / speed / damage / regen) and each species' vanilla numbers shown. Honest offering: species whose damage works indirectly (Poltergeist, rat swarms) get no damage slider, and mutant sight is engine logic - no vision slider, on purpose
 [*][b]New Traders tab[/b]: stock amount, stock variety (chance per catalog item, capped at 100 %), restock time and min. buy durability moved here, plus trader wallets (money factor + unlimited-money checkbox - 59 of 73 traders are already unlimited in vanilla, only the 14 finite wallets change)
@@ -199,6 +210,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Old presets keep working (the species overrides use the same storage as the dropdown era)
 [*]FAQ grew to 48 searchable entries, 15 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.12.0 - Faction relations, repeatable-quest cooldown, ADS speed[/b] (~170 tweaks, 11 tabs)
 [spoiler]

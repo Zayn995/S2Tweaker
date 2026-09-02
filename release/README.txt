@@ -7,48 +7,63 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-~160 tweaks in 8 tabs, plus per-weapon overrides for 79 weapons and
-per-round overrides for 34 ammo types - including:
-- NEW in 1.6.0: ammo has its own tab now, with per-round overrides for all
-  34 rounds in 14 calibers (a round's own factor replaces the global
-  slider); single-weapon overrides are a collapsible category > weapon
-  tree instead of a dropdown; the search box also finds weapon and ammo
-  names and opens their category for you
-- NEW in 1.5.0: mutant overhaul (per-species health/speed/damage
-  overrides, bloodsucker cloaking), ADS speed, magazine size, melee
-  damage, anomaly damage per type, consumable strength, weather
-- NEW in 1.4.0: armor protection per damage type, armor carry-weight
-  bonuses, rare artifact bias
-- NEW in 1.3.0: ammo tweaks (damage/armor piercing/armor damage/cover
-  penetration), weapon effective range & bleeding (three-level system),
-  separate weapon/armor durability, detector & scanner range, fast
-  travel cost, trader restock time
-- NEW in 1.2.0 (community requests): hit camera shake / aim punch 0-300 %,
-  NPC reaction delay, experimental A-Life sliders (max simultaneous
-  NPCs/mutants, spawn distance), artifact effect strength / radiation /
-  spawn chance, save & load presets, slider search box
-- Max health / stamina, passive regen, per-action stamina costs
-- Fall damage 0-100 %, walk/crouch & run/sprint speed, jump height
-- Max carry weight + where the overweight penalty starts (or off entirely)
-- Item weights per category, weightless equipped gear
-- Player/NPC/mutant damage & health, headshot multiplier, explosions
-- Weapon & armor durability, weapon jamming, spread, recoil
-- Scoped aim sway, breath hold
-- Weapon tweaks on THREE levels: global sliders, 8 weapon categories and
-  per-weapon overrides for 79 weapons incl. all uniques - 8 factors each
-  (damage, spread, recoil, durability, fire rate, effective range,
-  bleeding, ADS movement speed). Expand a category, then a weapon, to
-  edit its factors
-- Ammo on its own tab, on TWO levels: global sliders (damage, armor
-  piercing, armor damage, cover penetration) and per-round overrides for
-  all 34 rounds in 14 calibers - a round's own factor beats the global one.
-  Expand a caliber, then a round, to edit its factors
-- NPCs & AI: accuracy, vision range, hearing range, grenade usage,
-  "NPCs don't self-heal"
-- Anomaly damage, radiation, bleeding, hunger & sleepiness rates
-- Trader min. durability for buying gear, buy/sell prices, repair &
-  upgrade costs, quest money rewards, per-category price factors
-  (weapons, armor, ammo, artifacts, consumables)
+Around 195 tweaks in 13 tabs: Player, Vaulting, Weight & items, Combat,
+NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders.
+
+WHAT YOU CAN TWEAK (short tour)
+-------------------------------
+- Player: health, stamina (incl. per-action costs), walk/crouch and
+  run/sprint speed, jump height, fall damage, breath hold, max carry
+  weight + where the overweight penalty starts, item weights per category,
+  radiation, bleeding, hunger & sleepiness, headshot multiplier,
+  explosions, hit camera shake / aim punch
+- Vaulting: seven sliders for how Skif climbs and vaults, plus the
+  'Improved vaulting' preset that restores the tuned community vault mod
+- Weapons on THREE levels: global sliders, 8 category factors and
+  per-weapon overrides for 91 weapons - all unique named guns and the
+  Deluxe/Ultimate/Pre-order edition guns included. 9 factors each (damage,
+  spread, recoil, durability, fire rate, effective range, bleeding, ADS
+  move speed, ADS aim-in speed), plus magazine size, melee damage, jamming
+  and scoped sway. Weapons are listed with their real in-game names
+  ("GunAK74_ST - AKM-74S") and the search box finds both spellings
+- Ammo on TWO levels: global sliders (damage, armor piercing, armor
+  damage, cover penetration) and per-round overrides for all 34 rounds in
+  14 calibers - a round's own factor beats the global one
+- Armor: global protection sliders per damage type, per-armor overrides
+  for all 57 armors and helmets (edition pieces included, real in-game
+  names), armor durability, armor carry-weight bonuses
+- NPCs & AI: damage, health, accuracy, vision & hearing range, grenade
+  usage, reaction delay, "NPCs don't self-heal", NPC gear quality,
+  experimental A-Life sliders
+- Mutants: global damage/health/speed/hearing/regen plus a per-species
+  tree in four size groups; bloodsucker cloaking
+- Factions (experimental): your standing with 13 factions, every
+  faction-vs-faction pairing between the majors, reputation rollback time
+  and reaction strength, "Trading requires standing"
+- World: anomaly damage (global + per element type), consumable strength,
+  medkit & bandage healing, rain/storm and emission frequency, emission
+  duration, loot amounts (two separate game systems, four sliders),
+  dropped weapon condition, artifact strength/radiation/spawn, detector &
+  scanner range
+- Economy & Traders: buy/sell prices, per-category price factors, repair &
+  upgrade costs, quest rewards & repeatable-quest cooldown, fast travel
+  cost, trader stock amount & variety, restock time, minimum buy
+  durability, trader wallets
+
+TOOL FEATURES
+-------------
+- Mod scan with 'Avoid conflicts' mode: on request the tool scans your
+  other installed mods, marks every slider they also change, and one
+  checkbox locks all of them for guaranteed hands-off compatibility
+  (per-slider unlock buttons, plain-text report export)
+- Every built pak is an editable preset: "Load preset ..." accepts .pak
+  files and restores all settings exactly; JSON presets work too
+- "Changed only" view to see your whole mod at a glance
+- Search box that finds sliders, weapons, ammo rounds and armor by name
+- Built-in searchable FAQ (50 entries) and a DLC checker in the status
+  line that tells you which edition content the tool found
+- "Check for updates" button + plain-text update.bat auto-updater
+  (see TOOL UPDATES below)
 
 
 HOW TO USE
@@ -58,15 +73,15 @@ HOW TO USE
 3. Check the suggested game folder, then click "Confirm & load game data".
    First load extracts ~85 MB of config data from your game (10-20 seconds).
 4. Move sliders / tick checkboxes. Anything at "(vanilla)" stays untouched.
-   Single weapons and single ammo rounds live in trees: on the "Weapons" /
-   "Ammo" tab click a category ("Assault rifles") or a caliber to open it,
-   then click a weapon / round to open its own factors. Items you changed
-   are marked in amber ("N of 8 factors changed"). The search box at the
-   top also finds weapons and rounds by name and opens their category.
-   Note: a round's own factor replaces the global ammo slider for that
-   parameter (it does not stack), and rounds that have no armor piercing /
-   cover penetration in vanilla (18 of 34) get no slider for it - a
-   multiplier of zero could not do anything there.
+   Single weapons, ammo rounds, armor pieces, mutant species and faction
+   pairs live in trees: on the matching tab click a category ("Assault
+   rifles", a caliber, "Body armor", a size group ...) to open it, then
+   click an entry to open its own factors. Items you changed are marked
+   in amber ("N of 9 factors changed"). The search box also finds
+   weapons, rounds and armor by name and opens their category for you.
+   Note: an entry's own factor replaces the global slider for that
+   parameter (it does not stack), and values that are zero in vanilla get
+   no slider - a multiplier of zero could not do anything there.
 5. Click "Build pak -> output folder", then copy the .pak from the "output"
    folder into <Game>\Stalker2\Content\Paks\~mods\
    (or click "Install to ~mods" to do that in one step - the ~mods folder
