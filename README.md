@@ -26,7 +26,7 @@ Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders), plus per-weap
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34
 ammo types and per-piece
-overrides for 52 armors/helmets: health/stamina/regen, per-action
+overrides for 57 armors/helmets (edition armor included): health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +
 penalty threshold, item weights per category, player/NPC/mutant damage &
 health (incl. a per-species mutant tree with health/speed/damage/regen

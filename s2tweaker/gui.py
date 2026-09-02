@@ -1205,6 +1205,17 @@ class IrArmorRow:
                          wraplength=700, font=self.app._iw_font_hint,
                          text_color="gray60").pack(fill="x", padx=12,
                                                    pady=(2, 0))
+        edition = self.app._ir_dlc.get(self.sid)
+        if edition:
+            name = {"PreOrder": "Pre-order"}.get(edition, edition)
+            ctk.CTkLabel(
+                self.body,
+                text=f"   {name}-edition armor – overrides on it patch "
+                     "the DLC config branch (untested in-game; harmless "
+                     "if you don't own that edition).",
+                anchor="w", justify="left", wraplength=700,
+                font=self.app._iw_font_hint, text_color="gray60",
+            ).pack(fill="x", padx=12, pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed — ohne Sperre loescht der halb gebaute Satz den
         # gespeicherten Override (die Lehre aus dem Waffenbaum-Review).
@@ -1870,6 +1881,7 @@ class App(ctk.CTk):
         self._ir_groups: dict[str, str] = {}              # SID -> Body/Head
         self._ir_prot: dict[str, dict[str, float]] = {}   # SID -> Vanilla
         self._ir_labels: dict[str, str] = {}              # SID -> Anzeige
+        self._ir_dlc: dict[str, str] = {}                 # SID -> DLC-Edition
         self._ir_blocks: dict[str, IrGroupBlock] = {}
         self._ir_auto_opened: set[str] = set()
         self._ir_expand_job: str | None = None
@@ -2432,6 +2444,7 @@ class App(ctk.CTk):
             for sid, (_s, values) in armors.items()
         }
         self._ir_labels = {sid: armor_label(sid) for sid in armors}
+        self._ir_dlc = self.gd.dlc_armor_editions()
         # Verwaiste Overrides verwerfen (Spiel-Update, andere Installation);
         # dazu Faktoren auf Schutzarten, die es an dieser Ruestung nicht
         # gibt (0 in Vanilla -> kein Regler, kein Patch).
@@ -3822,7 +3835,9 @@ class App(ctk.CTk):
             self.gd = gd
             self._set_status(
                 f"Ready. Analyzed your game version: {n_items} items, "
-                f"{n_weap} weapons, {n_mut} mutant prototypes.")
+                f"{n_weap} weapons, {n_mut} mutant prototypes. "
+                + (gd.dlc_summary()
+                   or "No edition (DLC) content in this install."))
             self._msgs.put(("ready", ""))
         except pakio.OodleError as exc:
             # Verstaendliche Klartext-Hilfe statt Python-Traceback

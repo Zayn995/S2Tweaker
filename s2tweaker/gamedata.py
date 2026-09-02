@@ -1237,6 +1237,80 @@ class GameData:
         return {wgs: ed
                 for wgs, (_c, _w, ed) in self.dlc_player_weapons().items()}
 
+    def dlc_item_chain(self, edition: str, sid: str) -> list[CfgStruct]:
+        """Vererbungskette eines DLC-ITEM-Structs: beginnt im Editions-
+        Baum und springt beim refurl auf ../GameData/ItemPrototypes/...
+        in die Basis-ItemPrototypes (dort per refkey weiter)."""
+        tree = self.dlc_editions.get(edition, {}).get("items")
+        if tree is None:
+            return self._resolve_chain(self.items, sid)
+        chain: list[CfgStruct] = []
+        seen: set[str] = set()
+        current: str | None = sid
+        while current and current not in seen:
+            seen.add(current)
+            node = tree.children.get(current)
+            if node is None:
+                return chain + self._resolve_chain(self.items, current)
+            chain.append(node)
+            attrs = node.attr_dict()
+            nxt = attrs.get("refkey")
+            if nxt and "ItemPrototypes" in (attrs.get("refurl") or ""):
+                return chain + self._resolve_chain(self.items, nxt)
+            current = nxt
+        return chain
+
+    # Schutz-Schluessel (identisch mit ARMOR_PARAM_KEYS in tweaks.py)
+    ARMOR_PROTECTION_KEYS = ("Strike", "Burn", "Shock", "ChemicalBurn",
+                             "Radiation", "PSY")
+
+    def dlc_player_armors(self) -> dict[str, tuple[str, dict[str, float], str]]:
+        """{SID: (Slot, {Schutzart: Wert}, Edition)} der Editions-
+        Ruestungen. Erkannt am refurl auf .../ArmorPrototypes.cfg; die
+        Schutzwerte kommen aus der Quer-Datei-Kette (die DLC-Structs
+        definieren ihre Protection-Bloecke selbst)."""
+        result: dict[str, tuple[str, dict[str, float], str]] = {}
+        for edition, trees in self.dlc_editions.items():
+            items = trees.get("items")
+            for sid, node in (items.children.items() if items else ()):
+                if sid in result:
+                    continue
+                refurl = node.attr_dict().get("refurl") or ""
+                if "ArmorPrototypes" not in refurl:
+                    continue
+                chain = self.dlc_item_chain(edition, sid)
+                invisible = (self._chain_get(chain, "Invisible") or "")
+                if invisible.strip().rstrip(";").strip().lower() == "true":
+                    continue
+                values: dict[str, float] = {}
+                for key in self.ARMOR_PROTECTION_KEYS:
+                    value = parse_number(
+                        self._chain_get(chain, f"Protection.{key}"))
+                    if value > 0:
+                        values[key] = value
+                if not values:
+                    continue
+                slot = (self._chain_get(chain, "ItemSlotType") or "")
+                slot = slot.split("::")[-1].strip() or "Body"
+                result[sid] = (slot, values, edition)
+        return result
+
+    def dlc_armor_editions(self) -> dict[str, str]:
+        return {sid: ed
+                for sid, (_s, _v, ed) in self.dlc_player_armors().items()}
+
+    def dlc_summary(self) -> str:
+        """Klartext fuer die Statuszeile: welche Editions-Inhalte die
+        Installation mitbringt (der 'DLC-Checker' des Besitzers)."""
+        if not self.dlc_editions:
+            return ""
+        n_guns = len(self.dlc_player_weapons())
+        n_armor = len(self.dlc_player_armors())
+        names = {"PreOrder": "Pre-order"}
+        eds = ", ".join(names.get(e, e) for e in sorted(self.dlc_editions))
+        return (f"Edition content found ({eds}): {n_guns} guns, "
+                f"{n_armor} armor pieces.")
+
     def dlc_weapon_general_values(self, path: str) -> dict[tuple[str, str], float]:
         """{(Edition, SID): Wert} aller DLC-WGS-Structs, die den Pfad
         SELBST definieren (Wert > 0) — Pendant zu weapon_general_values;
@@ -1378,6 +1452,10 @@ class GameData:
             slot = (self.resolve(self.items, sid, "ItemSlotType") or "")
             slot = slot.split("::")[-1].strip() or "Body"
             result[sid] = (slot, values)
+        # Editions-Ruestungen (SEVA Monolith & Co.) ergaenzen
+        for sid, (slot, values, _ed) in self.dlc_player_armors().items():
+            if sid not in result:
+                result[sid] = (slot, values)
         return result
 
     DETECTOR_RANGE_KEYS = ("ShowArtifactRadius", "MinDetectRadius",

@@ -1626,7 +1626,11 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     return {"DefaultConfig": cfg} if cfg else {}
 
 
-def _items_patch(gd: GameData, s: Settings) -> dict:
+def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
+    """ItemPrototypes: Gewichte, Munitions-Mods, Detektoren, Magazine,
+    Ruestungsschutz. Liefert (Basis-Patches, {Edition: Patches}) — die
+    Editions-Ruestungen (SEVA Monolith & Co.) werden in den jeweiligen
+    DLCGameData-Zweig gepatcht."""
     patches: dict = {}
     if _neq(s.item_weight_factor, 1.0) and s.item_weight_categories:
         for sid, (cat, weight) in sorted(gd.item_weights().items()):
@@ -1704,6 +1708,7 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
     }
     # Ohne "or s.armor_overrides" faende ein Pak mit AUSSCHLIESSLICH
     # Einzelruestungs-Overrides gar nicht statt (vgl. Ammo oben).
+    dlc_patches: dict[str, dict] = {}
     if any(_neq(f, 1.0) for f in protection_globals.values()) or s.armor_overrides:
         for sid, values in sorted(gd.armor_protection().items()):
             over = s.armor_overrides.get(sid) or {}
@@ -1717,7 +1722,22 @@ def _items_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = _num(values[key] * factor)
             if cfg:
                 patches.setdefault(sid, {}).setdefault("Protection", {}).update(cfg)
-    return patches
+        # Editions-Ruestungen: dieselbe Kaskade, aber der Patch gehoert in
+        # den DLCGameData-Zweig der jeweiligen Edition (analog Waffen)
+        for sid, (slot, values, ed) in sorted(gd.dlc_player_armors().items()):
+            over = s.armor_overrides.get(sid) or {}
+            cfg = {}
+            for param in ARMOR_PARAMS:
+                key = ARMOR_PARAM_KEYS[param]
+                if key not in values:
+                    continue
+                factor = over.get(param, protection_globals[param])
+                if _neq(factor, 1.0):
+                    cfg[key] = _num(values[key] * factor)
+            if cfg:
+                dlc_patches.setdefault(ed, {}).setdefault(sid, {}).setdefault(
+                    "Protection", {}).update(cfg)
+    return patches, dlc_patches
 
 
 def _passive_detector_patch(gd: GameData, s: Settings) -> dict:
@@ -2039,7 +2059,11 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     hearing.update(_mutant_hearing_patch(gd, s))
     add("AIPrototypes/HearingSensorPrototypes/"
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
-    add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", _items_patch(gd, s))
+    items_patches, items_dlc = _items_patch(gd, s)
+    add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", items_patches)
+    for edition, ed_patches in sorted(items_dlc.items()):
+        add(f"//GameLite/DLCGameData/{edition}/ItemPrototypes/"
+            f"ItemPrototypes_patch_{n}.cfg", ed_patches)
     trade_patches = _trade_patch(gd, s)
     _merge_nested(trade_patches, _trader_wallet_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", trade_patches)

@@ -73,7 +73,37 @@ assert any(n.startswith("Stalker2/Content/GameLite/DLCGameData/Deluxe/")
 out.unlink(missing_ok=True)
 print("Pak-Rundlauf: DLCGameData-Pfad korrekt gemountet  OK")
 
-# --- 5) Neutral bleibt neutral ------------------------------------------
+# --- 5) Editions-Ruestungen im Armor-Baum -------------------------------
+dlc_armor = gd.dlc_player_armors()
+assert len(dlc_armor) >= 5, sorted(dlc_armor)
+assert "SEVA_Monolith_Armor" in dlc_armor
+slot, values, ed = dlc_armor["SEVA_Monolith_Armor"]
+assert slot == "Body" and ed == "Deluxe" and values.get("Strike") == 2.0, (
+    slot, ed, values)
+pa = gd.player_armors()
+assert "SEVA_Monolith_Armor" in pa and "Zorya_Tourist_Armor" in pa
+# Override auf DLC-Ruestung -> Editions-Patch mit exakter Kaskade
+p = build_patches(gd, Settings(
+    armor_overrides={"SEVA_Monolith_Armor": {"strike": 3.0}}))
+key = "//GameLite/DLCGameData/Deluxe/ItemPrototypes/ItemPrototypes_patch_S2Tweaker.cfg"
+assert key in p, list(p)
+assert "Strike = 6" in p[key], p[key]
+assert "ItemPrototypes/ItemPrototypes_patch_S2Tweaker.cfg" not in p, (
+    "Basis-Datei darf fuer einen reinen DLC-Override leer bleiben")
+# Globaler Schutz-Regler trifft Basis UND Editionen
+p = build_patches(gd, Settings(armor_strike_factor=2.0))
+dlc_files = [k for k in p if k.startswith("//GameLite/DLCGameData/")]
+assert len(dlc_files) == 3, list(p)
+print(f"Ruestungen: {len(dlc_armor)} Editions-Stuecke, SEVA-Monolith-"
+      "Override x3 -> 6.0 im Deluxe-Zweig, global trifft alle 3 Editionen  OK")
+
+# --- 6) DLC-Checker-Text ------------------------------------------------
+summary = gd.dlc_summary()
+assert "Deluxe" in summary and "Ultimate" in summary and "Pre-order" in summary
+assert "11 guns" in summary and "5 armor pieces" in summary, summary
+print("Checker:", summary)
+
+# --- 7) Neutral bleibt neutral ------------------------------------------
 assert not build_patches(gd, Settings())
 print("Neutral = kein Patch  OK")
 

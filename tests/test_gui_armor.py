@@ -77,7 +77,13 @@ assert len(app._ir_blocks) == 2, list(app._ir_blocks)
 body_block = app._ir_blocks["Body"]
 head_block = app._ir_blocks["Head"]
 print(f"Baum: Body {len(body_block.sids)}, Head {len(head_block.sids)}")
-assert len(body_block.sids) == 42 and len(head_block.sids) == 10
+# 42 Basis-Ruestungen + die vorhandenen Editions-Stuecke (02.09.; auf
+# Rechnern ohne DLCGameData-Zweig ist n_dlc schlicht 0)
+n_dlc_body = sum(1 for _s, (slot, _v, _e) in gd.dlc_player_armors().items()
+                 if slot == "Body")
+n_dlc_head = len(gd.dlc_player_armors()) - n_dlc_body
+assert len(body_block.sids) == 42 + n_dlc_body, (len(body_block.sids), n_dlc_body)
+assert len(head_block.sids) == 10 + n_dlc_head, (len(head_block.sids), n_dlc_head)
 
 # Aufklappen + Override setzen wie ein Nutzer
 body_block.expand()
@@ -90,7 +96,8 @@ row.sliders["strike"].set(2.0)
 app.update()
 assert app.armor_overrides == {sid: {"strike": 2.0}}, app.armor_overrides
 assert "1 of 6 factors changed" in row.btn.cget("text")
-assert "1 of 42 overridden" in body_block.btn.cget("text")
+assert (f"1 of {42 + n_dlc_body} overridden"
+        in body_block.btn.cget("text")), body_block.btn.cget("text")
 assert "Exoskeleton (Duty)" in app.ir_info.cget("text")
 print("Baum-Interaktion: Override, Marker, Info-Zeile  OK")
 

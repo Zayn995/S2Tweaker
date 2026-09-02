@@ -81,6 +81,8 @@ FAQ_ENTRIES = [
     {
         "q": "Can I tune ONE specific armor or helmet?",
         "a": "Yes - Armor tab, 'Single armor overrides': open Body armor "
+             "(the Deluxe/Ultimate/Pre-order edition suits like the "
+             "Monolith SEVA are in there too) "
              "or Helmets, open the piece, set its protection factors "
              "(physical, burn, shock, chemical, radiation, PSY - only "
              "types the piece actually has in vanilla get a slider). An "
