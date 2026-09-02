@@ -73,6 +73,7 @@ class ModInfo:
     n_cfg: int = 0                  # gefundene cfg-Dateien unter GameData
     pairs: set = field(default_factory=set)       # {(TopStruct, Blattname)}
     base_names: set = field(default_factory=set)  # {"DifficultyPrototypes", ...}
+    source: str = "~mods"           # "~mods" | "workshop"
 
 
 def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
@@ -86,6 +87,36 @@ def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
         p for p in mods_dir.rglob("*.pak")
         if p.name.lower() not in excl
     )
+
+
+def find_workshop_paks(workshop_dir: Path | None) -> list[Path]:
+    """Alle .pak-Dateien abonnierter Steam-Workshop-Mods (rekursiv — die
+    Struktur ist tief: <id>\\Windows\\{New,Override}Content\\...\\Paks\\...).
+    Verifiziert 02.09.: das Spiel liest sie direkt von dort, kopiert wird
+    nichts in den Spielordner."""
+    if workshop_dir is None or not workshop_dir.is_dir():
+        return []
+    return sorted(workshop_dir.rglob("*.pak"))
+
+
+def workshop_mod_name(pak: Path, workshop_dir: Path) -> str:
+    """Anzeigename einer Workshop-Pak: der Mod-Ordner unter Stalker2/Mods/
+    (letztes Vorkommen — so heisst die Mod wirklich), sonst die Item-ID.
+    NewContent-Paks (neue Assets, Mount ausserhalb GameData) werden im
+    Namen unterschieden, damit die zwei Paks einer Mod im Dialog nicht
+    identisch heissen."""
+    parts = pak.parts
+    name = None
+    for i in range(len(parts) - 2):
+        if parts[i].lower() == "mods":
+            name = parts[i + 1]
+    if name is None:
+        try:
+            name = pak.relative_to(workshop_dir).parts[0]
+        except ValueError:
+            name = pak.stem
+    kind = ", new content" if "newcontent" in pak.stem.lower() else ""
+    return f"{name} (Workshop{kind})"
 
 
 def is_iostore(pak: Path) -> bool:

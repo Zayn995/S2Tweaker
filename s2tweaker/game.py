@@ -54,5 +54,25 @@ def mods_dir(game: Path) -> Path:
     return paks_dir(game) / "~mods"
 
 
+# Steam-App-ID von S.T.A.L.K.E.R. 2 — Ablage abonnierter Workshop-Mods.
+STEAM_WORKSHOP_APPID = "1643320"
+
+
+def steam_workshop_dir(game: Path) -> Path | None:
+    """Workshop-Ablage der Steam-Bibliothek dieser Installation, oder None.
+
+    Steam legt abonnierte Mods NICHT in ~mods ab, sondern in
+    <Bibliothek>\\steamapps\\workshop\\content\\1643320\\<item-id>\\ —
+    das Spiel liest sie von dort (verifiziert 02.09.: nichts wird in den
+    Spielordner kopiert). GOG-Installationen haben keinen Workshop."""
+    parts = [p.lower().rstrip("\\/") for p in game.parts]
+    if len(parts) >= 3 and parts[-2] == "common" and parts[-3] == "steamapps":
+        ws = (game.parent.parent / "workshop" / "content"
+              / STEAM_WORKSHOP_APPID)
+        if ws.is_dir():
+            return ws
+    return None
+
+
 def main_pak(game: Path) -> Path:
     return paks_dir(game) / "pakchunk0-Windows.pak"

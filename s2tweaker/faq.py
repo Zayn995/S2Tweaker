@@ -469,6 +469,19 @@ FAQ_ENTRIES = [
              "mode",
     },
     {
+        "q": "Are Steam Workshop mods covered by the mod scan?",
+        "a": "Yes: the scan also lists the mods you subscribed to in the "
+             "Steam Workshop (Steam stores them in its own workshop "
+             "folder, not in ~mods). Honest limits: whether a subscribed "
+             "mod is actually ACTIVE is decided in the game's own mods "
+             "menu, its load order versus this tool's pak is managed by "
+             "the game, and many Workshop mods use a packed format "
+             "(IoStore) this tool cannot look inside - those are listed, "
+             "but their exact changes stay unknown.",
+        "k": "steam workshop subscribed subscribe abo mod scan covered "
+             "in-game mods menu iostore active",
+    },
+    {
         "q": "What do the colored dots next to some sliders mean?",
         "a": "Results of the ~mods scan: blue = another installed mod "
              "changes this value while your slider is at (vanilla); "

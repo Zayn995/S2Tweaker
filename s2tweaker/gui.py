@@ -292,6 +292,7 @@ class SliderRow:
         self.row = row
         self.conflict_mods: list[str] = []   # Mod-Scan: wer aendert das auch?
         self.conflict_after: set[str] = set()
+        self.conflict_unknown: set[str] = set()  # Workshop: Reihenfolge unklar
         self.locked = False                  # Avoid-conflicts-Sperre
         self._on_unlock = None
         self._base_state = "normal"
@@ -375,18 +376,21 @@ class SliderRow:
         self.label.configure(text_color=color)
 
     # ------------------------------------------------- Mod-Scan-Markierung
-    def set_conflict(self, mods, loads_after=()):
+    def set_conflict(self, mods, loads_after=(), order_unknown=()):
         """Farbpunkt "eine andere Mod aendert das auch" setzen/entfernen.
 
         loads_after: Teilmenge der Mods, deren Pak ALPHABETISCH nach der
         eigenen Ausgabe-Pak laedt — dort gewinnt im Konfliktfall die fremde
         Mod, und der Tooltip darf nicht "your value wins" behaupten.
+        order_unknown: Steam-Workshop-Mods — deren Ladereihenfolge regelt
+        das Spiel selbst, "your value wins" waere dort geraten.
 
         Der Punkt haengt NICHT am Reglerwert: "Reset all to vanilla" laesst
         ihn absichtlich stehen (die fremde Mod ist ja weiterhin installiert)
         — nur seine Stufe wechselt dann von Warnung auf Information."""
         self.conflict_mods = sorted(mods or [])
         self.conflict_after = set(loads_after) & set(self.conflict_mods)
+        self.conflict_unknown = set(order_unknown) & set(self.conflict_mods)
         self._update_dot()
 
     def _update_dot(self):
@@ -408,11 +412,17 @@ class SliderRow:
             self._dot_tip = f"also changed by {names}"
         else:
             self.dot.configure(text_color=MARK_WARN)
+            notes = []
             if self.conflict_after:
-                losers = ", ".join(sorted(self.conflict_after))
-                self._dot_tip = (
-                    f"{names} changes this too \u2014 and {losers} loads "
-                    "AFTER your pak, so its value may win")
+                notes.append(", ".join(sorted(self.conflict_after))
+                             + " loads AFTER your pak, so its value may win")
+            if self.conflict_unknown:
+                notes.append(", ".join(sorted(self.conflict_unknown))
+                             + " is loaded by the game's own mod manager "
+                             "(load order unknown), so its value may win")
+            if notes:
+                self._dot_tip = (f"{names} changes this too \u2014 and "
+                                 + "; ".join(notes))
             else:
                 self._dot_tip = (
                     f"{names} changes this too \u2014 your value wins")
@@ -1969,6 +1979,7 @@ class App(ctk.CTk):
         self._modscan_payload = None
         self._scan_running = False
         self._mods_after: set[str] = set()   # Paks, die NACH unserer laden
+        self._mods_unknown: set[str] = set()  # Workshop: Reihenfolge unklar
         # Avoid-conflicts-Modus: betroffene Regler auf Vanilla + gesperrt.
         self.avoid_conflicts = False
         self.avoid_unlocked: set[str] = set()   # bewusst freigeschaltet
@@ -4389,18 +4400,27 @@ class App(ctk.CTk):
             return
         paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
                                      {self._out_name()})
-        if not paks:
+        ws = modscan.find_workshop_paks(
+            game.steam_workshop_dir(self.game_dir))
+        if not paks and not ws:
             return
         self._modscan_offered = True
         n = len(paks)
+        parts = []
+        if n:
+            parts.append(f"{n} mod file{'s' if n != 1 else ''} in your "
+                         "~mods folder")
+        if ws:
+            parts.append(f"{len(ws)} Steam Workshop mod file"
+                         f"{'s' if len(ws) != 1 else ''}")
         win = ctk.CTkToplevel(self)
         win.title("Other mods found")
         win.transient(self)
         win.grab_set()
         ctk.CTkLabel(
             win, wraplength=430, justify="left",
-            text=f"Found {n} mod file{'s' if n != 1 else ''} in your ~mods "
-                 "folder. Scan them to see what they change?\n\n"
+            text=f"Found {' and '.join(parts)}. "
+                 "Scan them to see what they change?\n\n"
                  "The scan reads only config entries, never whole paks, so "
                  "it is quick even for very large mods.").pack(
             padx=18, pady=(18, 10))
@@ -4428,13 +4448,21 @@ class App(ctk.CTk):
             return
         paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
                                      {self._out_name()})
-        if not paks:
+        ws_dir = game.steam_workshop_dir(self.game_dir)
+        # Workshop-Paks bekommen ihren Mod-Namen als Anzeigename mit —
+        # der Dateiname allein ("...-Windows-OverrideContent") sagt nichts.
+        jobs = [(p, None) for p in paks]
+        jobs += [(p, modscan.workshop_mod_name(p, ws_dir))
+                 for p in modscan.find_workshop_paks(ws_dir)]
+        if not jobs:
             # Fruehere Markierungen aufraeumen — die Mods sind offenbar weg
             self.mod_conflicts = {}
             self.modscan_results = []
             self._mods_after = set()
+            self._mods_unknown = set()
             self._apply_conflict_marks()
-            self._status_write("No other mods found in ~mods.")
+            self._status_write(
+                "No other mods found (~mods and Steam Workshop).")
             return
         # Scan und (Neu-)Laden schliessen sich gegenseitig aus: sonst
         # rechnet der Worker gegen halb ausgetauschte Spieldaten und
@@ -4443,11 +4471,12 @@ class App(ctk.CTk):
         self.btn_scan.configure(state="disabled")
         self.btn_confirm.configure(state="disabled")
         self.btn_browse.configure(state="disabled")
-        threading.Thread(target=self._run_modscan, args=(self.gd, paks),
+        threading.Thread(target=self._run_modscan, args=(self.gd, jobs),
                          daemon=True).start()
 
-    def _run_modscan(self, gd, paks):
+    def _run_modscan(self, gd, jobs):
         """Hintergrund-Thread: Paks scannen und mit den Reglern abgleichen.
+        jobs: Liste (Pak-Pfad, Workshop-Anzeigename oder None).
 
         gd ist ein SNAPSHOT — der Worker darf nie self.gd lesen, sonst
         crasht er, wenn der Besitzer waehrenddessen den Spielordner
@@ -4455,9 +4484,14 @@ class App(ctk.CTk):
         try:
             self._set_status("Indexing vanilla values ...")
             vanilla = modscan.build_vanilla_index(gd)
-            infos = [modscan.scan_pak(p, progress=self._set_status,
-                                      vanilla_index=vanilla)
-                     for p in paks]
+            infos = []
+            for p, ws_name in jobs:
+                info = modscan.scan_pak(p, progress=self._set_status,
+                                        vanilla_index=vanilla)
+                if ws_name is not None:
+                    info.name = ws_name
+                    info.source = "workshop"
+                infos.append(info)
             self._set_status("Comparing with this tool's settings ...")
             conflicts = self._match_conflicts(gd, infos)
             self._modscan_payload = (infos, conflicts)
@@ -4551,9 +4585,14 @@ class App(ctk.CTk):
         # Ladereihenfolge in ~mods ist alphabetisch (deshalb das zzz_-
         # Praefix). Mods, deren Pak NACH unserer sortiert, ueberschreiben
         # gemeinsame Werte — "your value wins" waere dort gelogen.
+        # Workshop-Mods laufen ueber den Mod-Manager des Spiels: ihre
+        # Reihenfolge relativ zu ~mods ist unverifiziert -> eigener Topf.
         own = self._out_name().lower()
         self._mods_after = {info.name for info in infos
-                            if info.path.name.lower() > own}
+                            if info.source != "workshop"
+                            and info.path.name.lower() > own}
+        self._mods_unknown = {info.name for info in infos
+                              if info.source == "workshop"}
         self._apply_conflict_marks()
         if conflicts:
             extra = ""
@@ -4572,7 +4611,8 @@ class App(ctk.CTk):
 
     def _apply_conflict_marks(self):
         for key, row in self.sliders.items():
-            row.set_conflict(self.mod_conflicts.get(key), self._mods_after)
+            row.set_conflict(self.mod_conflicts.get(key), self._mods_after,
+                             self._mods_unknown)
         self._if_update_conflict_note()
         self._apply_conflict_locks()
         self._refresh_check_dots()
@@ -4588,10 +4628,15 @@ class App(ctk.CTk):
             self.if_conflict_label.pack_forget()
             return
         after = sorted(set(mods) & self._mods_after)
+        unknown = sorted(set(mods) & self._mods_unknown)
         text = "●  Mod scan: also changing faction relations: " + ", ".join(mods)
         if after:
             text += ("  —  " + ", ".join(after)
                      + " loads AFTER your pak and wins shared values")
+        if unknown:
+            text += ("  —  " + ", ".join(unknown)
+                     + " is loaded by the game's mod manager (load order "
+                     "unknown)")
         text += (".  The Avoid-conflicts switch does not lock these rows – "
                  "reset them yourself if you want to stay neutral here.")
         self.if_conflict_label.configure(
@@ -4711,12 +4756,20 @@ class App(ctk.CTk):
             return
         if bool(self.checks[key].get()):
             dot.configure(text="\u25cf", text_color=MARK_WARN)
+            notes = []
             losers = sorted(set(mods) & self._mods_after)
+            unknown = sorted(set(mods) & self._mods_unknown)
             if losers:
+                notes.append(f"{', '.join(losers)} loads AFTER your pak, "
+                             "so its value may win")
+            if unknown:
+                notes.append(f"{', '.join(unknown)} is loaded by the "
+                             "game's own mod manager (load order unknown), "
+                             "so its value may win")
+            if notes:
                 self._check_tips[key] = (
                     f"{names} changes this too \u2014 and "
-                    f"{', '.join(losers)} loads AFTER your pak, "
-                    "so its value may win")
+                    + "; ".join(notes))
             else:
                 self._check_tips[key] = (
                     f"{names} changes this too \u2014 your value wins")
@@ -4759,10 +4812,16 @@ class App(ctk.CTk):
             f"Scanned mods ({len(self.modscan_results)}):",
         ]
         for info in self.modscan_results:
-            order = ("loads AFTER your pak - ITS values win shared conflicts"
-                     if info.name in self._mods_after
-                     else "loads before your pak - your values win")
-            lines.append(f"  {info.path.name}")
+            if info.source == "workshop":
+                order = ("Steam Workshop mod - activation and load order "
+                         "are managed by the game (not verified)")
+            elif info.name in self._mods_after:
+                order = "loads AFTER your pak - ITS values win shared conflicts"
+            else:
+                order = "loads before your pak - your values win"
+            lines.append(f"  {info.name}  [{info.path.name}]"
+                         if info.source == "workshop"
+                         else f"  {info.path.name}")
             if not info.readable:
                 lines.append(f"      {info.note}")
                 lines.append("      overlap unknown - this tool cannot "
@@ -4857,6 +4916,15 @@ class App(ctk.CTk):
                  "tool's pak (~mods loads alphabetically) \u2014 for any "
                  "shared value THAT mod wins, not your slider.",
                  text_color=ACCENT)
+        ws = sorted(self._mods_unknown
+                    & {i.name for i in self.modscan_results})
+        if ws:
+            line("Steam Workshop: " + ", ".join(ws) + " \u2014 subscribed via "
+                 "the Steam Workshop. Whether such a mod is actually "
+                 "ACTIVE is decided in the game's own mods menu, and its "
+                 "load order versus this tool's pak is managed by the "
+                 "game (not verified) \u2014 shared values may go either way.",
+                 text_color="gray60")
         line("Affected settings are marked with a dot: blue = a mod changes "
              "it while you are at (vanilla), violet = you changed it too. "
              "Your pak usually wins shared values because its zzz_ name "
