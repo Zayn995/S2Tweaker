@@ -21,10 +21,10 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~160 tweaks in 10 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
-Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides for 79 weapons,
-per-round overrides for 34 ammo types and per-piece overrides for 52
-armors/helmets: health/stamina/regen, per-action
+~160 tweaks in 11 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+Factions, Weapons, Ammo, Armor, World, Economy), plus per-weapon overrides
+for 79 weapons, per-round overrides for 34 ammo types and per-piece
+overrides for 52 armors/helmets: health/stamina/regen, per-action
 stamina costs, fall damage, movement speed, jump height, carry weight +
 penalty threshold, item weights per category, player/NPC/mutant damage &
 health (incl. per-species mutant overrides and bloodsucker cloaking),
@@ -32,7 +32,9 @@ headshots, explosions, armor protection per damage type, weapon damage/
 spread/recoil/durability/fire rate/range/bleeding/ADS speed on three
 levels, magazine size, melee, jamming, scoped sway, breath hold, ammo
 damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
-hearing/grenades, artifacts & detectors, anomaly/radiation/bleeding,
+hearing/grenades, faction relations (player-vs-faction and
+faction-vs-faction baselines plus reputation rollback time),
+artifacts & detectors, anomaly/radiation/bleeding,
 hunger/sleep rates, weather & emissions, loot amounts in stashes, on bodies
 and in the world's item generators, trader prices & min. durability,
 repair/upgrade costs, fast travel, quest rewards.
@@ -45,12 +47,12 @@ startup stays fast.
 
 | Layer | Details |
 |---|---|
-| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 26 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
+| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 27 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
 | Oodle | Those pak entries are Oodle-compressed, so unpacking needs the proprietary `oo2core_9_win64.dll` (the game does **not** ship it — Oodle is linked into the game exe). repak would fetch it itself, but it validates TLS against its own built-in roots, which breaks behind AV/proxy HTTPS inspection, and in the frozen exe it would land in PyInstaller's temp dir and be lost every run. [pakio.py](s2tweaker/pakio.py) therefore obtains it: local copies first, else one checksum-verified HTTPS download, cached in `tools/` next to the app. Packing never needs it. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |
 | Packing | [pakio.py](s2tweaker/pakio.py) stages the files and calls the bundled `tools/repak.exe` (defaults are exactly what the game wants: V8B, mount `../../../`, uncompressed). |
-| Key game files | `ObjPrototypes` (player + mutants), `ItemPrototypes`, `TradePrototypes`, `DifficultyPrototypes` (per-difficulty multiplier groups), `EffectPrototypes` (overweight effects), `FloatProviderPrototypes` (scope-sway constant — patched instead of the sway effects so offset-aiming keeps working), `WeaponData/*` (damage, wear, spread, recoil), `CoreVariables` (repair costs, stamina drain), `ObjWeightParamsPrototypes` (carry weight), `ObjHoldBreathParamsPrototypes`, `StashPrototypes` (smart loot in stashes and on bodies), `ItemGeneratorPrototypes` (9.3 MB — the world's loot generators; only `MinCount`/`MaxCount` under `PossibleItems` is scaled, and only on generators that pass a two-stage safety filter, see below). |
+| Key game files | `ObjPrototypes` (player + mutants), `ItemPrototypes`, `TradePrototypes`, `DifficultyPrototypes` (per-difficulty multiplier groups), `EffectPrototypes` (overweight effects), `FloatProviderPrototypes` (scope-sway constant — patched instead of the sway effects so offset-aiming keeps working), `WeaponData/*` (damage, wear, spread, recoil), `CoreVariables` (repair costs, stamina drain), `ObjWeightParamsPrototypes` (carry weight), `ObjHoldBreathParamsPrototypes`, `StashPrototypes` (smart loot in stashes and on bodies), `ItemGeneratorPrototypes` (9.3 MB — the world's loot generators; only `MinCount`/`MaxCount` under `PossibleItems` is scaled, and only on generators that pass a two-stage safety filter, see below), `RelationPrototypes` (faction relations: 582 pair baselines + the RelationVersion counter the patch raises so saves notice changes — research: [docs/FACTION_RELATIONS_RESEARCH.md](docs/FACTION_RELATIONS_RESEARCH.md)). |
 
 Deep research notes with sources, vanilla values and risk analysis:
 [docs/SPEC.md](docs/SPEC.md).

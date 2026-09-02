@@ -383,6 +383,13 @@ class Settings:
     fast_travel_cost_factor: float = 1.0     # 0 = Schnellreise gratis
     trader_restock_factor: float = 1.0       # Restock-Zeit der Haendler
 
+    # --- Fraktionsbeziehungen (docs/FACTION_RELATIONS_RESEARCH.md) ---
+    # {Paar-Schluessel exakt wie in den Spieldaten ("Bandits<->Player"):
+    # Zielwert als int}. Nur Abweichungen von Vanilla speichern; der
+    # Builder prueft ohnehin gegen die live gelesenen Vanilla-Werte.
+    faction_relations: dict = field(default_factory=dict)
+    relation_rollback_factor: float = 1.0    # Reputations-Rollback-Zeit
+
     # --- Wirtschaft ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
     trader_buy_price_factor: float = 1.0     # was Haendler DIR zahlen
@@ -1584,6 +1591,59 @@ def _trade_patch(gd: GameData, s: Settings) -> dict:
 
 # ------------------------------------------------------------------ assembly
 
+def _relations_patch(gd: GameData, s: Settings) -> dict:
+    """Fraktionsbeziehungen + Reputations-Rollback (RelationPrototypes.cfg).
+
+    Beziehungspaare: nur Schluessel patchen, die es in Vanilla gibt (die
+    Schreibrichtung "A<->B" ist je Paar fest; neue Paare anzulegen ist
+    ungetestet und bleibt tabu). Sobald mindestens ein Paar abweicht, wird
+    zusaetzlich RelationVersion = Vanilla+1 geschrieben — GSCs eigener
+    Versionszaehler, ueber den bestehende Saves Beziehungs-Updates
+    bemerken (Details/Hypothese: docs/FACTION_RELATIONS_RESEARCH.md).
+
+    Rollback: skaliert die Basis-Cooldown-Sekunden UND die 19
+    fraktionsspezifischen Cooldowns; die Hub-/Lair-Modifier bleiben
+    unangetastet (sie multiplizieren die Basis und skalieren so mit)."""
+    out: dict = {}
+
+    if s.faction_relations:
+        vanilla_pairs = gd.relation_pairs()
+        changed: dict[str, str] = {}
+        for key, target in sorted(s.faction_relations.items()):
+            vanilla = vanilla_pairs.get(key)
+            if vanilla is None:
+                continue                     # anderes Spiel / alter Preset
+            try:
+                value = int(round(float(target)))
+            except (TypeError, ValueError):
+                continue
+            # weit weg vom Sonderwert 100000 bleiben; unter -800 ist ohnehin
+            # Enemy, ueber 201 Friend (docs: RelationLevelRanges)
+            value = max(-2000, min(2000, value))
+            if value != vanilla:
+                changed[key] = str(value)
+        if changed:
+            out["Relations"] = changed
+            out["RelationVersion"] = str(gd.relation_version() + 1)
+
+    f = s.relation_rollback_factor
+    if _neq(f, 1.0) and f > 0:
+        base = parse_number(
+            gd.resolve(gd.relations, "Default", "ReputationRollbackCooldown"))
+        if base > 0:
+            out["ReputationRollbackCooldown"] = str(
+                max(1, int(round(base * f))))
+        cooldowns = {
+            fac: str(max(1, int(round(seconds * f))))
+            for fac, seconds in sorted(gd.faction_rollback_cooldowns().items())
+            if seconds > 0
+        }
+        if cooldowns:
+            out["FactionRollbackCooldowns"] = cooldowns
+
+    return {"Default": out} if out else {}
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -1653,6 +1713,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", _items_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", _trade_patch(gd, s))
+    add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
+        _relations_patch(gd, s))
 
     return out
 
@@ -1828,4 +1890,10 @@ def summarize(s: Settings) -> list[str]:
     f("Ammo prices", s.ammo_price_factor)
     f("Artifact prices", s.artifact_price_factor)
     f("Consumable prices", s.consumable_price_factor)
+
+    if s.faction_relations:
+        n_rel = len(s.faction_relations)
+        lines.append(f"Faction relations: {n_rel} pair"
+                     f"{'s' if n_rel != 1 else ''} changed")
+    f("Reputation rollback time", s.relation_rollback_factor)
     return lines

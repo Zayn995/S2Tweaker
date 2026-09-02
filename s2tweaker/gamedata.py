@@ -49,10 +49,11 @@ NEEDED_FILES = [
     "WeatherSelectionPrototypes.cfg.bin",
     "StashPrototypes.cfg.bin",
     "ItemGeneratorPrototypes.cfg.bin",
+    "RelationPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 10
+CACHE_SCHEMA = 11
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -270,6 +271,10 @@ class GameData:
     @cached_property
     def itemgenerators(self) -> CfgStruct:
         return self._parse("ItemGeneratorPrototypes.cfg")
+
+    @cached_property
+    def relations(self) -> CfgStruct:
+        return self._parse("RelationPrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:
@@ -1106,3 +1111,59 @@ class GameData:
         if node is None:
             return default
         return parse_number(node.get(key), default)
+
+    # ------------------------------------------------- Fraktionsbeziehungen
+    # Recherche: docs/FACTION_RELATIONS_RESEARCH.md (582 Paare, Stand 2.0.x)
+
+    def _relations_default(self) -> CfgStruct | None:
+        return self.relations.children.get("Default")
+
+    def relation_pairs(self) -> dict[str, int]:
+        """{Paar-Schluessel wie "Bandits<->Player": Vanilla-Wert} — die
+        Schluessel-Schreibweise (Reihenfolge der beiden Fraktionen) ist
+        exakt die der Spieldaten; nur diese Schluessel darf ein Patch
+        anfassen (neue Paare anzulegen ist ungetestet)."""
+        d = self._relations_default()
+        if d is None:
+            return {}
+        rel = d.children.get("Relations")
+        if rel is None:
+            return {}
+        result: dict[str, int] = {}
+        for key, raw in rel.values.items():
+            try:
+                result[key] = int(round(parse_number(raw)))
+            except (TypeError, ValueError):
+                continue
+        return result
+
+    def relation_pair_key(self, a: str, b: str) -> str | None:
+        """Vorhandenen Schluessel fuer das Paar (a, b) finden — die
+        Spieldaten kennen je Paar nur EINE Richtung ("Duty<->Freedom"
+        existiert, "Freedom<->Duty" nicht)."""
+        pairs = self.relation_pairs()
+        for key in (f"{a}<->{b}", f"{b}<->{a}"):
+            if key in pairs:
+                return key
+        return None
+
+    def relation_version(self) -> int:
+        """Vanilla-RelationVersion (2.0.x: 7). Der Patch schreibt +1,
+        damit bestehende Saves die neue Baseline bemerken (Hypothese,
+        siehe Recherche-Dokument — bis zum In-Game-Test als 'untested on
+        existing saves' beschriftet)."""
+        d = self._relations_default()
+        if d is None:
+            return 0
+        return int(round(parse_number(d.values.get("RelationVersion"), 0)))
+
+    def faction_rollback_cooldowns(self) -> dict[str, float]:
+        """{Fraktion: Sekunden} aus FactionRollbackCooldowns (Vanilla: 19
+        Eintraege, alle 900)."""
+        d = self._relations_default()
+        if d is None:
+            return {}
+        node = d.children.get("FactionRollbackCooldowns")
+        if node is None:
+            return {}
+        return {fac: parse_number(raw) for fac, raw in node.values.items()}

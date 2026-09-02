@@ -58,7 +58,7 @@ _GD_TREES = (
     "holdbreath", "weapongeneral", "corevars", "stashes", "aiglobals",
     "hearingsensors", "visionscanners", "camerashake", "artifactspawners",
     "passivedetectors", "fasttravel", "boolproviders", "abilities", "melee",
-    "weatherselection", "itemgenerators",
+    "weatherselection", "itemgenerators", "relations",
 )
 
 

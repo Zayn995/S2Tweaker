@@ -173,6 +173,38 @@ FAQ_ENTRIES = [
              "distance empty world performance fps",
     },
     {
+        "q": "Can I change faction relations - make bandits friendly or "
+             "start a faction war?",
+        "a": "Yes - the Factions tab. 'You (Skif) <-> factions' sets your "
+             "baseline standing with each major faction, the blocks below "
+             "set faction-vs-faction pairs, all on the game's own scale "
+             "(-800 = enemy/kill on sight, around -400 = wary but talking "
+             "and trading still work, 0 = neutral, 600+ = friend). Story, "
+             "boss and arena factions are deliberately not listed - "
+             "changing them could break scripted fights. Quests can still "
+             "override relations at any time; that is by design.",
+        "k": "faction relations reputation bandits friendly hostile war "
+             "peace duty freedom monolith mercenaries military ward "
+             "loners mutants attack neutral standing diplomacy",
+    },
+    {
+        "q": "Do faction relation changes work on my existing save?",
+        "a": "Honest answer: not verified yet. The game copies relations "
+             "into the save when a playthrough starts, so a plain config "
+             "change would only affect NEW games. This tool additionally "
+             "raises the game's internal RelationVersion counter - the "
+             "mechanism built to push relation updates into existing "
+             "saves - but treat that as untested until play-testing "
+             "confirms it. New games start from the patched baseline. "
+             "Keep a backup save. Also: local hostility still rolls back "
+             "over time, scripted characters keep their fixed attitudes, "
+             "and a save stamped with our raised counter may skip ONE "
+             "future official relation update (rare - 7 versions in two "
+             "years); remove the mod before big game patches to be safe.",
+        "k": "faction relations existing save new game relationversion "
+             "not working savegame old save version counter apply",
+    },
+    {
         "q": "Can I vault or climb over higher obstacles?",
         "a": "Yes - there is a whole Vaulting tab: seven sliders (max height, trigger "
              "distance, approach angle, min obstacle height, landing "
@@ -215,10 +247,11 @@ FAQ_ENTRIES = [
         "q": "How do I see only what I changed?",
         "a": "Click 'Changed only' in the header: everything still at "
              "(vanilla) is dimmed across all tabs, and the override trees "
-             "highlight just your overridden weapons, rounds and armor "
-             "pieces. Dimmed sliders stay usable. A search temporarily "
-             "takes over; clearing it brings the view back. The 'Build "
-             "pak' dialog also lists every active tweak.",
+             "highlight just your overridden weapons, rounds, armor "
+             "pieces and changed faction pairs. Dimmed sliders stay "
+             "usable. A search temporarily takes over; clearing it brings "
+             "the view back. The 'Build pak' dialog also lists every "
+             "active tweak.",
         "k": "changed only show my tweaks overview filter what did i "
              "change active editor view dim",
     },

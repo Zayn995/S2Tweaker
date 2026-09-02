@@ -37,6 +37,7 @@ app.gd = GameData(VANILLA)
 app._iw_populate()
 app._ia_populate()
 app._ir_populate()
+app._if_populate()
 app._mut_populate()
 app._set_body_state(True)
 app.status.configure(text="Ready. Analyzed your game version – 80 weapons, "
@@ -196,7 +197,18 @@ S["npc_grenades"].set(0)
 scroll_top(app.tabs.tab("NPCs & AI"))
 shot("09_npcs_ai.png")
 
-# -------------------------------------------------------------- 9 Search
+# ------------------------------------------------------------ 9 Factions
+app.tabs.set("Factions")
+pkey = app.gd.relation_pair_key("Bandits", "Player")
+app._if_blocks["player"].rows[pkey].set(600)
+dblk = app._if_blocks["Duty"]
+dblk.expand()
+dblk.rows[app.gd.relation_pair_key("Duty", "Freedom")].set(-800)
+app.update()
+scroll_top(app.tabs.tab("Factions"))
+shot("10_factions.png")
+
+# -------------------------------------------------------------- 10 Search
 app.tabs.set("Weapons")
 app.search_entry.delete(0, "end")
 app.search_entry.insert(0, "ak74")
@@ -206,25 +218,25 @@ while time.perf_counter() < end:
     app.update()
     time.sleep(0.01)
 scroll_to(app._iw_blocks["rifle"].btn, margin=20)
-shot("10_search.png")
+shot("11_search.png")
 app.search_entry.delete(0, "end")
 app._apply_filter()
 
-# -------------------------------------------------------------- 10 World
+# -------------------------------------------------------------- 11 World
 app.tabs.set("World")
 S["anomaly"].set(1.5)
 S["radiation"].set(0.5)
 S["hunger"].set(50)
 scroll_top(app.tabs.tab("World"))
-shot("11_world.png")
+shot("12_world.png")
 
-# ------------------------------------------------------------ 11 Economy
+# ------------------------------------------------------------ 12 Economy
 app.tabs.set("Economy")
 S["buyprice"].set(1.5)
 S["sellprice"].set(0.75)
 S["repair"].set(0.5)
 scroll_top(app.tabs.tab("Economy"))
-shot("12_economy.png")
+shot("13_economy.png")
 
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)

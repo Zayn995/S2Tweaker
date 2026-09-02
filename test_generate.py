@@ -100,6 +100,13 @@ s = Settings(
     vault_height_factor=1.5, improved_vaulting=True,
     vault_distance_factor=2.0, vault_landing_factor=6.0, vault_sprint=True,
     vault_over_offset_factor=5.0,
+    # Fraktionsbeziehungen: ein Player-Paar, ein Fraktions-Paar mit
+    # krummem Vanilla-Wert (-599), ein Vanilla-gleiches Paar (DARF keine
+    # Patch-Zeile erzeugen) — dazu der Rollback-Faktor.
+    faction_relations={"Bandits<->Player": 800,
+                       "Freedom<->Duty": -800,
+                       "Mutant<->Player": -800},
+    relation_rollback_factor=0.5,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

@@ -87,6 +87,47 @@ ACCENT = "#d9a648"
 MARK_INFO = "#5da8dc"   # fremde Mod aendert den Wert, Regler steht auf (vanilla)
 MARK_WARN = "#b07fe0"   # fremde Mod aendert den Wert UND der Regler ist verstellt
 
+# --- Fraktionsbeziehungen (Tab "Factions") -------------------------------
+# Kuratierte Haupt-Fraktionen: (cfg-SID, englischer PDA-Anzeigename).
+# Story-/Boss-/Arena-Fraktionen bleiben bewusst draussen
+# (docs/FACTION_RELATIONS_RESEARCH.md, Abschnitt WARNUNGEN). "Mutant"
+# ist die Schirm-Fraktion aller Mutanten und steht als letzte, damit
+# jeder Fraktions-Block seine "vs. Mutants"-Zeile bekommt.
+FACTION_CHOICES = [
+    ("Neutrals", "Loners"),
+    ("Bandits", "Bandits"),
+    ("Militaries", "Military"),
+    ("Varta", "Ward"),
+    ("Duty", "Duty"),
+    ("Freedom", "Freedom"),
+    ("Mercenaries", "Mercenaries"),
+    ("Monolith", "Monolith"),
+    ("Noon", "Noontide"),
+    ("Spark", "Spark"),
+    ("Corpus", "Corps"),
+    ("Scientists", "Scientists"),
+    ("Mutant", "Mutants (all)"),
+]
+
+
+def relation_level(value: float) -> str:
+    """Kurzer Levelname zur Zahl (RelationLevelRanges der Spieldaten:
+    <= -800 Enemy, -799..-201 Disaffection, -200..200 Neutral, ab 201
+    Friend). "wary" statt "Disaffection", damit es neben den Slider passt;
+    der Sektions-Hinweis nennt den offiziellen Begriff."""
+    v = int(round(value))
+    if v <= -800:
+        return "enemy"
+    if v <= -201:
+        return "wary"
+    if v <= 200:
+        return "neutral"
+    return "friend"
+
+
+def fmt_relation(value: float) -> str:
+    return f"{int(round(value))} · {relation_level(value)}"
+
 
 class FaqRow:
     """Eine Frage im FAQ-Fenster: Frage-Knopf, Antwort klappt auf.
@@ -379,6 +420,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "price_weapon": "weapon_price_factor", "price_armor": "armor_price_factor",
     "price_ammo": "ammo_price_factor", "price_artifact": "artifact_price_factor",
     "price_consumable": "consumable_price_factor",
+    "rel_rollback": "relation_rollback_factor",
 }
 
 CHECK_FIELDS: dict[str, str] = {
@@ -1296,6 +1338,148 @@ class IrGroupBlock:
             row.set_state(state)
 
 
+class IfFactionBlock:
+    """Aufklappbarer Block im Fraktions-Baum (Tab "Factions").
+
+    Vierter Verwandter der Baum-Bloecke (Waffen/Ammo/Ruestung), bewusst
+    KEINE Ableitung — dieselbe Begruendung wie dort. Anders als bei den
+    Zwillingen ist eine Zeile hier direkt eine SliderRow (ein
+    Beziehungspaar = ein Regler, -800..800). Wahrheit ist
+    app.faction_relations; `sids` sind Paar-Schluessel wie
+    "Bandits<->Player" (Attributname wie bei den anderen Baeumen, damit
+    Suche und Changed-only denselben Code benutzen koennen)."""
+
+    def __init__(self, app, parent, group: str, label: str, sids: list[str]):
+        self.app = app
+        self.group = group
+        self.label = label
+        self.sids = sids
+        self.rows: dict[str, SliderRow] = {}
+        self.expanded = False
+        self._highlight = "normal"
+        self._note = ""
+        self._note_hint = False
+        self._state = app._if_state
+        self._hitset: set[str] | None = None
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x")
+        self.btn = ctk.CTkButton(
+            self.frame, text="", anchor="w", fg_color="transparent",
+            hover_color="gray25", font=app._iw_font_cat,
+            command=self.toggle, state=app._if_state)
+        self.btn.pack(fill="x", padx=8, pady=1)
+        self._orig_color = self.btn.cget("text_color")
+        self.content = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.refresh()
+
+    def ensure_rows(self):
+        """Lazy wie bei den anderen Baeumen. Sperre waehrend des Aufbaus:
+        SliderRow.__init__ ruft set(default) -> on_change — ohne Sperre
+        wuerde der halb gebaute Satz gespeicherte Werte loeschen (die
+        Lehre aus dem Waffenbaum-Review)."""
+        if self.rows:
+            return
+        prev = self.app._if_loading
+        self.app._if_loading = True
+        try:
+            self.app.configure(cursor="watch")
+            self.app.update_idletasks()
+        except Exception:
+            pass
+        try:
+            for key in self.sids:
+                row = SliderRow(
+                    self.content, self.app._if_labels.get(key, key),
+                    -800, 800, 1, self.app._if_vanilla.get(key, 0),
+                    fmt_relation,
+                    on_change=lambda k=key: self.app._if_row_changed(k))
+                row.set_highlight(self._row_mode(key))
+                self.rows[key] = row
+                self.app._if_rows[key] = row
+        finally:
+            self.app._if_loading = prev
+            try:
+                self.app.configure(cursor="")
+            except Exception:
+                pass
+        self.load_values()
+        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self.set_state(self.app._if_state)
+
+    def load_values(self):
+        """Gebaute Regler an app.faction_relations angleichen."""
+        if not self.rows:
+            return
+        prev = self.app._if_loading
+        self.app._if_loading = True
+        try:
+            for key, row in self.rows.items():
+                row.set(self.app.faction_relations.get(
+                    key, self.app._if_vanilla.get(key, 0)))
+        finally:
+            self.app._if_loading = prev
+
+    def _row_mode(self, key: str) -> str:
+        if self._hitset is None:
+            return "normal"
+        return "match" if key in self._hitset else "dim"
+
+    def set_row_filter(self, hitset: "set[str] | None"):
+        self._hitset = hitset
+        for key, row in self.rows.items():
+            row.set_highlight(self._row_mode(key))
+
+    def expand(self):
+        if self.expanded:
+            return
+        self.ensure_rows()
+        self.content.pack(fill="x", padx=(8, 0), after=self.btn)
+        self.expanded = True
+        self.refresh()
+
+    def collapse(self):
+        if not self.expanded:
+            return
+        self.content.pack_forget()
+        self.expanded = False
+        self.refresh()
+
+    def toggle(self):
+        self.app._if_auto_opened.discard(self.group)
+        self.collapse() if self.expanded else self.expand()
+
+    def refresh(self):
+        n = sum(1 for key in self.sids if key in self.app.faction_relations)
+        arrow = "▾" if self.expanded else "▸"
+        extra = (f"     ●  {n} of {len(self.sids)} changed" if n else "")
+        extra += self._note
+        if self._note_hint and not self.expanded:
+            extra += "     click to show"
+        self.btn.configure(
+            text=f"{arrow}  {self.label}  ·  {len(self.sids)}{extra}")
+        if self._highlight == "dim":
+            color = "gray35"
+        elif self._highlight == "match" or n:
+            color = ACCENT
+        else:
+            color = self._orig_color
+        self.btn.configure(text_color=color)
+
+    def set_highlight(self, mode: str, note: str = "", hint: bool = False):
+        self._highlight = mode
+        self._note = note
+        self._note_hint = hint
+        self.refresh()
+
+    def set_state(self, state: str):
+        if state == self._state:
+            return
+        self._state = state
+        self.btn.configure(state=state)
+        for row in self.rows.values():
+            row.set_state(state)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -1343,6 +1527,19 @@ class App(ctk.CTk):
         self._ir_auto_opened: set[str] = set()
         self._ir_expand_job: str | None = None
         self._ir_state = "disabled"
+        # Fraktionsbeziehungen: {Paar-Schluessel: Zielwert int, nur != Vanilla}
+        # Vierter Baum, vierter strikt eigener Namensraum (_if_*).
+        self.faction_relations: dict[str, int] = {}
+        self._if_loading = False
+        self._if_vanilla: dict[str, int] = {}    # Paar -> Vanilla-Wert
+        self._if_labels: dict[str, str] = {}     # Paar -> "Duty ↔ Freedom"
+        self._if_rows: dict[str, SliderRow] = {} # nur GEBAUTE Zeilen
+        self._if_blocks: dict[str, "IfFactionBlock"] = {}
+        self._if_groups: list[tuple[str, str, list[str]]] = []
+        self._if_player_keys: list[str] = []
+        self._if_auto_opened: set[str] = set()
+        self._if_expand_job: str | None = None
+        self._if_state = "disabled"
         # Strikt eigener Namensraum. NICHTS davon mit den _iw_*-Feldern
         # teilen: eine gemeinsame Sperre/ein gemeinsamer after()-Auftrag
         # wuerde Overrides der jeweils anderen Seite verschlucken.
@@ -2035,6 +2232,196 @@ class App(ctk.CTk):
                     block.expand()
                     self._ir_auto_opened.add(group)
 
+    # -------------------------------------------- Fraktionsbeziehungen
+    def _if_populate(self):
+        """Beziehungspaare der kuratierten Haupt-Fraktionen einlesen und
+        den Fraktions-Baum neu aufbauen (docs/FACTION_RELATIONS_RESEARCH.md).
+        Nur Paare anbieten, die es in den Spieldaten wirklich gibt."""
+        if self.gd is None:
+            return
+        pairs = self.gd.relation_pairs()
+        self._if_vanilla = {}
+        self._if_labels = {}
+        player_keys: list[str] = []
+        for sid, label in FACTION_CHOICES:
+            key = self.gd.relation_pair_key(sid, "Player")
+            if key is None:
+                continue
+            self._if_vanilla[key] = pairs[key]
+            self._if_labels[key] = f"{label} ↔ you"
+            player_keys.append(key)
+        groups: list[tuple[str, str, list[str]]] = []
+        for i, (sid, label) in enumerate(FACTION_CHOICES):
+            keys: list[str] = []
+            for sid2, label2 in FACTION_CHOICES[i + 1:]:
+                key = self.gd.relation_pair_key(sid, sid2)
+                if key is None or key in self._if_vanilla:
+                    continue
+                self._if_vanilla[key] = pairs[key]
+                self._if_labels[key] = f"{label} ↔ {label2}"
+                keys.append(key)
+            if keys:
+                groups.append((sid, label, keys))
+        self._if_player_keys = player_keys
+        self._if_groups = groups
+        # Verwaiste (anderes Spiel/altes Preset) und Vanilla-gleiche
+        # Eintraege verwerfen — dieselbe Hygiene wie bei den Overrides.
+        cleaned: dict[str, int] = {}
+        for key, value in self.faction_relations.items():
+            vanilla = self._if_vanilla.get(key)
+            if vanilla is None:
+                continue
+            try:
+                v = int(round(float(value)))
+            except (TypeError, ValueError):
+                continue
+            if v != vanilla:
+                cleaned[key] = v
+        self.faction_relations = cleaned
+        self._if_build_tree()
+
+    def _if_build_tree(self):
+        """Baum verwerfen und neu aufbauen; der Spieler-Block startet
+        aufgeklappt (er ist der Hauptanwendungsfall des Tabs)."""
+        self._if_cancel_expand()
+        self._if_blocks.clear()
+        self._if_rows.clear()
+        self._if_auto_opened.clear()
+        for child in list(self.if_tree.winfo_children()):
+            child.destroy()
+        if not self._if_vanilla:
+            text = ("   – load game data first –" if self.gd is None
+                    else "   – no faction relations found in this game "
+                         "version –")
+            ctk.CTkLabel(self.if_tree, text=text, anchor="w",
+                         font=self._iw_font_hint,
+                         text_color="gray60").pack(fill="x", padx=12)
+            self._if_update_info()
+            return
+        if self._if_player_keys:
+            self._if_blocks["player"] = IfFactionBlock(
+                self, self.if_tree, "player", "You (Skif) ↔ factions",
+                list(self._if_player_keys))
+        for sid, label, keys in self._if_groups:
+            self._if_blocks[sid] = IfFactionBlock(
+                self, self.if_tree, sid, f"{label} ↔ others", list(keys))
+        player = self._if_blocks.get("player")
+        if player is not None:
+            player.expand()
+        self._if_update_info()
+
+    def _if_row_changed(self, key: str):
+        if self._if_loading:
+            return
+        row = self._if_rows.get(key)
+        vanilla = self._if_vanilla.get(key)
+        if row is None or vanilla is None:
+            return
+        value = int(round(row.get()))
+        if value != vanilla:
+            self.faction_relations[key] = value
+        else:
+            self.faction_relations.pop(key, None)
+        self._if_after_change()
+
+    def _if_after_change(self):
+        for block in self._if_blocks.values():
+            block.refresh()
+        self._if_update_info()
+        self._if_update_conflict_note()   # Warnstufe haengt am eigenen Stand
+
+    def _if_update_info(self):
+        if self.faction_relations:
+            parts = []
+            for key in sorted(self.faction_relations):
+                label = self._if_labels.get(key, key)
+                parts.append(f"{label}: {fmt_relation(self.faction_relations[key])}")
+            text = "Changed: " + "  ·  ".join(parts)
+        else:
+            text = "No relations changed."
+        self.if_info.configure(text=text)
+
+    def _if_refresh_all(self):
+        """Alle GEBAUTEN Regler und Marker an faction_relations angleichen.
+        Vertraegt einen leeren Baum — laeuft auch ohne Spieldaten."""
+        for block in self._if_blocks.values():
+            block.load_values()
+            block.refresh()
+        self._if_update_info()
+
+    def _if_clear_all(self):
+        self.faction_relations.clear()
+        self._if_refresh_all()
+
+    def _if_cancel_expand(self) -> None:
+        if self._if_expand_job is not None:
+            try:
+                self.after_cancel(self._if_expand_job)
+            except Exception:
+                pass
+            self._if_expand_job = None
+
+    def _if_pair_hit(self, key: str, q: str) -> bool:
+        """Paar-Schluessel ODER Anzeigename ("Duty ↔ Freedom"): der Nutzer
+        sucht nach dem, was er im Spiel sieht."""
+        return q in key.lower() or q in self._if_labels.get(key, "").lower()
+
+    def _if_filter(self, query: str) -> int:
+        """Suchfeld auf den Fraktions-Baum anwenden; liefert die Trefferzahl."""
+        self._if_cancel_expand()
+        if not query:
+            for group in list(self._if_auto_opened):
+                block = self._if_blocks.get(group)
+                if block is not None:
+                    block.collapse()
+            self._if_auto_opened.clear()
+            for block in self._if_blocks.values():
+                block.set_highlight("normal", "")
+                block.set_row_filter(None)
+            return 0
+        q = query.lower()
+        hits_total = 0
+        for group, block in self._if_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            key_hits = [key for key in block.sids if self._if_pair_hit(key, q)]
+            hits = block.sids if group_hit else key_hits
+            hits_total += len(key_hits) if key_hits else (1 if group_hit else 0)
+            block.set_row_filter(set(hits))
+            if not hits and group in self._if_auto_opened:
+                block.collapse()
+                self._if_auto_opened.discard(group)
+            if key_hits:
+                note = (f"     {len(key_hits)} match"
+                        f"{'es' if len(key_hits) != 1 else ''}")
+            elif group_hit:
+                note = "     group match"
+            else:
+                note = ""
+            block.set_highlight("match" if hits else "dim", note, bool(hits))
+        if self._if_blocks:
+            self._if_expand_job = self.after(
+                250, lambda x=q: self._if_auto_expand(x))
+        return hits_total
+
+    def _if_auto_expand(self, q: str) -> None:
+        """Verzoegerter Teil: passende Bloecke aufklappen (eigenes Budget,
+        damit der Fraktions-Baum den anderen Baeumen nichts wegnimmt)."""
+        self._if_expand_job = None
+        if self.search_entry.get().strip().lower() != q:
+            return
+        built = 0
+        for group, block in self._if_blocks.items():
+            group_hit = q in block.label.lower() or q in group.lower()
+            key_hits = [key for key in block.sids if self._if_pair_hit(key, q)]
+            hits = block.sids if group_hit else key_hits
+            specific = len(key_hits) <= 8
+            if hits and specific and len(q) >= 3 and not block.expanded:
+                cost = 0 if block.rows else len(block.sids)
+                if built + cost <= 45:
+                    built += cost
+                    block.expand()
+                    self._if_auto_opened.add(group)
+
     # -------------------------------------------- Mutanten-Overrides
     def _mut_populate(self):
         if self.gd is None:
@@ -2312,6 +2699,56 @@ class App(ctk.CTk):
         self._slider(f, "alife_distance", "A-Life spawn distance", 50, 200, 10, 100, fmt_pct,
                      "Vanilla: squads spawn ≥ 2500 m away. Lower = encounters "
                      "pop up closer to you; higher = quieter surroundings.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        body = self._tab("Factions")
+        f = self._section(body, "Faction relations (living world)")
+        self._warning(
+            f, "Experimental & not play-tested on existing saves yet: the "
+               "game copies relations into your save when a playthrough "
+               "starts. This tool also raises the game's internal "
+               "RelationVersion so existing saves should pick the new "
+               "values up – unverified until in-game testing. Quests and "
+               "scripted story characters can still override relations at "
+               "any time (that is by design), and local hostility slowly "
+               "rolls back on its own. Keep a backup save.")
+        ctk.CTkLabel(
+            f, text="   Baseline stance between factions, on the game's own "
+                    "scale: −800 or lower = enemy (kill on sight), −799 to "
+                    "−201 = wary (the game calls it 'Disaffection' – talking "
+                    "and trading still work), −200 to 200 = neutral, 201 and "
+                    "up = friend. Vanilla uses values like −599 on purpose – "
+                    "just past a threshold. Story, boss and arena factions "
+                    "are deliberately not listed.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(
+            fill="x", padx=12)
+        # Mod-Scan-Hinweis (Pseudo-Schluessel "tree:factions"): der Baum hat
+        # keine Regler-Punkte, dafuer diese eine ehrliche Zeile.
+        self.if_conflict_label = ctk.CTkLabel(
+            f, text="", anchor="w", justify="left", wraplength=780,
+            font=self._iw_font_hint, text_color=MARK_INFO)
+        self.if_info = ctk.CTkLabel(
+            f, text="No relations changed.", anchor="w", justify="left",
+            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+        self.if_info.pack(fill="x", padx=12, pady=(2, 2))
+        self.if_clear_btn = ctk.CTkButton(
+            f, text="Reset all relations to vanilla", width=220,
+            command=self._if_clear_all)
+        self.if_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
+        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        self.if_tree = ctk.CTkFrame(f, fg_color="transparent")
+        self.if_tree.pack(fill="x", pady=(2, 2))
+        self._if_build_tree()            # zeigt zunaechst nur den Platzhalter
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Reputation mechanics")
+        self._slider(f, "rel_rollback", "Reputation rollback time", 25, 400, 25, 100, fmt_pct,
+                     "How long the game remembers LOCAL hostility before "
+                     "forgiving it (vanilla 60 min in the field, faster in "
+                     "hubs). 400 % = grudges last four times longer; "
+                     "25 % = quick forgiveness. Permanent faction-wide "
+                     "reputation is a separate system and is not affected.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weapons")
@@ -2701,6 +3138,10 @@ class App(ctk.CTk):
         self.ir_clear_btn.configure(state=state)
         for block in self._ir_blocks.values():
             block.set_state(state)
+        self._if_state = state   # dito fuer den Fraktions-Baum
+        self.if_clear_btn.configure(state=state)
+        for block in self._if_blocks.values():
+            block.set_state(state)
         # Dropdown nur aktivieren, wenn die Liste geladen ist
         self.mut_menu.configure(
             state=state if (enabled and self._mut_species) else "disabled")
@@ -2732,6 +3173,7 @@ class App(ctk.CTk):
                     self._iw_populate()
                     self._ia_populate()
                     self._ir_populate()
+                    self._if_populate()
                     self._mut_populate()
                     self._set_busy(False)
                     self._set_body_state(True)
@@ -2945,6 +3387,8 @@ class App(ctk.CTk):
                             for sid, v in self.ammo_overrides.items()},
             armor_overrides={sid: dict(v)
                              for sid, v in self.armor_overrides.items()},
+            faction_relations=dict(self.faction_relations),
+            relation_rollback_factor=s["rel_rollback"].get() / 100.0,
             anomaly_damage_factor=s["anomaly"].get(),
             anomaly_electro_factor=s["anom_electro"].get(),
             anomaly_chemical_factor=s["anom_chem"].get(),
@@ -3030,6 +3474,9 @@ class App(ctk.CTk):
         ir_hits = self._ir_filter(query)
         if query and ir_hits:
             counts["Armor"] = counts.get("Armor", 0) + ir_hits
+        if_hits = self._if_filter(query)
+        if query and if_hits:
+            counts["Factions"] = counts.get("Factions", 0) + if_hits
         if query:
             if self._status_before_search is None:
                 self._status_before_search = self.status.cget("text")
@@ -3038,7 +3485,7 @@ class App(ctk.CTk):
                     f"{tab} ({n})" for tab, n in counts.items()))
             else:
                 self.status.configure(
-                    text="No slider, weapon, ammo or armor "
+                    text="No slider, weapon, ammo, armor or faction "
                          "matches your search.")
         elif self._status_before_search is not None:
             # Suchfeld geleert: alte Meldung zurueck statt eines stehen
@@ -3091,8 +3538,8 @@ class App(ctk.CTk):
         return abs(row.get() - row.default) > 1e-9
 
     def _apply_changed_only(self):
-        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die drei
-        Override-Baeume filtern auf ihre Overrides."""
+        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die vier
+        Override-Baeume filtern auf ihre Overrides/geaenderten Paare."""
         for key, row in self.sliders.items():
             row.set_highlight(
                 "normal" if self._slider_changed_from_vanilla(row) else "dim")
@@ -3110,7 +3557,8 @@ class App(ctk.CTk):
         for blocks, overrides in (
                 (self._iw_blocks, self.weapon_overrides),
                 (self._ia_blocks, self.ammo_overrides),
-                (self._ir_blocks, self.armor_overrides)):
+                (self._ir_blocks, self.armor_overrides),
+                (self._if_blocks, self.faction_relations)):
             for block in blocks.values():
                 hits = [sid for sid in block.sids if sid in overrides]
                 block.set_row_filter(set(hits))
@@ -3318,7 +3766,40 @@ class App(ctk.CTk):
             mods = [info.name for info in infos if info.pairs & pairs]
             if mods:
                 conflicts[key] = mods
+        # Vierter Baum (Fraktionsbeziehungen): seine Zeilen liegen nicht in
+        # self.sliders, und anders als bei Waffen/Ammo/Ruestung deckt KEIN
+        # globaler Regler die Relations-Blaetter ab (Befund des Feature-
+        # Reviews 02.09.). Ein Sammel-Fussabdruck ueber alle kuratierten
+        # Paare stopft das Loch: fremde Mods auf denselben Paaren erscheinen
+        # unter dem Pseudo-Schluessel "tree:factions" im Dialog, im Report
+        # und als Hinweis im Factions-Tab. Bewusst KEINE Regler-Punkte und
+        # KEINE Avoid-Sperre je Zeile — der Hinweistext sagt das ehrlich.
+        pairs = self._faction_tree_footprint(gd)
+        if pairs:
+            mods = [info.name for info in infos if info.pairs & pairs]
+            if mods:
+                conflicts["tree:factions"] = mods
         return conflicts
+
+    def _faction_tree_footprint(self, gd) -> set:
+        """Vereinigter Fussabdruck aller kuratierten Beziehungspaare
+        (+ RelationVersion), gecacht wie die Regler-Fussabdruecke."""
+        key = "tree:factions"
+        if key not in self._footprints:
+            rel = gd.relation_pairs()
+            probe: dict[str, int] = {}
+            for i, (sid, _label) in enumerate(FACTION_CHOICES):
+                for other in ["Player"] + [s for s, _l in
+                                           FACTION_CHOICES[i + 1:]]:
+                    pk = gd.relation_pair_key(sid, other)
+                    if pk is not None and pk in rel:
+                        probe[pk] = rel[pk] + 1     # garantiert != Vanilla
+            pairs: set = set()
+            if probe:
+                pairs = modscan.pairs_from_patches(
+                    build_patches(gd, Settings(faction_relations=probe)))
+            self._footprints[key] = pairs
+        return self._footprints[key] or set()
 
     def _finish_modscan(self):
         self._scan_running = False
@@ -3356,8 +3837,32 @@ class App(ctk.CTk):
     def _apply_conflict_marks(self):
         for key, row in self.sliders.items():
             row.set_conflict(self.mod_conflicts.get(key), self._mods_after)
+        self._if_update_conflict_note()
         self._apply_conflict_locks()
         self._refresh_check_dots()
+
+    def _if_update_conflict_note(self):
+        """Scan-Hinweis im Factions-Tab: fremde Mods auf denselben
+        Beziehungspaaren. Info-Blau bei unverstellten, Warn-Violett bei
+        verstellten eigenen Paaren — dieselbe Stufenlogik wie die Punkte."""
+        if not hasattr(self, "if_conflict_label"):
+            return
+        mods = sorted(self.mod_conflicts.get("tree:factions") or [])
+        if not mods:
+            self.if_conflict_label.pack_forget()
+            return
+        after = sorted(set(mods) & self._mods_after)
+        text = "●  Mod scan: also changing faction relations: " + ", ".join(mods)
+        if after:
+            text += ("  —  " + ", ".join(after)
+                     + " loads AFTER your pak and wins shared values")
+        text += (".  The Avoid-conflicts switch does not lock these rows – "
+                 "reset them yourself if you want to stay neutral here.")
+        self.if_conflict_label.configure(
+            text="   " + text,
+            text_color=MARK_WARN if self.faction_relations else MARK_INFO)
+        self.if_conflict_label.pack(fill="x", padx=12, pady=(0, 2),
+                                    before=self.if_info)
 
     # ------------------------------------------------ Avoid-conflicts-Modus
     def _apply_conflict_locks(self):
@@ -3493,6 +3998,8 @@ class App(ctk.CTk):
                 box = self.checks.get(key[len("check:"):])
                 if box is not None:
                     labels.append(str(box.cget("text")))
+            elif key == "tree:factions":
+                labels.append("Faction relations (Factions tab)")
             elif key in self.sliders:
                 labels.append(str(self.sliders[key].label.cget("text")))
         return labels
@@ -3542,6 +4049,8 @@ class App(ctk.CTk):
                 if key.startswith("check:"):
                     box = self.checks.get(key[len("check:"):])
                     label = str(box.cget("text")) if box else key
+                elif key == "tree:factions":
+                    label = "Faction relations (Factions tab)"
                 else:
                     row = self.sliders.get(key)
                     label = str(row.label.cget("text")) if row else key
@@ -3637,8 +4146,10 @@ class App(ctk.CTk):
                          "(vanilla). Unlock one with its \U0001f513 button "
                          "– unlocks are remembered while this stays on; "
                          "re-ticking the box locks everything again. The "
-                         "override trees (weapons/ammo/armor) are not "
-                         "locked; their global sliders are.")
+                         "override trees are not locked: for weapons/ammo/"
+                         "armor their global sliders are locked instead; "
+                         "faction relations are only reported (see the "
+                         "note on the Factions tab).")
             else:
                 avoid_hint.configure(
                     text="Locks the marked settings at (vanilla) so this "
@@ -3672,6 +4183,7 @@ class App(ctk.CTk):
         self._iw_clear_all()
         self._ia_clear_all()
         self._ir_clear_all()
+        self._if_clear_all()
         self.mutant_overrides.clear()
         if self._mut_current is not None:
             self._mut_select(self._mut_current)
@@ -3692,6 +4204,7 @@ class App(ctk.CTk):
             "ammo_overrides": self.ammo_overrides,
             "armor_overrides": self.armor_overrides,
             "mutant_overrides": self.mutant_overrides,
+            "faction_relations": self.faction_relations,
         }
 
     def _save_ui_settings(self):
@@ -3755,6 +4268,7 @@ class App(ctk.CTk):
             self._iw_populate()
             self._ia_populate()
             self._ir_populate()
+            self._if_populate()
             self._mut_populate()
         # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
         # laufende Suche wieder auf den neu gebauten Baum anwenden.
@@ -3839,6 +4353,13 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.armor_overrides[sid] = clean
+        for key, value in (data.get("faction_relations") or {}).items():
+            # Vanilla-gleiche und unbekannte Paare fliegen erst in
+            # _if_populate raus (dort sind die Vanilla-Werte bekannt).
+            try:
+                self.faction_relations[str(key)] = int(round(float(value)))
+            except (TypeError, ValueError):
+                continue
         # Unbekannte SIDs koennen erst in _ia_populate weg (dort sind die
         # gueltigen Kaliber bekannt) -- genau wie beim Waffenbaum.
         # Bereits gebaute Waffen-Regler auf die geladenen Werte ziehen (und
@@ -3847,6 +4368,7 @@ class App(ctk.CTk):
         self._iw_refresh_all()
         self._ia_refresh_all()
         self._ir_refresh_all()
+        self._if_refresh_all()
         # Avoid-Sperren wieder durchsetzen: das Preset kann Werte auf
         # gesperrte Regler geschrieben haben (werden gemerkt + auf Vanilla
         # zurueckgesetzt). Beim Start ohne Scan ist mod_conflicts leer ->
@@ -3859,6 +4381,7 @@ class App(ctk.CTk):
         self._iw_cancel_expand()
         self._ia_cancel_expand()
         self._ir_cancel_expand()
+        self._if_cancel_expand()
         self._oc_cancel()
         self._save_ui_settings()
         self.destroy()
@@ -3982,6 +4505,7 @@ class App(ctk.CTk):
             self._iw_populate()
             self._ia_populate()
             self._ir_populate()
+            self._if_populate()
             self._mut_populate()
         self._apply_filter()
         name = str(data.get("mod_name") or "").strip()
