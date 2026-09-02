@@ -40,9 +40,15 @@ print(f"Vollstaendigkeit: {len(SLIDER_FIELDS)} Regler + "
       f"{len(CHECK_FIELDS)} Checkboxen abgedeckt")
 
 # --- 2) Jeder Fussabdruck ist gueltig und NICHT leer ---------------------
+# Bewusste Ausnahme: npc_gear patcht nur Weight-Blaetter, die der
+# Scan-Vergleich absichtlich ausschliesst (Kollisions-Haertung) — der
+# Regler ist deklariert unmarkierbar wie die Baum-Regler.
+unscannable = {k for k in SLIDER_FIELDS if footprint_settings(k) is None}
+assert unscannable == {"npc_gear"}, unscannable
 t0 = time.time()
 empty = []
-for key in list(SLIDER_FIELDS) + ["check:" + k for k in CHECK_FIELDS]:
+for key in [k for k in SLIDER_FIELDS if k not in unscannable] \
+        + ["check:" + k for k in CHECK_FIELDS]:
     probes = footprint_settings(key)
     assert probes is not None, key
     pairs = set()

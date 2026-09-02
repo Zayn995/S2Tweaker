@@ -306,6 +306,7 @@ class Settings:
     npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
     npc_grenade_factor: float = 1.0      # 0 = nie werfen (-1-Bosse bleiben)
     npc_no_heal: bool = False            # RegenHP=0 fuer alle Human-NPCs
+    npc_gear_quality_factor: float = 1.0  # Weight-Kipp zur teureren Ware
     # --- Mutanten (global; Overrides pro Art via mutant_overrides) ---
     mutant_speed_factor: float = 1.0     # Walk/Run/SprintSpeed aller Arten
     mutant_hearing_factor: float = 1.0   # der eine geteilte MutantsHearingSensor
@@ -374,6 +375,7 @@ class Settings:
     healing_factor: float = 1.0              # NUR Medizin-Heilung (Nexus-Wunsch)
     rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
     emission_factor: float = 1.0             # Emissions-Haeufigkeit
+    emission_duration_factor: float = 1.0    # Emissions-Dauer (Zeitstreckung)
     # --- Loot in Verstecken und auf Leichen (StashPrototypes) ---
     stash_loot_factor: float = 1.0           # Stueckzahlen je Fund
     stash_chance_factor: float = 1.0         # Fundwahrscheinlichkeit
@@ -403,6 +405,8 @@ class Settings:
     # Builder prueft ohnehin gegen die live gelesenen Vanilla-Werte.
     faction_relations: dict = field(default_factory=dict)
     relation_rollback_factor: float = 1.0    # Reputations-Rollback-Zeit
+    relation_reaction_factor: float = 1.0    # Staerke der Reputations-Deltas
+    trade_min_level: float = 1.0             # 0=Enemy 1=Disaffection(Van.) 2=Neutral 3=Friend
 
     # --- Wirtschaft ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
@@ -765,6 +769,39 @@ def _loot_condition_patch(gd: GameData, s: Settings) -> dict:
                     .setdefault(gen_key, {})
                     .setdefault(slot_key, {})
                     .setdefault("PossibleItems", {}))[item_key] = cfg
+    return patches
+
+
+def _gear_quality_patch(gd: GameData, s: Settings) -> dict:
+    """NPC-Ausruestungsqualitaet: kippt die Weight-Lotterien der
+    Loadout-Pools zur teureren Ware (Preis als Tier-Massstab, live aus
+    ItemPrototypes.Cost gelesen). Innerhalb eines Pools bekommt das
+    billigste Item Faktor 1, das teuerste den vollen Faktor, dazwischen
+    geometrisch nach Preisrang — bei Faktor 4 ist die beste Waffe des
+    Pools also 4x so wahrscheinlich, bei 0.25 dominiert der Schrott.
+    EHRLICHE GRENZE: es werden nie Items ergaenzt oder entfernt (Gewicht
+    faellt nie unter 1), NPCs tragen weiter nur, was ihr Pool vanilla
+    hergibt. Items ohne aufloesbaren Preis bleiben unangetastet."""
+    f = s.npc_gear_quality_factor
+    if not _neq(f, 1.0) or f <= 0:
+        return {}
+    patches: dict = {}
+    for sid, gen_key, slot_key, pool in gd.gear_weight_pools():
+        costs = sorted({cost for *_x, cost in pool if cost is not None})
+        if len(costs) < 2:
+            continue
+        rank = {cost: i / (len(costs) - 1) for i, cost in enumerate(costs)}
+        for item_key, item, weight, cost in pool:
+            if cost is None:
+                continue
+            new = max(1, int(round(weight * (f ** rank[cost]))))
+            if new == int(round(weight)):
+                continue
+            (patches.setdefault(sid, {})
+                    .setdefault(gen_key, {})
+                    .setdefault(slot_key, {})
+                    .setdefault("PossibleItems", {})
+                    .setdefault(item_key, {}))["Weight"] = str(new)
     return patches
 
 
@@ -1738,6 +1775,55 @@ def _trade_patch(gd: GameData, s: Settings) -> dict:
 
 # ------------------------------------------------------------------ assembly
 
+def _emission_patch(gd: GameData, s: Settings) -> dict:
+    """Emissions-Dauer: reine ZEITSTRECKUNG des Default-Prototyps.
+
+    Alle Zeitwerte der Ablauf-Struktur (PhaseStartTime, PhaseDuration,
+    AIEventStartTime) werden mit demselben Faktor multipliziert — damit
+    bleiben auch die Vanilla-Ueberlappungen (ShockWave laeuft in die
+    Active-Phase hinein) exakt erhalten. Zwei bewusste Ausnahmen:
+    die ActivateQuest-Stufe behaelt ihre Dauer (Quest-Triggerfenster),
+    und die 5 Story-Emissionen (E06/E15) werden gar nicht angefasst
+    (der Accessor liefert nur den Default-Prototyp)."""
+    f = s.emission_duration_factor
+    if not _neq(f, 1.0) or f <= 0:
+        return {}
+    key, stages, aievents = gd.emission_default_timeline()
+    if key is None or stages is None:
+        return {}
+    patches: dict = {}
+
+    def scale_into(dst: dict, node, field: str, skip: bool = False):
+        raw = node.values.get(field)
+        if raw is None:
+            return
+        value = parse_number(raw)
+        new = value if skip else value * f
+        if _neq(new, value):
+            dst[field] = _num(new)
+
+    stage_cfg: dict = {}
+    for idx, stage in stages.children.items():
+        quest_trigger = ("ActivateQuest"
+                         in (stage.values.get("StageID") or ""))
+        cfg: dict = {}
+        scale_into(cfg, stage, "PhaseStartTime")
+        scale_into(cfg, stage, "PhaseDuration", skip=quest_trigger)
+        if cfg:
+            stage_cfg[idx] = cfg
+    if stage_cfg:
+        patches.setdefault(key, {})["Stages"] = stage_cfg
+    event_cfg: dict = {}
+    for idx, event in (aievents.children.items() if aievents else ()):
+        cfg: dict = {}
+        scale_into(cfg, event, "AIEventStartTime")
+        if cfg:
+            event_cfg[idx] = cfg
+    if event_cfg:
+        patches.setdefault(key, {})["AIEvents"] = event_cfg
+    return patches
+
+
 def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
     """Cooldown wiederholbarer Quests (Nexus-Wunsch).
 
@@ -1809,6 +1895,33 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
         if cooldowns:
             out["FactionRollbackCooldowns"] = cooldowns
 
+    # Reaktionsstaerke: alle Reputations-Deltas der 2x8 Tabellen skalieren
+    # (vorzeichen-erhaltend, ganzzahlig; Nullen bleiben Null). Wie der
+    # Rollback ein Mechanik-Wert -> bewusst KEIN RelationVersion-Bump.
+    rf = s.relation_reaction_factor
+    if _neq(rf, 1.0) and rf > 0:
+        for table, idx, entry in gd.relation_reaction_tables():
+            cfg: dict = {}
+            for key, raw in entry.values.items():
+                if key == "Type" or "->" not in key:
+                    continue
+                value = parse_number(raw)
+                new = int(round(value * rf))
+                if value and new != int(value):
+                    cfg[key] = str(new)
+            if cfg:
+                out.setdefault(table, {})[idx] = cfg
+
+    # Handels-Schwelle: Vanilla = Disaffection (Index 1)
+    level = max(0, min(3, int(round(s.trade_min_level))))
+    if level != 1:
+        name = ("Enemy", "Disaffection", "Neutral", "Friend")[level]
+        vanilla_raw = (gd.resolve(gd.relations, "Default",
+                                  "MinRelationLevelToTrade") or "")
+        target = f"ERelationLevel::{name}"
+        if target != vanilla_raw.strip():
+            out["MinRelationLevelToTrade"] = target
+
     return {"Default": out} if out else {}
 
 
@@ -1864,6 +1977,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
     gen_patches = _loot_patch(gd, s)
     _merge_nested(gen_patches, _loot_condition_patch(gd, s))
+    _merge_nested(gen_patches, _gear_quality_patch(gd, s))
     _merge_nested(gen_patches, _trader_stock_patch(gd, s))
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
@@ -1892,6 +2006,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _relations_patch(gd, s))
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg",
         _quest_timer_patch(gd, s))
+    add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
+        _emission_patch(gd, s))
 
     return out
 
@@ -2040,6 +2156,7 @@ def summarize(s: Settings) -> list[str]:
     f("Medkit & bandage healing", s.healing_factor)
     f("Rain & storm frequency", s.rain_factor)
     f("Emission frequency", s.emission_factor)
+    f("Emission duration", s.emission_duration_factor)
     f("Stash & body loot amount", s.stash_loot_factor)
     f("Stash & body find chance", s.stash_chance_factor)
     f("Stash & body ammo bonus", s.stash_ammo_factor)
@@ -2049,6 +2166,7 @@ def summarize(s: Settings) -> list[str]:
                      "(vanilla ~37.5)")
     if s.dropped_condition_exact:
         lines.append("Dropped weapon condition: exact (no random spread)")
+    f("NPC gear quality", s.npc_gear_quality_factor)
     f("Trader stock amount", s.trader_stock_factor)
     f("Trader stock variety (chance per item)", s.trader_variety_factor)
     f("Trader money (finite wallets)", s.trader_money_factor)
@@ -2086,4 +2204,10 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Faction relations: {n_rel} pair"
                      f"{'s' if n_rel != 1 else ''} changed")
     f("Reputation rollback time", s.relation_rollback_factor)
+    f("Reputation reaction strength", s.relation_reaction_factor)
+    if int(round(s.trade_min_level)) != 1:
+        level = max(0, min(3, int(round(s.trade_min_level))))
+        lines.append("Trading requires standing: "
+                     + ("Enemy", "Disaffection", "Neutral", "Friend")[level]
+                     + " (vanilla Disaffection)")
     return lines

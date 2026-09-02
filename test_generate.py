@@ -79,6 +79,8 @@ s = Settings(
     ads_speed_factor=1.2, magazine_factor=2.0, melee_damage_factor=2.0,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
+    emission_duration_factor=2.0,
+    relation_reaction_factor=2.0, trade_min_level=2,
     weapon_bleeding_factor=2.0, ammo_damage_factor=1.5,
     ammo_piercing_factor=2.0, ammo_armor_damage_factor=1.25,
     ammo_cover_factor=0.5,

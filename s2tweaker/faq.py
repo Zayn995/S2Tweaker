@@ -125,6 +125,19 @@ FAQ_ENTRIES = [
              "needs eat food artifact radiation clean",
     },
     {
+        "q": "Can NPCs carry better (or worse) weapons and armor?",
+        "a": "Yes - NPCs & AI tab, 'NPC gear quality'. Every squad rolls "
+             "its loadout from a faction- and rank-specific pool; the "
+             "slider tilts those rolls toward the pricier gear in each "
+             "pool (400 % = the best gun there is four times as likely, "
+             "25 % = rust buckets everywhere). Honest limit: it never "
+             "adds gear a faction or rank wouldn't carry in vanilla - a "
+             "rookie bandit will not spawn with an exoskeleton. Their "
+             "dropped loot changes accordingly.",
+        "k": "npc gear weapons armor loadout quality better worse enemies "
+             "equipment tier veteran carry drop harder richer",
+    },
+    {
         "q": "Can I get new repeatable jobs faster (or instantly)?",
         "a": "Yes - Economy tab, 'Repeatable quest cooldown'. Vanilla "
              "makes task givers wait 24 in-game hours before offering "
@@ -197,11 +210,17 @@ FAQ_ENTRIES = [
         "a": "World tab: 'Anomaly damage' has one global slider plus one "
              "per element (electro, chemical, fire, gravity - they "
              "stack). 'Emission frequency' scales how often emissions "
-             "build up, 'Rain & storm frequency' the weather rotation. "
+             "build up, 'Emission duration' stretches the whole emission "
+             "timeline together (warning siren, shockwave, deadly phase, "
+             "aftermath - vanilla is roughly one minute of warning plus "
+             "one minute active; story emissions keep their scripted "
+             "timing), and 'Rain & storm frequency' the weather rotation. "
              "PSY anomalies drain psy energy, not health, so they have "
-             "no damage slider.",
+             "no damage slider. Emission DAMAGE itself lives in an "
+             "engine curve asset - not tweakable by config, honestly.",
         "k": "anomaly anomalies emission storm blowout weather rain psy "
-             "electro chemical fire gravity damage",
+             "electro chemical fire gravity damage duration longer "
+             "shorter warning time survive",
     },
     {
         "q": "Can I make the Zone busier or emptier (A-Life)?",

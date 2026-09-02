@@ -36,10 +36,13 @@ spread/recoil/durability/fire rate/range/bleeding/ADS move speed/ADS
 aim-in speed on three levels, magazine size, melee, jamming, scoped sway,
 breath hold, repeatable-quest cooldown, ammo
 damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
-hearing/grenades, faction relations (player-vs-faction and
-faction-vs-faction baselines plus reputation rollback time),
+hearing/grenades, NPC gear quality (tilts squad loadout rolls toward
+the pricier gear in their vanilla pools), faction relations
+(player-vs-faction and faction-vs-faction baselines plus reputation
+rollback time, reaction strength and the trading threshold),
 artifacts & detectors, anomaly/radiation/bleeding,
-hunger/sleep rates, weather & emissions, loot amounts in stashes, on bodies
+hunger/sleep rates, weather & emissions (frequency and duration),
+loot amounts in stashes, on bodies
 and in the world's item generators, dropped-weapon condition (average +
 vanilla-style random spread, or exact), trader prices & min. durability,
 trader stock amount/variety/restock and wallets, repair/upgrade costs,
@@ -53,7 +56,7 @@ built lazily when you expand a category, so startup stays fast.
 
 | Layer | Details |
 |---|---|
-| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 28 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
+| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 29 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
 | Oodle | Those pak entries are Oodle-compressed, so unpacking needs the proprietary `oo2core_9_win64.dll` (the game does **not** ship it — Oodle is linked into the game exe). repak would fetch it itself, but it validates TLS against its own built-in roots, which breaks behind AV/proxy HTTPS inspection, and in the frozen exe it would land in PyInstaller's temp dir and be lost every run. [pakio.py](s2tweaker/pakio.py) therefore obtains it: local copies first, else one checksum-verified HTTPS download, cached in `tools/` next to the app. Packing never needs it. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |

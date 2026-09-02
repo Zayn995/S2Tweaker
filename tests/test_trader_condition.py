@@ -105,6 +105,27 @@ assert "Money" in p[TRADE_KEY] and "MinDurability" in p[TRADE_KEY]
 print(f"Geldbeutel: {len(finite)} auf unendlich; {n_expected} skaliert; "
       "Merge mit trader_dur  OK")
 
+# --- 6b) NPC-Gear-Quality: Kipp zur teureren Ware -----------------------
+pools = gd.gear_weight_pools()
+assert len(pools) > 3000, len(pools)
+p = build_patches(gd, Settings(npc_gear_quality_factor=4.0))
+text = p[GEN_KEY]
+# Referenz-Pool (Recon-Loadout Slot [0]): Viper(3000) W1000, AKU(6000) W100
+# -> billigstes bleibt, teuerstes x4
+m = re.search(r"^GeneralNPC_Neutral_Recon_ItemGenerator : struct.begin "
+              r"\{bpatch\}\n(.*?)^struct.end", text, re.S | re.M)
+assert m, "Recon-Loadout fehlt"
+assert "Weight = 400" in m.group(1), m.group(1)[:600]
+assert "Weight = 1000\n" not in m.group(1).replace("\r", ""), \
+    "billigstes Item (Faktor 1) darf keine Patch-Zeile bekommen"
+# Gewichte fallen nie unter 1; neutral = kein Weight-Patch
+low = build_patches(gd, Settings(npc_gear_quality_factor=0.25))[GEN_KEY]
+assert all(int(v) >= 1 for v in re.findall(r"Weight = (\d+)", low))
+assert "Weight" not in build_patches(
+    gd, Settings(loot_amount_factor=2.0))[GEN_KEY]
+print(f"NPC-Gear x4: {len(pools)} Pools, Referenzpool exakt, "
+      "min-Gewicht 1, neutral sauber  OK")
+
 # --- 7) summarize -------------------------------------------------------
 lines = summarize(Settings(dropped_condition_pct=80.0,
                            dropped_condition_exact=True,

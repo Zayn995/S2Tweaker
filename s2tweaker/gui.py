@@ -129,6 +129,12 @@ def fmt_relation(value: float) -> str:
     return f"{int(round(value))} · {relation_level(value)}"
 
 
+def fmt_trade_level(value: float) -> str:
+    """Handels-Schwelle als Levelname (0..3; Vanilla = Disaffected)."""
+    level = max(0, min(3, int(round(value))))
+    return ("Enemy", "Disaffected", "Neutral", "Friend")[level]
+
+
 # --- Mutanten-Tab: Arten-Baum --------------------------------------------
 MUT_PARAM_LABELS = {  # Reihenfolge = Regler-Reihenfolge je Art
     "hp": "Health",
@@ -421,6 +427,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_vision": "npc_vision_factor", "npc_hearing": "npc_hearing_factor",
     "npc_reaction": "npc_reaction_factor", "npc_grenades": "npc_grenade_factor",
     "alife_agents": "max_agents_factor", "alife_distance": "spawn_distance_factor",
+    "npc_gear": "npc_gear_quality_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
     "mut_regen": "mutant_regen_factor",
@@ -464,6 +471,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "price_ammo": "ammo_price_factor", "price_artifact": "artifact_price_factor",
     "price_consumable": "consumable_price_factor",
     "rel_rollback": "relation_rollback_factor",
+    "rel_reaction": "relation_reaction_factor",
+    "rel_trade": "trade_min_level",
+    "emission_dur": "emission_duration_factor",
 }
 
 CHECK_FIELDS: dict[str, str] = {
@@ -530,6 +540,12 @@ def footprint_settings(key: str) -> list[Settings] | None:
         return None if field_name is None else [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
     if field_name is None:
+        return None
+    # npc_gear patcht AUSSCHLIESSLICH Weight-Blaetter — und genau die
+    # schliesst der Scan-Vergleich bewusst aus (Kollisions-Haertung,
+    # ROADMAP Mod-Scan). Ein Fussabdruck waere immer leer; der Regler ist
+    # damit wie die Baum-Regler nicht markierbar.
+    if field_name == "npc_gear_quality_factor":
         return None
     default = getattr(Settings(), field_name)
     if field_name in FOOTPRINT_PROBES:
@@ -3101,6 +3117,13 @@ class App(ctk.CTk):
         self._check(f, "npc_no_heal", "NPCs don't self-heal",
                     "Vanilla: NPCs passively regenerate health (guards up to 20 HP/s) "
                     "while the player regenerates none. Includes bosses.")
+        self._slider(f, "npc_gear", "NPC gear quality", 25, 400, 25, 100, fmt_pct,
+                     "Tilts each squad's weapon/armor lottery toward the "
+                     "pricier gear it can ALREADY carry (400 % = the best "
+                     "gun in a pool is 4x as likely, 25 % = rust buckets "
+                     "everywhere). Never adds gear a faction or rank "
+                     "wouldn't carry in vanilla - and their dropped loot "
+                     "changes accordingly.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "A-Life population (experimental)")
@@ -3222,6 +3245,17 @@ class App(ctk.CTk):
                      "hubs). 400 % = grudges last four times longer; "
                      "25 % = quick forgiveness. Permanent faction-wide "
                      "reputation is a separate system and is not affected.")
+        self._slider(f, "rel_reaction", "Reputation reaction strength", 25, 400, 25, 100, fmt_pct,
+                     "How hard kills, heals and assaults move reputation - "
+                     "scales both the local squad reaction and the "
+                     "permanent faction-wide part. 400 % = every action "
+                     "matters four times as much; 25 % = an almost "
+                     "indifferent Zone.")
+        self._slider(f, "rel_trade", "Trading requires standing", 0, 3, 1, 1, fmt_trade_level,
+                     "Vanilla: traders deal with you from 'Disaffected' "
+                     "(wary) upward. 'Neutral' or 'Friend' = hardcore "
+                     "reputation play; 'Enemy' = everyone trades with "
+                     "anyone.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weapons")
@@ -3432,6 +3466,11 @@ class App(ctk.CTk):
         self._slider(f, "emission", "Emission frequency", 25, 400, 25, 100, fmt_pct,
                      "How often emissions build up (quest-controlled "
                      "no-emission zones stay untouched).")
+        self._slider(f, "emission_dur", "Emission duration", 25, 400, 25, 100, fmt_pct,
+                     "Stretches the whole emission timeline together - "
+                     "warning siren, shockwave, deadly phase and aftermath "
+                     "(vanilla ~1 min warning + ~1 min active). Story "
+                     "emissions keep their scripted timing.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Loot in stashes & on bodies")
@@ -3863,6 +3902,7 @@ class App(ctk.CTk):
             npc_reaction_factor=s["npc_reaction"].get() / 100.0,
             npc_grenade_factor=s["npc_grenades"].get() / 100.0,
             npc_no_heal=bool(self.checks["npc_no_heal"].get()),
+            npc_gear_quality_factor=s["npc_gear"].get() / 100.0,
             max_agents_factor=s["alife_agents"].get() / 100.0,
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
             mutant_hp_factor=s["mhp"].get(),
@@ -3909,6 +3949,8 @@ class App(ctk.CTk):
                              for sid, v in self.armor_overrides.items()},
             faction_relations=dict(self.faction_relations),
             relation_rollback_factor=s["rel_rollback"].get() / 100.0,
+            relation_reaction_factor=s["rel_reaction"].get() / 100.0,
+            trade_min_level=s["rel_trade"].get(),
             anomaly_damage_factor=s["anomaly"].get(),
             anomaly_electro_factor=s["anom_electro"].get(),
             anomaly_chemical_factor=s["anom_chem"].get(),
@@ -3922,6 +3964,7 @@ class App(ctk.CTk):
             healing_factor=s["healing"].get() / 100.0,
             rain_factor=s["rain"].get() / 100.0,
             emission_factor=s["emission"].get() / 100.0,
+            emission_duration_factor=s["emission_dur"].get() / 100.0,
             stash_loot_factor=s["stash_loot"].get() / 100.0,
             stash_chance_factor=s["stash_chance"].get() / 100.0,
             stash_ammo_factor=s["stash_ammo"].get() / 100.0,

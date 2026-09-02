@@ -28,6 +28,7 @@ ORDER = [
     "test_gui_mutants.py",
     "test_quest_ads.py",
     "test_trader_condition.py",
+    "test_emission_relext.py",
     "test_gui_layout.py",
 ]
 

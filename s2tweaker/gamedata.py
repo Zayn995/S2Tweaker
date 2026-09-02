@@ -51,10 +51,11 @@ NEEDED_FILES = [
     "ItemGeneratorPrototypes.cfg.bin",
     "RelationPrototypes.cfg.bin",
     "QuestNodePrototypes.cfg.bin",
+    "EmissionPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 11
+CACHE_SCHEMA = 12
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -276,6 +277,10 @@ class GameData:
     @cached_property
     def relations(self) -> CfgStruct:
         return self._parse("RelationPrototypes.cfg")
+
+    @cached_property
+    def emissions(self) -> CfgStruct:
+        return self._parse("EmissionPrototypes.cfg")
 
     @cached_property
     def questnodes(self) -> CfgStruct:
@@ -897,6 +902,53 @@ class GameData:
                         out.append((key, gen_key, slot_key, item_key, item))
         return out
 
+    # Kategorien fuer den NPC-Gear-Quality-Regler (Weight-Lotterien)
+    GEAR_CATEGORIES = frozenset({
+        "EItemGenerationCategory::WeaponPrimary",
+        "EItemGenerationCategory::WeaponSecondary",
+        "EItemGenerationCategory::WeaponPistol",
+        "EItemGenerationCategory::BodyArmor",
+        "EItemGenerationCategory::Head",
+    })
+
+    def gear_weight_pools(self):
+        """[(Struct, Gen, Slot, [(Item-Schluessel, Knoten, Weight, Cost)])]
+        aller Waffen-/Ruestungs-Weight-Lotterien (>= 2 Eintraege) in den
+        SICHEREN Loot-Prototypen — das sind die Rang-Loadout-Pools der
+        NPCs. Items ohne aufloesbaren Preis (2.0.x: 18 von ~13.000)
+        bleiben in der Liste, aber mit Cost None (der Builder laesst ihr
+        Gewicht unangetastet)."""
+        out = []
+        root = self.itemgenerators
+        for key in self.loot_generators():
+            gen = root.children[key].children.get("ItemGenerator")
+            if gen is None:
+                continue
+            for slot_key, slot in gen.children.items():
+                if (slot.values.get("Category")
+                        or "").strip() not in self.GEAR_CATEGORIES:
+                    continue
+                items = slot.children.get("PossibleItems")
+                if not items:
+                    continue
+                pool = []
+                for item_key, item in items.children.items():
+                    if "#" in item_key or "Weight" not in item.values:
+                        continue
+                    weight = parse_number(item.values.get("Weight"))
+                    if weight <= 0:
+                        continue
+                    isid = (item.values.get("ItemPrototypeSID") or "").strip()
+                    cost = None
+                    if isid and not self._loot_item_is_skippable(isid):
+                        raw = self.resolve(self.items, isid, "Cost")
+                        if raw is not None and parse_number(raw) > 0:
+                            cost = parse_number(raw)
+                    pool.append((item_key, item, weight, cost))
+                if len(pool) >= 2:
+                    out.append((key, "ItemGenerator", slot_key, pool))
+        return out
+
     def trader_stock_generators(self) -> list[str]:
         """Struct-Schluessel der Handelsketten-Huelle: transitiv ab den in
         TradePrototypes verlinkten Wurzeln (docs/GENERATOR_RESEARCH.md,
@@ -1272,6 +1324,19 @@ class GameData:
             return default
         return parse_number(node.get(key), default)
 
+    # ------------------------------------------------------ Emissions-Dauer
+    def emission_default_timeline(self):
+        """(Struct-Schluessel, Stages-Knoten, AIEvents-Knoten) des
+        DEFAULT-Emissionsprototyps — der einzigen wiederkehrenden Welt-
+        Emission. Die 5 uebrigen Prototypen sind Story-Emissionen
+        (E06/E15) und bleiben tabu. ACHTUNG: der bpatch-Schluessel ist
+        der INDEX ([0]), nicht die SID."""
+        for key, node in self.emissions.children.items():
+            if (node.values.get("SID") or "").strip() == "Default":
+                return (key, node.children.get("Stages"),
+                        node.children.get("AIEvents"))
+        return (None, None, None)
+
     # ------------------------------------------- wiederholbare Quest-Timer
     def repeatable_quest_timers(self) -> dict[str, float]:
         """{Knoten-SID: InGameHours} aller SetTimer-Knoten von RSQ-Quests
@@ -1339,6 +1404,19 @@ class GameData:
         if d is None:
             return 0
         return int(round(parse_number(d.values.get("RelationVersion"), 0)))
+
+    def relation_reaction_tables(self):
+        """[(Tabelle, Index, Knoten)] der 2x8 Reaktions-Tabellen
+        (CharacterReactions = lokal/temporaer, FactionReactions =
+        global/permanent). Die Grenade-Tabelle der FactionReactions ist
+        in Vanilla leer und faellt ueber ihre fehlenden Werte heraus."""
+        d = self._relations_default()
+        out = []
+        for table in ("CharacterReactions", "FactionReactions"):
+            node = d.children.get(table) if d is not None else None
+            for idx, entry in (node.children.items() if node else ()):
+                out.append((table, idx, entry))
+        return out
 
     def faction_rollback_cooldowns(self) -> dict[str, float]:
         """{Fraktion: Sekunden} aus FactionRollbackCooldowns (Vanilla: 19
