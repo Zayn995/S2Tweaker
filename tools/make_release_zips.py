@@ -43,6 +43,7 @@ def main() -> None:
     with zipfile.ZipFile(player, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(exe, "S2Tweaker.exe")
         z.write(out / "README.txt", "README.txt")
+        z.write(out / "update.bat", "update.bat")
     print(f"{player.name}: {player.stat().st_size:,} bytes")
 
     src = out / f"S2Tweaker_v{version}_source.zip"

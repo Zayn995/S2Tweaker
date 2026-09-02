@@ -3862,6 +3862,14 @@ class App(ctk.CTk):
         except Exception:
             self._msgs.put(("update_result", None))
 
+    def _updater_path(self) -> Path | None:
+        """update.bat neben der EXE — nur als eingefrorene EXE sinnvoll
+        (im Dev-Modus gibt es keine EXE zum Ersetzen)."""
+        if not getattr(sys, "frozen", False):
+            return None
+        bat = app_dir() / "update.bat"
+        return bat if bat.is_file() else None
+
     def _show_update_result(self, tag: str | None):
         verdict = update_verdict(tag, __version__)
         if verdict == "error":
@@ -3872,6 +3880,31 @@ class App(ctk.CTk):
                 f"You can always check manually:\n{RELEASES_PAGE}")
         elif verdict == "newer":
             latest = str(tag).lstrip("vV")
+            bat = self._updater_path()
+            if bat is not None:
+                choice = messagebox.askyesnocancel(
+                    APP_TITLE,
+                    f"A newer version is available: {latest} "
+                    f"(you have {__version__}).\n\n"
+                    "Yes = update now: the tool closes itself and runs "
+                    "update.bat, which downloads the new version from "
+                    "GitHub and swaps S2Tweaker.exe (the old exe is "
+                    "kept as S2Tweaker.exe.bak). Settings, presets and "
+                    "cache stay where they are.\n\n"
+                    "No = just open the download page in the browser.")
+                if choice is True:
+                    try:
+                        os.startfile(bat)
+                    except OSError:
+                        messagebox.showerror(
+                            APP_TITLE,
+                            "Could not start update.bat - please run it "
+                            "yourself from the tool folder.")
+                        return
+                    self._on_close()
+                elif choice is False:
+                    webbrowser.open(RELEASES_PAGE + "/latest")
+                return
             if messagebox.askyesno(
                     APP_TITLE,
                     f"A newer version is available: {latest} "

@@ -572,14 +572,15 @@ FAQ_ENTRIES = [
     {
         "q": "How do I update the tool? Is there an auto-update?",
         "a": "Click '⟳ Check for updates' (top right): the tool asks "
-             "github.com once whether a newer release exists and offers "
-             "to open the download page. Nothing is downloaded or "
-             "installed silently, and the tool never checks in the "
-             "background. Updating is easy: replace S2Tweaker.exe with "
-             "the new one - settings, presets, output and cache all "
-             "stay where they are.",
+             "github.com once whether a newer release exists - it never "
+             "checks in the background. If there is one, choose 'update "
+             "now' and the bundled update.bat swaps S2Tweaker.exe for "
+             "you (the old exe is kept as S2Tweaker.exe.bak), or open "
+             "the download page and do it yourself. Settings, presets, "
+             "output and cache always stay where they are. update.bat "
+             "is plain text - read it if you like.",
         "k": "update autoupdate upgrade new version release download "
-             "github check latest newer patch tool",
+             "github check latest newer patch tool bat updater",
     },
     {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",

@@ -88,6 +88,17 @@ and your next build is based on them. Multiplier tweaks therefore survive
 balance patches.
 
 
+TOOL UPDATES
+------------
+Click "Check for updates" in the tool (top right): it asks github.com once
+whether a newer release exists - nothing ever checks in the background. If
+there is one, you can let the bundled update.bat do the swap: it downloads
+the latest release from GitHub, keeps your old exe as S2Tweaker.exe.bak and
+replaces S2Tweaker.exe. Settings, presets, cache and output are not touched.
+You can also run update.bat directly at any time, or just download the ZIP
+yourself. update.bat is plain text - feel free to read what it does.
+
+
 NOTES
 -----
 - Steam and GOG installs supported (auto-detected; you can also browse to

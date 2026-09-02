@@ -57,4 +57,28 @@ print("Header-Zeile 2 OK")
 from s2tweaker.faq import FAQ_ENTRIES
 hits = [e for e in FAQ_ENTRIES if "autoupdate" in e["k"]]
 assert len(hits) == 1, f"FAQ-Eintrag zum Update fehlt/doppelt: {len(hits)}"
+assert "update.bat" in hits[0]["a"], "FAQ-Antwort nennt update.bat nicht"
 print(f"FAQ OK ({len(FAQ_ENTRIES)} Eintraege)")
+
+# --- 3) update.bat: vorhanden, ASCII, richtige Ziele ----------------------
+bat = ROOT / "release" / "update.bat"
+raw = bat.read_bytes()
+assert raw.isascii(), "update.bat muss reines ASCII sein (cmd liest cp437)"
+text = raw.decode("ascii")
+assert "api.github.com/repos/Zayn995/S2Tweaker/releases/latest" in text
+assert "S2Tweaker.exe.bak" in text, "Backup der alten EXE fehlt"
+assert "RELAUNCHED" in text, "Selbst-Ersetz-Schutz (Kopie in %TEMP%) fehlt"
+assert "'*source*'" in text, "Source-ZIP-Ausschluss fehlt"
+assert "pause" in text, "Fehlerpfade muessen lesbar bleiben (pause)"
+# kein Versionsstand einkodiert: die bat holt IMMER releases/latest
+import re
+assert not re.search(r"v\d+\.\d+\.\d+", text), "Versionsnummer hardcodiert"
+
+# das Spieler-ZIP liefert die Datei mit
+zips = (ROOT / "tools" / "make_release_zips.py").read_text(encoding="utf-8")
+assert 'update.bat' in zips, "make_release_zips packt update.bat nicht ein"
+
+# im Dev-Modus (nicht eingefroren) bietet die GUI den Bat-Weg nicht an —
+# es gibt ja keine EXE zum Ersetzen
+assert app._updater_path() is None
+print("update.bat OK")
