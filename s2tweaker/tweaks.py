@@ -191,12 +191,16 @@ _CAMEL_SPLIT = re.compile(r"(?<=[a-z])(?=[A-Z0-9])")
 
 
 def armor_label(sid: str) -> str:
-    """'Exoskeleton_Dolg_Armor' -> 'Exoskeleton (Duty)'.
-
-    Nur aus der SID abgeleitet (summarize() hat keine GameData). Muster der
-    Spieldaten: <Modell>_<Fraktion>_Armor|Helmet[_Zusatz...]. Was nicht
-    passt (z.B. supack_vozmercform), bleibt die rohe SID -- lieber ehrlich
-    technisch als falsch geraten."""
+    """'SEVA_Neutral_Armor' -> 'SEVA Suit' (verifizierter Anzeigename aus
+    names.py); ohne Alias -> 'Exoskeleton_Dolg_Armor' -> 'Exoskeleton
+    (Duty)' aus der SID abgeleitet (summarize() hat keine GameData).
+    Muster der Spieldaten: <Modell>_<Fraktion>_Armor|Helmet[_Zusatz...].
+    Was nicht passt (z.B. supack_vozmercform), bleibt die rohe SID --
+    lieber ehrlich technisch als falsch geraten."""
+    from .names import ARMOR_ALIASES
+    alias = ARMOR_ALIASES.get(sid)
+    if alias:
+        return alias
     parts = sid.split("_")
     for kind_token, kind_text in (("Armor", ""), ("Helmet", " helmet")):
         if kind_token not in parts:
@@ -2210,7 +2214,9 @@ def summarize(s: Settings) -> list[str]:
         parts = [f"{WEAPON_PARAM_LABELS[p].lower()} × {v:g}"
                  for p, v in sorted(params.items()) if _neq(v, 1.0)]
         if parts:
-            lines.append(f"{sid}: " + ", ".join(parts))
+            from .names import WEAPON_ALIASES
+            lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: "
+                         + ", ".join(parts))
 
     f("Anomaly damage", s.anomaly_damage_factor)
     f("Anomaly damage: electro", s.anomaly_electro_factor)

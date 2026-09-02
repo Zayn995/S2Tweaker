@@ -64,7 +64,9 @@ print(f"{armor_label(no_psy)}: psy-Override auf Vanilla-0 -> kein Patch  OK")
 lines = summarize(Settings(armor_overrides={sid: {"strike": 2.0, "burn": 0.5}}))
 al = [l for l in lines if l.startswith("Armor ")]
 print("summarize:", al)
-assert len(al) == 2 and "Exoskeleton (Duty)" in al[0]
+# armor_label liefert seit 02.09. den verifizierten Anzeigenamen
+# ("Cuirass Exoskeleton"), Fallback bleibt das SID-Muster
+assert len(al) == 2 and armor_label(sid) in al[0], (al, armor_label(sid))
 
 # --- 2) GUI --------------------------------------------------------------
 app = gui.App()
@@ -98,7 +100,7 @@ assert app.armor_overrides == {sid: {"strike": 2.0}}, app.armor_overrides
 assert "1 of 6 factors changed" in row.btn.cget("text")
 assert (f"1 of {42 + n_dlc_body} overridden"
         in body_block.btn.cget("text")), body_block.btn.cget("text")
-assert "Exoskeleton (Duty)" in app.ir_info.cget("text")
+assert armor_label(sid) in app.ir_info.cget("text")
 print("Baum-Interaktion: Override, Marker, Info-Zeile  OK")
 
 # Aufklappen darf gespeicherte Werte NICHT loeschen (die alte Baum-Falle)

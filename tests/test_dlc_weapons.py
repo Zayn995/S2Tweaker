@@ -97,19 +97,18 @@ assert len(dlc_files) == 3, list(p)
 print(f"Ruestungen: {len(dlc_armor)} Editions-Stuecke, SEVA-Monolith-"
       "Override x3 -> 6.0 im Deluxe-Zweig, global trifft alle 3 Editionen  OK")
 
-# --- 5b) Anzeigenamen-Aliase (Riemann/Lullaby) --------------------------
-from s2tweaker.gui import (EDITION_GUN_ALIASES, weapon_display,
-                           weapon_sid_hit)
-assert EDITION_GUN_ALIASES["Gun_Logarithm_SMG_GS"] == "Riemann"
-assert EDITION_GUN_ALIASES["Gun_Novator_AR_GS"] == "Lullaby"
-for alias_sid in EDITION_GUN_ALIASES:
-    assert alias_sid in dlc, f"Alias fuer unbekannte Waffe: {alias_sid}"
+# --- 5b) Anzeigenamen-Aliase (Riemann/Lullaby & Co.) --------------------
+from s2tweaker.names import WEAPON_ALIASES
+from s2tweaker.gui import weapon_display, weapon_sid_hit
+assert "Riemann" in WEAPON_ALIASES["Gun_Logarithm_SMG_GS"]
+assert "Lullaby" in WEAPON_ALIASES["Gun_Novator_AR_GS"]
+for alias_sid in dlc:
+    assert alias_sid in WEAPON_ALIASES, f"Editions-Waffe ohne Namen: {alias_sid}"
 assert weapon_sid_hit("Gun_Logarithm_SMG_GS", "riemann")
 assert weapon_sid_hit("Gun_Novator_AR_GS", "lullaby")
 assert not weapon_sid_hit("GunAK74_ST", "riemann")
 assert "Riemann" in weapon_display("Gun_Logarithm_SMG_GS")
-assert weapon_display("GunAK74_ST") == "GunAK74_ST"
-print("Aliase: Riemann/Lullaby anzeig- und suchbar  OK")
+print("Aliase: alle 11 Editions-Waffen benannt, Riemann/Lullaby suchbar  OK")
 
 # --- 6) DLC-Checker-Text ------------------------------------------------
 summary = gd.dlc_summary()

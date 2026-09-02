@@ -129,25 +129,20 @@ def fmt_relation(value: float) -> str:
     return f"{int(round(value))} · {relation_level(value)}"
 
 
-# Editions-Waffen, deren ANZEIGENAME nicht in der SID steckt (Mapping vom
-# Besitzer bestaetigt, 02.09.): "Riemann" ist der Integral-Umbau der
-# Deluxe-Edition, "Lullaby" der Fora-221-Umbau der Ultimate-Edition.
-# Reine UI-/Suchhilfe — Spielwerte kommen weiterhin live aus den Daten.
-EDITION_GUN_ALIASES = {
-    "Gun_Logarithm_SMG_GS": "Riemann",
-    "Gun_Novator_AR_GS": "Lullaby",
-}
+# Anzeigenamen (Waffen + Ruestungen): s2tweaker/names.py — verifizierte
+# Community-Masterliste des Besitzers (02.09.). Reine UI-/Suchhilfe.
+from .names import WEAPON_ALIASES
 
 
 def weapon_display(sid: str) -> str:
-    alias = EDITION_GUN_ALIASES.get(sid)
+    alias = WEAPON_ALIASES.get(sid)
     return f"{sid}  ·  „{alias}“" if alias else sid
 
 
 def weapon_sid_hit(sid: str, query: str) -> bool:
-    """Suchtreffer auf SID ODER Anzeigenamen (Riemann/Lullaby & Co.)."""
+    """Suchtreffer auf SID ODER Anzeigenamen (AKM-74S, Riemann & Co.)."""
     return (query in sid.lower()
-            or query in EDITION_GUN_ALIASES.get(sid, "").lower())
+            or query in WEAPON_ALIASES.get(sid, "").lower())
 
 
 def fmt_trade_level(value: float) -> str:
