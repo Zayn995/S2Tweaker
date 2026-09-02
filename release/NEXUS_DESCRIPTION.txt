@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~160 tweaks in 10 tabs · pick your values · one click builds your .pak[/i]
+[i]~170 tweaks in 11 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -16,7 +16,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]160 tweaks[/b], sorted into 10 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Weapons, Ammo, Armor, World, Economy):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]170 tweaks[/b], sorted into 11 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Factions, Weapons, Ammo, Armor, World, Economy):
 
 [b]Player[/b]
 [list]
@@ -37,8 +37,8 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Weapons - a three-level system[/b]
 [list]
-[*]8 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 79 weapons[/b] incl. all uniques - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
-[*]The 8 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed
+[*]9 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 80 weapons[/b] incl. all unique named guns (Decider, Sharpshooter, Sotnyk ...) - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]The 9 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights)
 [*]Magazine size - scales weapon base capacity and all 81 magazine attachments
 [*]Melee damage (knife & rifle butt strike)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
@@ -69,6 +69,14 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
 [/list]
 
+[b]Factions - its own tab (experimental)[/b]
+[list]
+[*][b]Your standing with 13 factions[/b] (Loners, Bandits, Military, Ward, Duty, Freedom, Mercenaries, Monolith, Noontide, Spark, Corps, Scientists, and all mutants as one group) on the game's own scale: -800 = enemy / kill on sight, around -400 = wary but talking and trading still work, 0 = neutral, 600+ = friend
+[*][b]Faction vs. faction[/b]: expandable blocks with every pairing between the major factions - make Duty and Freedom go to war, or give the bandits friends
+[*][b]Reputation rollback time[/b]: how long the game remembers local hostility before forgiving it (vanilla 60 min)
+[*]The tool also raises the game's internal RelationVersion counter - the developers' own mechanism for pushing relation updates into existing saves. [b]Honestly: not verified in-game yet[/b], treat existing saves as untested and keep a backup. Story, boss and arena factions are deliberately not listed, and quests can still override relations at any time (by design)
+[/list]
+
 [b]Mutants[/b]
 [list]
 [*]Global mutant damage, health, speed and hearing sliders
@@ -95,6 +103,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [list]
 [*]Trader buy/sell prices, minimum durability traders accept, per-category price factors (weapons, armor, ammo, artifacts, consumables)
 [*]Repair & upgrade costs, quest rewards
+[*]Repeatable quest cooldown 0-400% (vanilla: task givers wait 24 in-game hours for new jobs; 0% = new jobs right away)
 [*]Fast travel cost 0-400% (0% = guides are free), trader restock time
 [/list]
 
@@ -103,7 +112,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 37 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 45 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -153,6 +162,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.12.0 - Faction relations, repeatable-quest cooldown, ADS speed[/b] (~170 tweaks, 11 tabs)
+[list]
+[*][b]New Factions tab[/b] (experimental): set your baseline standing with 13 factions and every faction-vs-faction pairing between the majors, on the game's own -800..800 scale, plus a reputation rollback-time slider. The tool raises the game's internal RelationVersion counter so existing saves should pick changes up - honestly: that mechanism is not play-tested yet, keep a backup save. Story/boss/arena factions are deliberately excluded, and quests can still override relations at any time
+[*][b]Repeatable quest cooldown[/b] (Economy tab, community request): vanilla task givers wait 24 in-game hours before offering new repeatable jobs - scale it from instant (0%) to four days (400%). Story and side quest timers stay vanilla
+[*][b]ADS aim-in speed[/b] (community request): new 9th weapon parameter on all three levels (global / category / per weapon) - how fast the weapon comes up into the sights, incl. offset and lean aiming. The older "ADS movement speed" (how fast you MOVE while aiming) stays separate
+[*]Unique named weapons were already in the per-weapon tree - the FAQ now says so explicitly (search "Decider" or "Sharpshooter")
+[*]The mod scan now also covers faction relations: foreign mods touching the same relation pairs are reported in the scan results and on the Factions tab
+[*]FAQ grew to 45 searchable entries
+[/list]
+
 [b]v1.11.0 - Vaulting gets its own tab[/b] (~160 sliders, 10 tabs)
 [list]
 [*][b]New Vaulting tab[/b] (second position): vaulting grew from a checkbox and one slider into seven sliders - max vault height, trigger distance (how far away vaulting triggers), approach angle (capped at 180°), min obstacle height (below 100 % even small crates trigger), landing tolerance (three landing values in one knob), vault-over thickness and vault-over landing distance (clean jumps over fences instead of stopping on them)
@@ -162,6 +181,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.10.0 - Compatibility mode & quality of life[/b] (~160 sliders, 9 tabs)
+[spoiler]
 [list]
 [*][b]Avoid conflicts[/b]: after a mod scan, one checkbox resets and LOCKS every setting your other installed mods change - guaranteed hands-off compatibility. Unlock single settings on purpose with their unlock button (unlocks are remembered while the mode stays on; re-ticking the box locks everything again). So the answer to "compatible with X?" is now: scan your mods, then enable Avoid conflicts
 [*][b]Improved vaulting[/b] (GitHub request - thank you!): a checkbox restores the tuned vaulting of the vault mod that broke with game patch 2.0 (steeper approach angles, vault from farther away, higher obstacles, more generous landing - player only, NPCs stay vanilla), plus a "Max vault height" slider (50-250%) on top
@@ -170,6 +190,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Compatibility report[/b]: export a plain-text report from the scan results - scanned mods, load order, the exact overlapping game properties per setting, and what the tool could not read. If someone asks "does it work with X?", just send the report
 [*]The built-in FAQ grew to 42 searchable entries
 [/list]
+[/spoiler]
 
 [b]v1.9.0 - Armor tab with per-armor overrides[/b] (~160 sliders, 9 tabs)
 [spoiler]
