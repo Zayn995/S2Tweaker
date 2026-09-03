@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~200 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~210 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i]
 
 [size=4][b][color=#ff3333]Alternative download while the file here is in review:[/color]
@@ -19,7 +19,7 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]200 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]210 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -73,6 +73,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
 [*][b]NPC gear quality[/b]: tilts the random loadout pools toward the expensive end (or the cheap end, below 100 %) - the game's own price data is the quality rank. Honest limit: it only re-weights what a pool already contains, it never adds or removes items
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
+[*][b]A-Life spawns (experimental)[/b] - the real spawn controls, found by digging through the lair and director data: LAIR population for mutants and for humans separately (how many live in each place, per player rank), lair respawn speed, and the director's random encounters: frequency, mutant share, pack size, plus a weight per species (blind dogs, boars, fleshes, tushkans, chimeras, mixed mutant packs). Honest limits: story lairs and base guards stay vanilla, bloodsuckers and exotic mutants are never rolled as random encounters in vanilla and the tool does not invent that, and existing saves re-roll lairs slowly (sleep or change region)
 [/list]
 
 [b]Factions - its own tab (experimental)[/b]
@@ -131,7 +132,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 56 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 57 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
@@ -183,6 +184,15 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.17.0 - A-Life spawns: lair population, respawn & random encounters[/b] (~210 tweaks, 13 tabs)
+[list]
+[*][b]New section "A-Life spawns" in NPCs & AI[/b] (thank you MetalMessiah0 for the request). Research first: the Zone is fed by two systems the old "max simultaneous agents" slider never touched - it is only a cap on top of both, which is why it felt weak
+[*][b]Lairs[/b]: population for mutants and for humans separately (how many live in each place, per player rank, 50-300 %), and lair respawn speed (25-400 %). Story lairs with instant refill and base guards are never touched; shrinking never goes below what a lair's archetype list needs
+[*][b]Random encounters (director)[/b]: frequency (25-400 %), mutant share (0-400 %; 0 % = no random mutant packs, lair mutants stay), pack size (experimental, scales the per-rank caps of the spawnable species) and a weight per species: blind dogs, boars, fleshes, tushkans, chimeras and the mixed "mutants" packs
+[*][b]Honest limits[/b]: bloodsuckers and the exotic mutants (controller, burer, poltergeist, chimera outside veteran regions) are never rolled as random encounters in vanilla - the tool does not invent spawns the game never uses, those species come from their lairs. Existing saves re-roll lairs slowly: sleep a few times or change region. Raise "Max simultaneous NPCs & mutants" together with these sliders. Not play-tested yet
+[*]First start after the update extracts the game data once more (two new game files joined the set). FAQ grew to 57 searchable entries, 27 automated test suites
+[/list]
+
 [b]v1.16.1 - Two bug fixes, recoil upgrades, technician upgrades, per-weapon magazines[/b] (~200 tweaks, 13 tabs)
 [list]
 [*][b]Fixed: "Repeatable quest cooldown" did nothing[/b] (thank you max25091997) - the slider never reached the pak builder, so no patch was written and it was missing from the active-tweaks list. A new test now moves every single slider and checks it arrives
@@ -196,12 +206,14 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.16.0 - The mod scan now covers Steam Workshop mods[/b] (~195 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Steam Workshop in the mod scan[/b]: Steam stores subscribed mods in its own workshop folder, NOT in ~mods - so far they went right past the scan. Now the scan lists them too, under their real mod names, and marks every slider they also change
 [*][b]Honest limits, spelled out in-app[/b]: whether a subscribed mod is actually ACTIVE is decided in the game's own mods menu (the tool cannot know), and its load order versus this tool's pak is managed by the game - so for Workshop overlaps the tooltip honestly says "its value may win" instead of guessing a winner. Workshop mods in the packed IoStore format are listed but marked as "data I can't read", as always
 [*]The compatibility report and the Avoid-conflicts mode cover the Workshop mods as well
 [*]FAQ grew to 51 searchable entries, 20 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.15.0 - Update button, auto-updater & a cleaner header[/b] (~195 tweaks, 13 tabs)
 [spoiler]
