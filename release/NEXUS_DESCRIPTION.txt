@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~210 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~230 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i]
 
 [size=4][b][color=#ff3333]Alternative download while the file here is in review:[/color]
@@ -19,13 +19,13 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]210 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]230 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
 [*]Health (up to 100000 on a logarithmic slider), stamina (incl. per-action costs), fall damage, jump height, breath hold
 [*]Walk/crouch and run/sprint speed as separate sliders
-[*]Max carry weight, overweight penalty start, item weights per category
+[*]Max carry weight, overweight penalty start, item weights per category, 'quest items weigh nothing'
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
 [*]Hit camera shake / aim punch 0-300%
 [/list]
@@ -72,6 +72,9 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Grenade usage (0% = no more grenade spam) and reaction delay (how long NPCs take to alert their squad)
 [*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
 [*][b]NPC gear quality[/b]: tilts the random loadout pools toward the expensive end (or the cheap end, below 100 %) - the game's own price data is the quality rank. Honest limit: it only re-weights what a pool already contains, it never adds or removes items
+[*][b]NPC combat behaviour[/b] (experimental): the hidden per-weapon AI profiles behind 'aimbot' complaints - guaranteed-hit shots per burst (0 % = every NPC shot uses normal spread), burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
+[*][b]Stealth[/b] (experimental): crouch stealth, movement noise, bad-weather stealth (how much fog, rain and thunder blind and deafen NPCs) and how strongly your own flashlight gives you away
+[*][b]NPC awareness & nerve[/b] (experimental): alertness thresholds, search time, courage (attack / fall-back confidence), stagger threshold, attack cooldown and a weapon-rank bonus for deadlier enemies without health sponges
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
 [*][b]A-Life spawns (experimental)[/b] - the real spawn controls, found by digging through the lair and director data: LAIR population for mutants and for humans separately (how many live in each place, per player rank), lair respawn speed, and the director's random encounters: frequency, mutant share, pack size, plus a weight per species (blind dogs, boars, fleshes, tushkans, chimeras, mixed mutant packs). Honest limits: story lairs and base guards stay vanilla, bloodsuckers and exotic mutants are never rolled as random encounters in vanilla and the tool does not invent that, and existing saves re-roll lairs slowly (sleep or change region)
 [/list]
@@ -91,12 +94,14 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Global sliders: mutant damage, health, speed, hearing - and [b]health regen[/b]: mutants passively regenerate just like human NPCs (44 of 47 prototypes); x0 = wounds stay, the mutant counterpart of 'NPCs don't self-heal'
 [*][b]Per-species tree[/b] in four size groups: open a species, set health / speed / damage / regen - each species shows its vanilla numbers (prototype count, HP range, attacks, regen). Damage scales each attack individually. Species only get sliders for things that really work: Poltergeist and rat swarms deal damage indirectly, so no damage slider there - and mutant sight is engine logic, so there is honestly no vision slider at all
 [*]Bloodsucker cloaking: cloaking speed, and how hard damage breaks the cloak (x0 = hits never reveal them)
+[*][b]Mutant attack cooldown[/b]: the pause between mutant attacks (200 % = half as many attacks)
 [/list]
 
 [b]Artifacts & detectors[/b]
 [list]
 [*]Artifact effect strength, radiation side-effect (0% = clean artifacts), spawn chance
 [*]Rare artifact bias: shift rarity rolls toward Uncommon/Rare/Epic at Common's expense
+[*][b]Artifacts per anomaly field[/b] (vanilla 1, up to 5 per spawn) and [b]artifact respawn speed[/b]
 [*]Detector & scanner range: Echo, Bear, Veles, Gilka, the anomaly beeper and the searchpoint scanner
 [/list]
 
@@ -105,6 +110,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Anomaly damage - one global slider plus per element type: electro / chemical / fire / gravity
 [*]Consumable strength: medkits, bandages, food & drinks (penalties like drunkenness stay vanilla)
 [*]Rain & storm frequency, emission frequency
+[*][b]Day length[/b] (vanilla: one game day per real hour; up to four hours) and [b]consumable effect duration[/b] (energy drink, Hercules, psy-block ... - instant heals stay instant)
 [*][b]Emission duration[/b]: stretch or shorten how long the regular emission takes (25-400 %) - all phases scale together so warning, wave and aftermath keep their vanilla rhythm. Story emissions are deliberately untouched
 [*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
 [*][b]Dropped weapon condition[/b]: sets the AVERAGE condition of weapons found on bodies and in the world (vanilla ~37.5 %) - the game keeps rolling randomly around it exactly like vanilla, so 80 % gives drops between roughly 67 and 93 %. Tick 'Exact condition' for a fixed value. Armor, helmets, artifacts and trader stock stay vanilla
@@ -132,7 +138,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 57 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 65 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
@@ -184,6 +190,18 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.18.0 - Stealth, NPC combat behaviour, longer days, more artifacts[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]NPC combat behaviour[/b] (NPCs & AI, six sliders, modelled on the 'Grounded Combat' data): the hidden per-weapon AI profiles - [b]guaranteed-hit shots[/b] per burst are the real 'aimbot' (rifles fire 2-3 spread-free shots at long range, 4-6 up close in vanilla; 0 % = every NPC shot uses normal spread), plus burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
+[*][b]Stealth[/b] (NPCs & AI, four sliders): crouch stealth, movement noise (0 % = silent feet), bad-weather stealth (fog, rain and thunder blind and deafen NPCs - scale it up or off) and how strongly your own flashlight gives you away
+[*][b]NPC awareness & nerve[/b] (NPCs & AI, six sliders): alertness thresholds (when NPCs turn their head, search, move in or call allies), search time, courage (attack / fall-back confidence of human squads), stagger threshold, attack cooldown and a weapon-rank bonus for deadlier enemies without health sponges
+[*][b]Day length[/b] (World): one game day per real hour in vanilla, now up to four - the 'Longer Days' route as a slider
+[*][b]Consumable effect duration[/b] (World): energy drinks, Hercules, psy-block and the like last longer; instant heals stay instant on purpose
+[*][b]Artifacts per anomaly field[/b] (up to 5) and [b]artifact respawn speed[/b] (World)
+[*][b]Quest items weigh nothing[/b] (Weight & items) and [b]Mutant attack cooldown[/b] (Mutants)
+[*]First start after the update extracts the game data once more (one new game file, the NPC threat profiles). FAQ grew to 65 searchable entries, 30 automated test suites. Nothing is play-tested yet - reports welcome
+[/list]
+
 [b]v1.17.0 - A-Life spawns: lair population, respawn & random encounters[/b] (~210 tweaks, 13 tabs)
 [list]
 [*][b]New section "A-Life spawns" in NPCs & AI[/b] (thank you MetalMessiah0 for the request). Research first: the Zone is fed by two systems the old "max simultaneous agents" slider never touched - it is only a cap on top of both, which is why it felt weak
@@ -194,6 +212,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.16.1 - Two bug fixes, recoil upgrades, technician upgrades, per-weapon magazines[/b] (~200 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Fixed: "Repeatable quest cooldown" did nothing[/b] (thank you max25091997) - the slider never reached the pak builder, so no patch was written and it was missing from the active-tweaks list. A new test now moves every single slider and checks it arrives
 [*][b]Fixed: "Weapon recoil" (and "Weapon spread") at exactly 0 % did nothing[/b] (thank you Koningkoen) - a divide-by-zero guard meant for fire rate skipped the value; 0 % now really writes RecoilRadius 0 / dispersion 0. What the slider scales: the kick strength - the per-shot pattern shape is a game asset and keeps its direction. Not play-tested yet
@@ -204,6 +223,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Answered: "the weapon stat bars in the inventory don't change"[/b] - they are hand-set numbers in the game data, never recomputed from real damage or fire rate. New FAQ entry; judge tweaks in the field, not in the inventory screen
 [*]First start after the update extracts the game data once more (a new game file, UpgradePrototypes, joined the set). FAQ grew to 56 searchable entries, 26 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.16.0 - The mod scan now covers Steam Workshop mods[/b] (~195 tweaks, 13 tabs)
 [spoiler]
