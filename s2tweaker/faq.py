@@ -658,14 +658,16 @@ FAQ_ENTRIES = [
         "q": "Are Steam Workshop mods covered by the mod scan?",
         "a": "Yes: the scan also lists the mods you subscribed to in the "
              "Steam Workshop (Steam stores them in its own workshop "
-             "folder, not in ~mods). Honest limits: whether a subscribed "
-             "mod is actually ACTIVE is decided in the game's own mods "
-             "menu, its load order versus this tool's pak is managed by "
-             "the game, and many Workshop mods use a packed format "
-             "(IoStore) this tool cannot look inside - those are listed, "
-             "but their exact changes stay unknown.",
+             "folder, not in ~mods). Their config changes are read just "
+             "like ~mods paks: Workshop mods ship as .pak plus "
+             ".ucas/.utoc, and the config patches live in the .pak part. "
+             "Honest limits: whether a subscribed mod is actually ACTIVE "
+             "is decided in the game's own mods menu, its load order "
+             "versus this tool's pak is managed by the game, and packed "
+             "assets (meshes, textures, blueprints in .ucas/.utoc) stay "
+             "invisible to the scan - the result says so per mod.",
         "k": "steam workshop subscribed subscribe abo mod scan covered "
-             "in-game mods menu iostore active",
+             "in-game mods menu iostore active packed assets",
     },
     {
         "q": "What do the colored dots next to some sliders mean?",
@@ -680,12 +682,16 @@ FAQ_ENTRIES = [
     },
     {
         "q": "The mod scan says a mod 'contains data I can't read' - why?",
-        "a": "That mod uses the IoStore format (.pak plus .ucas/.utoc "
-             "files) or a protected archive, which this tool cannot look "
-             "into. The mod still works in game - the scanner just can't "
-             "tell you what it changes, so its conflicts stay unknown.",
+        "a": "Its .pak file could not be opened - it is damaged, "
+             "encrypted, or not a real pak. The mod may still work in "
+             "game; the scanner just can't tell you what it changes, so "
+             "its conflicts stay unknown. Mods with packed assets "
+             "(.ucas/.utoc next to the .pak, typical for Steam Workshop) "
+             "are NOT the problem: their config changes are read from the "
+             ".pak part, and the result only notes that the packed assets "
+             "themselves can't be inspected.",
         "k": "iostore ucas utoc unreadable scan can't read unknown "
-             "encrypted",
+             "encrypted packed assets damaged",
     },
     {
         "q": "Do my weapon tweaks also affect NPCs?",

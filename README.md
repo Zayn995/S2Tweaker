@@ -83,7 +83,11 @@ subfolders too, and players commonly sort their mods into subfolders) and
 extracted in one
 batched, glob-escaped `repak` call (`.cfg.bin` is converted; the official
 `Base.cfg_patch_<Mod>` naming without a trailing `.cfg` counts as a config
-too). IoStore mods are reported as unreadable. Each slider's "footprint" is
+too). Mods with an IoStore container next to the pak (`.utoc`/`.ucas` —
+typical for Steam Workshop items) are scanned through their `.pak` part, which
+is where UE5 keeps loose files such as cfg patches; only the packed assets stay
+uninspected, and the result says so per mod. Duplicate Workshop layouts (old
+and new path, same mod name) are merged into one entry. Each slider's "footprint" is
 computed dynamically — `build_patches()` probed in BOTH directions (×2 and
 ×0.5, so capped values are covered) — and compared against the mod's content
 on the level of (top-level struct + leaf key), deliberately not the full

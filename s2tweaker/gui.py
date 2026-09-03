@@ -4784,6 +4784,9 @@ class App(ctk.CTk):
                     info.name = ws_name
                     info.source = "workshop"
                 infos.append(info)
+            # Workshop-Abos liegen oft doppelt vor (alter + neuer Pfad,
+            # gleicher Anzeigename) -> ein Eintrag je Mod, nicht zwei.
+            infos = modscan.merge_same_name(infos)
             self._set_status("Comparing with this tool's settings ...")
             conflicts = self._match_conflicts(gd, infos)
             self._modscan_payload = (infos, conflicts)

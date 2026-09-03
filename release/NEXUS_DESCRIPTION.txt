@@ -135,7 +135,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Tool features[/b]
 [list]
-[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
+[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions (their config part is read; only packed assets stay invisible, and the result says so) - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
 [*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 65 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
@@ -190,6 +190,14 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.18.1 - Bug fix: Steam Workshop mods are now actually scanned[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]Fixed: the mod scan reported every Steam Workshop mod as "contains data I can't read (IoStore format)"[/b] and therefore never marked a single slider for them. The assumption behind it was wrong: Workshop mods ship as .pak plus .ucas/.utoc, but the config patches live in the .pak part, which the tool reads fine (the game keeps its own vanilla configs the same way). On my own install 12 of 15 subscriptions carried real config patches - armor protection, loot amounts, trader stock and more - that the scan had been blind to. Now they get their dots, and the Avoid-conflicts mode covers them
+[*]For such mods the result only notes "also ships packed assets ... this tool can't inspect"; "contains data I can't read" is left for genuinely damaged or encrypted paks
+[*]Workshop subscriptions often exist twice on disk (old and new Workshop layout, same mod name) - the scan now merges them into one entry instead of listing every mod twice
+[*]Two FAQ entries rewritten accordingly (still 65 entries). No new game files, no re-extraction on first start. Generated paks are unchanged - this release only affects the scan
+[/list]
+
 [b]v1.18.0 - Stealth, NPC combat behaviour, longer days, more artifacts[/b] (~230 tweaks, 13 tabs)
 [list]
 [*][b]NPC combat behaviour[/b] (NPCs & AI, six sliders, modelled on the 'Grounded Combat' data): the hidden per-weapon AI profiles - [b]guaranteed-hit shots[/b] per burst are the real 'aimbot' (rifles fire 2-3 spread-free shots at long range, 4-6 up close in vanilla; 0 % = every NPC shot uses normal spread), plus burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
@@ -203,6 +211,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.17.0 - A-Life spawns: lair population, respawn & random encounters[/b] (~210 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]New section "A-Life spawns" in NPCs & AI[/b] (thank you MetalMessiah0 for the request). Research first: the Zone is fed by two systems the old "max simultaneous agents" slider never touched - it is only a cap on top of both, which is why it felt weak
 [*][b]Lairs[/b]: population for mutants and for humans separately (how many live in each place, per player rank, 50-300 %), and lair respawn speed (25-400 %). Story lairs with instant refill and base guards are never touched; shrinking never goes below what a lair's archetype list needs
@@ -210,6 +219,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Honest limits[/b]: bloodsuckers and the exotic mutants (controller, burer, poltergeist, chimera outside veteran regions) are never rolled as random encounters in vanilla - the tool does not invent spawns the game never uses, those species come from their lairs. Existing saves re-roll lairs slowly: sleep a few times or change region. Raise "Max simultaneous NPCs & mutants" together with these sliders. Not play-tested yet
 [*]First start after the update extracts the game data once more (two new game files joined the set). FAQ grew to 57 searchable entries, 27 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.16.1 - Two bug fixes, recoil upgrades, technician upgrades, per-weapon magazines[/b] (~200 tweaks, 13 tabs)
 [spoiler]
@@ -229,7 +239,7 @@ If the ~mods folder doesn't exist, create it.
 [spoiler]
 [list]
 [*][b]Steam Workshop in the mod scan[/b]: Steam stores subscribed mods in its own workshop folder, NOT in ~mods - so far they went right past the scan. Now the scan lists them too, under their real mod names, and marks every slider they also change
-[*][b]Honest limits, spelled out in-app[/b]: whether a subscribed mod is actually ACTIVE is decided in the game's own mods menu (the tool cannot know), and its load order versus this tool's pak is managed by the game - so for Workshop overlaps the tooltip honestly says "its value may win" instead of guessing a winner. Workshop mods in the packed IoStore format are listed but marked as "data I can't read", as always
+[*][b]Honest limits, spelled out in-app[/b]: whether a subscribed mod is actually ACTIVE is decided in the game's own mods menu (the tool cannot know), and its load order versus this tool's pak is managed by the game - so for Workshop overlaps the tooltip honestly says "its value may win" instead of guessing a winner. Workshop mods in the packed IoStore format were listed but marked as "data I can't read" - corrected in 1.18.1, their config part is read after all
 [*]The compatibility report and the Avoid-conflicts mode cover the Workshop mods as well
 [*]FAQ grew to 51 searchable entries, 20 automated test suites
 [/list]
@@ -318,7 +328,7 @@ If the ~mods folder doesn't exist, create it.
 [b]v1.8.0 - Mod scan, built-in FAQ & community requests[/b] (~160 sliders)
 [spoiler]
 [list]
-[*][b]Mod scan[/b]: after loading the game data the tool offers ONCE to scan the other mods in your ~mods folder (it never scans unasked - big overhaul paks stay untouched until you say so; there is also a "Scan ~mods" button). The result is a plain-language list per mod, and every slider a mod also changes keeps a colored dot: blue = the mod changes it while you are at (vanilla), violet = you changed it too - the tooltip says whose value wins, including the case where a mod's pak loads AFTER this tool's. Mods in the unreadable IoStore format are honestly listed as "data I can't read". Subfolders are scanned too
+[*][b]Mod scan[/b]: after loading the game data the tool offers ONCE to scan the other mods in your ~mods folder (it never scans unasked - big overhaul paks stay untouched until you say so; there is also a "Scan ~mods" button). The result is a plain-language list per mod, and every slider a mod also changes keeps a colored dot: blue = the mod changes it while you are at (vanilla), violet = you changed it too - the tooltip says whose value wins, including the case where a mod's pak loads AFTER this tool's. Mods in the IoStore format were listed as "data I can't read" (corrected in 1.18.1: their config part is scanned, only packed assets stay invisible). Subfolders are scanned too
 [*][b]Built-in FAQ[/b]: the new "? FAQ" button opens a searchable FAQ (37 questions) covering things that are easy to miss - search by keywords like "health pack", "carry weight", "stealth" or "antivirus"; matching answers open automatically
 [*][b]New slider "Medkit & bandage healing"[/b] (community request - thank you!): scales ONLY what medical items heal; food and drink stay with the Consumable-strength slider. The two stack: both at 200 % = 4x medkit healing
 [*][b]Fire-rate warning[/b] (community report - thank you!): fire-rate changes can desync the firing animation and sound from the actual shots, the same engine limitation movement speed has since game patch 2.0. The factors stay available; the app now warns clearly instead of staying silent

@@ -122,8 +122,13 @@ info_a = modscan.ModInfo(name="zzz_OXA_P", path=Path(r"C:\x\zzz_zOXA_P.pak"),
 info_a.pairs = {("Easy", "Weapon_BaseDamage"), ("Hard", "Weapon_BaseDamage")}
 info_b = modscan.ModInfo(name="Big_P", path=Path(r"C:\x\Big_P.pak"),
                          readable=False,
-                         note="contains data I can't read (IoStore format)")
-app.modscan_results = [info_a, info_b]
+                         note="contains data I can't read (not a readable "
+                              ".pak file)")
+info_c = modscan.ModInfo(name="WsMod (Workshop)",
+                         path=Path(r"C:\x\WsMod.pak"), n_cfg=2,
+                         source="workshop", packed_assets=True,
+                         note=modscan.PACKED_NOTE)
+app.modscan_results = [info_a, info_b, info_c]
 app.mod_conflicts = {"pdmg": ["zzz_OXA_P"]}
 app._mods_after = {"zzz_OXA_P"}
 app._footprints["pdmg"] = {("Easy", "Weapon_BaseDamage"),
@@ -133,7 +138,9 @@ print("--- Report-Auszug ---")
 print("\n".join(report.splitlines()[:14]))
 assert "zzz_zOXA_P.pak" in report
 assert "loads AFTER your pak" in report
-assert "IoStore" in report and "overlap unknown" in report
+assert "not a readable .pak file" in report and "overlap unknown" in report
+assert "note: " + modscan.PACKED_NOTE in report, \
+    "Packed-Assets-Notiz fehlt im Report"
 assert "Player damage (guns)" in report
 assert "Easy.Weapon_BaseDamage" in report
 assert "Medium.Weapon_BaseDamage" not in report.split("Details")[1], \

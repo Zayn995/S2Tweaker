@@ -28,9 +28,16 @@ Verfeinerungen halten die Trefferqualitaet hoch:
     das die Masse (kg), tiefer verschachtelt ist es ueberall die
     Auswahl-Lotterie (PackOfItemsGroup, Loot-Listen) — eine andere Mechanik.
 
-IoStore-Mods (.pak mit .ucas/.utoc daneben) kann repak nicht lesen — die
-werden ehrlich als "contains data I can't read" gemeldet statt still
-uebersprungen.
+IoStore-Mods (.pak mit .ucas/.utoc daneben) werden ueber ihren .pak-Teil
+gescannt: UE5 legt nur gekochte Assets in .ucas/.utoc ab, lose Dateien wie
+cfg-Patches bleiben in der .pak (das Spiel haelt es genauso — die Vanilla-
+cfgs liegen in pakchunk0-Windows.pak neben einer .ucas). Verifiziert 04.09.
+an 15 Workshop-Abos: 12 tragen echte cfg-Patches in der .pak, die .ucas ist
+meist 48 Bytes (leer). Nur die gepackten Assets bleiben uninspiziert — das
+sagt die Notiz je Mod. Bis dahin wurden solche Paks pauschal als "contains
+data I can't read (IoStore format)" gemeldet, womit der komplette Workshop
+am Scan vorbeilief. Doppelte Abos (alter + neuer Workshop-Pfad, gleicher
+Mod-Name) legt merge_same_name() zu EINEM Eintrag zusammen.
 """
 
 from __future__ import annotations
@@ -46,6 +53,14 @@ from .cfgparse import CfgStruct
 # DLC-Konfigs liegen in einem Schwester-Ordner; kein Regler patcht dort,
 # aber der Ergebnis-Dialog soll nicht "no config changes" behaupten.
 GAMEDATA_MARKERS = ("/GameLite/GameData/", "/GameLite/DLCGameData/")
+
+# Notizen, die der Ergebnis-Dialog und der Report woertlich zeigen.
+# Regel: KEIN "; " im Text — _join_notes() trennt daran.
+NO_CFG_NOTE = "no config changes (probably meshes, textures or audio)"
+PACKED_NOTE = ("also ships packed assets (IoStore .ucas/.utoc) this tool "
+               "can't inspect - only its config changes are compared")
+PACKED_NO_CFG_NOTE = ("no config overrides in its .pak part - its packed "
+                      "assets (IoStore .ucas/.utoc) can't be inspected")
 
 _INDEX_KEY = re.compile(r"^\[\d+\]$")
 
@@ -74,6 +89,8 @@ class ModInfo:
     pairs: set = field(default_factory=set)       # {(TopStruct, Blattname)}
     base_names: set = field(default_factory=set)  # {"DifficultyPrototypes", ...}
     source: str = "~mods"           # "~mods" | "workshop"
+    packed_assets: bool = False     # .ucas/.utoc daneben (IoStore-Assets)
+    n_paks: int = 1                 # > 1, wenn merge_same_name() zusammenlegte
 
 
 def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
@@ -120,10 +137,62 @@ def workshop_mod_name(pak: Path, workshop_dir: Path) -> str:
 
 
 def is_iostore(pak: Path) -> bool:
-    """IoStore-Mods bestehen aus .pak + .utoc + .ucas — repak liest nur
-    klassische Paks; der .pak-Teil ist dann ein Stub ohne die Daten."""
+    """Liegt ein IoStore-Container (.utoc/.ucas) neben der Pak? Dann traegt
+    die Mod gepackte Assets, die der Scan nicht sehen kann. Die .pak selbst
+    bleibt lesbar — dort liegen bei UE5 die losen Dateien (cfg-Patches)."""
     return (pak.with_suffix(".utoc").is_file()
             or pak.with_suffix(".ucas").is_file())
+
+
+def _join_notes(*notes: str) -> str:
+    """Notizen mit "; " verketten, Dubletten und Leeres weglassen."""
+    seen: list[str] = []
+    for note in notes:
+        for part in note.split("; "):
+            part = part.strip()
+            if part and part not in seen:
+                seen.append(part)
+    return "; ".join(seen)
+
+
+def merge_same_name(infos: list["ModInfo"]) -> list["ModInfo"]:
+    """Paks mit demselben Anzeigenamen (und derselben Quelle) zu EINEM
+    Eintrag zusammenlegen. Anlass: Steam-Workshop-Abos liegen seit dem
+    Layout-Wechsel oft doppelt vor — einmal im alten Pfad direkt unter
+    Stalker2/Mods/<Name>/ und einmal unter Windows/OverrideContent/... —
+    mit (fast) identischem Inhalt. Getrennt gezaehlt stuende jede Mod
+    zweimal im Dialog und in jeder Tooltip-Liste. Vereinigt werden Paare
+    und Basisnamen; lesbar ist der Eintrag, sobald EINE Pak lesbar war;
+    n_cfg ist das Maximum (identische Dateien nicht doppelt zaehlen).
+    Reihenfolge bleibt die des Erstvorkommens, der Pfad der erste."""
+    merged: dict[tuple[str, str], ModInfo] = {}
+    for info in infos:
+        key = (info.name, info.source)
+        first = merged.get(key)
+        if first is None:
+            merged[key] = info
+            continue
+        first.n_paks += 1
+        first.pairs |= info.pairs
+        first.base_names |= info.base_names
+        first.n_cfg = max(first.n_cfg, info.n_cfg)
+        first.readable = first.readable or info.readable
+        first.packed_assets = first.packed_assets or info.packed_assets
+        first.note = _join_notes(first.note, info.note)
+    out = list(merged.values())
+    for info in out:
+        if info.n_paks == 1:
+            continue
+        if info.n_cfg:
+            # "keine cfg" einer Haelfte gilt nicht mehr, wenn die andere
+            # welche hat.
+            info.note = "; ".join(
+                p for p in info.note.split("; ")
+                if p not in (NO_CFG_NOTE, PACKED_NO_CFG_NOTE))
+        info.note = _join_notes(
+            info.note, f"{info.n_paks} pak files with this name were "
+                       "merged into one entry")
+    return out
 
 
 def _short_error(exc: Exception) -> str:
@@ -249,11 +318,9 @@ def _escape_glob(entry: str) -> str:
 def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> ModInfo:
     """Eine fremde Pak scannen: cfg-Eintraege listen, entpacken, parsen."""
     info = ModInfo(name=pak.stem, path=pak)
-
-    if is_iostore(pak):
-        info.readable = False
-        info.note = "contains data I can't read (IoStore format)"
-        return info
+    # .utoc/.ucas daneben heisst NICHT "unlesbar": die cfg-Patches liegen
+    # im .pak-Teil, nur die gepackten Assets bleiben unsichtbar (Notiz).
+    info.packed_assets = is_iostore(pak)
 
     try:
         entries = pakio.list_pak(pak)
@@ -267,7 +334,7 @@ def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> Mod
                    and _is_cfg_name(e.replace("\\", "/").split("/")[-1])]
     info.n_cfg = len(cfg_entries)
     if not cfg_entries:
-        info.note = "no config changes (probably meshes, textures or audio)"
+        info.note = PACKED_NO_CFG_NOTE if info.packed_assets else NO_CFG_NOTE
         return info
 
     with tempfile.TemporaryDirectory(prefix="s2tweaker_scan_") as tmp:
@@ -314,6 +381,8 @@ def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> Mod
         # ein nicht abgefangenes Muster-Problem) -> nie stilles Alles-ok.
         if parsed < info.n_cfg and not info.note:
             info.note = "some files could not be read"
+    if info.packed_assets:
+        info.note = _join_notes(info.note, PACKED_NOTE)
     return info
 
 
