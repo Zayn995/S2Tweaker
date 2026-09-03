@@ -314,6 +314,19 @@ class Settings:
     npc_engage_range_factor: float = 1.0  # CombatEffectiveFireDistanceMin/Max
     npc_weapon_range_factor: float = 1.0  # CWS *_NPC Distanz-Schluessel
     npc_regen_factor: float = 1.0         # RegenHP der menschlichen NPCs
+    # --- Stealth (AIGlobals Pose/Wetter/Taschenlampe + Player.StealthParams) ---
+    crouch_stealth_factor: float = 1.0    # >1 = geduckt schwerer zu sehen/hoeren
+    movement_noise_factor: float = 1.0    # Laerm von Gehen/Rennen/Sprinten
+    weather_stealth_factor: float = 1.0   # Wetter-Abschlaege auf Sicht/Gehoer
+    flashlight_stealth_factor: float = 1.0  # wie stark deine Lampe dich verraet
+    # --- NPC-Wachsamkeit/Mut (ThreatPrototypes, AIGlobals CombatTactics) ---
+    npc_alertness_factor: float = 1.0     # Reaktionsschwellen / Faktor
+    npc_search_time_factor: float = 1.0   # Verdachts-Gedaechtnis x Faktor
+    npc_courage_factor: float = 1.0       # Angriffs-/Rueckzugsschwellen / Faktor
+    npc_stagger_factor: float = 1.0       # CriticalDamageThreshold x Faktor
+    npc_attack_cooldown_factor: float = 1.0   # Difficulty NPC_AttackCooldown
+    mutant_attack_cooldown_factor: float = 1.0  # Difficulty Mutant_AttackCooldown
+    npc_weapon_rank_add: float = 0.0      # Difficulty NPC_Weapon_Rank_Add (+0..3)
     npc_vision_factor: float = 1.0       # Sichtweite (Story-Bosse ausgenommen)
     npc_hearing_factor: float = 1.0      # Hoerweite (Mutanten ausgenommen)
     npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
@@ -649,6 +662,22 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if _neq(s.fall_damage_pct, 100):
         # Protection.Fall ist prozentualer Schutz: 100 = kein Fallschaden
         player["Protection"] = {"Fall": _num(100.0 - s.fall_damage_pct)}
+
+    # Stealth-Koeffizienten des Spielers (Player.StealthParams): geduckte
+    # Sichtbarkeit/Laerm (Vanilla 0.3/0.3) sinken mit dem Crouch-Faktor,
+    # der Lampen-Faktor (Vanilla 2.0) skaliert mit dem Flashlight-Regler.
+    stealth: dict = {}
+    if _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0:
+        for key in ("VisibilityCrouchCoef", "NoiseCrouchCoef"):
+            raw = gd.resolve(gd.obj, "Player", f"StealthParams.{key}")
+            if raw is not None and parse_number(raw) > 0:
+                stealth[key] = _scale_literal(raw, 1.0 / s.crouch_stealth_factor)
+    if _neq(s.flashlight_stealth_factor, 1.0) and s.flashlight_stealth_factor >= 0:
+        raw = gd.resolve(gd.obj, "Player", "StealthParams.FlashLightCoef")
+        if raw is not None and parse_number(raw) > 0:
+            stealth["FlashLightCoef"] = _scale_literal(raw, s.flashlight_stealth_factor)
+    if stealth:
+        player["StealthParams"] = stealth
 
     return {"Player": player} if player else {}
 
@@ -1137,7 +1166,161 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         settings["MinALifeSpawnDistance"] = _num(new_spawn)
         settings["MinALifeDespawnDistance"] = _num(new_despawn)
 
+    # Stealth: Haltungs-Koeffizienten (komplette [i]-Eintraege ausgeben, wie
+    # bei StaminaRegenStateCoefs - Array-Eintraege nie halb patchen)
+    crouch_on = _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0
+    noise_on = _neq(s.movement_noise_factor, 1.0) and s.movement_noise_factor >= 0
+    if crouch_on or noise_on:
+        poses = root.children.get("CharacterPoseSettings")
+        entries: dict = {}
+        for idx, entry in (poses.children.items() if poses else ()):
+            pose = (entry.values.get("Pose") or "").strip()
+            short = pose.split("::")[-1]
+            vis = entry.values.get("VisibilityCoef")
+            noise = entry.values.get("NoiseCoef")
+            if vis is None or noise is None:
+                continue
+            new_vis, new_noise = vis.strip(), noise.strip()
+            if crouch_on and short in ("LowCrouchInPlace", "Crouch"):
+                new_vis = _scale_literal(vis, 1.0 / s.crouch_stealth_factor) or new_vis
+                new_noise = _scale_literal(noise, 1.0 / s.crouch_stealth_factor) or new_noise
+            elif noise_on and short in ("Walk", "Run", "Sprint", "None"):
+                new_noise = _scale_literal(noise, s.movement_noise_factor) or new_noise
+            if new_vis != vis.strip() or new_noise != noise.strip():
+                entries[idx] = {"Pose": pose, "VisibilityCoef": new_vis,
+                                "NoiseCoef": new_noise}
+        if entries:
+            settings["CharacterPoseSettings"] = entries
+
+    # Stealth: Wetter-Abschlaege (1 - Koeffizient) x Faktor, Deckel 0.05..1
+    if _neq(s.weather_stealth_factor, 1.0) and s.weather_stealth_factor >= 0:
+        weather = root.children.get("WeatherSettings")
+        entries = {}
+        for idx, entry in (weather.children.items() if weather else ()):
+            sid = (entry.values.get("WeatherSID") or "").strip()
+            cfg = {"WeatherSID": sid}
+            changed = False
+            for key in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"):
+                raw = entry.values.get(key)
+                if raw is None:
+                    continue
+                coef = parse_number(raw)
+                new = coef
+                if coef < 1.0:
+                    new = max(0.05, min(1.0, 1.0 - (1.0 - coef) * s.weather_stealth_factor))
+                cfg[key] = _num(new)
+                if _neq(new, coef):
+                    changed = True
+            if changed:
+                entries[idx] = cfg
+        if entries:
+            settings["WeatherSettings"] = entries
+
+    # Stealth: wie stark die Spieler-Taschenlampe NPC-Sicht fuellt
+    if _neq(s.flashlight_stealth_factor, 1.0) and s.flashlight_stealth_factor >= 0:
+        fl = root.children.get("PlayerFlashlightVisionSettings")
+        cfg = {}
+        for key in ("FlashlightMinVisionScorePerSecond",
+                    "FlashlightMaxVisionScorePerSecond"):
+            raw = fl.values.get(key) if fl else None
+            if raw is not None and parse_number(raw) > 0:
+                cfg[key] = _scale_literal(raw, s.flashlight_stealth_factor)
+        if cfg:
+            settings["PlayerFlashlightVisionSettings"] = cfg
+
+    # NPC-Mut: Angriffs-/Rueckzugs-Schwellen der menschlichen Taktik-Typen
+    # (Bandits/Monolith/Humanoid) / Faktor; der Mutant-Eintrag bleibt.
+    if _neq(s.npc_courage_factor, 1.0) and s.npc_courage_factor > 0:
+        tactics = root.children.get("CombatTacticsSettings")
+        per = tactics.children.get("CombatTacticsParamsPerFactions") if tactics else None
+        factions = {}
+        for name, node in (per.children.items() if per else ()):
+            if name == "Mutant" or "#" in name:
+                continue
+            cfg = {}
+            for key in ("ConfidenceToAttack", "ConfidenceToRetreat"):
+                raw = node.values.get(key)
+                if raw is not None and parse_number(raw) > 0:
+                    cfg[key] = _scale_literal(raw, 1.0 / s.npc_courage_factor)
+            if cfg:
+                factions[name] = cfg
+        if factions:
+            settings["CombatTacticsSettings"] = {
+                "CombatTacticsParamsPerFactions": factions}
+
     return {"AISettings": settings} if settings else {}
+
+
+def _threats_patch(gd: GameData, s: Settings) -> dict:
+    """ThreatPrototypes.cfg, Profil DefaultNPC (Top-Level-Key [1]): Wachsamkeit
+    = Aktions-Schwellen (TurnHead 200, SearchEnemy 350, MoveToLocation 500,
+    CallAllies 700) / Faktor, ganzzahlig, 1..MaxThreatLevelValue;
+    Gedaechtnis = Freeze-Zeiten x Faktor und Verlust/s / Faktor, im Profil-
+    Default und je Aktion. Aktions-Eintraege ([i]) komplett ausgeben.
+    Mutanten-Profile und BossNPC bleiben vanilla."""
+    alert = s.npc_alertness_factor
+    alert_on = _neq(alert, 1.0) and alert > 0
+    mem = s.npc_search_time_factor
+    mem_on = _neq(mem, 1.0) and mem > 0
+    if not (alert_on or mem_on):
+        return {}
+    patches: dict = {}
+    for key, prof in gd.threats.children.items():
+        if (prof.values.get("SID") or "").strip() != "DefaultNPC":
+            continue
+        cfg: dict = {}
+        max_level = parse_number(prof.values.get("MaxThreatLevelValue"), 1000.0)
+        if mem_on:
+            raw = prof.values.get("DefaultThreatValueFreezeTimeSeconds")
+            if raw is not None and parse_number(raw) > 0:
+                cfg["DefaultThreatValueFreezeTimeSeconds"] = _scale_literal(raw, mem)
+            raw = prof.values.get("DefaultThreatValueLossPerSecond")
+            if raw is not None and parse_number(raw) > 0:
+                cfg["DefaultThreatValueLossPerSecond"] = _scale_literal(raw, 1.0 / mem)
+        actions = prof.children.get("Actions")
+        entries: dict = {}
+        for idx, act in (actions.children.items() if actions else ()):
+            v = act.values
+            entry = {k: val.strip() for k, val in v.items()}
+            changed = False
+            if alert_on and parse_number(v.get("ThreatLevelValueMin")) > 0:
+                new = int(round(parse_number(v["ThreatLevelValueMin"]) / alert))
+                new = max(1, min(int(max_level), new))
+                if new != int(parse_number(v["ThreatLevelValueMin"])):
+                    entry["ThreatLevelValueMin"] = str(new)
+                    changed = True
+            if mem_on:
+                raw = v.get("ThreatValueFreezeTimeSeconds")
+                if raw is not None and parse_number(raw) > 0:
+                    entry["ThreatValueFreezeTimeSeconds"] = _scale_literal(raw, mem)
+                    changed = True
+                raw = v.get("ThreatValueLossPerSecond")
+                if raw is not None and parse_number(raw) > 0:
+                    entry["ThreatValueLossPerSecond"] = _scale_literal(raw, 1.0 / mem)
+                    changed = True
+            if changed:
+                entries[idx] = entry
+        if entries:
+            cfg["Actions"] = entries
+        if cfg:
+            patches[key] = cfg
+    return patches
+
+
+def _npc_stagger_patch(gd: GameData, s: Settings) -> dict:
+    """CriticalDamageThreshold (Schaden in 2 s, ab dem ein NPC taumelt;
+    Vanilla 40, Bosse 200..100000) x Faktor - je menschlichem Prototyp,
+    weil die Structs voll expandiert sind."""
+    f = s.npc_stagger_factor
+    if not _neq(f, 1.0) or f <= 0:
+        return {}
+    patches: dict = {}
+    for sid in gd.human_npc_sids():
+        raw = gd.obj.children[sid].values.get("CriticalDamageThreshold")
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        patches[sid] = {"CriticalDamageThreshold": _scale_literal(raw, f)}
+    return patches
 
 
 def _camerashake_patch(gd: GameData, s: Settings) -> dict:
@@ -1374,6 +1557,16 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("MutantCombatDifficulty", "Mutant_BaseDamage", s.mutant_damage_factor)
     apply("EnvironmentDifficulty", "Explosion_BaseDamage", s.explosion_damage_factor)
     apply("EnvironmentDifficulty", "Armor_Durability", s.armor_durability_factor)
+    apply("NPCCombatDifficulty", "NPC_AttackCooldown", s.npc_attack_cooldown_factor)
+    apply("MutantCombatDifficulty", "Mutant_AttackCooldown",
+          s.mutant_attack_cooldown_factor)
+    # Additiv: NPC-Waffenprofile um n Raenge anheben (Vanilla 0 ueberall)
+    rank_add = int(round(s.npc_weapon_rank_add))
+    if rank_add > 0:
+        for sid, vanilla in gd.difficulty_values(
+                "NPCCombatDifficulty.NPC_Weapon_Rank_Add").items():
+            patches.setdefault(sid, {}).setdefault("NPCCombatDifficulty", {})[
+                "NPC_Weapon_Rank_Add"] = str(int(vanilla) + rank_add)
     apply("NPCCombatDifficulty", "Weapon_JammingMultiplier", s.jamming_factor)
     apply("EnvironmentDifficulty", "Anomaly_Damage", s.anomaly_damage_factor)
     apply("EnvironmentDifficulty", "Radiation_AccumulationSpeed", s.radiation_factor)
@@ -2400,9 +2593,11 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                 continue
             new = max(1, int(round(count * pack)))
             if new != int(count):
+                # kompletter [i]-Eintrag (Array-Eintraege nie halb patchen)
                 (preset.setdefault("ALifeScenarioNPCArchetypesLimitsPerPlayerRank", {})
                        .setdefault(ri, {}).setdefault("Restrictions", {})
-                       .setdefault(ti, {}))["MaxCount"] = str(new)
+                       )[ti] = {"AgentType": f"EAgentType::{atype}",
+                                "MaxCount": str(new)}
     return {"ALifeDirectorPreset": preset} if preset else {}
 
 
@@ -2445,6 +2640,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     obj_patches.update(_mutants_patch(gd, s))
     obj_patches.update(_npc_heal_patch(gd, s))
     for sid, cfg in _invisibility_patch(gd, s).items():
+        obj_patches.setdefault(sid, {}).update(cfg)
+    for sid, cfg in _npc_stagger_patch(gd, s).items():
         obj_patches.setdefault(sid, {}).update(cfg)
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
 
@@ -2501,6 +2698,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
+    add(f"AIPrototypes/ThreatPrototypes/ThreatPrototypes_patch_{n}.cfg",
+        _threats_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
     add(f"ArtifactSpawnerPrototypes/ArtifactSpawnerPrototypes_patch_{n}.cfg",
@@ -2625,6 +2824,7 @@ def summarize(s: Settings) -> list[str]:
     f("Mutant speed", s.mutant_speed_factor)
     f("Mutant hearing range", s.mutant_hearing_factor)
     f("Mutant health regen", s.mutant_regen_factor)
+    f("Mutant attack cooldown", s.mutant_attack_cooldown_factor)
     f("Bloodsucker cloaking speed", s.bloodsucker_cloak_factor)
     f("Bloodsucker uncloak from damage", s.bloodsucker_uncloak_factor)
     for species, params in sorted(s.mutant_overrides.items()):
@@ -2719,6 +2919,17 @@ def summarize(s: Settings) -> list[str]:
     f("NPC weapon range", s.npc_weapon_range_factor)
     if not s.npc_no_heal:
         f("NPC health regen", s.npc_regen_factor)
+    f("Crouch stealth", s.crouch_stealth_factor)
+    f("Movement noise", s.movement_noise_factor)
+    f("Bad-weather stealth", s.weather_stealth_factor)
+    f("Flashlight gives you away", s.flashlight_stealth_factor)
+    f("NPC alertness", s.npc_alertness_factor)
+    f("NPC search time", s.npc_search_time_factor)
+    f("NPC courage", s.npc_courage_factor)
+    f("NPC stagger threshold", s.npc_stagger_factor)
+    f("NPC attack cooldown", s.npc_attack_cooldown_factor)
+    if int(round(s.npc_weapon_rank_add)) > 0:
+        lines.append(f"NPC weapon rank +{int(round(s.npc_weapon_rank_add))}")
     f("Trader stock amount", s.trader_stock_factor)
     f("Trader stock variety (chance per item)", s.trader_variety_factor)
     f("Trader money (finite wallets)", s.trader_money_factor)

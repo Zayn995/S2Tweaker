@@ -79,6 +79,11 @@ s = Settings(
     npc_free_shots_factor=0.0, npc_burst_factor=1.5,          # NPC-Kampfverhalten
     npc_fire_pause_factor=2.0, npc_engage_range_factor=0.5,
     npc_weapon_range_factor=0.75, npc_regen_factor=0.25,
+    crouch_stealth_factor=2.0, movement_noise_factor=0.5,     # Stealth + Wachsamkeit
+    weather_stealth_factor=2.0, flashlight_stealth_factor=0.0,
+    npc_alertness_factor=0.5, npc_search_time_factor=2.0, npc_courage_factor=2.0,
+    npc_stagger_factor=0.5, npc_attack_cooldown_factor=1.5, npc_weapon_rank_add=1,
+    mutant_attack_cooldown_factor=1.5,
     armor_durability_factor=2.0, weapon_range_factor=1.5,
     armor_strike_factor=2.0, armor_burn_factor=1.5, armor_psy_factor=3.0,
     armor_carry_bonus_factor=2.0, artifact_rarity_factor=3.0,

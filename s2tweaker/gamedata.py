@@ -55,10 +55,11 @@ NEEDED_FILES = [
     "UpgradePrototypes.cfg.bin",
     "LairPrototypes.cfg.bin",
     "ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg.bin",
+    "AIPrototypes/ThreatPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 14
+CACHE_SCHEMA = 15
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -1509,6 +1510,23 @@ class GameData:
             w = parse_number(self.resolve(self.items, sid, "Weight"))
             if w > 0:
                 out[sid] = w
+        return out
+
+    @cached_property
+    def threats(self) -> CfgStruct:
+        return self._parse("AIPrototypes/ThreatPrototypes.cfg")
+
+    def human_npc_sids(self) -> list[str]:
+        """Alle menschlichen NPC-Prototypen (Faction gesetzt, nicht Mutant,
+        nicht Player/[0]) - Basis fuer per-Prototyp-Patches wie das Wanken."""
+        out: list[str] = []
+        for sid in self.obj.children:
+            if sid in ("[0]", "Player") or "#" in sid:
+                continue
+            faction = self.resolve(self.obj, sid, "Faction")
+            if faction is None or faction in MUTANT_FACTIONS:
+                continue
+            out.append(sid)
         return out
 
     def magazine_items(self) -> dict[str, float]:

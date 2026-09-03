@@ -515,6 +515,14 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_free_shots": "npc_free_shots_factor", "npc_burst": "npc_burst_factor",
     "npc_fire_pause": "npc_fire_pause_factor", "npc_engage": "npc_engage_range_factor",
     "npc_range": "npc_weapon_range_factor", "npc_regen": "npc_regen_factor",
+    "stealth_crouch": "crouch_stealth_factor", "stealth_noise": "movement_noise_factor",
+    "stealth_weather": "weather_stealth_factor",
+    "stealth_flashlight": "flashlight_stealth_factor",
+    "npc_alertness": "npc_alertness_factor", "npc_search": "npc_search_time_factor",
+    "npc_courage": "npc_courage_factor", "npc_stagger": "npc_stagger_factor",
+    "npc_attack_cd": "npc_attack_cooldown_factor",
+    "npc_rank_add": "npc_weapon_rank_add",
+    "mut_attack_cd": "mutant_attack_cooldown_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
     "mut_regen": "mutant_regen_factor",
@@ -583,6 +591,7 @@ CHECK_FIELDS: dict[str, str] = {
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
 FOOTPRINT_PROBES: dict[str, float] = {
     "fall_damage_pct": 50.0,
+    "npc_weapon_rank_add": 2.0,
     "scope_sway_pct": 50.0,
     "trader_min_durability_pct": 0.0,
 }
@@ -3315,6 +3324,56 @@ class App(ctk.CTk):
                      "box, which always wins when ticked.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Stealth: how NPCs notice you (experimental)")
+        self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 25, 100, fmt_pct,
+                     "How much crouching and crawling hide you from eyes AND "
+                     "ears (vanilla: crouched you are 25 % less visible and "
+                     "much quieter). 200 % = twice as hard to notice while "
+                     "crouched.")
+        self._slider(f, "stealth_noise", "Movement noise", 0, 200, 10, 100, fmt_pct,
+                     "Noise of walking, running and sprinting (vanilla 0.6 / "
+                     "0.8 / 1.0). 0 % = silent feet; crouch noise has its "
+                     "own slider above.")
+        self._slider(f, "stealth_weather", "Bad-weather stealth", 0, 300, 25, 100, fmt_pct,
+                     "How much fog, rain and thunder blind and deafen NPCs "
+                     "(vanilla: fog -30 % sight / -60 % hearing, thunder "
+                     "-20 % / -70 %). 0 % = weather changes nothing, 300 % = "
+                     "storms make you nearly invisible.")
+        self._slider(f, "stealth_flashlight", "Flashlight gives you away", 0, 200, 10, 100, fmt_pct,
+                     "How strongly your own flashlight fills NPC vision "
+                     "(cone 10 m / 15\u00b0 in vanilla). 0 % = the beam never "
+                     "reveals you.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "NPC awareness & nerve (experimental)")
+        self._slider(f, "npc_alertness", "NPC alertness", 25, 300, 25, 100, fmt_pct,
+                     "How little suspicion it takes before NPCs turn their "
+                     "head (200), search (350), move in (500) or call allies "
+                     "(700 points; a gunshot is worth 700). 200 % = they react "
+                     "at half the suspicion. Human NPCs only.")
+        self._slider(f, "npc_search", "NPC search time", 25, 400, 25, 100, fmt_pct,
+                     "How long NPCs stay suspicious and keep searching "
+                     "(vanilla: suspicion frozen 30 s, then fades 30 points/s). "
+                     "25 % = they forget you fast.")
+        self._slider(f, "npc_courage", "NPC courage", 25, 300, 25, 100, fmt_pct,
+                     "Confidence needed before human squads attack or fall "
+                     "back (vanilla bandits 2 / 1, monolith 0.5 / 0, others "
+                     "3 / 0.5). Higher = braver. Mutants stay vanilla.")
+        self._slider(f, "npc_stagger", "NPC stagger threshold", 25, 400, 25, 100, fmt_pct,
+                     "Damage within 2 s that makes a human NPC flinch (vanilla "
+                     "40; bosses far higher). 25 % = they stagger from almost "
+                     "any hit, 400 % = they barely flinch.")
+        self._slider(f, "npc_attack_cd", "NPC attack cooldown", 25, 400, 25, 100, fmt_pct,
+                     "Difficulty multiplier on human NPC attack cooldowns "
+                     "(vanilla 1.0 on every difficulty). Effect scope not "
+                     "verified in-game - experimental.")
+        self._slider(f, "npc_rank_add", "NPC weapon rank bonus", 0, 3, 1, 0, fmt_int,
+                     "Raises every NPC's weapon behaviour rank by this many "
+                     "steps (Newbie -> Experienced -> Veteran -> Master): "
+                     "deadlier enemies without health sponges. Difficulty "
+                     "value, vanilla 0.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "A-Life population (experimental)")
         self._warning(f, "Experimental: these change how the living world "
                          "spawns around you. Large values can hurt "
@@ -3390,6 +3449,10 @@ class App(ctk.CTk):
                      "Mutants passively regenerate health, just like human "
                      "NPCs (vanilla varies by species). × 0 = wounds stay "
                      "– the mutant counterpart of 'NPCs don't self-heal'.")
+        self._slider(f, "mut_attack_cd", "Mutant attack cooldown", 25, 400, 25, 100, fmt_pct,
+                     "Difficulty multiplier on the pause between mutant "
+                     "attacks (vanilla 1.0 on every difficulty). 200 % = "
+                     "mutants attack half as often. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Bloodsucker cloaking")
@@ -4274,6 +4337,17 @@ class App(ctk.CTk):
             npc_engage_range_factor=s["npc_engage"].get() / 100.0,
             npc_weapon_range_factor=s["npc_range"].get() / 100.0,
             npc_regen_factor=s["npc_regen"].get() / 100.0,
+            crouch_stealth_factor=s["stealth_crouch"].get() / 100.0,
+            movement_noise_factor=s["stealth_noise"].get() / 100.0,
+            weather_stealth_factor=s["stealth_weather"].get() / 100.0,
+            flashlight_stealth_factor=s["stealth_flashlight"].get() / 100.0,
+            npc_alertness_factor=s["npc_alertness"].get() / 100.0,
+            npc_search_time_factor=s["npc_search"].get() / 100.0,
+            npc_courage_factor=s["npc_courage"].get() / 100.0,
+            npc_stagger_factor=s["npc_stagger"].get() / 100.0,
+            npc_attack_cooldown_factor=s["npc_attack_cd"].get() / 100.0,
+            npc_weapon_rank_add=s["npc_rank_add"].get(),
+            mutant_attack_cooldown_factor=s["mut_attack_cd"].get() / 100.0,
             max_agents_factor=s["alife_agents"].get() / 100.0,
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
             lair_mutant_factor=s["lair_mutants"].get() / 100.0,

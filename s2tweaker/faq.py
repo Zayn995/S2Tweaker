@@ -467,6 +467,43 @@ FAQ_ENTRIES = [
              "opening fire guaranteed burst spread cheat",
     },
     {
+        "q": "Can I sneak better - crouching, in the dark, in the rain?",
+        "a": "NPCs & AI tab, 'Stealth: how NPCs notice you'. 'Crouch "
+             "stealth' scales how much crouching hides you from eyes and "
+             "ears, 'Movement noise' the footstep noise of walking, running "
+             "and sprinting, 'Bad-weather stealth' how much fog, rain and "
+             "thunder blind and deafen NPCs, and 'Flashlight gives you away' "
+             "how strongly your own beam fills their vision. Darkness itself "
+             "is driven by light curves the tool cannot touch - vision and "
+             "hearing RANGE have their own sliders further up.",
+        "k": "stealth sneak crouch invisible dark night rain fog storm "
+             "flashlight noise footsteps hide detection axxii",
+    },
+    {
+        "q": "Can I make NPCs less alert, or braver?",
+        "a": "NPCs & AI tab, 'NPC awareness & nerve'. 'NPC alertness' "
+             "moves the suspicion thresholds at which human NPCs turn their "
+             "head, search, move in or call allies; 'NPC search time' is "
+             "how long that suspicion lasts; 'NPC courage' shifts the "
+             "confidence human squads need to attack or fall back; 'NPC "
+             "stagger threshold' is the damage that makes them flinch. "
+             "Bosses and mutants keep their own profiles. Not play-tested "
+             "yet.",
+        "k": "alert alertness search forget suspicion memory courage "
+             "retreat flee brave flinch stagger cowards aggressive",
+    },
+    {
+        "q": "Do mutants attack too fast?",
+        "a": "Mutants tab, 'Mutant attack cooldown' - a difficulty "
+             "multiplier on the pause between mutant attacks (vanilla 1.0 "
+             "on every difficulty). 200 % = half as many attacks. The human "
+             "counterpart 'NPC attack cooldown' sits in the NPCs & AI tab "
+             "and is marked experimental because its exact scope is not "
+             "verified.",
+        "k": "mutant attack speed cooldown fast rate slower bloodsucker "
+             "chimera swipe",
+    },
+    {
         "q": "What does the search box at the top find?",
         "a": "Slider names, weapon names and ammo rounds. Matches light "
              "up amber, everything else dims, and the status bar shows "
