@@ -52,10 +52,11 @@ NEEDED_FILES = [
     "RelationPrototypes.cfg.bin",
     "QuestNodePrototypes.cfg.bin",
     "EmissionPrototypes.cfg.bin",
+    "UpgradePrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 12
+CACHE_SCHEMA = 13
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -1327,6 +1328,84 @@ class GameData:
                 value = parse_number(raw)
                 if value > 0:
                     result[(edition, sid)] = value
+        return result
+
+    @cached_property
+    def upgrades(self) -> CfgStruct:
+        return self._parse("UpgradePrototypes.cfg")
+
+    def upgrade_sids_with(self, key: str) -> list[str]:
+        """SIDs aller Techniker-Upgrades, deren Sperrliste `key` in Vanilla
+        NICHT leer ist (BlockingUpgradePrototypeSIDs = sich ausschliessende
+        Zweige, RequiredUpgradePrototypeSIDs = Vorstufen/Tiers,
+        RequiredItemPrototypeSIDs = Blaupausen). Nicht-leere Listen stehen
+        als Kind-Struct mit [i]-Eintraegen, leere als leerer Skalar
+        `Key =` - genau so wird eine Liste per bpatch geleert."""
+        out: list[str] = []
+        for sid, node in self.upgrades.children.items():
+            if "#" in sid or sid == "[0]":      # [0] = Basis-Template aller Upgrades
+                continue
+            child = node.children.get(key)
+            # "" und "empty" sind Platzhalter (3 Ruestungs-Upgrades, [0])
+            if child is not None and any(
+                    v.strip() not in ("", "empty") for v in child.values.values()):
+                out.append(sid)
+        return out
+
+    def magazine_items(self) -> dict[str, float]:
+        """{Magazin-Item-SID: Magazine.MaxAmmo} aller konkreten Magazin-
+        Aufsaetze der Basis-ItemPrototypes (Wert > 0; Templates/[0] raus)."""
+        result: dict[str, float] = {}
+        for sid, node in self.items.children.items():
+            if "#" in sid or sid.startswith("Template") or sid == "[0]":
+                continue
+            mag = node.children.get("Magazine")
+            if mag is None:
+                continue
+            value = parse_number(mag.values.get("MaxAmmo"))
+            if value > 0:
+                result[sid] = value
+        return result
+
+    def weapon_magazines(self) -> dict[str, list[str]]:
+        """{WGS-SID: [Magazin-Item-SIDs]} - welche Magazin-Aufsaetze eine
+        Waffe benutzt. Quelle ist die Waffe selbst: der Block
+        WeaponReloadTimePerAttachment.[i].AttachPrototypeSID im
+        WeaponGeneralSetup (ueber die refkey-Kette aufgeloest, DLC-Waffen
+        ueber ihre Editions-Kette). Nur Eintraege, die wirklich Magazine
+        sind (magazine_items), z.B. GunAK74_ST -> GunAK74_MagDefault,
+        GunAK74_MagIncreased, GunAK_MagPaired. Ein Magazin kann mehreren
+        Waffen gehoeren (GunAK_MagPaired: AK-Familie)."""
+        mags = self.magazine_items()
+
+        def from_chain(chain) -> list[str]:
+            for node in chain:
+                block = node.children.get("WeaponReloadTimePerAttachment")
+                if block is None:
+                    continue
+                found = []
+                for entry in block.children.values():
+                    sid = (entry.values.get("AttachPrototypeSID") or "").strip()
+                    if sid in mags and sid not in found:
+                        found.append(sid)
+                return found
+            return []
+
+        result: dict[str, list[str]] = {}
+        for sid in self.weapongeneral.children:
+            if "#" in sid or sid.startswith("Template"):
+                continue
+            found = from_chain(self._resolve_chain(self.weapongeneral, sid))
+            if found:
+                result[sid] = found
+        for edition, trees in self.dlc_editions.items():
+            tree = trees.get("weapongeneral")
+            for sid in (tree.children if tree else ()):
+                if "#" in sid or sid in result:
+                    continue
+                found = from_chain(self.dlc_weapon_chain(edition, sid))
+                if found:
+                    result[sid] = found
         return result
 
     def weapon_general_values(self, path: str) -> dict[str, float]:

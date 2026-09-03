@@ -318,6 +318,78 @@ FAQ_ENTRIES = [
         "k": "sway iron sight wobble aim shake scope steady breath",
     },
     {
+        "q": "Why don't the weapon stat bars in the inventory change?",
+        "a": "Because those bars are hand-set numbers, not live values. "
+             "Every weapon carries fixed DamageUI / AccuracyUI / "
+             "RateOfFireUI / HandlingUI / RangeUI keys for the inventory "
+             "display; the game never recomputes them from the real "
+             "damage, spread or fire interval - only attachments and "
+             "upgrades nudge them. Your tweaks change the real values "
+             "(what happens when you shoot), the bars stay decorative. "
+             "Verify in the field, not in the inventory screen.",
+        "k": "stats display bars inventory ui not updating damage "
+             "accuracy handling rate of fire range shown wrong same "
+             "unchanged cosmetic",
+    },
+    {
+        "q": "Can I remove recoil completely?",
+        "a": "Two routes. 'Weapon recoil' at 0 % sets every weapon's "
+             "RecoilRadius (the kick strength) to zero - the per-shot "
+             "pattern is a game asset and keeps its shape, only its size "
+             "follows the slider; not play-tested yet. 'Recoil reduction "
+             "from upgrades' boosts the recoil upgrades and attachments "
+             "instead (vanilla -5 % to -30 %, capped at -100 %): at 2000 % "
+             "any recoil upgrade removes the kick entirely. That route "
+             "only affects weapons with such an upgrade installed, but it "
+             "is community-proven on patch 2.0. Iron-sight sway is "
+             "animation-driven and stays either way.",
+        "k": "no recoil zero recoil remove recoil kick climb upgrades "
+             "attachments dead steady 100 percent laser steady",
+    },
+    {
+        "q": "Can I set health higher than 1000?",
+        "a": "Yes - the 'Max health' slider goes up to 100000 (GitHub "
+             "request). It is logarithmic: the left part moves in small "
+             "steps around vanilla 100, the right part jumps by "
+             "thousands, and the value shown is what the pak writes. Keep "
+             "in mind that medkits heal a fixed amount (a basic medkit "
+             "70 HP), so with huge health also raise 'Medkit & bandage "
+             "healing' or healing becomes meaningless. Reported to work "
+             "by a user, not play-tested by me.",
+        "k": "health hp higher than 1000 max 99999 100000 god mode "
+             "invincible immortal unkillable huge",
+    },
+    {
+        "q": "Can I change magazine size for ONE weapon or one weapon type?",
+        "a": "Yes - since v1.16.1 'Magazine size' is the tenth factor of "
+             "the weapon cascade: global slider (Weapons tab), per category "
+             "(Weapon categories block) or per weapon (weapon tree). It "
+             "scales the weapon's base capacity and the magazine "
+             "attachments that weapon uses, read from the weapon's own "
+             "reload table. Two honest limits: a magazine shared by a "
+             "weapon family (the AK paired magazine, for example) follows "
+             "the first weapon that overrides it, and a handful of unique "
+             "guns list no magazine at all, so their magazines only follow "
+             "the global slider.",
+        "k": "magazine size per weapon individual capacity rounds clip mag "
+             "category tree ammo capacity bigger mags",
+    },
+    {
+        "q": "Can I install all weapon and armor upgrades at once?",
+        "a": "Economy tab, 'Technician upgrades': three boxes. 'Take both "
+             "of mutually exclusive upgrades' lets you install branches "
+             "that normally exclude each other; 'Upgrades need no "
+             "blueprint' drops the blueprint item requirement; 'No upgrade "
+             "tiers' lets you skip the earlier tier. Each box clears the "
+             "matching lock list on every upgrade that has one - the same "
+             "route as the 'Take Both Upgrades' and 'Unrestricted "
+             "Upgrades' Nexus mods (don't run those alongside, they patch "
+             "the same lists). Which technician services which gear is "
+             "not in these files and stays vanilla. Not play-tested yet.",
+        "k": "upgrades technician blueprint tier unlock all both branches "
+             "mutually exclusive unrestricted take both locked",
+    },
+    {
         "q": "What does the search box at the top find?",
         "a": "Slider names, weapon names and ammo rounds. Matches light "
              "up amber, everything else dims, and the status bar shows "

@@ -51,7 +51,7 @@ assert any("Repeatable quest cooldown" in line
 print("Cooldown-Randfaelle (0 / 100 % / negativ) + summarize  OK")
 
 # --- 4) ADS aim-in: global x2 halbiert alle vier Zeiten -----------------
-assert "aimtime" in WEAPON_PARAMS and len(WEAPON_PARAMS) == 9
+assert "aimtime" in WEAPON_PARAMS and len(WEAPON_PARAMS) == 10
 p = build_patches(gd, Settings(aim_time_factor=2.0))
 wgs_key = ("WeaponData/WeaponGeneralSetupPrototypes/"
            "WeaponGeneralSetupPrototypes_patch_S2Tweaker.cfg")

@@ -68,6 +68,8 @@ s = Settings(
     max_agents_factor=1.5, spawn_distance_factor=0.5,
     artifact_effect_factor=2.0, artifact_radiation_factor=0.0,
     artifact_spawn_factor=3.0,
+    recoil_upgrade_factor=4.0,       # -5 % .. -30 % -> -20 % .. -100 % (Deckel)
+    upgrades_take_both=True, upgrades_no_tiers=True,   # UpgradePrototypes (1,9 MB)
     armor_durability_factor=2.0, weapon_range_factor=1.5,
     armor_strike_factor=2.0, armor_burn_factor=1.5, armor_psy_factor=3.0,
     armor_carry_bonus_factor=2.0, artifact_rarity_factor=3.0,

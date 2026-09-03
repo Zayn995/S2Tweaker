@@ -59,7 +59,7 @@ SPRINT_DRAIN_TAGS = {
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
-                 "range", "bleeding", "adsspeed", "aimtime"]
+                 "range", "bleeding", "adsspeed", "aimtime", "magazine"]
 
 WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -71,6 +71,7 @@ WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "bleeding": "Bleeding",
     "adsspeed": "ADS move speed",
     "aimtime": "ADS aim-in speed",
+    "magazine": "Magazine size",
 }
 
 # Die vier Ziel-Zeiten skalieren ZUSAMMEN (rein, seitlich, gelehnt, wieder
@@ -342,6 +343,7 @@ class Settings:
     breath_regen_factor: float = 1.0
     spread_factor: float = 1.0               # Streuung; 0 = laserpraezise
     recoil_factor: float = 1.0               # Rueckstoss
+    recoil_upgrade_factor: float = 1.0       # Rueckstoss-Upgrades verstaerken (Deckel -100 %)
     weapon_range_factor: float = 1.0         # effektive Reichweite (Kaskade)
     weapon_bleeding_factor: float = 1.0      # Blutungs-Chance/-Staerke (Kaskade)
     ads_speed_factor: float = 1.0            # Bewegungstempo beim Zielen (Kaskade)
@@ -419,6 +421,10 @@ class Settings:
     trader_variety_factor: float = 1.0       # Chance je Posten (Deckel 1.0)
     trader_money_factor: float = 1.0         # Geldbeutel (nur endliche)
     trader_infinite_money: bool = False      # bInfiniteMoney ueberall an
+    # --- Techniker-Upgrades (UpgradePrototypes.cfg; Nexus-Mods 2545/2549) ---
+    upgrades_take_both: bool = False         # sich ausschliessende Zweige beide
+    upgrades_no_blueprint: bool = False      # keine Blaupause noetig
+    upgrades_no_tiers: bool = False          # keine Vorstufe noetig
     trader_buy_price_factor: float = 1.0     # was Haendler DIR zahlen
     trader_sell_price_factor: float = 1.0    # was DU bezahlst
     repair_cost_factor: float = 1.0
@@ -1274,7 +1280,10 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
             continue
 
         def scaled(key: str, factor: float, invert: bool = False):
-            if not _neq(factor, 1.0) or factor <= 0:
+            # 0 ist fuer spread/recoil erlaubt (Regler bis 0 %); nur
+            # invertierte Werte (Teilung) und negative Faktoren bleiben tabu
+            if (not _neq(factor, 1.0) or factor < 0
+                    or (invert and factor <= 0)):
                 return
             value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
             if value > 0:
@@ -1335,14 +1344,14 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for sid, value in sorted(values.items()):
             f = _weapon_factor(s, gd.weapon_category(sid), sid, param,
                                global_factor)
-            if not _neq(f, 1.0) or f <= 0:
+            if not _neq(f, 1.0) or f < 0 or (invert and f <= 0):
                 continue
             emit(patches, sid, path, value / f if invert else value * f)
         dlc_values = gd.dlc_weapon_general_values(path)
         for (ed, sid), value in sorted(dlc_values.items()):
             f = _weapon_factor(s, gd.dlc_weapon_category(ed, sid), sid,
                                param, global_factor)
-            if not _neq(f, 1.0) or f <= 0:
+            if not _neq(f, 1.0) or f < 0 or (invert and f <= 0):
                 continue
             emit(dlc_patches.setdefault(ed, {}), sid, path,
                  value / f if invert else value * f)
@@ -1350,7 +1359,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for sid, params in sorted(s.weapon_overrides.items()):
             f = params.get(param)
             if (f is None or sid in values or sid in dlc_defined
-                    or not _neq(f, 1.0) or f <= 0):
+                    or not _neq(f, 1.0) or f < 0
+                    or (invert and f <= 0)):
                 continue
             ed = dlc_eds.get(sid)
             if ed is not None:
@@ -1377,18 +1387,49 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     for key in WEAPON_AIMTIME_KEYS:
         scale(key, "aimtime", s.aim_time_factor, invert=True)
 
-    # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig
-    if _neq(s.magazine_factor, 1.0) and s.magazine_factor > 0:
-        for sid, value in sorted(gd.weapon_general_values("MaxAmmo").items()):
-            scaled_int = max(1, int(round(value * s.magazine_factor)))
-            if scaled_int != int(value):
-                patches.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
-        for (ed, sid), value in sorted(
-                gd.dlc_weapon_general_values("MaxAmmo").items()):
-            scaled_int = max(1, int(round(value * s.magazine_factor)))
-            if scaled_int != int(value):
-                dlc_patches.setdefault(ed, {}).setdefault(sid, {})[
-                    "MaxAmmo"] = str(scaled_int)
+    # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig,
+    # seit 03.09. der 10. Kaskaden-Parameter (Nexus-Wunsch Qfander): Einzel-
+    # waffe > Kategorie > globaler Regler, wie scale() - nur mit Ganzzahl-
+    # Rundung und ohne Division, darum eigene Schleife.
+    mag_values = gd.weapon_general_values("MaxAmmo")
+    mag_dlc = gd.dlc_weapon_general_values("MaxAmmo")
+    for sid, value in sorted(mag_values.items()):
+        f = _weapon_factor(s, gd.weapon_category(sid), sid, "magazine",
+                           s.magazine_factor)
+        if not _neq(f, 1.0) or f <= 0:
+            continue
+        scaled_int = max(1, int(round(value * f)))
+        if scaled_int != int(value):
+            patches.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
+    for (ed, sid), value in sorted(mag_dlc.items()):
+        f = _weapon_factor(s, gd.dlc_weapon_category(ed, sid), sid,
+                           "magazine", s.magazine_factor)
+        if not _neq(f, 1.0) or f <= 0:
+            continue
+        scaled_int = max(1, int(round(value * f)))
+        if scaled_int != int(value):
+            dlc_patches.setdefault(ed, {}).setdefault(sid, {})[
+                "MaxAmmo"] = str(scaled_int)
+    # Einzelwaffen-Override auf einer Waffe, die MaxAmmo nur ERBT: am
+    # eigenen Struct emittieren (Wert aufgeloest), sonst traefe der
+    # Template-Patch die ganze Kategorie.
+    mag_dlc_defined = {sid for _ed, sid in mag_dlc}
+    for sid, params in sorted(s.weapon_overrides.items()):
+        f = params.get("magazine")
+        if (f is None or sid in mag_values or sid in mag_dlc_defined
+                or not _neq(f, 1.0) or f <= 0):
+            continue
+        ed = dlc_eds.get(sid)
+        raw = (gd.dlc_resolve_weapon(ed, sid, "MaxAmmo") if ed is not None
+               else gd.resolve(gd.weapongeneral, sid, "MaxAmmo"))
+        value = parse_number(raw)
+        if value <= 0:
+            continue
+        scaled_int = max(1, int(round(value * f)))
+        if scaled_int == int(value):
+            continue
+        bucket = dlc_patches.setdefault(ed, {}) if ed is not None else patches
+        bucket.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
     return patches, dlc_patches
 
 
@@ -1558,6 +1599,34 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = scaled
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
+    # Rueckstoss-Reduktion aus Upgrades/Aufsaetzen (Community-Weg der
+    # Nexus-Mod "Dead Steady" 2478, auf Patch 2.0 bestaetigt): alle Effekte
+    # vom Typ Recoil mit NEGATIVEM Wert (= senken den Rueckstoss, Vanilla
+    # -5 % .. -30 %, inkl. Scope-Varianten) werden skaliert, Deckel bei
+    # -100 %. Positive Recoil-Effekte (Munitionsumbauten, Muedigkeit)
+    # bleiben unangetastet. Greift nur bei Waffen, in denen ein solches
+    # Upgrade/Attachment steckt - Tooltip und FAQ sagen das ehrlich.
+    if _neq(s.recoil_upgrade_factor, 1.0) and s.recoil_upgrade_factor > 0:
+        for sid, node in gd.effects.children.items():
+            if "#" in sid or node.values.get("Type") != "EEffectType::Recoil":
+                continue
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None or not raw.strip().endswith("%"):
+                    continue
+                try:
+                    value = float(raw.strip()[:-1])
+                except ValueError:
+                    continue
+                if value >= 0:
+                    continue
+                scaled = _num(max(-100.0, value * s.recoil_upgrade_factor)) + "%"
+                if scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
+
     return patches
 
 
@@ -1682,18 +1751,46 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                    for key, value in radii.items()}
             patches.setdefault(sid, {}).update(cfg)
 
-    # Magazin-Aufsaetze: Magazine.MaxAmmo (81 konkrete Magazine, ganzzahlig)
-    if _neq(s.magazine_factor, 1.0) and s.magazine_factor > 0:
-        for sid, node in sorted(gd.items.children.items()):
-            if "#" in sid or sid.startswith("Template") or sid == "[0]":
+    # Magazin-Aufsaetze: Magazine.MaxAmmo (80 konkrete Magazine, ganzzahlig).
+    # Seit 03.09. kaskadiert (Nexus-Wunsch Qfander): ein Magazin folgt den
+    # Waffen, die es laut WeaponReloadTimePerAttachment benutzen - irgendein
+    # Einzelwaffen-Override gewinnt, sonst irgendein Kategorie-Faktor, sonst
+    # der globale Regler. Geteilte Magazine (GunAK_MagPaired: AK-Familie)
+    # folgen damit der ersten Waffe mit Override - Tooltip/FAQ sagen es.
+    # Magazine ohne bekannte Waffe (Waisen) sehen nur den globalen Regler.
+    magazine_on = ((_neq(s.magazine_factor, 1.0) and s.magazine_factor > 0)
+                   or any("magazine" in p for p in s.weapon_overrides.values())
+                   or any("magazine" in p
+                          for p in s.weapon_category_factors.values()))
+    if magazine_on:
+        users: dict[str, list[str]] = {}
+        for wgs, mags in gd.weapon_magazines().items():
+            for m in mags:
+                users.setdefault(m, []).append(wgs)
+        dlc_eds = gd.dlc_weapon_editions()
+
+        def magazine_factor(mag_sid: str) -> float:
+            wgs_list = sorted(users.get(mag_sid, []))
+            for wgs in wgs_list:
+                value = s.weapon_overrides.get(wgs, {}).get("magazine")
+                if value is not None:
+                    return value
+            for wgs in wgs_list:
+                ed = dlc_eds.get(wgs)
+                cat = (gd.dlc_weapon_category(ed, wgs) if ed is not None
+                       else gd.weapon_category(wgs))
+                if cat is None:
+                    continue
+                value = s.weapon_category_factors.get(cat, {}).get("magazine")
+                if value is not None:
+                    return value
+            return s.magazine_factor
+
+        for sid, value in sorted(gd.magazine_items().items()):
+            f = magazine_factor(sid)
+            if not _neq(f, 1.0) or f <= 0:
                 continue
-            mag = node.children.get("Magazine")
-            if mag is None:
-                continue
-            value = parse_number(mag.values.get("MaxAmmo"))
-            if value <= 0:
-                continue
-            scaled_int = max(1, int(round(value * s.magazine_factor)))
+            scaled_int = max(1, int(round(value * f)))
             if scaled_int != int(value):
                 patches.setdefault(sid, {})["Magazine"] = {
                     "MaxAmmo": str(scaled_int)}
@@ -1980,6 +2077,32 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
     return {"Default": out} if out else {}
 
 
+UPGRADE_LOCK_KEYS = {
+    # Settings-Flag -> Sperrliste im Upgrade-Prototyp
+    "upgrades_take_both": "BlockingUpgradePrototypeSIDs",
+    "upgrades_no_blueprint": "RequiredItemPrototypeSIDs",
+    "upgrades_no_tiers": "RequiredUpgradePrototypeSIDs",
+}
+
+
+def _upgrades_patch(gd: GameData, s: Settings) -> dict:
+    """Techniker-Upgrade-Sperren loesen (UpgradePrototypes.cfg, 1288
+    Upgrades). Vorbild: die Nexus-Mods "Take Both Upgrades" (2549) und
+    "Unrestricted Upgrades" (+NoTiers, 2545) - beide leeren die jeweilige
+    Liste per bpatch mit einem leeren Skalar (`Key =`); `[0] = empty`
+    funktioniert laut Autor NICHT (das Spiel sucht dann ein Item namens
+    empty). Hier live aus den Spieldaten: jedes Upgrade, dessen Liste in
+    Vanilla nicht leer ist (die Mods lassen 4/1/1 davon aus). Was die
+    Techniker warten, steht nicht in dieser Datei und bleibt vanilla."""
+    patches: dict = {}
+    for flag, key in UPGRADE_LOCK_KEYS.items():
+        if not getattr(s, flag):
+            continue
+        for sid in gd.upgrade_sids_with(key):
+            patches.setdefault(sid, {})[key] = ""
+    return patches
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -2077,6 +2200,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _quest_timer_patch(gd, s))
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
         _emission_patch(gd, s))
+    add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
+        _upgrades_patch(gd, s))
 
     return out
 
@@ -2184,6 +2309,7 @@ def summarize(s: Settings) -> list[str]:
     f("Breath recovery", s.breath_regen_factor)
     f("Weapon spread", s.spread_factor)
     f("Weapon recoil", s.recoil_factor)
+    f("Recoil reduction from upgrades", s.recoil_upgrade_factor)
     f("Weapon effective range", s.weapon_range_factor)
     f("Weapon bleeding", s.weapon_bleeding_factor)
     f("ADS movement speed", s.ads_speed_factor)
@@ -2261,6 +2387,12 @@ def summarize(s: Settings) -> list[str]:
     f("Trader sell prices (what you pay)", s.trader_sell_price_factor)
     f("Repair cost", s.repair_cost_factor)
     f("Upgrade cost", s.upgrade_cost_factor)
+    if s.upgrades_take_both:
+        lines.append("Upgrades: mutually exclusive branches can all be installed")
+    if s.upgrades_no_blueprint:
+        lines.append("Upgrades: no blueprint required")
+    if s.upgrades_no_tiers:
+        lines.append("Upgrades: no earlier tier required")
     f("Quest money rewards", s.quest_reward_factor)
     f("Repeatable quest cooldown", s.repeatable_quest_factor)
     f("ADS aim-in speed", s.aim_time_factor)

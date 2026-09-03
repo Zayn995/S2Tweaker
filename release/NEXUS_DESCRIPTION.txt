@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~195 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~200 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i]
 
 [size=4][b][color=#ff3333]Alternative download while the file here is in review:[/color]
@@ -19,11 +19,11 @@ Bug reports, improvements and forks are very welcome.
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]195 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]200 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
-[*]Health, stamina (incl. per-action costs), fall damage, jump height, breath hold
+[*]Health (up to 100000 on a logarithmic slider), stamina (incl. per-action costs), fall damage, jump height, breath hold
 [*]Walk/crouch and run/sprint speed as separate sliders
 [*]Max carry weight, overweight penalty start, item weights per category
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
@@ -40,10 +40,11 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Weapons - a three-level system[/b]
 [list]
-[*]9 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 91 weapons[/b] incl. all unique named guns (Decider, Sharpshooter, Sotnyk ...) and the Deluxe/Ultimate/Pre-order edition guns - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
+[*]10 parameters, each on three levels: [b]global[/b] sliders, [b]8 category[/b] factors (pistols, SMGs, assault rifles, shotguns, DMRs, snipers, machine guns, launchers) and [b]per-weapon overrides for 91 weapons[/b] incl. all unique named guns (Decider, Sharpshooter, Sotnyk ...) and the Deluxe/Ultimate/Pre-order edition guns - open a category, open a weapon, set its factors. Single weapon beats category, category beats global, everything left at (vanilla) falls through
 [*]Weapons show their real in-game names next to the internal ID ("GunAK74_ST · AKM-74S") and the search box finds both spellings
-[*]The 9 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights)
-[*]Magazine size - scales weapon base capacity and all 81 magazine attachments
+[*]The 10 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights), magazine size
+[*]Magazine size on all three levels - scales a weapon's base capacity and the magazines that weapon really uses (read from its own reload table); the global slider covers all 80 magazine attachments
+[*][b]Recoil reduction from upgrades[/b]: boosts the recoil-reduction upgrades and attachments (vanilla -5 % to -30 %, capped at -100 %) - at 2000 % any recoil upgrade removes the kick entirely. Only weapons with such an upgrade installed change; community-proven on patch 2.0
 [*]Melee damage (knife & rifle butt strike)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
@@ -112,6 +113,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [list]
 [*]Trader buy/sell prices, per-category price factors (weapons, armor, ammo, artifacts, consumables)
 [*]Repair & upgrade costs, quest rewards
+[*][b]Technician upgrades[/b] - three checkboxes: take both of mutually exclusive upgrade branches, upgrades need no blueprint, no upgrade tiers (skip the earlier tier). Same route as the 'Take Both Upgrades' / 'Unrestricted Upgrades' mods; which technician services which gear stays vanilla
 [*]Repeatable quest cooldown 0-400% (vanilla: task givers wait 24 in-game hours for new jobs; 0% = new jobs right away)
 [*]Fast travel cost 0-400% (0% = guides are free)
 [/list]
@@ -129,7 +131,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 51 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 56 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
@@ -181,6 +183,18 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.16.1 - Two bug fixes, recoil upgrades, technician upgrades, per-weapon magazines[/b] (~200 tweaks, 13 tabs)
+[list]
+[*][b]Fixed: "Repeatable quest cooldown" did nothing[/b] (thank you max25091997) - the slider never reached the pak builder, so no patch was written and it was missing from the active-tweaks list. A new test now moves every single slider and checks it arrives
+[*][b]Fixed: "Weapon recoil" (and "Weapon spread") at exactly 0 % did nothing[/b] (thank you Koningkoen) - a divide-by-zero guard meant for fire rate skipped the value; 0 % now really writes RecoilRadius 0 / dispersion 0. What the slider scales: the kick strength - the per-shot pattern shape is a game asset and keeps its direction. Not play-tested yet
+[*][b]New: Recoil reduction from upgrades[/b] (Weapons tab, 100-2000 %): the "Dead Steady" route as a slider - boosts every recoil-reduction upgrade/attachment effect, capped at -100 %; at 2000 % any recoil upgrade removes the kick. Only weapons with such an upgrade change; community-proven on patch 2.0
+[*][b]New: Technician upgrades[/b] (Economy tab, three checkboxes): take both of mutually exclusive upgrades, upgrades need no blueprint, no upgrade tiers - each clears the matching lock list on every upgrade that has one (489 / 105 / 697 upgrades, exactly the sets the 'Take Both Upgrades' and 'Unrestricted Upgrades' mods patch - don't run those alongside)
+[*][b]New: Magazine size per category and per weapon[/b] (thank you Qfander) - the tenth cascade factor; scales the weapon's base capacity and the magazines that weapon really uses. Shared magazines (the AK paired mag) follow the first weapon you override; a handful of unique guns list no magazine and only follow the global slider
+[*][b]Max health up to 100000[/b] (GitHub request): the slider is now logarithmic - fine steps around vanilla 100, big jumps at the top. Medkits heal a fixed amount, so with huge health raise "Medkit & bandage healing" too
+[*][b]Answered: "the weapon stat bars in the inventory don't change"[/b] - they are hand-set numbers in the game data, never recomputed from real damage or fire rate. New FAQ entry; judge tweaks in the field, not in the inventory screen
+[*]First start after the update extracts the game data once more (a new game file, UpgradePrototypes, joined the set). FAQ grew to 56 searchable entries, 26 automated test suites
+[/list]
+
 [b]v1.16.0 - The mod scan now covers Steam Workshop mods[/b] (~195 tweaks, 13 tabs)
 [list]
 [*][b]Steam Workshop in the mod scan[/b]: Steam stores subscribed mods in its own workshop folder, NOT in ~mods - so far they went right past the scan. Now the scan lists them too, under their real mod names, and marks every slider they also change
@@ -190,6 +204,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.15.0 - Update button, auto-updater & a cleaner header[/b] (~195 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Check for updates[/b] (GitHub request - thank you!): a new header button asks github.com once, on click, whether a newer release exists - the tool still never talks to the internet in the background
 [*][b]update.bat auto-updater[/b]: the ZIP now ships a small plain-text updater. Choose "update now" in the tool (or double-click update.bat) and it downloads the latest release from GitHub, keeps your old exe as S2Tweaker.exe.bak and swaps S2Tweaker.exe - settings, presets, cache and output stay untouched. It is readable plain text on purpose: open it and see exactly what it does
@@ -197,6 +212,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The README in the ZIP was rewritten to match the current feature set (it still described version 1.6)
 [*]FAQ grew to 50 searchable entries, 19 automated test suites
 [/list]
+[/spoiler]
 
 [b]v1.14.0 - Edition weapons & armor, real item names, emission duration, NPC gear quality[/b] (~195 tweaks, 13 tabs)
 [spoiler]

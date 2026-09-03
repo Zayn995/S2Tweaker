@@ -43,7 +43,11 @@ print(f"Baum: {len(app._im_blocks)} Bloecke, {len(app._im_species)} Arten, "
 
 # --- 2) Tab-Leiste passt beim 880-px-Minimum (12 Tabs) ------------------
 app.update_idletasks()
-req = app.tabs._segmented_button.winfo_reqwidth()
+# winfo_reqwidth liefert physische Pixel: bei 150 % Windows-Skalierung
+# (Zayns PC, 03.09.) sind das 1238 px fuer dieselben ~825 Layout-Pixel.
+# Darum auf 100 % normieren, sonst haengt das Ergebnis am Monitor.
+seg = app.tabs._segmented_button
+req = round(seg.winfo_reqwidth() / seg._get_widget_scaling())
 assert req <= 860, f"Tab-Leiste {req}px - zu breit fuer das 880-px-Minimum"
 names = list(app.tabs._name_list)
 assert names.index("Mutants") == names.index("NPCs & AI") + 1

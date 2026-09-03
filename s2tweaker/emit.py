@@ -23,7 +23,9 @@ def _emit_struct(name: str, content: dict, depth: int, lines: list[str]) -> None
         if isinstance(value, dict):
             _emit_struct(key, value, depth + 1, lines)
         else:
-            lines.append(f"{pad}{INDENT}{key} = {value}")
+            # Leerer Wert (= Liste leeren, z.B. Upgrade-Sperren): "Key ="
+            # ohne Leerzeichen dahinter, wie das Spiel es selbst schreibt
+            lines.append(f"{pad}{INDENT}{key} = {value}".rstrip())
     lines.append(f"{pad}struct.end")
 
 

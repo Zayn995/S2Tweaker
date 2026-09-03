@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import os
 import queue
 import subprocess
@@ -283,10 +284,15 @@ class SliderRow:
     """Label + Slider + Wertanzeige + Reset auf Vanilla."""
 
     def __init__(self, parent, label: str, from_: float, to: float, step: float,
-                 default: float, fmt, tooltip: str = "", on_change=None):
+                 default: float, fmt, tooltip: str = "", on_change=None,
+                 log: bool = False):
         self.default = default
         self.fmt = fmt
         self.on_change = on_change
+        # Wertebereich in WERT-Einheiten (auch im Log-Modus); get()/set()
+        # sprechen immer Werte, nur die Schiene rechnet intern in log10.
+        self.lo, self.hi = float(from_), float(to)
+        self.log = bool(log)
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", **PAD)
         self.row = row
@@ -300,10 +306,21 @@ class SliderRow:
         self._dot_tip = ""
         self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w")
         self.label.pack(side="left")
-        steps = max(1, int(round((to - from_) / step)))
-        self.slider = ctk.CTkSlider(
-            row, from_=from_, to=to, number_of_steps=steps, command=self._changed
-        )
+        if self.log:
+            # Logarithmische Schiene (GitHub #4 "Higher health value"): feine
+            # Schritte nahe Vanilla, oben bis 100000. Bewusst OHNE
+            # number_of_steps: CTkSlider.set() rastet sonst auf Log-Schritte
+            # und aus set(250) wuerde 251 - get() rundet stattdessen auf
+            # 3 signifikante Stellen.
+            self.slider = ctk.CTkSlider(
+                row, from_=math.log10(self.lo), to=math.log10(self.hi),
+                command=self._changed
+            )
+        else:
+            steps = max(1, int(round((to - from_) / step)))
+            self.slider = ctk.CTkSlider(
+                row, from_=from_, to=to, number_of_steps=steps, command=self._changed
+            )
         self.slider.pack(side="left", fill="x", expand=True, padx=8)
         self.value_label = ctk.CTkLabel(row, text="", width=110, anchor="e")
         self.value_label.pack(side="left")
@@ -327,10 +344,18 @@ class SliderRow:
             self.on_change()
 
     def get(self) -> float:
+        if self.log:
+            value = 10.0 ** float(self.slider.get())
+            mag = 10.0 ** math.floor(math.log10(max(value, 1e-9)))
+            value = round(value / mag * 100.0) / 100.0 * mag   # 3 signifikante Stellen
+            return round(min(self.hi, max(self.lo, value)), 4)
         return round(float(self.slider.get()), 4)
 
     def set(self, value: float):
-        self.slider.set(value)
+        if self.log:
+            self.slider.set(math.log10(min(self.hi, max(self.lo, float(value)))))
+        else:
+            self.slider.set(value)
         self._changed()
 
     def reset(self):
@@ -491,6 +516,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "ap_carry": "armor_carry_bonus_factor", "sway": "scope_sway_pct",
     "breath_drain": "breath_drain_factor", "breath_regen": "breath_regen_factor",
     "spread": "spread_factor", "recoil": "recoil_factor",
+    "recoil_upgrades": "recoil_upgrade_factor",
     "wrange": "weapon_range_factor", "wbleed": "weapon_bleeding_factor",
     "adsmove": "ads_speed_factor", "aimspeed": "aim_time_factor",
     "magazine": "magazine_factor",
@@ -535,6 +561,9 @@ CHECK_FIELDS: dict[str, str] = {
     "npc_no_heal": "npc_no_heal",
     "drop_cond_exact": "dropped_condition_exact",
     "trader_inf_money": "trader_infinite_money",
+    "upgrades_take_both": "upgrades_take_both",
+    "upgrades_no_blueprint": "upgrades_no_blueprint",
+    "upgrades_no_tiers": "upgrades_no_tiers",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -571,6 +600,12 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
     "stash_ammo": ("StashPrototypes",
                    frozenset({"MainWeaponAmmoCount"})),
     "check:npc_no_heal": ("ObjPrototypes", frozenset({"RegenHP"})),
+    "check:upgrades_take_both": ("UpgradePrototypes",
+                                 frozenset({"BlockingUpgradePrototypeSIDs"})),
+    "check:upgrades_no_blueprint": ("UpgradePrototypes",
+                                    frozenset({"RequiredItemPrototypeSIDs"})),
+    "check:upgrades_no_tiers": ("UpgradePrototypes",
+                                frozenset({"RequiredUpgradePrototypeSIDs"})),
 }
 
 
@@ -2065,8 +2100,10 @@ class App(ctk.CTk):
         return frame
 
     def _slider(self, parent, key: str, label: str, from_: float, to: float,
-                step: float, default: float, fmt, tooltip: str = "") -> None:
-        self.sliders[key] = SliderRow(parent, label, from_, to, step, default, fmt, tooltip)
+                step: float, default: float, fmt, tooltip: str = "",
+                log: bool = False) -> None:
+        self.sliders[key] = SliderRow(parent, label, from_, to, step, default,
+                                      fmt, tooltip, log=log)
         self.slider_tabs[key] = self._current_tab
 
     def _warning(self, parent, text: str) -> None:
@@ -3063,7 +3100,12 @@ class App(ctk.CTk):
 
         body = self._tab("Player")
         f = self._section(body, "Player")
-        self._slider(f, "hp", "Max health", 50, 1000, 10, 100, fmt_int)
+        self._slider(f, "hp", "Max health", 50, 100000, 10, 100, fmt_int,
+                     "Logarithmic slider: fine steps near vanilla 100, up to "
+                     "100000 for god-mode runs (a user reports the game "
+                     "accepts it). Medkits heal a fixed amount (basic medkit "
+                     "70 HP), so at very high health raise 'Medkit & bandage "
+                     "healing' too.", log=True)
         self._slider(f, "hp_regen", "Passive health regen (HP/s)", 0, 20, 0.5, 0, fmt_dec,
                      "Vanilla: no passive regen. NPCs use 1 HP/s.")
         self._slider(f, "sp", "Max stamina", 50, 1000, 10, 100, fmt_int)
@@ -3358,7 +3400,18 @@ class App(ctk.CTk):
         self._slider(f, "breath_regen", "Breath recovery", 50, 400, 10, 100, fmt_pct)
         self._slider(f, "spread", "Weapon spread (bullet dispersion)", 0, 200, 5, 100, fmt_pct,
                      "0 % = laser accuracy (hip fire, aiming and first shot).")
-        self._slider(f, "recoil", "Weapon recoil", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "recoil", "Weapon recoil", 0, 200, 5, 100, fmt_pct,
+                     "Scales the kick per shot (RecoilRadius). 0 % = no kick. "
+                     "The per-shot pattern shape is a game asset and keeps "
+                     "its direction, only its size follows the slider. Not "
+                     "play-tested yet - report back.")
+        self._slider(f, "recoil_upgrades", "Recoil reduction from upgrades", 100, 2000, 100, 100, fmt_pct,
+                     "Multiplies the recoil reduction of weapon upgrades and "
+                     "attachments (vanilla -5 % to -30 %), capped at -100 %. "
+                     "2000 % = any recoil upgrade removes the kick entirely. "
+                     "Only weapons with such an upgrade installed change. "
+                     "Community-proven on patch 2.0 (same route as the "
+                     "'Dead Steady' mod).")
         self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
                      "Scales effective fire distance and damage drop-off "
                      "start/length together.")
@@ -3375,7 +3428,9 @@ class App(ctk.CTk):
                      "aim animation glitches and report back.")
         self._slider(f, "magazine", "Magazine size", 50, 300, 25, 100, fmt_pct,
                      "Scales weapon base capacity AND all magazine "
-                     "attachments (launchers never drop below 1 round).")
+                     "attachments (launchers never drop below 1 round). "
+                     "Per category or per weapon: 'Magazine size' is the "
+                     "tenth factor in the trees below.")
         self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
@@ -3669,6 +3724,22 @@ class App(ctk.CTk):
         self._slider(f, "price_ammo", "Ammo prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_artifact", "Artifact prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_consumable", "Consumable prices", 0.25, 4, 0.25, 1, fmt_factor)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Technician upgrades (weapons & armor)")
+        self._check(f, "upgrades_take_both", "Take both of mutually exclusive upgrades",
+                    "Upgrade branches that normally exclude each other (barrel A "
+                    "or barrel B ...) can all be installed. Same idea as the "
+                    "'Take Both Upgrades' Nexus mod. Not play-tested yet.")
+        self._check(f, "upgrades_no_blueprint", "Upgrades need no blueprint",
+                    "Upgrades that normally need a blueprint item become "
+                    "available without it. Technicians still only service the "
+                    "gear they are scripted for. Both boxes above = "
+                    "'Unrestricted Upgrades'.")
+        self._check(f, "upgrades_no_tiers", "No upgrade tiers (skip earlier tiers)",
+                    "Tier 2/3 upgrades no longer require the earlier tier "
+                    "first. All three boxes = 'Unrestricted Upgrades - "
+                    "NoTiers'. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Traders")
@@ -4104,6 +4175,7 @@ class App(ctk.CTk):
             breath_regen_factor=s["breath_regen"].get() / 100.0,
             spread_factor=s["spread"].get() / 100.0,
             recoil_factor=s["recoil"].get() / 100.0,
+            recoil_upgrade_factor=s["recoil_upgrades"].get() / 100.0,
             weapon_range_factor=s["wrange"].get() / 100.0,
             weapon_bleeding_factor=s["wbleed"].get() / 100.0,
             ads_speed_factor=s["adsmove"].get() / 100.0,
@@ -4149,6 +4221,9 @@ class App(ctk.CTk):
             trader_variety_factor=s["trader_variety"].get() / 100.0,
             trader_money_factor=s["trader_money"].get(),
             trader_infinite_money=bool(self.checks["trader_inf_money"].get()),
+            upgrades_take_both=bool(self.checks["upgrades_take_both"].get()),
+            upgrades_no_blueprint=bool(self.checks["upgrades_no_blueprint"].get()),
+            upgrades_no_tiers=bool(self.checks["upgrades_no_tiers"].get()),
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
@@ -4162,6 +4237,7 @@ class App(ctk.CTk):
             repair_cost_factor=s["repair"].get() / 100.0,
             upgrade_cost_factor=s["upgrade"].get() / 100.0,
             quest_reward_factor=s["questreward"].get(),
+            repeatable_quest_factor=s["rq_cooldown"].get() / 100.0,
             weapon_price_factor=s["price_weapon"].get(),
             armor_price_factor=s["price_armor"].get(),
             ammo_price_factor=s["price_ammo"].get(),
