@@ -390,6 +390,9 @@ class Settings:
     bleeding_factor: float = 1.0
     hunger_rate_factor: float = 1.0          # 0 = kein Hunger
     sleepiness_rate_factor: float = 1.0      # 0 = keine Muedigkeit
+    consumable_duration_factor: float = 1.0  # Wirkdauer laufender Consumable-Effekte
+    day_length_factor: float = 1.0           # RealToGameTimeCoef = 24 / Faktor
+    quest_items_weightless: bool = False     # Quest-Items Weight = 0
     consumable_factor: float = 1.0           # Medkits/Verband/Essen usw.
     healing_factor: float = 1.0              # NUR Medizin-Heilung (Nexus-Wunsch)
     rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
@@ -410,6 +413,8 @@ class Settings:
     # --- Artefakte ---
     artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
     artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
+    artifact_count_factor: float = 1.0       # Count je Spawner/Rang
+    artifact_respawn_factor: float = 1.0     # >1 = Cooldown kuerzer
     artifact_spawn_factor: float = 1.0       # Spawn-Chance der Artefakt-Spawner
     artifact_rarity_factor: float = 1.0      # >1 = seltene Stufen wahrscheinlicher
 
@@ -1020,10 +1025,15 @@ def _camerashake_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
-    """SpawnChanceBase (Cap 100 %) und Rarity-Verteilung je Spawner/Rang."""
+    """SpawnChanceBase (Cap 100 %), Rarity-Verteilung, Count (Artefakte je
+    Feld, Vanilla 1) und Min/MaxCooldown (Respawn, Vanilla meist 3/15,
+    Nullen bleiben) je Spawner/Rang."""
     spawn_on = _neq(s.artifact_spawn_factor, 1.0)
     rarity_on = _neq(s.artifact_rarity_factor, 1.0)
-    if not (spawn_on or rarity_on):
+    count_on = _neq(s.artifact_count_factor, 1.0) and s.artifact_count_factor > 0
+    respawn_on = (_neq(s.artifact_respawn_factor, 1.0)
+                  and s.artifact_respawn_factor > 0)
+    if not (spawn_on or rarity_on or count_on or respawn_on):
         return {}
     patches: dict = {}
     for sid, node in gd.artifactspawners.children.items():
@@ -1032,6 +1042,20 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
         ranks: dict = {}
         for rank, rank_node in node.children.items():
             cfg: dict = {}
+            if count_on:
+                count = parse_number(rank_node.values.get("Count"))
+                if count > 0:
+                    new = max(1, int(round(count * s.artifact_count_factor)))
+                    if new != int(count):
+                        cfg["Count"] = str(new)
+            if respawn_on:
+                for key in ("MinCooldown", "MaxCooldown"):
+                    raw = rank_node.values.get(key)
+                    if raw is None or parse_number(raw) <= 0:
+                        continue
+                    scaled = _scale_literal(raw, 1.0 / s.artifact_respawn_factor)
+                    if scaled is not None and scaled != raw.strip():
+                        cfg[key] = scaled
             if spawn_on:
                 chance = parse_number(rank_node.values.get("SpawnChanceBase"))
                 if chance > 0:
@@ -1612,6 +1636,18 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = scaled
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
+    # Wirkdauer von Verbrauchsguetern (Nexus-Trend seit 2.0, "Increased
+    # Consumable Duration"): nur LAUFENDE Effekte (Duration >= 10 s -
+    # Energydrink 45 s, Hercules 300 s, Zimt 180 s, PSY-Blocker 60 s ...).
+    # Sofort-Effekte (Heilung/Blutstopp/Antirad ueber 1-2 s) bleiben, sonst
+    # wuerde ein Medkit langsamer heilen statt laenger zu wirken.
+    if (_neq(s.consumable_duration_factor, 1.0)
+            and s.consumable_duration_factor > 0):
+        for sid, raw in sorted(gd.consumable_duration_effects().items()):
+            scaled = _scale_literal(raw, s.consumable_duration_factor)
+            if scaled is not None and scaled != raw.strip():
+                patches.setdefault(sid, {})["Duration"] = scaled
+
     # Rueckstoss-Reduktion aus Upgrades/Aufsaetzen (Community-Weg der
     # Nexus-Mod "Dead Steady" 2478, auf Patch 2.0 bestaetigt): alle Effekte
     # vom Typ Recoil mit NEGATIVEM Wert (= senken den Rueckstoss, Vanilla
@@ -1695,6 +1731,16 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     if s.no_overweight_penalty:
         cfg["InventorySPOverweightDrainCoef"] = "0.0"
 
+    # Tageslaenge (Nexus-Dauerbrenner "Longer Days"): RealToGameTimeCoef =
+    # Spielsekunden je Echtsekunde (Vanilla 24 = ein Spieltag pro Echtstunde).
+    # Faktor 2 = halber Koeffizient = doppelt so langer Tag.
+    if _neq(s.day_length_factor, 1.0) and s.day_length_factor > 0:
+        vanilla = gd.corevar("RealToGameTimeCoef", 24.0)
+        value = vanilla / s.day_length_factor
+        cfg["RealToGameTimeCoef"] = (str(int(round(value)))
+                                     if abs(value - round(value)) < 1e-9
+                                     else _num(value))
+
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
         node = gd.corevars.children.get("DefaultConfig")
@@ -1725,6 +1771,11 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             patches[sid] = {"Weight": _num(weight * s.item_weight_factor)}
     if s.ignore_equipped_weight:
         patches["[0]"] = {"IgnoreEquippedWeight": "true"}
+    # Quest-Items wiegen nichts (Nexus "quest item weight to 0"): die
+    # Kategorie-Regler lassen Quest-Items aus, hier explizit Weight = 0.
+    if s.quest_items_weightless:
+        for sid in sorted(gd.quest_items_with_weight()):
+            patches.setdefault(sid, {})["Weight"] = "0.0"
 
     # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte).
     # Kaskade: Einzelsorte > globaler Regler -- der Override ERSETZT den
@@ -2518,10 +2569,12 @@ def summarize(s: Settings) -> list[str]:
     f("Anomaly damage: fire", s.anomaly_fire_factor)
     f("Anomaly damage: gravity", s.anomaly_gravity_factor)
     f("Consumable strength", s.consumable_factor)
+    f("Consumable effect duration", s.consumable_duration_factor)
     f("Medkit & bandage healing", s.healing_factor)
     f("Rain & storm frequency", s.rain_factor)
     f("Emission frequency", s.emission_factor)
     f("Emission duration", s.emission_duration_factor)
+    f("Day length", s.day_length_factor)
     f("Stash & body loot amount", s.stash_loot_factor)
     f("Stash & body find chance", s.stash_chance_factor)
     f("Stash & body ammo bonus", s.stash_ammo_factor)
@@ -2537,6 +2590,8 @@ def summarize(s: Settings) -> list[str]:
     f("Trader money (finite wallets)", s.trader_money_factor)
     if s.trader_infinite_money:
         lines.append("All traders have unlimited money")
+    if s.quest_items_weightless:
+        lines.append("Quest items weigh nothing")
     f("Radiation accumulation", s.radiation_factor)
     f("Bleeding intensity", s.bleeding_factor)
     f("Hunger rate", s.hunger_rate_factor)
@@ -2544,6 +2599,8 @@ def summarize(s: Settings) -> list[str]:
     f("Artifact effect strength", s.artifact_effect_factor)
     f("Artifact radiation side-effect", s.artifact_radiation_factor)
     f("Artifact spawn chance", s.artifact_spawn_factor)
+    f("Artifacts per anomaly field", s.artifact_count_factor)
+    f("Artifact respawn speed", s.artifact_respawn_factor)
     f("Rare artifact bias", s.artifact_rarity_factor)
     f("Detector & scanner range", s.detector_range_factor)
     f("Fast travel cost", s.fast_travel_cost_factor)

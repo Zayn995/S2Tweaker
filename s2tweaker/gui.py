@@ -536,6 +536,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "radiation": "radiation_factor", "bleeding": "bleeding_factor",
     "hunger": "hunger_rate_factor", "sleep": "sleepiness_rate_factor",
     "consumable": "consumable_factor", "healing": "healing_factor",
+    "cons_duration": "consumable_duration_factor", "day_length": "day_length_factor",
+    "art_count": "artifact_count_factor", "art_respawn": "artifact_respawn_factor",
     "rain": "rain_factor",
     "emission": "emission_factor", "stash_loot": "stash_loot_factor",
     "stash_chance": "stash_chance_factor", "stash_ammo": "stash_ammo_factor",
@@ -566,6 +568,7 @@ CHECK_FIELDS: dict[str, str] = {
     "vault_sprint": "vault_sprint",
     "no_overweight": "no_overweight_penalty",
     "ignore_equipped": "ignore_equipped_weight",
+    "quest_weightless": "quest_items_weightless",
     "npc_no_heal": "npc_no_heal",
     "drop_cond_exact": "dropped_condition_exact",
     "trader_inf_money": "trader_infinite_money",
@@ -3225,6 +3228,10 @@ class App(ctk.CTk):
             self.cat_checks[cat] = box
         self._check(f, "ignore_equipped", "Equipped items are weightless",
                     "Worn armor and held weapons don't count toward inventory weight.")
+        self._check(f, "quest_weightless", "Quest items weigh nothing",
+                    "Sets the weight of every quest item to 0 (most of them "
+                    "weigh something, up to 25 kg). Helps with "
+                    "quest items that get stuck in the inventory.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Combat")
@@ -3666,6 +3673,11 @@ class App(ctk.CTk):
                      "bandages, vanilla 20\u2013100 HP) \u2013 food and drink healing "
                      "is not affected. Stacks with Consumable strength: "
                      "both at 200 % = 4\u00d7 healing.")
+        self._slider(f, "cons_duration", "Consumable effect duration", 25, 400, 25, 100, fmt_pct,
+                     "How long running consumable effects last (energy "
+                     "drink 45 s, Hercules 5 min, cinnamon, vodka/psy-block "
+                     "...). Instant effects (healing, bleeding stop, "
+                     "anti-rad, 1-2 s) are untouched on purpose.")
         self._slider(f, "rain", "Rain & storm frequency", 0, 300, 25, 100, fmt_pct,
                      "Weight of rainy/stormy/thunder weather in the rotation. "
                      "0 % = practically always dry.")
@@ -3677,6 +3689,10 @@ class App(ctk.CTk):
                      "warning siren, shockwave, deadly phase and aftermath "
                      "(vanilla ~1 min warning + ~1 min active). Story "
                      "emissions keep their scripted timing.")
+        self._slider(f, "day_length", "Day length", 25, 400, 25, 100, fmt_pct,
+                     "How long a full day-night cycle takes in real time "
+                     "(vanilla: one game day per real hour). 200 % = two "
+                     "hours per day, the day/night ratio stays vanilla.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Loot in stashes & on bodies")
@@ -3757,6 +3773,14 @@ class App(ctk.CTk):
                      "Shifts the rarity roll toward Uncommon/Rare/Epic at "
                      "Common's expense. Ranks that can't roll Rare/Epic in "
                      "vanilla (e.g. Newbie) still won't.")
+        self._slider(f, "art_count", "Artifacts per anomaly field", 1, 5, 1, 1, fmt_factor,
+                     "How many artifacts a field hands out per spawn "
+                     "(vanilla 1). Which artifacts a field CAN spawn stays "
+                     "its vanilla list.")
+        self._slider(f, "art_respawn", "Artifact respawn speed", 25, 400, 25, 100, fmt_pct,
+                     "How fast fields cool down before the next artifact "
+                     "(vanilla mostly 3-15, some 60-120). Fields with no "
+                     "cooldown stay as they are.")
         self._slider(f, "detector", "Detector & scanner range", 50, 300, 10, 100, fmt_pct,
                      "Artifact detectors (Echo, Bear, Veles, Gilka), the "
                      "anomaly beeper and the searchpoint scanner.")
@@ -4196,6 +4220,7 @@ class App(ctk.CTk):
             item_weight_factor=s["weight"].get() / 100.0,
             item_weight_categories=cats,
             ignore_equipped_weight=bool(self.checks["ignore_equipped"].get()),
+            quest_items_weightless=bool(self.checks["quest_weightless"].get()),
             player_damage_factor=s["pdmg"].get(),
             headshot_factor=s["headshot"].get(),
             aim_punch_factor=s["aimpunch"].get() / 100.0,
@@ -4280,6 +4305,8 @@ class App(ctk.CTk):
             sleepiness_rate_factor=s["sleep"].get() / 100.0,
             consumable_factor=s["consumable"].get() / 100.0,
             healing_factor=s["healing"].get() / 100.0,
+            consumable_duration_factor=s["cons_duration"].get() / 100.0,
+            day_length_factor=s["day_length"].get() / 100.0,
             rain_factor=s["rain"].get() / 100.0,
             emission_factor=s["emission"].get() / 100.0,
             emission_duration_factor=s["emission_dur"].get() / 100.0,
@@ -4299,6 +4326,8 @@ class App(ctk.CTk):
             artifact_effect_factor=s["art_effect"].get() / 100.0,
             artifact_radiation_factor=s["art_radiation"].get() / 100.0,
             artifact_spawn_factor=s["art_spawn"].get() / 100.0,
+            artifact_count_factor=s["art_count"].get(),
+            artifact_respawn_factor=s["art_respawn"].get() / 100.0,
             artifact_rarity_factor=s["art_rarity"].get() / 100.0,
             detector_range_factor=s["detector"].get() / 100.0,
             fast_travel_cost_factor=s["fasttravel"].get() / 100.0,

@@ -34,7 +34,7 @@ and bloodsucker cloaking; mutant health regen ×0 = the mutant version
 of "NPCs don't self-heal"),
 headshots, explosions, armor protection per damage type, weapon damage/
 spread/recoil/durability/fire rate/range/bleeding/ADS move speed/ADS
-aim-in speed/magazine size on three levels, technician upgrade locks (take both / no blueprint / no tiers), A-Life spawns (lair population, respawn, encounter frequency, mutant share, pack size, per-species weights), melee, jamming, scoped sway,
+aim-in speed/magazine size on three levels, technician upgrade locks (take both / no blueprint / no tiers), A-Life spawns (lair population, respawn, encounter frequency, mutant share, pack size, per-species weights), day length, consumable effect duration, artifacts per field + respawn, weightless quest items, melee, jamming, scoped sway,
 breath hold, repeatable-quest cooldown, ammo
 damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
 hearing/grenades, NPC gear quality (tilts squad loadout rolls toward

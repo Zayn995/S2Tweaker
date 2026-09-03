@@ -1469,6 +1469,48 @@ class GameData:
                 out.append((ri, ti, atype, parse_number(entry.values.get("MaxCount"))))
         return out
 
+    def consumable_duration_effects(self, min_seconds: float = 10.0) -> dict[str, str]:
+        """{Effekt-SID: Duration-Rohwert} aller Effekte, die ein Consumable-
+        Item (item_category == "consumable") referenziert und die mindestens
+        min_seconds laufen - Vanilla (>= 10 s): Hercules 300 s (+ Penalty),
+        Zimt 180 s, Vodka-PSY 90 s, PSY-Blocker 60 s, Energydrinks 45 s,
+        Mohn-Schlaf 30 s. Sofort-Effekte (Heilung/Blutstopp/Antirad 1-2 s)
+        und Malus-Effekte (EBeneficial::Negative) bleiben bewusst draussen."""
+        out: dict[str, str] = {}
+        for sid, node in self.items.children.items():
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "consumable":
+                continue
+            refs = node.children.get("EffectPrototypeSIDs")
+            for ref in (refs.values.values() if refs else ()):
+                eff = ref.strip()
+                enode = self.effects.children.get(eff)
+                if enode is None or eff in out:
+                    continue
+                # Malus-Effekte (Rausch, Stamina-Kater, Hercules-Nachwirkung)
+                # bleiben vanilla - wie beim Consumable-Staerke-Regler
+                if (enode.values.get("Positive") or "").strip().endswith("Negative"):
+                    continue
+                raw = enode.values.get("Duration")
+                if raw is not None and parse_number(raw) >= min_seconds:
+                    out[eff] = raw
+        return out
+
+    def quest_items_with_weight(self) -> dict[str, float]:
+        """{SID: Vanilla-Gewicht} aller Quest-Items (beide Quest-Marker,
+        refkey-Kette) mit Gewicht > 0 - Vanilla: 290 von 327, bis 25 kg.
+        Die Gewichtsregler je Kategorie lassen Quest-Items aus (keine
+        Kategorie), darum eine eigene Checkbox."""
+        out: dict[str, float] = {}
+        for sid in self._quest_item_sids:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            w = parse_number(self.resolve(self.items, sid, "Weight"))
+            if w > 0:
+                out[sid] = w
+        return out
+
     def magazine_items(self) -> dict[str, float]:
         """{Magazin-Item-SID: Magazine.MaxAmmo} aller konkreten Magazin-
         Aufsaetze der Basis-ItemPrototypes (Wert > 0; Templates/[0] raus)."""

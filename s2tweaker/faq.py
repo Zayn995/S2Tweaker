@@ -410,6 +410,48 @@ FAQ_ENTRIES = [
              "tushkan chimera bloodsucker controller burer weights packs",
     },
     {
+        "q": "Can I make the days longer (or shorter)?",
+        "a": "Yes - World tab, 'Day length'. Vanilla runs one full game "
+             "day per real hour; 200 % makes it two hours, 400 % four. "
+             "The day/night ratio and everything timed in game hours "
+             "(quest cooldowns, trader restocks, emissions) keep their "
+             "in-game timing, they just take longer in real time. Same "
+             "value the 'Longer Days' mods change.",
+        "k": "day length longer days night cycle time scale real time "
+             "hours slower clock",
+    },
+    {
+        "q": "Can consumable effects last longer?",
+        "a": "Yes - World tab, 'Consumable effect duration'. It scales the "
+             "running effects (energy drink stamina, Hercules carry bonus "
+             "and its comedown, cinnamon, vodka and psy-block protection "
+             "...). Instant effects (healing, bleeding stop, anti-rad, 1-2 "
+             "s) are not stretched on purpose - a medkit would heal "
+             "slower, not longer. Stacks with 'Consumable strength'.",
+        "k": "consumable duration longer effect energy drink hercules "
+             "psy block anti rad last time seconds",
+    },
+    {
+        "q": "Can anomaly fields spawn more artifacts?",
+        "a": "Yes - World tab, Artifacts: 'Artifacts per anomaly field' "
+             "(vanilla 1, up to 5 per spawn) and 'Artifact respawn speed' "
+             "(how fast a field cools down before the next one). Which "
+             "artifacts a field can produce stays its vanilla list, and "
+             "the rarity roll has its own slider. Not play-tested yet.",
+        "k": "more artifacts anomaly field count respawn cooldown farm "
+             "hunting multiple per field",
+    },
+    {
+        "q": "Can quest items weigh nothing?",
+        "a": "Yes - Weight & items tab, 'Quest items weigh nothing'. Sets "
+             "the weight of every quest item to 0 (most of the ~600 quest "
+             "items weigh something, up to 25 kg). The per-category weight "
+             "sliders leave quest items alone on purpose, so this is a "
+             "separate box. Helps with quest items stuck in the inventory.",
+        "k": "quest item weight zero stuck inventory pda key collar heavy "
+             "weightless",
+    },
+    {
         "q": "What does the search box at the top find?",
         "a": "Slider names, weapon names and ammo rounds. Matches light "
              "up amber, everything else dims, and the status bar shows "
