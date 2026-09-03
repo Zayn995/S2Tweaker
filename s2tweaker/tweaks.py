@@ -322,6 +322,19 @@ class Settings:
     # --- A-Life (experimentell) ---
     max_agents_factor: float = 1.0       # gleichzeitige NPCs/Mutanten um den Spieler
     spawn_distance_factor: float = 1.0   # A-Life-Spawn-Distanz
+    # --- A-Life-Spawns: Lager + Director (docs/ALIFE_SPAWN_RESEARCH.md) ---
+    lair_mutant_factor: float = 1.0       # MaxSpawnQuantity Mutanten-Lager
+    lair_human_factor: float = 1.0        # MaxSpawnQuantity Menschen-Lager (ohne Guard*)
+    lair_respawn_factor: float = 1.0      # >1 = Lager fuellen schneller nach
+    encounter_frequency_factor: float = 1.0  # >1 = Director wuerfelt oefter
+    encounter_mutant_factor: float = 1.0     # Gewicht rein-Mutanten-Szenarien
+    encounter_pack_factor: float = 1.0       # Rang-Deckel spawnbarer Typen
+    enc_blinddog_factor: float = 1.0         # je Art: Gewicht der Pack-Szenarien
+    enc_boar_factor: float = 1.0
+    enc_flesh_factor: float = 1.0
+    enc_tushkan_factor: float = 1.0
+    enc_chimera_factor: float = 1.0
+    enc_generic_mutant_factor: float = 1.0   # 'Mutants'-Szenarien (Archetyp Mutant)
     mutant_hp_factor: float = 1.0
     mutant_damage_factor: float = 1.0
     explosion_damage_factor: float = 1.0
@@ -2077,6 +2090,146 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
     return {"Default": out} if out else {}
 
 
+# Begegnungs-Arten (Director): Settings-Feld -> Squad-Token (siehe
+# GameData.director_scenario_tokens). Ein Szenario gehoert zur Art, wenn ALLE
+# seine Squads dieses Token tragen (BlinddogPack, Blinddog3_5 ...); gemischte
+# Paare (Blinddog3_5VsBoar1_2) sieht nur der Mutanten-Anteil-Regler.
+# Bloodsucker fehlt bewusst: in den Karten-Gruppen steht das Gewicht auf 0,
+# und 0 bleibt 0 (Verhalten, das Vanilla nie nutzt, wird nicht erfunden).
+ENCOUNTER_KINDS = {
+    "enc_blinddog_factor": "Blinddog",
+    "enc_boar_factor": "Boar",
+    "enc_flesh_factor": "Flesh",
+    "enc_tushkan_factor": "Tushkan",
+    "enc_chimera_factor": "Chimera",
+    "enc_generic_mutant_factor": "Mutant",
+}
+
+DIRECTOR_DELAY_KEYS = ("SpawnDelayMin", "SpawnDelayMax",
+                       "PostSpawnDirectorTimeoutMin", "PostSpawnDirectorTimeoutMax")
+
+
+def _lairs_patch(gd: GameData, s: Settings) -> dict:
+    """Lager-Bestand und -Respawn (LairPrototypes.cfg, docs/ALIFE_SPAWN_RESEARCH.md).
+
+    MaxSpawnQuantity je (Lager, Fraktion, Rang) x Faktor - Mutanten- und
+    Menschen-Fraktionen getrennt, Guard*-Lager (Basis-Wachen) bleiben
+    vanilla. Ganzzahlig, nie unter 1; beim Verkleinern nicht unter
+    min(Vanilla, Summe MinQuantityPerArchetype) - Vanilla verletzt diese
+    Summe bei Freedom/Newbie selbst, die Luecke wird nur nicht vergroessert.
+    Respawn: die drei Timer / Faktor, NUR fuer Bloecke mit dem Standard-
+    Tripel (180/480/480); die Story-Lager mit 6/30/30 bleiben unangetastet."""
+    mut_on = _neq(s.lair_mutant_factor, 1.0) and s.lair_mutant_factor > 0
+    hum_on = _neq(s.lair_human_factor, 1.0) and s.lair_human_factor > 0
+    rsp_on = _neq(s.lair_respawn_factor, 1.0) and s.lair_respawn_factor > 0
+    if not (mut_on or hum_on or rsp_on):
+        return {}
+    standard = gd.lair_standard_timers()
+    patches: dict = {}
+    for blk in gd.lair_blocks():
+        cfg: dict = {}
+        if not blk["guard"]:
+            f = (s.lair_mutant_factor if blk["mutant"] else s.lair_human_factor)
+            on = mut_on if blk["mutant"] else hum_on
+            if on and blk["quantity"] > 0:
+                q = blk["quantity"]
+                new = max(1, int(round(q * f)))
+                if f < 1.0:
+                    new = max(new, int(min(q, blk["min_sum"])))
+                if new != int(q):
+                    cfg["MaxSpawnQuantity"] = str(new)
+        if rsp_on and blk["timers"] == standard:
+            for key, raw in zip(gd.LAIR_TIMER_KEYS, blk["timers"]):
+                value = parse_number(raw)
+                if value > 0:
+                    cfg[key] = _num(value / s.lair_respawn_factor)
+        if cfg:
+            (patches.setdefault(blk["lair"], {})
+                    .setdefault("Preset", {})
+                    .setdefault("PossibleInhabitantFactions", {})
+                    .setdefault(blk["faction_key"], {})
+                    .setdefault("SpawnSettingsPerPlayerRanks", {})
+                    .setdefault(blk["rank"], {})).update(cfg)
+    return patches
+
+
+def _director_patch(gd: GameData, s: Settings) -> dict:
+    """Zufallsbegegnungen (ALifeDirectorScenarioPrototypes.cfg).
+
+    Frequenz: SpawnDelay*/PostSpawnDirectorTimeout* aller Gruppen und die
+    Default-Werte / Faktor (ganzzahlig, >= 1). Mutanten-Anteil: ScenarioWeight
+    der rein-Mutanten-Szenarien (kein Human-Squad) x Faktor, Art-Regler
+    obendrauf (ENCOUNTER_KINDS); ganzzahlig, Vanilla 0 bleibt 0, sonst >= 1.
+    Rudel-Groesse: MaxCount der Rang-Deckel fuer Typen, die NICHT in
+    ProhibitedAgentTypes stehen (live gelesen); Vanilla 0 bleibt 0."""
+    d = gd.director_preset()
+    if d is None:
+        return {}
+    freq = s.encounter_frequency_factor
+    freq_on = _neq(freq, 1.0) and freq > 0
+    share = s.encounter_mutant_factor
+    kinds = {token: getattr(s, flag) for flag, token in ENCOUNTER_KINDS.items()}
+    weight_on = (_neq(share, 1.0) and share >= 0) or any(
+        _neq(v, 1.0) and v >= 0 for v in kinds.values())
+    pack = s.encounter_pack_factor
+    pack_on = _neq(pack, 1.0) and pack > 0
+    if not (freq_on or weight_on or pack_on):
+        return {}
+    preset: dict = {}
+
+    if freq_on:
+        for key in ("DefaultSpawnDelayMin", "DefaultSpawnDelayMax",
+                    "DefaultPostSpawnDirectorTimeoutMin",
+                    "DefaultPostSpawnDirectorTimeoutMax"):
+            value = parse_number(d.values.get(key))
+            if value > 0:
+                preset[key] = str(max(1, int(round(value / freq))))
+    groups = d.children.get("ScenarioGroups")
+    tokens = gd.director_scenario_tokens() if weight_on else {}
+    for gkey, grp in (groups.children.items() if groups else ()):
+        gcfg: dict = {}
+        if freq_on:
+            for key in DIRECTOR_DELAY_KEYS:
+                value = parse_number(grp.values.get(key))
+                if value > 0:
+                    gcfg[key] = str(max(1, int(round(value / freq))))
+        if weight_on:
+            sids = grp.children.get("ScenarioSIDs")
+            for skey, sc in (sids.children.items() if sids else ()):
+                toks = tokens.get(skey)
+                if not toks or "Human" in toks:
+                    continue                      # Menschen/gemischt: tabu
+                w = parse_number(sc.values.get("ScenarioWeight"))
+                if w <= 0:
+                    continue                      # 0 bleibt 0
+                f = share if _neq(share, 1.0) and share >= 0 else 1.0
+                for token, kf in kinds.items():
+                    if toks == {token} and _neq(kf, 1.0) and kf >= 0:
+                        f *= kf
+                if not _neq(f, 1.0):
+                    continue
+                new = int(round(w * f))
+                if f > 0:
+                    new = max(1, new)
+                if new != int(w):
+                    gcfg.setdefault("ScenarioSIDs", {}).setdefault(skey, {})[
+                        "ScenarioWeight"] = str(new)
+        if gcfg:
+            preset.setdefault("ScenarioGroups", {})[gkey] = gcfg
+
+    if pack_on:
+        banned = gd.director_prohibited()
+        for ri, ti, atype, count in gd.director_limits():
+            if atype in banned or count <= 0:
+                continue
+            new = max(1, int(round(count * pack)))
+            if new != int(count):
+                (preset.setdefault("ALifeScenarioNPCArchetypesLimitsPerPlayerRank", {})
+                       .setdefault(ri, {}).setdefault("Restrictions", {})
+                       .setdefault(ti, {}))["MaxCount"] = str(new)
+    return {"ALifeDirectorPreset": preset} if preset else {}
+
+
 UPGRADE_LOCK_KEYS = {
     # Settings-Flag -> Sperrliste im Upgrade-Prototyp
     "upgrades_take_both": "BlockingUpgradePrototypeSIDs",
@@ -2202,6 +2355,9 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _emission_patch(gd, s))
     add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
         _upgrades_patch(gd, s))
+    add(f"LairPrototypes/LairPrototypes_patch_{n}.cfg", _lairs_patch(gd, s))
+    add(f"ALifePrototypes/ALifeDirectorScenarioPrototypes/"
+        f"ALifeDirectorScenarioPrototypes_patch_{n}.cfg", _director_patch(gd, s))
 
     return out
 
@@ -2274,6 +2430,18 @@ def summarize(s: Settings) -> list[str]:
         lines.append("NPCs don't self-heal")
     f("Max simultaneous A-Life agents", s.max_agents_factor)
     f("A-Life spawn distance", s.spawn_distance_factor)
+    f("Lair population: mutants", s.lair_mutant_factor)
+    f("Lair population: humans", s.lair_human_factor)
+    f("Lair respawn speed", s.lair_respawn_factor)
+    f("Random encounters: frequency", s.encounter_frequency_factor)
+    f("Random encounters: mutant share", s.encounter_mutant_factor)
+    f("Random encounters: pack size", s.encounter_pack_factor)
+    f("Encounters: blind dogs", s.enc_blinddog_factor)
+    f("Encounters: boars", s.enc_boar_factor)
+    f("Encounters: fleshes", s.enc_flesh_factor)
+    f("Encounters: tushkans", s.enc_tushkan_factor)
+    f("Encounters: chimeras", s.enc_chimera_factor)
+    f("Encounters: mixed mutant packs", s.enc_generic_mutant_factor)
     f("Mutant health", s.mutant_hp_factor)
     f("Mutant damage", s.mutant_damage_factor)
     f("Mutant speed", s.mutant_speed_factor)

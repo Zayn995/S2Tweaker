@@ -230,13 +230,19 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I make the Zone busier or emptier (A-Life)?",
-        "a": "NPCs & AI tab, the experimental A-Life section: 'Max "
-             "simultaneous NPCs & mutants' (up to 200 % - heavy CPU "
-             "load) and 'A-Life spawn distance' (lower = encounters pop "
-             "up closer). Marked experimental on purpose: the A-Life "
-             "system is only partly understood by the community.",
+        "a": "NPCs & AI tab, two experimental sections. 'Max "
+             "simultaneous NPCs & mutants' is only a cap (52 in vanilla) "
+             "- on its own it barely changes anything. The real spawn "
+             "controls are in 'A-Life spawns': LAIR population for "
+             "mutants and humans (how many live in each place, per player "
+             "rank), lair respawn speed, and the DIRECTOR's random "
+             "encounters: frequency, mutant share, pack size and per-"
+             "species weights. Raise the cap together with them. Existing "
+             "saves re-roll lairs slowly (sleep or change region). Not "
+             "play-tested yet - small steps and a backup save.",
         "k": "alife a-life spawn population busier more npcs encounters "
-             "distance empty world performance fps",
+             "distance empty world performance fps lair director respawn "
+             "more mutants spawn rate",
     },
     {
         "q": "Can I tune ONE mutant species - or stop mutants from "
@@ -388,6 +394,20 @@ FAQ_ENTRIES = [
              "not in these files and stays vanilla. Not play-tested yet.",
         "k": "upgrades technician blueprint tier unlock all both branches "
              "mutually exclusive unrestricted take both locked",
+    },
+    {
+        "q": "Can I choose which mutants spawn?",
+        "a": "Partly. The director's random encounters come from weighted "
+             "scenarios - 'A-Life spawns' has a weight slider per pack "
+             "kind (blind dogs, boars, fleshes, tushkans, chimeras, mixed "
+             "mutant packs) on top of the overall mutant-share slider. "
+             "Honest limits: bloodsuckers and the exotic mutants (controller, "
+             "burer, poltergeist ...) are never rolled as random encounters "
+             "in vanilla (weight 0 or forbidden), and the tool does not "
+             "invent spawns the game never uses - those species come from "
+             "their lairs, which the lair sliders scale.",
+        "k": "mutant type species choose which spawn blind dog boar flesh "
+             "tushkan chimera bloodsucker controller burer weights packs",
     },
     {
         "q": "What does the search box at the top find?",

@@ -53,10 +53,12 @@ NEEDED_FILES = [
     "QuestNodePrototypes.cfg.bin",
     "EmissionPrototypes.cfg.bin",
     "UpgradePrototypes.cfg.bin",
+    "LairPrototypes.cfg.bin",
+    "ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg.bin",
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 13
+CACHE_SCHEMA = 14
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -1350,6 +1352,121 @@ class GameData:
             if child is not None and any(
                     v.strip() not in ("", "empty") for v in child.values.values()):
                 out.append(sid)
+        return out
+
+    # ------------------------------------------------ A-Life: Lager + Director
+    # Recherche: docs/ALIFE_SPAWN_RESEARCH.md (03.09.2026) - alle Regeln dort.
+    LAIR_RANKS = ("Newbie", "Experienced", "Veteran", "Master")
+    LAIR_MUTANT_FACTIONS = frozenset({
+        "Blinddog", "MoldyBlinddog", "Bloodsucker", "Boar", "Flesh", "Snork",
+        "Pseudodog", "Tushkan", "Bayun", "Deer", "Rat", "Controller",
+        "Poltergeist", "Chimera", "Burer", "Pseudogiant", "Zombie",
+    })
+    LAIR_TIMER_KEYS = ("InitialSpawnQuantityRespawnTimeSeconds",
+                       "MaxSpawnQuantityRespawnTimeSeconds",
+                       "WipeRespawnTimeoutSeconds")
+
+    @cached_property
+    def lairs(self) -> CfgStruct:
+        return self._parse("LairPrototypes.cfg")
+
+    @cached_property
+    def director(self) -> CfgStruct:
+        return self._parse("ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg")
+
+    def lair_blocks(self) -> list[dict]:
+        """Ein Eintrag je (Lager-Typ, Bewohner-Fraktion, Rang) aus
+        LairPrototypes.cfg (784 in Vanilla): quantity = MaxSpawnQuantity,
+        min_sum = Summe MinQuantityPerArchetype (Untergrenze beim
+        Verkleinern), timers = die drei Respawn-Zeiten als Rohtext,
+        guard = Basis-Wachen-Lager (Guard*), mutant = Mutanten-Fraktion.
+        Das [0]-Template bleibt draussen."""
+        out: list[dict] = []
+        for lair, node in self.lairs.children.items():
+            if lair == "[0]" or "#" in lair:
+                continue
+            preset = node.children.get("Preset")
+            pif = preset.children.get("PossibleInhabitantFactions") if preset else None
+            if pif is None:
+                continue
+            for fkey, fac in pif.children.items():
+                faction = (fac.values.get("Faction") or fkey).strip()
+                ranks = fac.children.get("SpawnSettingsPerPlayerRanks")
+                if ranks is None:
+                    continue
+                for rank in self.LAIR_RANKS:
+                    blk = ranks.children.get(rank)
+                    if blk is None:
+                        continue
+                    q = parse_number(blk.values.get("MaxSpawnQuantity"))
+                    arch = blk.children.get("SpawnSettingsPerArchetypes")
+                    min_sum = sum(
+                        parse_number(a.values.get("MinQuantityPerArchetype"))
+                        for a in (arch.children.values() if arch else ()))
+                    out.append({
+                        "lair": lair, "faction_key": fkey, "faction": faction,
+                        "rank": rank, "quantity": q, "min_sum": min_sum,
+                        "timers": tuple((blk.values.get(k) or "").strip()
+                                        for k in self.LAIR_TIMER_KEYS),
+                        "guard": lair.startswith("Guard"),
+                        "mutant": faction in self.LAIR_MUTANT_FACTIONS,
+                    })
+        return out
+
+    def lair_standard_timers(self) -> tuple[str, str, str]:
+        """Das haeufigste Respawn-Timer-Tripel (Vanilla: 180/480/480 in 774
+        von 784 Bloecken) - nur diese Bloecke skaliert der Respawn-Regler,
+        die 10 Story-Lager mit Sofort-Nachfuellung (6/30/30) bleiben tabu."""
+        counts: dict[tuple[str, str, str], int] = {}
+        for blk in self.lair_blocks():
+            counts[blk["timers"]] = counts.get(blk["timers"], 0) + 1
+        return max(counts, key=counts.get) if counts else ("", "", "")
+
+    def director_preset(self) -> CfgStruct | None:
+        return self.director.children.get("ALifeDirectorPreset")
+
+    def director_scenario_tokens(self) -> dict[str, frozenset]:
+        """{Szenario-Struct-Key: Squad-Tokens} - Token = "Human" / "Mutant"
+        (generische Archetypen) oder die konkrete AgentPrototypeSID
+        (Blinddog, Boar, Chimera ...); Menschen-Prototypen (General*/Guard*)
+        werden zu "Human". Rein-Mutanten-Szenarien = kein "Human"-Token."""
+        d = self.director_preset()
+        out: dict[str, frozenset] = {}
+        if d is None:
+            return out
+        for key, sc in d.children.get("Scenarios", CfgStruct("x")).children.items():
+            tokens = set()
+            for sq in sc.children.get("ScenarioSquads", CfgStruct("x")).children.values():
+                arch = (sq.values.get("AgentArchetype") or "").split("::")[-1].strip()
+                proto = (sq.values.get("AgentPrototypeSID") or "").strip()
+                if arch == "Human" or proto.startswith(("General", "Guard")):
+                    tokens.add("Human")
+                elif proto:
+                    tokens.add(proto)
+                elif arch:
+                    tokens.add(arch)
+            out[key] = frozenset(tokens)
+        return out
+
+    def director_prohibited(self) -> set[str]:
+        d = self.director_preset()
+        if d is None:
+            return set()
+        node = d.children.get("ProhibitedAgentTypes")
+        return {v.split("::")[-1].strip() for v in (node.values.values() if node else ())}
+
+    def director_limits(self) -> list[tuple[str, str, str, float]]:
+        """[(Rang-Index, Typ-Index, Agententyp, MaxCount)] aus
+        ALifeScenarioNPCArchetypesLimitsPerPlayerRank (4 Raenge x 16 Typen)."""
+        d = self.director_preset()
+        out: list[tuple[str, str, str, float]] = []
+        if d is None:
+            return out
+        lim = d.children.get("ALifeScenarioNPCArchetypesLimitsPerPlayerRank")
+        for ri, rank in (lim.children.items() if lim else ()):
+            for ti, entry in rank.children.get("Restrictions", CfgStruct("x")).children.items():
+                atype = (entry.values.get("AgentType") or "").split("::")[-1].strip()
+                out.append((ri, ti, atype, parse_number(entry.values.get("MaxCount"))))
         return out
 
     def magazine_items(self) -> dict[str, float]:

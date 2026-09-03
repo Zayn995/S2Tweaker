@@ -33,6 +33,7 @@ ORDER = [
     "test_recoil_upgrades.py",
     "test_magazine_cascade.py",
     "test_upgrades.py",
+    "test_alife_spawns.py",
     "test_trader_condition.py",
     "test_emission_relext.py",
     "test_dlc_weapons.py",

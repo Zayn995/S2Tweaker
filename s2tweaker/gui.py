@@ -503,6 +503,14 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_vision": "npc_vision_factor", "npc_hearing": "npc_hearing_factor",
     "npc_reaction": "npc_reaction_factor", "npc_grenades": "npc_grenade_factor",
     "alife_agents": "max_agents_factor", "alife_distance": "spawn_distance_factor",
+    "lair_mutants": "lair_mutant_factor", "lair_humans": "lair_human_factor",
+    "lair_respawn": "lair_respawn_factor",
+    "enc_freq": "encounter_frequency_factor",
+    "enc_mutants": "encounter_mutant_factor", "enc_pack": "encounter_pack_factor",
+    "enc_blinddog": "enc_blinddog_factor", "enc_boar": "enc_boar_factor",
+    "enc_flesh": "enc_flesh_factor", "enc_tushkan": "enc_tushkan_factor",
+    "enc_chimera": "enc_chimera_factor",
+    "enc_generic": "enc_generic_mutant_factor",
     "npc_gear": "npc_gear_quality_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
@@ -606,6 +614,12 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
                                     frozenset({"RequiredItemPrototypeSIDs"})),
     "check:upgrades_no_tiers": ("UpgradePrototypes",
                                 frozenset({"RequiredUpgradePrototypeSIDs"})),
+    "lair_mutants": ("LairPrototypes", frozenset({"MaxSpawnQuantity"})),
+    "lair_humans": ("LairPrototypes", frozenset({"MaxSpawnQuantity"})),
+    "lair_respawn": ("LairPrototypes",
+                     frozenset({"InitialSpawnQuantityRespawnTimeSeconds",
+                                "MaxSpawnQuantityRespawnTimeSeconds",
+                                "WipeRespawnTimeoutSeconds"})),
 }
 
 
@@ -3272,6 +3286,52 @@ class App(ctk.CTk):
                      "pop up closer to you; higher = quieter surroundings.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "A-Life spawns: lairs & random encounters (experimental)")
+        self._warning(f, "Two systems feed the Zone: LAIRS (fixed places with a "
+                         "population that respawns) and the DIRECTOR (random "
+                         "encounters rolled around you). 'Max simultaneous NPCs "
+                         "& mutants' above is only a cap on top of both – raise it "
+                         "too. Existing saves re-roll lairs slowly (sleep or "
+                         "change region). Not play-tested yet.")
+        self._slider(f, "lair_mutants", "Lair population: mutants", 50, 300, 25, 100, fmt_pct,
+                     "How many mutants a lair holds (all species, per player "
+                     "rank). Story lairs and base guards are never touched.")
+        self._slider(f, "lair_humans", "Lair population: humans", 50, 300, 25, 100, fmt_pct,
+                     "How many stalkers a faction lair holds. Base guards "
+                     "(Guard lairs) stay vanilla on purpose.")
+        self._slider(f, "lair_respawn", "Lair respawn speed", 25, 400, 25, 100, fmt_pct,
+                     "How fast fallen lair members are replaced (vanilla 3 / 8 "
+                     "min, wipe 8 min). Story lairs with instant refill stay as "
+                     "they are.")
+        self._slider(f, "enc_freq", "Random encounters: frequency", 25, 400, 25, 100, fmt_pct,
+                     "How often the director rolls a new encounter around you "
+                     "(vanilla 60–90 s in the open world, plus a timeout after "
+                     "each spawn – both scale).")
+        self._slider(f, "enc_mutants", "Random encounters: mutant share", 0, 400, 25, 100, fmt_pct,
+                     "Weight of pure-mutant encounters against human ones "
+                     "(vanilla ~37 % of the open-world rolls). 0 % = no random "
+                     "mutant packs (lair mutants stay). Weights the game never "
+                     "uses (0) stay 0.")
+        self._slider(f, "enc_pack", "Random encounters: pack size (experimental)", 50, 200, 10, 100, fmt_pct,
+                     "Scales the per-rank cap of each spawnable type (blind "
+                     "dogs 4–12, fleshes 2–6 ...) – our best reading of how pack "
+                     "size is derived, unverified. Types the director never "
+                     "spawns (chimera, controller, burer ...) are skipped.")
+        for key, label, tip in (
+                ("enc_blinddog", "Encounters: blind dogs", "Weight of blind-dog packs."),
+                ("enc_boar", "Encounters: boars", "Weight of boar packs."),
+                ("enc_flesh", "Encounters: fleshes", "Weight of flesh packs."),
+                ("enc_tushkan", "Encounters: tushkans", "Weight of tushkan packs."),
+                ("enc_chimera", "Encounters: chimeras",
+                 "Weight of the single-chimera encounter (veteran regions only)."),
+                ("enc_generic", "Encounters: mixed mutant packs",
+                 "Weight of the generic 'mutants' encounters, which pick any "
+                 "spawnable species.")):
+            self._slider(f, key, label, 0, 400, 25, 100, fmt_pct,
+                         tip + " Stacks with the mutant-share slider. Bloodsuckers "
+                         "have no slider: the open world never rolls them (weight 0).")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("Mutants")
         f = self._section(body, "All mutants (global)")
         self._slider(f, "mhp", "Mutant health (all species)", 0.1, 5, 0.1, 1, fmt_factor)
@@ -4150,6 +4210,18 @@ class App(ctk.CTk):
             npc_gear_quality_factor=s["npc_gear"].get() / 100.0,
             max_agents_factor=s["alife_agents"].get() / 100.0,
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
+            lair_mutant_factor=s["lair_mutants"].get() / 100.0,
+            lair_human_factor=s["lair_humans"].get() / 100.0,
+            lair_respawn_factor=s["lair_respawn"].get() / 100.0,
+            encounter_frequency_factor=s["enc_freq"].get() / 100.0,
+            encounter_mutant_factor=s["enc_mutants"].get() / 100.0,
+            encounter_pack_factor=s["enc_pack"].get() / 100.0,
+            enc_blinddog_factor=s["enc_blinddog"].get() / 100.0,
+            enc_boar_factor=s["enc_boar"].get() / 100.0,
+            enc_flesh_factor=s["enc_flesh"].get() / 100.0,
+            enc_tushkan_factor=s["enc_tushkan"].get() / 100.0,
+            enc_chimera_factor=s["enc_chimera"].get() / 100.0,
+            enc_generic_mutant_factor=s["enc_generic"].get() / 100.0,
             mutant_hp_factor=s["mhp"].get(),
             mutant_damage_factor=s["mdmg"].get(),
             mutant_speed_factor=s["mspeed"].get(),
