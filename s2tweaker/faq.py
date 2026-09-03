@@ -452,6 +452,21 @@ FAQ_ENTRIES = [
              "weightless",
     },
     {
+        "q": "Why do NPCs hit me from far away like an aimbot?",
+        "a": "Two hidden things. Each NPC weapon profile has per-rank, "
+             "per-distance 'guaranteed-hit shots' - the first shots of a "
+             "burst ignore spread entirely (rifles 2-3 at long, 4-6 at "
+             "short range in vanilla). And NPC bullet spread is its own "
+             "value. NPCs & AI tab: 'NPC guaranteed-hit shots' (0 % = no "
+             "free hits at all), 'NPC accuracy' (spread), plus burst "
+             "length, fire pauses, engagement range and NPC weapon range. "
+             "Same data the 'Grounded Combat' and 'Better Gunfights' mods "
+             "edit - don't run those alongside these sliders. Not "
+             "play-tested yet.",
+        "k": "aimbot laser accurate npc hit far away unfair sniping "
+             "opening fire guaranteed burst spread cheat",
+    },
+    {
         "q": "What does the search box at the top find?",
         "a": "Slider names, weapon names and ammo rounds. Matches light "
              "up amber, everything else dims, and the status bar shows "

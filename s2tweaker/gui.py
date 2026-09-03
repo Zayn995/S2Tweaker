@@ -512,6 +512,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "enc_chimera": "enc_chimera_factor",
     "enc_generic": "enc_generic_mutant_factor",
     "npc_gear": "npc_gear_quality_factor",
+    "npc_free_shots": "npc_free_shots_factor", "npc_burst": "npc_burst_factor",
+    "npc_fire_pause": "npc_fire_pause_factor", "npc_engage": "npc_engage_range_factor",
+    "npc_range": "npc_weapon_range_factor", "npc_regen": "npc_regen_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
     "mut_regen": "mutant_regen_factor",
@@ -3280,6 +3283,38 @@ class App(ctk.CTk):
                      "changes accordingly.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "NPC combat behaviour (experimental)")
+        self._warning(f, "These are the hidden per-weapon AI profiles behind "
+                         "'aimbot' complaints (same data the 'Grounded Combat' "
+                         "and 'Better Gunfights' mods edit). Every NPC weapon "
+                         "profile, rank and distance scales together. Not "
+                         "play-tested yet.")
+        self._slider(f, "npc_free_shots", "NPC guaranteed-hit shots", 0, 200, 10, 100, fmt_pct,
+                     "Shots per burst that NPCs fire with ZERO spread - the "
+                     "opening 'laser' fire (vanilla e.g. rifles 2-3 at long, "
+                     "4-6 at short range). 0 % = every NPC shot uses normal "
+                     "spread; shotguns and launchers already have 0.")
+        self._slider(f, "npc_burst", "NPC burst length", 25, 300, 25, 100, fmt_pct,
+                     "Shots per burst (vanilla e.g. rifles 3-6 at long, 8-16 "
+                     "at short range).")
+        self._slider(f, "npc_fire_pause", "NPC fire pauses", 25, 400, 25, 100, fmt_pct,
+                     "Pause between bursts (vanilla ~0.8-2.5 s) and between "
+                     "single shots of semi-auto weapons. 200 % = NPCs shoot "
+                     "half as often.")
+        self._slider(f, "npc_engage", "NPC engagement range", 25, 200, 5, 100, fmt_pct,
+                     "Distance band in which NPCs open fire with a weapon "
+                     "(vanilla e.g. pistols 2-25 m, rifles 15-60 m, snipers "
+                     "25-100 m).")
+        self._slider(f, "npc_range", "NPC weapon range", 25, 200, 5, 100, fmt_pct,
+                     "Effective distance and damage drop-off of NPC weapon "
+                     "profiles only - the NPC-side twin of 'Weapon effective "
+                     "range'. Player weapons stay as they are.")
+        self._slider(f, "npc_regen", "NPC health regen", 0, 300, 10, 100, fmt_pct,
+                     "Passive regeneration of human NPCs (vanilla 1 HP/s, "
+                     "guards 20 HP/s). 0 % = same as the 'don't self-heal' "
+                     "box, which always wins when ticked.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "A-Life population (experimental)")
         self._warning(f, "Experimental: these change how the living world "
                          "spawns around you. Large values can hurt "
@@ -4233,6 +4268,12 @@ class App(ctk.CTk):
             npc_grenade_factor=s["npc_grenades"].get() / 100.0,
             npc_no_heal=bool(self.checks["npc_no_heal"].get()),
             npc_gear_quality_factor=s["npc_gear"].get() / 100.0,
+            npc_free_shots_factor=s["npc_free_shots"].get() / 100.0,
+            npc_burst_factor=s["npc_burst"].get() / 100.0,
+            npc_fire_pause_factor=s["npc_fire_pause"].get() / 100.0,
+            npc_engage_range_factor=s["npc_engage"].get() / 100.0,
+            npc_weapon_range_factor=s["npc_range"].get() / 100.0,
+            npc_regen_factor=s["npc_regen"].get() / 100.0,
             max_agents_factor=s["alife_agents"].get() / 100.0,
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
             lair_mutant_factor=s["lair_mutants"].get() / 100.0,

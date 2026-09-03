@@ -306,6 +306,14 @@ class Settings:
     npc_hp_factor: float = 1.0
     # --- NPCs & KI ---
     npc_accuracy_factor: float = 1.0     # >1 = praeziser (Dispersion kleiner)
+    # --- NPC-Kampfverhalten (WeaponAttributes *_NPC.AIParameters; Vorbild
+    # Nexus 2396 'Grounded Combat' + 129 'Better Gunfights') ---
+    npc_free_shots_factor: float = 1.0    # IgnoreDispersionMin/MaxShots ('Aimbot'-Schuesse)
+    npc_burst_factor: float = 1.0         # MinShots/MaxShots je Feuerstoss
+    npc_fire_pause_factor: float = 1.0    # Pausen zwischen Feuerstoessen/Einzelschuessen
+    npc_engage_range_factor: float = 1.0  # CombatEffectiveFireDistanceMin/Max
+    npc_weapon_range_factor: float = 1.0  # CWS *_NPC Distanz-Schluessel
+    npc_regen_factor: float = 1.0         # RegenHP der menschlichen NPCs
     npc_vision_factor: float = 1.0       # Sichtweite (Story-Bosse ausgenommen)
     npc_hearing_factor: float = 1.0      # Hoerweite (Mutanten ausgenommen)
     npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
@@ -895,10 +903,16 @@ def _trader_wallet_patch(gd: GameData, s: Settings) -> dict:
 def _npc_heal_patch(gd: GameData, s: Settings) -> dict:
     """NPCs heilen sich nicht mehr: RegenHP=0 pro NPC-Prototyp (die Structs
     sind voll expandiert, ein Patch am Basis-Struct reicht daher nicht)."""
-    if not s.npc_no_heal:
-        return {}
-    return {sid: {"VitalParams": {"RegenHP": "0.0"}}
-            for sid in sorted(gd.npcs_with_regen())}
+    if s.npc_no_heal:
+        return {sid: {"VitalParams": {"RegenHP": "0.0"}}
+                for sid in sorted(gd.npcs_with_regen())}
+    # Regen als Faktor (Nexus 2396 senkt Wachen von 20 auf 5 HP/s): live je
+    # Prototyp, weil die Structs voll expandiert sind
+    if _neq(s.npc_regen_factor, 1.0) and s.npc_regen_factor >= 0:
+        return {sid: {"VitalParams": {"RegenHP": _num(regen * s.npc_regen_factor)}}
+                for sid, regen in sorted(gd.npcs_with_regen().items())
+                if regen > 0}
+    return {}
 
 
 def _vision_patch(gd: GameData, s: Settings) -> dict:
@@ -946,17 +960,128 @@ def _hearing_patch(gd: GameData, s: Settings) -> dict:
 
 def _npc_weapon_patch(gd: GameData, s: Settings) -> dict:
     """CWS *_NPC-Structs: DispersionRadius / Genauigkeits-Faktor
-    (Faktor > 1 = NPCs treffen besser)."""
-    if not _neq(s.npc_accuracy_factor, 1.0) or s.npc_accuracy_factor <= 0:
+    (Faktor > 1 = NPCs treffen besser) und die vier Distanz-Schluessel
+    (WEAPON_RANGE_KEYS) x Reichweiten-Faktor - Gegenstueck zum Spieler-
+    Range-Regler, nur fuer NPC-Waffenprofile (Nexus 2396 'NPC Ballistics')."""
+    acc_on = _neq(s.npc_accuracy_factor, 1.0) and s.npc_accuracy_factor > 0
+    range_on = (_neq(s.npc_weapon_range_factor, 1.0)
+                and s.npc_weapon_range_factor > 0)
+    if not (acc_on or range_on):
         return {}
     patches: dict = {}
     for sid in sorted(gd.weaponsettings.children):
         if "_NPC" not in sid or "#" in sid:
             continue
-        value = parse_number(gd.resolve(gd.weaponsettings, sid, "DispersionRadius"))
-        if value > 0:
-            patches[sid] = {
-                "DispersionRadius": _num(value / s.npc_accuracy_factor)}
+        cfg: dict = {}
+        if acc_on:
+            value = parse_number(gd.resolve(gd.weaponsettings, sid, "DispersionRadius"))
+            if value > 0:
+                cfg["DispersionRadius"] = _num(value / s.npc_accuracy_factor)
+        if range_on:
+            for key in WEAPON_RANGE_KEYS:
+                value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
+                if value > 0:
+                    cfg[key] = _num(value * s.npc_weapon_range_factor)
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+NPC_AI_DISTANCES = ("Long", "Medium", "Short")
+
+
+def _npc_ai_patch(gd: GameData, s: Settings) -> dict:
+    """WeaponAttributesPrototypes *_NPC.AIParameters.BehaviorTypes.<Rang>
+    (Newbie/Experienced/Veteran/Master/Zombie), je Distanz Long/Medium/Short:
+    IgnoreDispersionMin/MaxShots = Schuesse je Feuerstoss OHNE Streuung (das
+    'Aimbot'-Eroeffnungsfeuer, Vorbild Nexus 2396/129), MinShots/MaxShots =
+    Feuerstoss-Laenge, Min/MaxSecondsDelay + NonAutomaticWeaponShotDelay =
+    Pausen, CombatEffectiveFireDistanceMin/Max = Gefechtsreichweite je Rang.
+    Alle 77 *_NPC-Structs definieren ihre Bloecke selbst (kein Template-
+    Patch). Ganzzahlen bleiben ganzzahlig, Min <= Max, Vanilla 0 bleibt 0,
+    Garantietreffer nie ueber der Feuerstoss-Laenge."""
+    free = s.npc_free_shots_factor
+    free_on = _neq(free, 1.0) and free >= 0
+    burst = s.npc_burst_factor
+    burst_on = _neq(burst, 1.0) and burst > 0
+    pause = s.npc_fire_pause_factor
+    pause_on = _neq(pause, 1.0) and pause > 0
+    engage = s.npc_engage_range_factor
+    engage_on = _neq(engage, 1.0) and engage > 0
+    if not (free_on or burst_on or pause_on or engage_on):
+        return {}
+
+    def scaled_int(raw, factor, floor=0):
+        value = parse_number(raw)
+        if value <= 0:
+            return None
+        return max(floor, int(round(value * factor)))
+
+    patches: dict = {}
+    for sid, node in sorted(gd.weaponattributes.children.items()):
+        if not sid.endswith("_NPC") or "#" in sid:
+            continue
+        ai = node.children.get("AIParameters")
+        bt = ai.children.get("BehaviorTypes") if ai else None
+        if bt is None:
+            continue
+        ranks: dict = {}
+        for rank, rn in bt.children.items():
+            rcfg: dict = {}
+            if engage_on:
+                for key in ("CombatEffectiveFireDistanceMin",
+                            "CombatEffectiveFireDistanceMax"):
+                    raw = rn.values.get(key)
+                    if raw is not None and parse_number(raw) > 0:
+                        rcfg[key] = _scale_literal(raw, engage)
+            if pause_on:
+                raw = rn.values.get("NonAutomaticWeaponShotDelay")
+                if raw is not None and parse_number(raw) > 0:
+                    rcfg["NonAutomaticWeaponShotDelay"] = _scale_literal(raw, pause)
+            for dist in NPC_AI_DISTANCES:
+                dn = rn.children.get(dist)
+                if dn is None:
+                    continue
+                v = dn.values
+                dcfg: dict = {}
+                min_shots = parse_number(v.get("MinShots"))
+                max_shots = parse_number(v.get("MaxShots"))
+                if burst_on:
+                    new_min = scaled_int(v.get("MinShots"), burst, 1)
+                    new_max = scaled_int(v.get("MaxShots"), burst, 1)
+                    if new_min is not None and new_max is not None:
+                        new_min = min(new_min, new_max)
+                        if new_min != int(min_shots):
+                            dcfg["MinShots"] = str(new_min)
+                        if new_max != int(max_shots):
+                            dcfg["MaxShots"] = str(new_max)
+                        max_shots = new_max
+                if free_on:
+                    ig_min = parse_number(v.get("IgnoreDispersionMinShots"))
+                    ig_max = parse_number(v.get("IgnoreDispersionMaxShots"))
+                    if ig_max > 0 or ig_min > 0:
+                        new_max = int(round(ig_max * free))
+                        new_min = int(round(ig_min * free))
+                        if max_shots > 0:
+                            new_max = min(new_max, int(max_shots))
+                        new_min = min(new_min, new_max)
+                        if new_min != int(ig_min):
+                            dcfg["IgnoreDispersionMinShots"] = str(new_min)
+                        if new_max != int(ig_max):
+                            dcfg["IgnoreDispersionMaxShots"] = str(new_max)
+                if pause_on:
+                    for key in ("MinSecondsDelay", "MaxSecondsDelay"):
+                        raw = v.get(key)
+                        if raw is not None and parse_number(raw) > 0:
+                            scaled = _scale_literal(raw, pause)
+                            if scaled is not None and scaled != raw.strip():
+                                dcfg[key] = scaled
+                if dcfg:
+                    rcfg[dist] = dcfg
+            if rcfg:
+                ranks[rank] = rcfg
+        if ranks:
+            patches[sid] = {"AIParameters": {"BehaviorTypes": ranks}}
     return patches
 
 
@@ -2334,6 +2459,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _difficulty_patch(gd, s))
     cws_patches = _weapon_settings_patch(gd, s)
     cws_patches.update(_npc_weapon_patch(gd, s))
+    add("WeaponData/WeaponAttributesPrototypes/"
+        f"WeaponAttributesPrototypes_patch_{n}.cfg", _npc_ai_patch(gd, s))
     add(
         "WeaponData/CharacterWeaponSettingsPrototypes/"
         f"CharacterWeaponSettingsPrototypes_patch_{n}.cfg",
@@ -2585,6 +2712,13 @@ def summarize(s: Settings) -> list[str]:
     if s.dropped_condition_exact:
         lines.append("Dropped weapon condition: exact (no random spread)")
     f("NPC gear quality", s.npc_gear_quality_factor)
+    f("NPC guaranteed-hit shots", s.npc_free_shots_factor)
+    f("NPC burst length", s.npc_burst_factor)
+    f("NPC fire pauses", s.npc_fire_pause_factor)
+    f("NPC engagement range", s.npc_engage_range_factor)
+    f("NPC weapon range", s.npc_weapon_range_factor)
+    if not s.npc_no_heal:
+        f("NPC health regen", s.npc_regen_factor)
     f("Trader stock amount", s.trader_stock_factor)
     f("Trader stock variety (chance per item)", s.trader_variety_factor)
     f("Trader money (finite wallets)", s.trader_money_factor)

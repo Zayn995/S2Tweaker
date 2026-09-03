@@ -76,6 +76,9 @@ s = Settings(
     day_length_factor=2.0, consumable_duration_factor=3.0,   # v1.18
     artifact_count_factor=2.0, artifact_respawn_factor=2.0,
     quest_items_weightless=True,
+    npc_free_shots_factor=0.0, npc_burst_factor=1.5,          # NPC-Kampfverhalten
+    npc_fire_pause_factor=2.0, npc_engage_range_factor=0.5,
+    npc_weapon_range_factor=0.75, npc_regen_factor=0.25,
     armor_durability_factor=2.0, weapon_range_factor=1.5,
     armor_strike_factor=2.0, armor_burn_factor=1.5, armor_psy_factor=3.0,
     armor_carry_bonus_factor=2.0, artifact_rarity_factor=3.0,
