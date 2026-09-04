@@ -2,10 +2,7 @@
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
 [i]~230 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
-[i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i]
-
-[size=4][b][color=#ff3333]Alternative download while the file here is in review:[/color]
-[url=https://github.com/Zayn995/S2Tweaker/releases]GitHub → S2Tweaker Releases[/url][/b][/size][/center]
+[i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
 
@@ -190,6 +187,12 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.18.2 - Bug fix: crash with the Debug checkbox since 1.14[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]Fixed: "[WinError 53] The network path was not found: \\GameLite\DLCGameData\..." when building with the Debug checkbox ticked[/b] (thank you KobaltRaven, GitHub issue #5). Since 1.14.0 the edition weapons and armor get their patches under a path starting with "//", and the Debug export joined that onto the output folder - for Python that is an absolute network path, so it tried to create a folder on a network share. The pak itself was already built at that point; only the export and the success message failed. The export now maps the path like the pak builder does (edition files land under output\<Mod>_cfg\GameLite\DLCGameData\...), and a failing export can no longer hide a built pak
+[*]No other changes. Generated paks are unchanged apart from the version stamp in their manifest
+[/list]
+
 [b]v1.18.1 - Bug fix: Steam Workshop mods are now actually scanned[/b] (~230 tweaks, 13 tabs)
 [list]
 [*][b]Fixed: the mod scan reported every Steam Workshop mod as "contains data I can't read (IoStore format)"[/b] and therefore never marked a single slider for them. The assumption behind it was wrong: Workshop mods ship as .pak plus .ucas/.utoc, but the config patches live in the .pak part, which the tool reads fine (the game keeps its own vanilla configs the same way). On my own install 12 of 15 subscriptions carried real config patches - armor protection, loot amounts, trader stock and more - that the scan had been blind to. Now they get their dots, and the Avoid-conflicts mode covers them
@@ -199,6 +202,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.18.0 - Stealth, NPC combat behaviour, longer days, more artifacts[/b] (~230 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]NPC combat behaviour[/b] (NPCs & AI, six sliders, modelled on the 'Grounded Combat' data): the hidden per-weapon AI profiles - [b]guaranteed-hit shots[/b] per burst are the real 'aimbot' (rifles fire 2-3 spread-free shots at long range, 4-6 up close in vanilla; 0 % = every NPC shot uses normal spread), plus burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
 [*][b]Stealth[/b] (NPCs & AI, four sliders): crouch stealth, movement noise (0 % = silent feet), bad-weather stealth (fog, rain and thunder blind and deafen NPCs - scale it up or off) and how strongly your own flashlight gives you away
@@ -209,6 +213,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Quest items weigh nothing[/b] (Weight & items) and [b]Mutant attack cooldown[/b] (Mutants)
 [*]First start after the update extracts the game data once more (one new game file, the NPC threat profiles). FAQ grew to 65 searchable entries, 30 automated test suites. Nothing is play-tested yet - reports welcome
 [/list]
+[/spoiler]
 
 [b]v1.17.0 - A-Life spawns: lair population, respawn & random encounters[/b] (~210 tweaks, 13 tabs)
 [spoiler]

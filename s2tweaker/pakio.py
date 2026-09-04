@@ -302,6 +302,30 @@ def find_repak() -> Path | None:
     return None
 
 
+def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
+    """Die Patch-Dateien als lose .cfg unter root ablegen (Debug-Export).
+
+    Gleiche Pfad-Regel wie pack_mod(): normale Eintraege landen direkt unter
+    root (wie bisher, z.B. root/DifficultyPrototypes/..._patch_X.cfg), die
+    "//"-Eintraege der Editions-Waffen unter root/GameLite/DLCGameData/...
+
+    GitHub Issue #5 (KobaltRaven, 03.09.2026): der fruehere Export machte
+    `root / rel` — und ein rel, das mit "//" beginnt, ist fuer pathlib ein
+    ABSOLUTER UNC-Pfad (\\\\GameLite\\DLCGameData\\...), der die Basis
+    verdraengt. mkdir versuchte dann, einen Netzwerkpfad anzulegen
+    (WinError 53), sobald ein Editions-Patch dabei war — also bei jedem
+    Waffen-Tweak seit v1.14.0 mit angehaktem Debug. Die Pak war zu dem
+    Zeitpunkt laengst gebaut; der Benutzer sah nur den Traceback."""
+    root = Path(root)
+    written: list[Path] = []
+    for rel, content in cfg_files.items():
+        target = root / rel.lstrip("/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        written.append(target)
+    return written
+
+
 def pack_mod(cfg_files: dict[str, str], out_pak: Path,
              repak_exe: Path | None = None,
              root_files: dict[str, str] | None = None) -> Path:

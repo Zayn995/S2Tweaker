@@ -5528,11 +5528,15 @@ class App(ctk.CTk):
         debug_note = ""
         if self.debug_check.get():
             debug_root = out_pak.parent / f"{s.mod_name}_cfg"
-            for rel, content in patches.items():
-                target = debug_root / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(content, encoding="utf-8")
-            debug_note = f"\n\nDebug: {len(patches)} patch .cfg files in\n{debug_root}"
+            # Der Export darf die schon gebaute Pak nie als Fehlschlag
+            # erscheinen lassen (Issue #5: Traceback statt Erfolgsmeldung).
+            try:
+                written = pakio.export_cfgs(patches, debug_root)
+                debug_note = (f"\n\nDebug: {len(written)} patch .cfg files "
+                              f"in\n{debug_root}")
+            except OSError as exc:
+                debug_note = ("\n\nDebug export failed (the pak itself is "
+                              f"fine): {exc}")
 
         self._save_ui_settings()
         messagebox.showinfo(

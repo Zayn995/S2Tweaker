@@ -73,6 +73,67 @@ assert any(n.startswith("Stalker2/Content/GameLite/DLCGameData/Deluxe/")
 out.unlink(missing_ok=True)
 print("Pak-Rundlauf: DLCGameData-Pfad korrekt gemountet  OK")
 
+# --- 4b) Debug-Export mit DLC-Pfaden (GitHub Issue #5, KobaltRaven) ------
+# "//GameLite/..." ist fuer pathlib ein absoluter UNC-Pfad: root / rel
+# verdraengt root komplett -> mkdir auf einem Netzwerkpfad (WinError 53).
+import shutil
+dbg_root = ROOT / "tests" / "_tmp" / "dlc_debug_cfg"
+shutil.rmtree(dbg_root, ignore_errors=True)
+naive = dbg_root / dlc_keys[0]
+assert naive.is_absolute() and dbg_root not in naive.parents, (
+    "die naive Verknuepfung muesste die Basis verdraengen", naive)
+written = pakio.export_cfgs(p, dbg_root)
+assert len(written) == len(p), (len(written), len(p))
+for t in written:
+    assert t.is_file() and dbg_root in t.parents, t
+dlc_written = [t for t in written
+               if "DLCGameData" in t.as_posix()]
+assert dlc_written and all(
+    t.relative_to(dbg_root).as_posix().startswith("GameLite/DLCGameData/")
+    for t in dlc_written), [t.as_posix() for t in dlc_written]
+shutil.rmtree(dbg_root, ignore_errors=True)
+print(f"export_cfgs: {len(written)} Dateien, {len(dlc_written)} davon unter "
+      "GameLite/DLCGameData/, nichts ausserhalb der Basis  OK")
+
+# GUI-Weg wie beim Benutzer: Debug angehakt, globaler Waffen-Regler ->
+# Editions-Patches -> _generate() muss Pak UND Export liefern.
+from s2tweaker import gui
+SCRATCH = ROOT / "tests" / "_tmp"
+gui.SETTINGS_FILE = SCRATCH / "throwaway_settings.json"
+gui.SETTINGS_FILE.unlink(missing_ok=True)
+app = gui.App()
+app.gd = gd
+app.game_dir = SCRATCH
+app.update()
+key = next(k for k, f in gui.SLIDER_FIELDS.items() if f == "aim_time_factor")
+app.sliders[key].set(200)
+assert abs(app._collect().aim_time_factor - 2.0) < 1e-9, \
+    app._collect().aim_time_factor
+app.debug_check.select()
+seen = []
+orig_info = gui.messagebox.showinfo
+gui.messagebox.showinfo = lambda *a, **k: seen.append(a)
+out_pak = SCRATCH / "zzz_DlcDebug_P.pak"
+try:
+    ok = app._generate(out_pak)
+finally:
+    gui.messagebox.showinfo = orig_info
+assert ok and out_pak.is_file(), (ok, out_pak)
+mod_name = app._collect().mod_name
+dbg_gui = SCRATCH / f"{mod_name}_cfg"
+assert (dbg_gui / "GameLite" / "DLCGameData").is_dir(), \
+    sorted(x.as_posix() for x in dbg_gui.rglob("*.cfg"))[:5]
+msg = "\n".join(str(x) for x in seen)
+assert "Debug:" in msg and "patch .cfg files" in msg and "failed" not in msg, msg
+out_pak.unlink(missing_ok=True)
+shutil.rmtree(dbg_gui, ignore_errors=True)
+for w in [x for x in app.winfo_children()
+          if isinstance(x, gui.ctk.CTkToplevel)]:
+    w.destroy()
+app.destroy()
+print("GUI _generate mit Debug + Editions-Patches: Pak + Export ohne "
+      "Traceback  OK")
+
 # --- 5) Editions-Ruestungen im Armor-Baum -------------------------------
 dlc_armor = gd.dlc_player_armors()
 assert len(dlc_armor) >= 5, sorted(dlc_armor)
