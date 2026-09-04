@@ -36,6 +36,12 @@ jobs:
       - name: Abhaengigkeiten
         run: pip install -r requirements.txt
 
+      - name: repak aus dem Quellcode bauen
+        # Ersetzt das im Repo liegende Binaerteil durch einen frischen Build
+        # OHNE Download-Funktion (tools/build_repak.py erklaert warum).
+        # Damit stammt am Ende jede ausgelieferte Datei aus offenem Quellcode.
+        run: python tools/build_repak.py
+
       - name: Tests ohne Spieldaten
         # Die volle Batterie (32 Suiten) braucht den vanilla/-Ordner mit
         # extrahierten GameData. Die duerfen nie ins Repo (GSC-Copyright),

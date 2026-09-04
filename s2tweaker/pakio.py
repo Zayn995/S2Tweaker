@@ -3,29 +3,31 @@
 Funktionierende Mod-Paks im Spiel sind: Version V8B, Mount-Point ../../../,
 unkomprimiert, unverschluesselt — exakt die repak-Defaults.
 
-Oodle-Beschaffung (Bugreport foxce, Nexus 31.08.2026)
------------------------------------------------------
+Oodle: wird gebraucht, aber NIE heruntergeladen
+----------------------------------------------
 pakchunk0 des Spiels ist Oodle-komprimiert, deshalb braucht repak zum
-ENTPACKEN die proprietaere oo2core_9_win64.dll. Zum PACKEN nicht — unsere
-Paks sind unkomprimiert (verifiziert). repak sucht die DLL ausschliesslich
-NEBEN repak.exe und laedt sie sonst selbst von GitHub. Das ging bei einem
-Nutzer schief:
+ENTPACKEN die proprietaere oo2core_9_win64.dll (zum PACKEN nicht — unsere
+Paks sind unkomprimiert, verifiziert).
 
-  repak unpack fehlgeschlagen: Oodle loader error: ureq error
-  Io(Custom { kind: InvalidData, error: InvalidCertificate(UnknownIssuer) })
+Beschafft wird sie seit 04.09.2026 NICHT mehr von uns. Zwei Gruende:
 
-Zwei Ursachen, beide hier behoben:
-  1. In der gebauten EXE liegt repak.exe in PyInstallers _MEIPASS-Temp-Ordner,
-     der beim Beenden geloescht wird — die DLL landete also nie dauerhaft
-     irgendwo und wurde bei jeder kalten Extraktion neu geladen.
-  2. repak prueft TLS gegen die EINGEBAUTEN Mozilla-Roots (rustls/webpki),
-     nicht gegen den Windows-Zertifikatsspeicher. Antivirus-/Proxy-
-     HTTPS-Inspektion liefert ein Zertifikat, dessen Aussteller dort fehlt
-     -> UnknownIssuer, obwohl Browser und Python auf dem Rechner funktionieren.
+  1. Ein Programm, das zur Laufzeit eine Bibliothek aus dem Netz holt und
+     als nativen Code laedt, zeigt exakt das Verhalten eines Droppers —
+     einer der Gruende, warum Virenscanner solche Werkzeuge markieren.
+     Die Freigabe auf Nexus scheiterte an genau solchen Fehlalarmen.
+  2. Der Download war ohnehin die fehleranfaelligste Stelle: Bugreport
+     foxce (31.08.2026), Abbruch mit InvalidCertificate(UnknownIssuer)
+     hinter einer AV-/Proxy-HTTPS-Inspektion.
 
-Deshalb besorgt dieses Modul die DLL selbst: erst lokal suchen, sonst ueber
-Python laden (nutzt den Windows-Zertifikatsspeicher), IMMER gegen den von
-repak erwarteten SHA-256 pruefen und dauerhaft neben der EXE cachen.
+Stattdessen: lokal suchen (SHA-256 immer pruefen, die Datei wird gleich
+darauf als nativer Code geladen), und wenn sie fehlt, den Nutzer per
+Klartext-Dialog bitten, sie einmal selbst danebenzulegen — mit Link und
+Zielordner (OODLE_HELP).
+
+Auch das mitgelieferte repak kann nicht mehr laden: es wird aus dem
+Quellcode gebaut, und dabei wird die Download-Funktion samt HTTP-/TLS-
+Stack entfernt (siehe tools/build_repak.py). Nachgemessen: rustls 113 -> 0,
+ureq 66 -> 0 Vorkommen im Binaercode.
 """
 
 from __future__ import annotations
@@ -38,7 +40,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 from pathlib import Path
 
 GAMEDATA_PREFIX = "Stalker2/Content/GameLite/GameData"
@@ -57,29 +58,34 @@ OODLE_URL = (
 OODLE_MAX_BYTES = 8 << 20
 OODLE_TIMEOUT_TOTAL = 90.0
 
-OODLE_HELP = """S2Tweaker needs the Oodle decompression library ({dll}) to read \
-the packed config files of your game. Getting it failed on this system:
+OODLE_HELP = """S2Tweaker needs the Oodle decompression library ({dll})
+to read the packed config files of your game, and it is not on this PC yet.
 
 {reason}
 
-This is almost always caused by antivirus/firewall HTTPS inspection, a company \
-proxy or a VPN sitting between you and github.com.
+S2Tweaker never downloads it, on purpose: a program that pulls a library
+off the internet and then runs it is exactly what malware does, and that
+is one of the reasons scanners flag tools like this one. So this is a
+manual step, once:
 
-How to fix it:
-
-  1) Allow S2Tweaker (or your network) to reach github.com, then click
-     "Confirm & load game data" again, or
-
-  2) Put {dll} into your S2Tweaker folder (next to S2Tweaker.exe) - the tool
-     picks it up automatically and never downloads anything again. You may
-     already have that file from another S.T.A.L.K.E.R. 2 modding tool, or
-     get it here:
+  1) Get {dll} here:
      {url}
-     It has to be exactly the build repak expects (SHA-256 starting with
-     {hash8}); other Oodle 2.9.x builds are rejected on purpose.
 
-Note: building a mod pak does not need Oodle - only reading the vanilla values \
-out of the game does."""
+  2) Put it next to S2Tweaker.exe, in this folder:
+     {target}
+
+  3) Click "Confirm & load game data" again.
+
+That is all - the file stays there and you never have to think about it
+again. It has to be exactly the build repak expects (SHA-256 starting
+with {hash8}); other Oodle 2.9.x builds are rejected on purpose.
+
+You may already have this file: every Unreal Engine installation ships
+it, and so do some other S.T.A.L.K.E.R. 2 modding tools.
+
+Note: BUILDING a mod pak never needs Oodle - only reading the vanilla
+values out of your game does. If you have loaded game data before, your
+cached values keep working without it."""
 
 
 class OodleError(RuntimeError):
@@ -119,9 +125,11 @@ def _writable(directory: Path) -> bool:
         return False
 
 
-def _oodle_error(reason: str) -> "OodleError":
+def _oodle_error(reason: str, target: Path | None = None) -> "OodleError":
+    where = str(target.parent) if target is not None else "your S2Tweaker folder"
     return OodleError(OODLE_HELP.format(
-        dll=OODLE_DLL, url=OODLE_URL, hash8=OODLE_SHA256[:8], reason=reason))
+        dll=OODLE_DLL, url=OODLE_URL, hash8=OODLE_SHA256[:8],
+        reason=reason, target=where))
 
 
 def oodle_cache_dir() -> Path:
@@ -184,74 +192,25 @@ def _local_oodle_candidates(pak: Path | None) -> list[Path]:
     return out
 
 
-def _download_oodle(dest: Path, progress=None, notes: list[str] | None = None) -> None:
-    """DLL herunterladen — MIT Zertifikatspruefung.
-
-    Python nutzt auf Windows den Windows-Zertifikatsspeicher; genau deshalb
-    klappt das dort, wo repaks eigener Download (eingebaute Mozilla-Roots)
-    an AV-/Proxy-Inspektion scheitert. Es gibt BEWUSST keinen Nachschlag
-    ohne Zertifikatspruefung: schlaegt auch das fehl, bekommt der Nutzer die
-    Anleitung, die Datei selbst hinzulegen. Der SHA-256 wird trotzdem
-    geprueft (Integritaet, genau wie repak es tut)."""
-    if progress:
-        progress("Downloading Oodle library (one-time, 0.6 MB) ...")
-
-    reasons = list(notes or [])
+def oodle_available(pak: Path | None = None) -> bool:
+    """Liegt irgendwo eine brauchbare Oodle-DLL? (fuer die Pruefung beim Start)"""
+    repak = find_repak()
+    if repak is not None and _hash_ok(repak.parent / OODLE_DLL):
+        return True
     try:
-        request = urllib.request.Request(
-            OODLE_URL, headers={"User-Agent": "S2Tweaker"})
-        deadline = time.monotonic() + OODLE_TIMEOUT_TOTAL
-        with urllib.request.urlopen(request, timeout=30) as resp:
-            declared = resp.headers.get("Content-Length")
-            if declared and declared.isdigit() and int(declared) > OODLE_MAX_BYTES:
-                raise OSError(f"server offered {declared} bytes, "
-                              f"expected about 640 KB")
-            chunks, total = [], 0
-            while True:
-                if time.monotonic() > deadline:
-                    raise OSError("download took too long (stalled connection)")
-                chunk = resp.read(1 << 16)
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > OODLE_MAX_BYTES:
-                    raise OSError("response is much larger than the expected "
-                                  "library - probably a block page")
-                chunks.append(chunk)
-        data = b"".join(chunks)
-    except Exception as exc:  # Netzwerk, TLS, Proxy, DNS ...
-        reasons.append(f"download: {exc}")
-        raise _oodle_error("\n".join(reasons)) from exc
-
-    digest = hashlib.sha256(data).hexdigest()
-    if digest != OODLE_SHA256:
-        reasons.append(
-            f"the downloaded file was not the expected library (checksum "
-            f"{digest[:16]}... instead of {OODLE_SHA256[:16]}...) - something "
-            f"on the network replaced it")
-        raise _oodle_error("\n".join(reasons))
-
-    # Eindeutiger Temp-Name: zwei gleichzeitig laufende Instanzen duerfen
-    # sich nicht gegenseitig die Datei wegziehen.
-    temp = dest.with_name(f"{dest.name}.{os.getpid()}.part")
-    try:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        temp.write_bytes(data)
-        temp.replace(dest)
-    except OSError as exc:
-        if _hash_ok(dest):      # andere Instanz war schneller - alles gut
-            return
-        reasons.append(f"could not save it to {dest}: {exc}")
-        raise _oodle_error("\n".join(reasons)) from exc
-    finally:
-        try:
-            temp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if _hash_ok(oodle_cache_dir() / OODLE_DLL):
+            return True
+    except OodleError:
+        pass
+    return any(_hash_ok(c) for c in _local_oodle_candidates(pak))
 
 
 def ensure_oodle(repak: Path, pak: Path | None = None, progress=None) -> None:
-    """Dafuer sorgen, dass die (echte) Oodle-DLL neben repak.exe liegt.
+    """Die (echte) Oodle-DLL neben repak.exe legen — OHNE Download.
+
+    Gesucht wird ausschliesslich LOKAL. Fehlt die Datei, gibt es einen
+    Klartext-Fehler mit Anleitung; heruntergeladen wird nichts (Begruendung
+    im Modul-Kopf). `progress` bleibt nur der Signatur wegen erhalten.
 
     Es wird immer der SHA-256 geprueft, nie nur die Existenz — die Datei
     wird gleich darauf von repak als nativer Code geladen."""
@@ -269,20 +228,20 @@ def ensure_oodle(repak: Path, pak: Path | None = None, progress=None) -> None:
                 source = candidate
                 break
             rejected.append(str(candidate))
-        notes = [f"found {path}, but it is a different Oodle build "
-                 f"(checksum does not match the one repak requires)"
-                 for path in rejected]
-        if source is not None:
-            _place(source, cache)
-        else:
-            _download_oodle(cache, progress, notes)
+        if source is None:
+            reason = "\n".join(
+                f"There is a {OODLE_DLL} at {path}, but it is a different "
+                "Oodle build (its checksum is not the one repak needs)."
+                for path in rejected) or "It is not in any of the usual places."
+            raise _oodle_error(reason, target)
+        _place(source, cache)
 
     if target != cache:
         _place(cache, target)
     if not _hash_ok(target):
         raise _oodle_error(
-            f"the library next to repak.exe ({target}) did not pass the "
-            f"checksum check after copying")
+            f"The library next to repak.exe ({target}) did not pass the "
+            f"checksum check after copying.", target)
 
 
 def find_repak() -> Path | None:

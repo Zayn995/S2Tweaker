@@ -11,6 +11,13 @@ as those licences require.
 repak (tools/repak.exe)
 https://github.com/trumank/repak
 Dual licensed MIT OR Apache-2.0; the MIT terms are used here.
+
+MODIFIED BUILD: S2Tweaker does not ship the upstream release binary. It
+builds repak from source (pinned tag, see tools/build_repak.py) with one
+change: the function that downloads the Oodle library at runtime is
+removed, together with its HTTP/TLS stack. The build can therefore use an
+Oodle library that is already on the machine, but can never fetch one.
+Both licences permit modification; this note records that it happened.
 -------------------------------------------------------------------------
 
 MIT License
@@ -63,10 +70,10 @@ never redistributed by this project.
 That library is required to decompress the game's own .pak archives. Note
 that S.T.A.L.K.E.R. 2 does not ship it as a separate file (Oodle is linked
 into the game executable), so it cannot be taken from the installation.
-S2Tweaker therefore obtains it the same way the bundled repak does: on
-first use it is fetched from the public OodleUE mirror
-(https://github.com/WorkingRobot/OodleUE), verified against the SHA-256
-checksum repak expects, and kept in the user's own S2Tweaker folder
-("tools" next to the executable; if that folder is not writable,
-%LOCALAPPDATA%\S2Tweaker\tools is used instead). A copy already present on
-the user's machine is preferred over downloading.
+S2Tweaker never downloads it, and neither does the bundled repak (see the
+note on the modified build above). The user places the file themselves;
+the tool looks for it in the usual local places, verifies it against the
+SHA-256 checksum repak expects, and keeps it in the user's own S2Tweaker
+folder ("tools" next to the executable; if that folder is not writable,
+%LOCALAPPDATA%\S2Tweaker\tools is used instead). If it is missing, the
+tool says so at startup and names both the source and the target folder.

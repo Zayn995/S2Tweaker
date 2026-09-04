@@ -58,7 +58,7 @@ built lazily when you expand a category, so startup stays fast.
 | Layer | Details |
 |---|---|
 | Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 29 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
-| Oodle | Those pak entries are Oodle-compressed, so unpacking needs the proprietary `oo2core_9_win64.dll` (the game does **not** ship it — Oodle is linked into the game exe). repak would fetch it itself, but it validates TLS against its own built-in roots, which breaks behind AV/proxy HTTPS inspection, and in the frozen exe it would land in PyInstaller's temp dir and be lost every run. [pakio.py](s2tweaker/pakio.py) therefore obtains it: local copies first, else one checksum-verified HTTPS download, cached in `tools/` next to the app. Packing never needs it. |
+| Oodle | The game's config archives are Oodle-compressed, so reading them needs the proprietary `oo2core_9_win64.dll`. The game does **not** ship it (Oodle is linked into the game executable), and **S2Tweaker never downloads it**: a program that pulls a library off the internet and then runs it looks exactly like a dropper, which is one reason scanners flag tools like this. The user places the file once; the tool looks in the usual local spots, always verifies the SHA-256, and says so at startup with a link and a target folder if it is missing. The bundled repak cannot fetch it either - it is built from source with the download function and its HTTP/TLS stack removed ([tools/build_repak.py](tools/build_repak.py)). Packing never needs Oodle. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |
 | Packing | [pakio.py](s2tweaker/pakio.py) stages the files and calls the bundled `tools/repak.exe` (defaults are exactly what the game wants: V8B, mount `../../../`, uncompressed). |
@@ -179,6 +179,8 @@ pip install -r requirements.txt
 python main.py          # run the GUI directly
 build.bat               # or build dist/S2Tweaker/S2Tweaker.exe
 ```
+
+`tools/repak.exe` is not the upstream release binary: `python tools/build_repak.py` rebuilds it from source (pinned tag) with the runtime Oodle download removed, so nothing in the shipped folder can fetch anything. The CI does this on every build.
 
 The build is deliberately **`--onedir`, not `--onefile`**: a one-file
 PyInstaller exe is a self-extracting archive that unpacks itself into

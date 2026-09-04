@@ -127,17 +127,19 @@ NOTES
   that is a known false-positive pattern for Python-based tools.
 - Oodle library: to read the game's packed config files, a proprietary
   decompression library (oo2core_9_win64.dll, 0.6 MB) is required. It cannot
-  be shipped with this tool, so on first use S2Tweaker downloads it from the
-  public OodleUE mirror on GitHub and verifies its official checksum. It is
-  then kept in a "tools" folder next to the exe, so it downloads only once
-  and everything works offline afterwards. (Only if that folder is not
-  writable - e.g. the exe sits in Program Files - it goes to
-  %LOCALAPPDATA%\S2Tweaker\tools instead.) If antivirus HTTPS inspection, a
-  proxy or a VPN blocks github.com, just put that DLL next to S2Tweaker.exe
-  yourself - the tool picks it up automatically. It has to be the exact build
-  repak expects; other Oodle 2.9.x builds are rejected, and the tool tells
-  you when it found one. Building a mod pak never needs Oodle; only reading
-  the vanilla values does.
+  be shipped with this tool, and S2Tweaker does NOT download it - on purpose.
+  A program that pulls a library off the internet and then runs it is exactly
+  what malware does, and that is one of the reasons antivirus scanners flag
+  tools like this one. So you place the file once, yourself: if it is
+  missing, S2Tweaker tells you at startup and gives you both the download
+  link and the folder to put it in (next to S2Tweaker.exe; only if that
+  folder is not writable - e.g. the exe sits in Program Files - it goes to
+  %LOCALAPPDATA%\S2Tweaker\tools instead). You may already have the file:
+  every Unreal Engine installation ships it, and so do some other
+  S.T.A.L.K.E.R. 2 modding tools. It has to be the exact build repak
+  expects; other Oodle 2.9.x builds are rejected, and the tool tells you
+  when it found one. Building a mod pak never needs Oodle; only reading the
+  vanilla values does.
 - DLC-specific items (Cost of Hope etc.) are not covered by the per-item
   weight slider; the global multipliers still apply to them.
 - The in-game "Custom Rules" difficulty writes some of the same multipliers;

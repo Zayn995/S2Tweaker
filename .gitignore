@@ -8,6 +8,10 @@ output/
 out/
 release/NEXUS_SUPPORT_EMAIL.txt
 release/NEXUS_SUPPORT_EMAIL_NACHTRAG.txt
+# Internes Testprotokoll und der jederzeit neu erzeugbare Nexus-Header
+TESTPROTOKOLL.md
+release/NEXUS_HEADER.png
+release/NEXUS_SUPPORT_EMAIL_NACHTRAG.txt
 
 # Proprietary Oodle DLL (fetched at runtime, never redistributable).
 # Deliberately without a .dll suffix so half-finished downloads

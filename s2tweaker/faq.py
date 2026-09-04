@@ -614,16 +614,20 @@ FAQ_ENTRIES = [
              "safe malware quarantine",
     },
     {
-        "q": "Why does the tool download one file from the internet?",
-        "a": "Reading the game's packed configs needs Oodle's "
+        "q": "Does S2Tweaker download anything? What is the Oodle file?",
+        "a": "No, nothing - not the tool and not the repak it bundles. "
+             "Reading your game's packed configs needs Oodle's "
              "oo2core_9_win64.dll, which is proprietary and may not be "
-             "bundled. On first use the tool fetches it once from the "
-             "public OodleUE mirror on GitHub, verifies its official "
-             "SHA-256 checksum and keeps it in the tools folder - "
-             "offline afterwards. If your network blocks GitHub, place "
-             "that DLL next to S2Tweaker.exe yourself (the tools "
-             "folder is created next to the exe). There is no "
-             "telemetry; nothing is uploaded.",
+             "shipped with the tool. Older versions fetched it "
+             "automatically; that was dropped, because a program that "
+             "downloads a library and then runs it is exactly what "
+             "malware does and it made scanners flag this tool. Now you "
+             "place the file once yourself: if it is missing, S2Tweaker "
+             "says so at startup and gives you the link and the folder. "
+             "Every Unreal Engine install has the file, as do some other "
+             "S.T.A.L.K.E.R. 2 tools. Building a pak never needs it. The "
+             "only network request left is the update check, and only "
+             "when you click it.",
         "k": "internet network download dll oodle offline privacy "
              "telemetry connection firewall blocked",
     },

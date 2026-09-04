@@ -2089,6 +2089,32 @@ class App(ctk.CTk):
             pass
         self.after(100, self._poll_msgs)
         self.after(150, self._prefill_game)
+        self.after(600, self._check_oodle_present)
+
+    def _check_oodle_present(self):
+        """Beim Start pruefen, ob die Oodle-Bibliothek da ist.
+
+        Das Werkzeug laedt sie bewusst NICHT herunter (siehe pakio-Kopf:
+        ein Programm, das zur Laufzeit Bibliotheken nachlaedt, sieht fuer
+        Virenscanner wie ein Dropper aus). Fehlt sie, sagt es das sofort
+        beim Start mit Link und Zielordner — statt den Nutzer erst beim
+        Laden der Spieldaten auflaufen zu lassen. Einmal pro Sitzung."""
+        try:
+            if pakio.oodle_available():
+                return
+            repak = pakio.find_repak()
+            target = (repak.parent if repak else app_dir()) / pakio.OODLE_DLL
+            messagebox.showinfo(
+                APP_TITLE,
+                pakio.OODLE_HELP.format(
+                    dll=pakio.OODLE_DLL, url=pakio.OODLE_URL,
+                    hash8=pakio.OODLE_SHA256[:8], target=str(target.parent),
+                    reason="You can set your sliders right away - this is "
+                           "only needed to read the values out of your game."))
+            self._set_status("Oodle library missing - see the dialog; "
+                             "building a pak does not need it.")
+        except Exception:
+            pass        # eine fehlende Vorabwarnung darf den Start nie kippen
 
     def _set_icon(self):
         try:
