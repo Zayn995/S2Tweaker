@@ -13,7 +13,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=[LINK-A]]VirusTotal - [ZAHL-A][/url]
+[*]The mod itself: [url=https://www.virustotal.com/gui/file/1fda3a616121293ecd0975e91caaa33208b93267f15f5d1c07f63ac934877ebe/detection]VirusTotal - 1 of 66[/url]. The single detection is Zillya ("Dropper.Agent"); every other engine, Windows Defender included, reports it clean. Zillya has been informed and asked to review it as a false positive
 [*]The program file inside it: [url=https://www.virustotal.com/gui/file/e6ad82b315682c01a74534ad800920e562c24cc1503cf7a21ca75e408aeaf973]VirusTotal - 2 detections[/url]. Both are generic guesses, not a named malware family: Microsoft's is "Wacatac.B!ml", where the "!ml" means it comes from a machine-learning model rather than a signature, and Zillya's is "Dropper.Agent". Windows Defender as installed on my machine reports every file clean. VirusTotal explains the difference in its own documentation: engines run there with "stronger heuristics, cloud interaction, inclusion of beta signatures". Both vendors have been asked to review it as a false positive
 [/list]
 Version 1.19.2 exists mainly to earn those numbers - see the changelog. It went from three detections to two by removing a 2.8 MB compressed blob from inside the executable.
