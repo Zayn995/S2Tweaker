@@ -37,3 +37,7 @@ tests/_tmp/
 # Ordner, nicht ueber das Repo.
 HANDOVER.md
 docs/ROADMAP.md
+.claude/
+release/NEXUS_REPLIES.txt
+release/DEFENDER_FALSE_POSITIVE.txt
+release/SIGNPATH_APPLICATION.txt

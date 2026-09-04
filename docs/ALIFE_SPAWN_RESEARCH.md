@@ -10,7 +10,7 @@ gegen die extrahierten Vanilla-Daten (Patch 2.0.x, Stand 27.08.2026) gezählt,
 nichts ist geschätzt. Pfade relativ zu `vanilla/Stalker2/Content/GameLite/GameData/`.
 
 Kein Multi-Agent-Lauf — alles per Skript auf den lokalen Dateien (03.09.,
-Haupt-PC).
+the development machine).
 
 ---
 
