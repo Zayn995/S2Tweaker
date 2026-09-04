@@ -61,6 +61,69 @@ SPRINT_DRAIN_TAGS = {
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
                  "range", "bleeding", "adsspeed", "aimtime", "magazine"]
 
+# --- Kaliberwechsel (GitHub Issue #6) -----------------------------------
+# KEIN Kaskaden-Parameter: ein Kaliber ist ein Name, kein Faktor — es
+# stapelt nicht und gilt nur pro Waffe. Die Beschriftungen kommen aus
+# AMMO_CALIBER_LABELS weiter unten (die Tabelle gab es schon fuer den
+# Munitions-Baum) — keine zweite Liste danebenstellen.
+#
+# Es wird NICHTS gesperrt (ausdruecklicher Wunsch des Besitzers): jedes
+# Kaliber, das im Spiel wirklich an einer Waffe haengt, steht im Dropdown.
+# Stattdessen wird ehrlich drangeschrieben, was kaputtgeht. Nicht dabei ist
+# nur, was gar nicht in den Waffendaten steht — 7,62x39 zum Beispiel: die
+# Munition existiert, aber keine Waffe benutzt sie und sie liegt in null
+# Loot-Generatoren. Das faellt von selbst raus, weil die Tabelle aus den
+# Waffendaten kommt statt aus einer Liste im Code.
+CALIBERS_ODD = {"AGA", "APG7V", "AVOG", "AHEDP"}   # Gauss, Werfer
+
+
+def swappable_calibers(gd: GameData) -> dict[str, dict[str, str]]:
+    """{Kaliber: {Sorte: Projektil}} — alles, was eine Waffe benutzt."""
+    return gd.ammo_caliber_projectiles()
+
+
+def caliber_label(caliber: str) -> str:
+    return AMMO_CALIBER_LABELS.get(caliber, caliber)
+
+
+def caliber_warning(gd: GameData, current: str | None,
+                    wanted: str | None) -> str:
+    """Ehrlicher Hinweis zu genau diesem Wechsel — oder "".
+
+    Rechnet den Schadenseffekt aus den echten Munitionswerten vor, statt
+    ihn zu behaupten: der Schaden steht an der Waffe (BaseDamage), die
+    Munition liefert nur einen Multiplikator. Ueber alle Gewehr- und
+    Pistolenkaliber ist der 1.0, also aendert ein Wechsel dort NICHTS.
+    Schrot steht bei 0.084 — und die Flinte gleicht das mit BaseDamage
+    50.0 statt 9.5 aus. Wer eine Flinte auf 5.45 stellt, bekommt also
+    50 Schaden pro Schuss; wer ein Gewehr auf Schrot stellt, 0,8."""
+    if not wanted or not current or wanted == current:
+        return ""
+    mods = gd.caliber_damage_mods()
+    old, new = mods.get(current), mods.get(wanted)
+    if old and new and abs(new - old) > 1e-9:
+        # new/old, nicht old/new: der Multiplikator der NEUEN Patrone
+        # ersetzt den der alten, die BaseDamage der Waffe bleibt stehen.
+        factor = new / old
+        if factor >= 2:
+            return (f"Warning: this weapon will do roughly {factor:.0f}x its "
+                    "current damage per shot. Its damage value is balanced "
+                    f"against {caliber_label(current)}, whose rounds are "
+                    "scored per pellet; a single bullet is not. Broken, "
+                    "not a bug - and yours to keep if you want it.")
+        if factor <= 0.5:
+            return (f"Warning: this weapon will do roughly "
+                    f"{factor * 100:.0f} % of its current damage per shot. "
+                    f"{caliber_label(wanted)} is scored per pellet, and only "
+                    "shotguns carry the high damage value that makes up for "
+                    "it. Broken, not a bug - and yours to keep if you want "
+                    "it.")
+    if wanted in CALIBERS_ODD or current in CALIBERS_ODD:
+        return ("Warning: gauss and launcher ammunition is not normal "
+                "weapon ammunition. Nobody has tested what a rifle does "
+                "with it - expect it to simply not work.")
+    return ""
+
 WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
     "spread": "Spread",
@@ -432,6 +495,11 @@ class Settings:
     # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
     weapon_category_factors: dict = field(default_factory=dict)  # {kat: {param: f}}
     weapon_overrides: dict = field(default_factory=dict)         # {WGS-SID: {param: f}}
+    # Kaliberwechsel je Waffe: {WGS-SID: "A556"}. Bewusst NEBEN
+    # weapon_overrides, nicht darin: dort stehen ueberall Faktoren, und
+    # ein String an dieser Stelle wuerde die Kaskaden-Rechnung
+    # (_weapon_factor) und den Preset-Loader zum Absturz bringen.
+    weapon_calibers: dict = field(default_factory=dict)
     # Einzelruestungs-Overrides: {Item-SID: {strike/burn/...: faktor}}
     armor_overrides: dict = field(default_factory=dict)
 
@@ -1855,6 +1923,46 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             continue
         bucket = dlc_patches.setdefault(ed, {}) if ed is not None else patches
         bucket.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
+
+    # Kaliberwechsel (GitHub Issue #6, Molkerr): AmmoCaliber umsetzen und
+    # die Projektile der bestehenden Sorten-Slots auf das neue Kaliber
+    # umbiegen.
+    #
+    # Bewusst werden NUR vorhandene Slots umgeschrieben, nie welche
+    # angelegt oder entfernt. Ob {bpatch} ein Array verlaengern kann, ist
+    # im Projekt nie im Spiel geprueft worden (docs/SPEC.md fuehrt es als
+    # offene Frage) — und es waere auch nicht noetig: eine Waffe behaelt
+    # einfach so viele Munitionssorten, wie sie vorher hatte.
+    #
+    # Die Sorte wird pro Index AUS DEN DATEN gelesen, nie aus der
+    # Position geschlossen: sechs Scharfschuetzengewehre haben auf [0]
+    # Supersonic statt Default. Kennt das Zielkaliber die Sorte nicht,
+    # bekommt der Slot dessen Default-Projektil — so entsteht nie ein
+    # Slot, der ins Leere zeigt.
+    caliber_tables = swappable_calibers(gd) if s.weapon_calibers else {}
+    for sid, wanted in sorted(s.weapon_calibers.items()):
+        table = caliber_tables.get(wanted)
+        if table is None:
+            continue                      # unbekanntes/gesperrtes Kaliber
+        ed = dlc_eds.get(sid)
+        if gd.weapon_caliber(sid, ed) == wanted:
+            continue                      # Vanilla — kein Patch (_neq-Regel)
+        slots = gd.weapon_ammo_slots(sid, ed)
+        if not slots:
+            continue
+        fallback = table.get("Default") or next(iter(table.values()))
+        node: dict = {"AmmoCaliber": f"EAmmoCaliber::{wanted}"}
+        block: dict = {}
+        for index, kind in slots.items():
+            block[index] = {
+                "AmmoType": f"EAmmoType::{kind}",
+                "ProjectilePrototypeSID": table.get(kind, fallback),
+            }
+        node["AmmoTypeProjectiles"] = block
+        bucket = dlc_patches.setdefault(ed, {}) if ed is not None else patches
+        for key, value in node.items():
+            existing = bucket.setdefault(sid, {})
+            existing[key] = value
     return patches, dlc_patches
 
 
@@ -2959,6 +3067,13 @@ def summarize(s: Settings) -> list[str]:
             from .names import WEAPON_ALIASES
             lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: "
                          + ", ".join(parts))
+    # Kaliberwechsel eigene Zeile: er ist kein Faktor und gehoert nicht in
+    # die Aufzaehlung darueber — aber unbedingt in die Zusammenfassung,
+    # weil er die Waffe staerker veraendert als jeder Regler.
+    for sid, caliber in sorted(s.weapon_calibers.items()):
+        from .names import WEAPON_ALIASES
+        lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: ammunition "
+                     f"-> {caliber_label(caliber)}")
 
     f("Anomaly damage", s.anomaly_damage_factor)
     f("Anomaly damage: electro", s.anomaly_electro_factor)

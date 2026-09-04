@@ -1601,6 +1601,120 @@ class GameData:
                 result[sid] = number
         return result
 
+    # ------------------------------------------------------------- Kaliber
+    # Der EINZIGE Ort, an dem steht, welche Patrone eine Waffe frisst:
+    # AmmoCaliber (ein Wert) plus AmmoTypeProjectiles (Liste der erlaubten
+    # Sorten mit ihrem Projektil). Beides im selben Struct wie MaxAmmo.
+    # Wichtig fuer Patches: JEDE Waffe deklariert beides selbst — nachgezaehlt
+    # 92 von 92 Structs, davon 12 Templates auf ::None. Es wird also nichts
+    # geerbt, und ein Patch auf eine Waffe trifft keine andere.
+
+    def weapon_caliber(self, sid: str, edition: str | None = None) -> str | None:
+        """Kaliber einer Waffe ohne das EAmmoCaliber::-Praefix, z.B. "A545"."""
+        raw = (self.dlc_resolve_weapon(edition, sid, "AmmoCaliber")
+               if edition is not None
+               else self.resolve(self.weapongeneral, sid, "AmmoCaliber"))
+        if not raw:
+            return None
+        name = str(raw).split("::")[-1].strip()
+        return None if name in ("", "None") else name
+
+    def weapon_ammo_slots(self, sid: str,
+                          edition: str | None = None) -> dict[str, str]:
+        """{"[0]": "Default", "[1]": "ArmorPiercing", ...} einer Waffe.
+
+        Die Indizes sagen NICHTS ueber die Sorte: sechs Scharfschuetzen-
+        gewehre (SVD, SVU, M701, Cavalier, Lynx, Whip) haben auf [0]
+        Supersonic statt Default. Deshalb wird beim Patchen pro Index die
+        dort stehende SORTE gelesen, nie die Position angenommen."""
+        chain = (self.dlc_weapon_chain(edition, sid) if edition is not None
+                 else self._resolve_chain(self.weapongeneral, sid))
+        for node in chain:
+            block = node.children.get("AmmoTypeProjectiles")
+            if block is None:
+                continue
+            slots: dict[str, str] = {}
+            for index, entry in block.children.items():
+                kind = entry.values.get("AmmoType")
+                if kind:
+                    slots[index] = str(kind).split("::")[-1].strip()
+            if slots:
+                return slots
+        return {}
+
+    def ammo_caliber_projectiles(self) -> dict[str, dict[str, str]]:
+        """{Kaliber: {Sorte: Projektil-SID}} — aus den Waffendaten erhoben,
+        nicht aus Namen geraten.
+
+        Fast jedes Kaliber benutzt EIN Projektil fuer alle Sorten; Schrot
+        ist die Ausnahme (Default -> P012, AP/HP -> P012F, die Flinten-
+        laufgeschosse). Kaliber, die keine Waffe benutzt, tauchen hier gar
+        nicht erst auf — das haelt 7,62x39 draussen, dessen Munition zwar
+        existiert, aber in keinem Loot-Generator vorkommt."""
+        result: dict[str, dict[str, str]] = {}
+        trees = [self.weapongeneral] + [
+            entry["weapongeneral"] for entry in self.dlc_editions.values()
+            if entry.get("weapongeneral") is not None]
+        for tree in trees:
+            for sid, node in tree.children.items():
+                if "#" in sid:
+                    continue
+                raw = node.values.get("AmmoCaliber")
+                if not raw:
+                    continue
+                caliber = str(raw).split("::")[-1].strip()
+                if caliber in ("", "None"):
+                    continue
+                block = node.children.get("AmmoTypeProjectiles")
+                if block is None:
+                    continue
+                table = result.setdefault(caliber, {})
+                for entry in block.children.values():
+                    kind = entry.values.get("AmmoType")
+                    shot = entry.values.get("ProjectilePrototypeSID")
+                    if kind and shot:
+                        table.setdefault(str(kind).split("::")[-1].strip(),
+                                         str(shot).strip())
+        return {c: t for c, t in result.items() if t}
+
+    def caliber_damage_mods(self) -> dict[str, float]:
+        """{Kaliber: DamageMod seiner Standardpatrone}.
+
+        Der Schaden selbst steht an der WAFFE (BaseDamage in
+        CharacterWeaponSettings — dort kommt das Wort Caliber kein
+        einziges Mal vor). Die Munition liefert nur diesen Multiplikator,
+        und er ist ueber alle Gewehr- und Pistolenkaliber 1.0. Genau eine
+        Ausnahme: Schrot steht bei 0.084, weil eine Schrotpatrone viele
+        Kugeln verschiesst — die Flinte gleicht das mit BaseDamage 50.0
+        gegen 9.5 beim Gewehr aus. Daraus laesst sich vorrechnen, was ein
+        Wechsel mit dem Schaden macht, statt es zu behaupten."""
+        result: dict[str, float] = {}
+        for node in self.items.children.values():
+            if node.values.get("AmmoType") != "EAmmoType::Default":
+                continue
+            raw = node.values.get("Caliber")
+            mod = node.values.get("DamageMod")
+            if not raw or mod is None:
+                continue
+            caliber = str(raw).split("::")[-1].strip()
+            number = parse_number(mod)
+            if caliber and number > 0:
+                result.setdefault(caliber, number)
+        return result
+
+    def weapon_caliber_users(self, sid: str) -> int:
+        """Wieviele Item-Prototypen (Spieler + NPC + Bosse) sich dieses
+        WeaponGeneralSetup teilen.
+
+        Zaehlt, weil das Kaliber am SETUP haengt: die Spieler-AK-74,
+        Korshunovs AK und die Wach-AK teilen sich eines — wer die eine
+        umstellt, stellt alle drei um. Bei TOZ und PM sind es vier."""
+        count = 0
+        for node in self.items.children.values():
+            if node.values.get("GeneralWeaponSetup") == sid:
+                count += 1
+        return count
+
     TRADE_KEYS = (
         "WeaponSellMinDurability", "ArmorSellMinDurability",
         "BuyModifier", "SellModifier",

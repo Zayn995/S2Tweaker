@@ -23,6 +23,7 @@ from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
     AMMO_CALIBER_LABELS,
+    CALIBERS_ODD,
     ARMOR_PARAM_LABELS,
     ARMOR_PARAMS,
     AMMO_PARAM_KEYS,
@@ -37,7 +38,10 @@ from .tweaks import (
     ammo_label,
     armor_label,
     build_patches,
+    caliber_label,
+    caliber_warning,
     summarize,
+    swappable_calibers,
     weapon_available_params,
 )
 
@@ -693,6 +697,11 @@ class IwWeaponRow:
         self.params = list(app._iw_params.get(sid) or WEAPON_PARAMS)
         self.body = None                       # CTkFrame, erst bei build()
         self.sliders: dict[str, SliderRow] = {}
+        self.cal_menu = None                   # Kaliber-Dropdown (Issue #6)
+        self.cal_warn = None                   # Warnzeile darunter
+        self._cal_vanilla = None
+        self._cal_values: list[str] = []
+        self._cal_labels: list[str] = []
         self.reset_btn = None
         self.expanded = False
         self._highlight = "normal"
@@ -744,6 +753,7 @@ class IwWeaponRow:
                 anchor="w", justify="left", wraplength=700,
                 font=self.app._iw_font_hint, text_color="gray60",
             ).pack(fill="x", padx=12, pady=(2, 0))
+        self._build_caliber_row()
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed auf — ohne Sperre wuerde der halb gefuellte
         # Regler-Satz den gespeicherten Override der Waffe ueberschreiben.
@@ -782,6 +792,82 @@ class IwWeaponRow:
         self._state = ""
         self.set_state(self.app._iw_state)      # koennte noch gesperrt sein
 
+    # ----------------------------------------------------------- Kaliber
+    def _build_caliber_row(self):
+        """Dropdown "Ammunition" (GitHub Issue #6, Wunsch von Molkerr).
+
+        Steht ueber den Reglern, weil es die Waffe grundsaetzlicher
+        veraendert als jeder Faktor. KEIN Kaskaden-Element: ein Kaliber
+        ist ein Name, kein Faktor — es stapelt nicht mit Kategorie oder
+        globalem Regler und gibt es deshalb nur je Waffe.
+
+        Es wird bewusst NICHTS gesperrt: auch Schrot, Gauss und Werfer
+        stehen drin. Was dabei kaputtgeht, sagt die Warnzeile darunter —
+        mit der echten, aus den Spieldaten gerechneten Zahl."""
+        vanilla = self.app._iw_caliber.get(self.sid)
+        if vanilla is None:
+            return                      # Waffe ohne Kaliber (Messer o. Ae.)
+        options = self.app._iw_caliber_options
+        if not options:
+            return
+        self._cal_vanilla = vanilla
+        self._cal_values = [""] + [c for c in options if c != vanilla]
+        labels = [f"vanilla ({caliber_label(vanilla)})"] + [
+            caliber_label(c) for c in self._cal_values[1:]]
+        self._cal_labels = labels
+        row = ctk.CTkFrame(self.body, fg_color="transparent")
+        row.pack(fill="x", padx=12, pady=(4, 0))
+        ctk.CTkLabel(row, text="Ammunition", width=260, anchor="w",
+                     font=self.app._iw_font_row).pack(side="left")
+        self.cal_menu = ctk.CTkOptionMenu(
+            row, values=labels, width=230, command=self._caliber_changed)
+        self.cal_menu.pack(side="left")
+        # Zwei Hinweise, die immer gelten (also nicht erst bei Auswahl):
+        # der Schaden bleibt, und NPC-Waffen haengen mit dran.
+        users = self.app._iw_setup_users.get(self.sid, 1)
+        note = ("Changes which rounds the weapon takes - not its damage. "
+                "Damage comes from the weapon itself (the slider below); "
+                "a swap changes penetration, bullet flight, price and how "
+                "easy the ammo is to find.")
+        if users > 1:
+            note += (f" This weapon setup is shared by {users} items, so "
+                     "the change applies to the NPC and boss versions of "
+                     "this gun as well.")
+        ctk.CTkLabel(self.body, text="   " + note, anchor="w",
+                     justify="left", wraplength=700,
+                     font=self.app._iw_font_hint,
+                     text_color="gray60").pack(fill="x", padx=12, pady=(2, 0))
+        self.cal_warn = ctk.CTkLabel(
+            self.body, text="", anchor="w", justify="left", wraplength=700,
+            font=self.app._iw_font_hint, text_color="#E6B800")
+        self.cal_warn.pack(fill="x", padx=12, pady=(0, 2))
+        self._refresh_caliber_warning()
+
+    def _caliber_changed(self, label: str):
+        if self.app._iw_loading or self.cal_menu is None:
+            return
+        self.app._iw_auto_opened.discard(self.cat)   # siehe toggle()
+        try:
+            wanted = self._cal_values[self._cal_labels.index(label)]
+        except ValueError:
+            return
+        if wanted:
+            self.app.weapon_calibers[self.sid] = wanted
+        else:
+            self.app.weapon_calibers.pop(self.sid, None)
+        self._refresh_caliber_warning()
+        self.refresh()
+        self.app._iw_after_change(self.cat)
+
+    def _refresh_caliber_warning(self):
+        if self.cal_warn is None:
+            return
+        chosen = self.app.weapon_calibers.get(self.sid)
+        text = ""
+        if chosen and self.app.gd is not None:
+            text = caliber_warning(self.app.gd, self._cal_vanilla, chosen)
+        self.cal_warn.configure(text=("   " + text) if text else "")
+
     def toggle(self):
         # Jede Interaktion in einer Kategorie macht sie zur Benutzer-Kategorie:
         # das Leeren des Suchfelds darf sie danach nicht mehr zuklappen.
@@ -801,6 +887,17 @@ class IwWeaponRow:
     # ------------------------------------------------------------- Werte
     def load_values(self):
         """weapon_overrides -> Regler, ohne dass _changed zurueckschreibt."""
+        if self.cal_menu is not None:
+            chosen = self.app.weapon_calibers.get(self.sid, "")
+            prev = self.app._iw_loading
+            self.app._iw_loading = True
+            try:
+                index = (self._cal_values.index(chosen)
+                         if chosen in self._cal_values else 0)
+                self.cal_menu.set(self._cal_labels[index])
+            finally:
+                self.app._iw_loading = prev
+            self._refresh_caliber_warning()
         if self.sliders:
             stored = self.app.weapon_overrides.get(self.sid, {})
             prev = self.app._iw_loading
@@ -828,6 +925,7 @@ class IwWeaponRow:
 
     def reset(self):
         self.app.weapon_overrides.pop(self.sid, None)
+        self.app.weapon_calibers.pop(self.sid, None)
         self.load_values()
         self.app._iw_after_change(self.cat)
 
@@ -840,8 +938,15 @@ class IwWeaponRow:
         # Nenner ist self.params: Waffen ohne Abnutzungswert & Co. haben
         # weniger Regler, sonst stuende dort eine unerreichbare Zahl.
         mark = f"     ●  {n} of {len(self.params)} factors changed" if n else ""
+        cal = self.app.weapon_calibers.get(self.sid)
+        if cal:
+            # Das Kaliber zaehlt NICHT als Faktor mit (es ist keiner), steht
+            # aber in der zugeklappten Zeile — sonst uebersieht man den
+            # weitreichendsten Eingriff, den es an einer Waffe gibt.
+            mark += (f"     ●  {caliber_label(cal)}" if mark
+                     else f"     ●  {caliber_label(cal)}")
         self.btn.configure(text=f"{arrow}  {weapon_display(self.sid)}{mark}")
-        self._apply_color(n)
+        self._apply_color(n or (1 if cal else 0))
 
     def _apply_color(self, n: int):
         """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
@@ -855,7 +960,8 @@ class IwWeaponRow:
 
     def set_highlight(self, mode: str):
         self._highlight = mode
-        self._apply_color(len(self.app.weapon_overrides.get(self.sid, {})))
+        self._apply_color(len(self.app.weapon_overrides.get(self.sid, {}))
+                          or (1 if self.app.weapon_calibers.get(self.sid) else 0))
 
     def set_state(self, state: str):
         # Frueh raus, wenn sich nichts aendert: bei 79 offenen Waffen haengen
@@ -866,6 +972,8 @@ class IwWeaponRow:
         self.btn.configure(state=state)
         if self.reset_btn is not None:
             self.reset_btn.configure(state=state)
+        if self.cal_menu is not None:
+            self.cal_menu.configure(state=state)
         for row in self.sliders.values():
             row.set_state(state)
 
@@ -956,8 +1064,12 @@ class IwCategoryBlock:
         self.collapse() if self.expanded else self.expand()
 
     def refresh(self):
+        # Eine gewaehlte Munition zaehlt hier mit: sonst steht ueber einer
+        # Kategorie "0 of 12 overridden", obwohl darin eine Waffe auf ein
+        # anderes Kaliber steht — der weitreichendste Eingriff von allen.
         n_over = sum(1 for sid in self.sids
-                     if sid in self.app.weapon_overrides)
+                     if sid in self.app.weapon_overrides
+                     or sid in self.app.weapon_calibers)
         arrow = "▾" if self.expanded else "▸"
         extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
                  if n_over else "")
@@ -1999,6 +2111,12 @@ class App(ctk.CTk):
         self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
         self._iw_params: dict[str, list[str]] = {}  # WGS-SID -> vorhandene Parameter
         self._iw_dlc: dict[str, str] = {}          # WGS-SID -> DLC-Edition
+        self._iw_caliber: dict[str, str | None] = {}   # WGS-SID -> Vanilla-Kaliber
+        self._iw_caliber_options: list[str] = []       # Auswahl im Dropdown
+        self._iw_setup_users: dict[str, int] = {}      # Items je Setup (NPC-Zwillinge)
+        # Kaliberwechsel je Waffe: {WGS-SID: "A556"} — nur Abweichungen von
+        # Vanilla. Bewusst NEBEN weapon_overrides: dort stehen Faktoren.
+        self.weapon_calibers: dict[str, str] = {}
         self._iw_blocks: dict[str, IwCategoryBlock] = {}
         self._iw_auto_opened: set[str] = set()     # von der Suche aufgeklappt
         # Kategorie-Knoepfe im Abschnitt "Weapon categories": {cat: (btn, label, farbe)}
@@ -2458,6 +2576,27 @@ class App(ctk.CTk):
             and (kept := {p: v for p, v in params.items()
                           if p in self._iw_params.get(sid, WEAPON_PARAMS)})
         }
+        # Kaliber (GitHub Issue #6): Vanilla-Wert je Waffe, die Auswahlliste
+        # und wie viele Item-Prototypen an diesem Setup haengen. Letzteres
+        # ist die ehrliche Zahl fuer den Hinweis "trifft auch NPCs": das
+        # Kaliber sitzt am WeaponGeneralSetup, und die Spieler-AK-74,
+        # Korshunovs AK und die Wach-AK teilen sich genau eines.
+        self._iw_caliber = {
+            sid: self.gd.weapon_caliber(sid, self._iw_dlc.get(sid))
+            for sid in self._iw_categories
+        }
+        self._iw_caliber_options = sorted(
+            swappable_calibers(self.gd),
+            key=lambda c: (c in CALIBERS_ODD, caliber_label(c)))
+        self._iw_setup_users = {
+            sid: self.gd.weapon_caliber_users(sid)
+            for sid in self._iw_categories
+        }
+        # Verwaiste Kaliberwahl genauso verwerfen wie verwaiste Overrides
+        self.weapon_calibers = {
+            sid: cal for sid, cal in self.weapon_calibers.items()
+            if sid in self._iw_categories and cal in self._iw_caliber_options
+        }
         self._iw_build_tree()
 
     def _iw_build_tree(self):
@@ -2505,8 +2644,9 @@ class App(ctk.CTk):
         self._iw_update_info()
 
     def _iw_update_info(self):
-        if self.weapon_overrides:
-            text = "Overrides set for: " + ", ".join(sorted(self.weapon_overrides))
+        namen = sorted(set(self.weapon_overrides) | set(self.weapon_calibers))
+        if namen:
+            text = "Overrides set for: " + ", ".join(namen)
         else:
             text = "No per-weapon overrides set."
         self.iw_info.configure(text=text)
@@ -2521,6 +2661,7 @@ class App(ctk.CTk):
 
     def _iw_clear_all(self):
         self.weapon_overrides.clear()
+        self.weapon_calibers.clear()
         self._iw_refresh_all()
 
     def _iw_note(self, block, cat_hit: bool, sid_hits: list, hits) -> None:
@@ -4572,6 +4713,7 @@ class App(ctk.CTk):
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},
+            weapon_calibers=dict(self.weapon_calibers),
             ammo_overrides={sid: dict(v)
                             for sid, v in self.ammo_overrides.items()},
             armor_overrides={sid: dict(v)
@@ -5469,6 +5611,7 @@ class App(ctk.CTk):
             "checks": {k: bool(v.get()) for k, v in self.checks.items()},
             "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
             "weapon_overrides": self.weapon_overrides,
+            "weapon_calibers": self.weapon_calibers,
             "ammo_overrides": self.ammo_overrides,
             "armor_overrides": self.armor_overrides,
             "mutant_overrides": self.mutant_overrides,
@@ -5601,6 +5744,21 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.weapon_overrides[sid] = clean
+        # Kaliberwechsel (Issue #6): nur Waffen und Kaliber uebernehmen, die
+        # es in DIESER Installation gibt — ein Preset von einer anderen
+        # Spielversion brachte sonst eine Wahl mit, die nie einen Patch
+        # erzeugt. Sind die Spieldaten noch nicht geladen, sind beide
+        # Listen leer und _iw_populate raeumt spaeter auf.
+        for sid, caliber in (data.get("weapon_calibers") or {}).items():
+            if not isinstance(caliber, str) or not caliber:
+                continue
+            if self._iw_categories and sid not in self._iw_categories:
+                continue                      # Waffe gibt es hier nicht
+            if self._iw_caliber_options and caliber not in self._iw_caliber_options:
+                continue
+            if self._iw_caliber and self._iw_caliber.get(sid) == caliber:
+                continue                      # entspricht Vanilla
+            self.weapon_calibers[sid] = caliber
         for species, params in (data.get("mutant_overrides") or {}).items():
             try:
                 clean = {p: float(v) for p, v in params.items()

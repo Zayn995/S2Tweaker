@@ -80,6 +80,22 @@ FAQ_ENTRIES = [
              "gabion veteran monolith edition deluxe ultimate preorder",
     },
     {
+        "q": "Can I change which ammunition a weapon uses?",
+        "a": "Yes - Weapons tab, 'Single weapon overrides': open the "
+             "weapon and use the 'Ammunition' dropdown above the "
+             "sliders. It does NOT change damage - that comes from the "
+             "weapon (the Damage slider); the round only adds a "
+             "multiplier, and it is the same for every rifle and pistol "
+             "caliber. What changes is penetration, bullet flight, price "
+             "and how easy the ammo is to find. The caliber sits on the "
+             "weapon setup that player and NPC guns share, so an AK-74 "
+             "on 5.56 means every AK-74 uses 5.56. Nothing is blocked, "
+             "including choices that break the gun (shotgun shells are "
+             "scored per pellet) - the tool says so and lets you do it.",
+        "k": "ammo ammunition caliber change swap type 545 556 762 9mm "
+             "shotgun gauge convert rechamber weapon dropdown",
+    },
+    {
         "q": "Can I tune ONE specific armor or helmet?",
         "a": "Yes - Armor tab, 'Single armor overrides': open Body armor "
              "(the Deluxe/Ultimate/Pre-order edition suits like the "
