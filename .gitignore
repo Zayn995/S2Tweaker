@@ -9,6 +9,7 @@ out/
 release/NEXUS_SUPPORT_EMAIL.txt
 release/NEXUS_SUPPORT_EMAIL_NACHTRAG.txt
 release/NEXUS_SUPPORT_EMAIL_NACHTRAG2.txt
+release/ZILLYA_FALSE_POSITIVE.txt
 # Internes Testprotokoll und der jederzeit neu erzeugbare Nexus-Header
 TESTPROTOKOLL.md
 release/NEXUS_HEADER.png
