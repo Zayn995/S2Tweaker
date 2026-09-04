@@ -11,8 +11,6 @@ import subprocess
 import sys
 import threading
 import traceback
-import urllib.request
-import webbrowser
 from pathlib import Path
 
 import tkinter as tk
@@ -45,34 +43,14 @@ from .tweaks import (
 
 APP_TITLE = f"S2Tweaker {__version__} – S.T.A.L.K.E.R. 2 Mod Generator"
 
-# Update-Check (GitHub Issue #3): EIN GET auf Wunsch des Nutzers, nie im
-# Hintergrund — die Support-Mail an Nexus verspricht "keine Telemetrie".
-UPDATE_API_URL = "https://api.github.com/repos/Zayn995/S2Tweaker/releases/latest"
-# update.bat liegt NICHT im Spieler-ZIP: es ist eine Datei, die
-# herunterlaedt und die EXE ersetzt — genau das Verhalten, das
-# Virenscanner an einem Werkzeug wie diesem stoert. Wer den
-# Automatik-Weg will, holt sie sich bewusst selbst.
-UPDATER_URL = ("https://raw.githubusercontent.com/Zayn995/S2Tweaker"
-               "/main/release/update.bat")
-RELEASES_PAGE = "https://github.com/Zayn995/S2Tweaker/releases"
-
-
-def _version_tuple(text: str) -> tuple[int, ...]:
-    parts: list[int] = []
-    for chunk in str(text).strip().lstrip("vV").split("."):
-        digits = "".join(ch for ch in chunk if ch.isdigit())
-        if not digits:
-            break
-        parts.append(int(digits))
-    return tuple(parts)
-
-
-def update_verdict(tag: str | None, current: str) -> str:
-    """'newer' | 'current' | 'error' — pur, damit Tests es ohne Netz pruefen."""
-    latest = _version_tuple(tag) if tag else ()
-    if not latest:
-        return "error"
-    return "newer" if latest > _version_tuple(current) else "current"
+# KEIN Netzwerkcode. Seit 1.19.2 stellt das Programm ueberhaupt keine
+# Verbindung mehr her — auch nicht auf Knopfdruck. Grund: Nexus' eigene
+# Regeln nennen internetfaehige Programme unzulaessig, "unless where it is
+# crucial", und sagen ausdruecklich, dass "'auto update' functionality does
+# not qualify as crucial". Ohne urllib laesst sich das im oeffentlichen
+# Quelltext mit einem einzigen grep nachpruefen — und genau diese
+# Nachpruefbarkeit ist gegenueber Moderation und Virenscannern mehr wert
+# als der Komfort eines Update-Knopfes. Nicht wieder einbauen.
 
 
 def app_dir() -> Path:
@@ -2094,7 +2072,6 @@ class App(ctk.CTk):
         # "Changed only": dimmt alles, was auf Vanilla steht
         self.changed_only = False
         self._oc_job: str | None = None
-        self._update_running = False        # Update-Check laeuft gerade
 
         self._build_header()
         self._build_body()
@@ -2121,7 +2098,6 @@ class App(ctk.CTk):
         den Nutzer erst beim Laden der Spieldaten auflaufen zu lassen."""
         try:
             self._refresh_oodle_badge()
-            self._refresh_updater_badge()
             if pakio.oodle_available():
                 return
             self._open_oodle_wizard()
@@ -2145,22 +2121,6 @@ class App(ctk.CTk):
         if win is not None and win.winfo_exists():
             win.destroy()
         self._refresh_oodle_badge()
-        self._refresh_updater_badge()
-
-    def updater_present(self) -> bool:
-        """Liegt update.bat neben der EXE? (optionale Beigabe)"""
-        return (app_dir() / "update.bat").is_file()
-
-    def _refresh_updater_badge(self):
-        btn = getattr(self, "btn_updater", None)
-        if btn is None:
-            return
-        if self.updater_present():
-            btn.configure(text="● Updater ready", fg_color="#2E7D32",
-                          hover_color="#256428")
-        else:
-            btn.configure(text="● Updater optional", fg_color="#B3261E",
-                          hover_color="#8C1D18")
 
     def _refresh_oodle_badge(self):
         """Ampel neben dem FAQ-Knopf: gruen = da, rot = fehlt.
@@ -2183,8 +2143,7 @@ class App(ctk.CTk):
                           hover_color="#8C1D18")
 
     def _open_oodle_wizard(self, page: int = 0):
-        """Vierseitiger Assistent: Link kopieren, herunterladen, ablegen —
-        und als vierte, freiwillige Seite der Updater.
+        """Dreiseitiger Assistent: Link kopieren, herunterladen, ablegen.
 
         Bewusst Schritt fuer Schritt mit Bildern: der Nutzer muss eine
         fremde DLL von Hand besorgen — das ist erklaerungsbeduerftig, und
@@ -2220,7 +2179,7 @@ class App(ctk.CTk):
         def show(page: int):
             # Erst hier zusammenstellen: die Seitenfunktionen entstehen
             # weiter unten, ein Tupel auf Modulebene waere zu frueh.
-            pages = (_page1, _page2, _page3, _page4)
+            pages = (_page1, _page2, _page3)
             page = max(0, min(page, len(pages) - 1))
             state["page"] = page
             for child in body.winfo_children():
@@ -2320,9 +2279,14 @@ class App(ctk.CTk):
         def _page3():
             heading("Put the file next to S2Tweaker.exe")
             picture("oodle_folder.png")
+            # Kein "update.bat" mehr als Wegmarke: die Datei ist seit 1.19.1
+            # nicht mehr im Download. Das Bild zeigt sie noch (es ist der
+            # Ordner des Besitzers) — deshalb nennt der Text nur Dateien,
+            # die JEDER wirklich hat. Nie eine Datei als Orientierung
+            # nennen, die beim Nutzer gar nicht liegt.
             para("Move the downloaded oo2core_9_win64.dll into the folder that "
-                 "holds S2Tweaker.exe – the same place as README.txt and "
-                 "update.bat. Not into the “_internal” folder.")
+                 "holds S2Tweaker.exe – the same place as README.txt. "
+                 "Not into the “_internal” folder.")
             target = ctk.CTkEntry(body, font=ctk.CTkFont(size=14), height=34)
             target.insert(0, str(self._oodle_target_dir()))
             target.configure(state="readonly")
@@ -2334,49 +2298,6 @@ class App(ctk.CTk):
                 anchor="w", justify="left", wraplength=810,
                 font=ctk.CTkFont(size=16, weight="bold"),
             ).pack(fill="x")
-
-        # ---------------------------------------------------------- Seite 4
-        def _page4():
-            heading("Optional: the one-click updater")
-            para("S2Tweaker can update itself, but only with a small helper "
-                 "file called update.bat. It is NOT part of the download, and "
-                 "you do not need it: the tool works fully without it.")
-            para("Why it is separate: update.bat downloads a new version and "
-                 "replaces the program files. That is useful, but it is also "
-                 "the kind of behaviour antivirus scanners dislike – so it is "
-                 "your choice, not something we push on you.", "gray60")
-            state_txt = ("It is here – the one-click update works."
-                         if self.updater_present() else
-                         "It is not here. \"Check for updates\" still tells you "
-                         "when a new version exists and opens the download "
-                         "page; only the automatic swap is unavailable.")
-            ctk.CTkLabel(
-                body, text=state_txt, anchor="w", justify="left",
-                wraplength=810,
-                text_color=("#4CAF50" if self.updater_present() else "#E6B800"),
-                font=ctk.CTkFont(size=16, weight="bold"),
-            ).pack(fill="x", pady=(4, 10))
-            para("If you want it, save this file next to S2Tweaker.exe – the "
-                 "same folder as before:", pady=(4, 4))
-            row2 = ctk.CTkFrame(body, fg_color="transparent")
-            row2.pack(fill="x")
-            e2 = ctk.CTkEntry(row2, font=ctk.CTkFont(size=14), height=34)
-            e2.insert(0, UPDATER_URL)
-            e2.configure(state="readonly")
-            e2.pack(side="left", fill="x", expand=True)
-            btn2 = ctk.CTkButton(row2, text="⧉  Copy", width=130, height=34,
-                                 font=ctk.CTkFont(size=14))
-
-            def copy2():
-                self.clipboard_clear()
-                self.clipboard_append(UPDATER_URL)
-                btn2.configure(text="✓  Copied", fg_color="#2E7D32",
-                               hover_color="#2E7D32")
-
-            btn2.configure(command=copy2)
-            btn2.pack(side="left", padx=(8, 0))
-            para("It is plain text – open it in Notepad and you can read "
-                 "exactly what it does.", "gray60", pady=(10, 0))
 
         show(page)
         win.after(250, win.lift)
@@ -2411,21 +2332,18 @@ class App(ctk.CTk):
         self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
 
         # Zeile 2: Werkzeuge — Suche (waechst mit), Changed only, FAQ,
-        # Update-Check (GitHub Issue #3)
+        # Oodle-Ampel. KEIN Update-Knopf mehr (1.19.2): das Programm
+        # spricht mit keinem Server mehr, siehe Kopf der Datei.
         tools = ctk.CTkFrame(self)
         tools.pack(fill="x", padx=10, pady=(0, 4))
         self.search_entry = ctk.CTkEntry(tools, width=230,
                                          placeholder_text="🔍 Find a slider, weapon or ammo …")
         self.search_entry.pack(side="left", padx=(10, 4), pady=8,
                                fill="x", expand=True)
-        self.btn_update = ctk.CTkButton(
-            tools, text="⟳ Check for updates", width=150, fg_color="gray30",
-            hover_color="gray25", command=self._check_updates)
-        self.btn_update.pack(side="right", padx=(4, 10), pady=8)
         self.btn_faq = ctk.CTkButton(tools, text="? FAQ", width=70,
                                      fg_color="gray30", hover_color="gray25",
                                      command=self._show_faq)
-        self.btn_faq.pack(side="right", padx=4, pady=8)
+        self.btn_faq.pack(side="right", padx=(4, 10), pady=8)
         # Oodle-Ampel: auf einen Blick sichtbar, ob die Bibliothek da ist.
         # Klick oeffnet den Assistenten — auch dann, wenn alles stimmt, damit
         # man die Anleitung jederzeit nachlesen kann.
@@ -2433,11 +2351,6 @@ class App(ctk.CTk):
             tools, text="● Oodle", width=132, fg_color="gray30",
             hover_color="gray25", command=self._open_oodle_wizard)
         self.btn_oodle.pack(side="right", padx=4, pady=8)
-        self.btn_updater = ctk.CTkButton(
-            tools, text="● Updater", width=132, fg_color="gray30",
-            hover_color="gray25",
-            command=lambda: self._open_oodle_wizard(page=3))
-        self.btn_updater.pack(side="right", padx=4, pady=8)
         self.btn_changed = ctk.CTkButton(
             tools, text="Changed only", width=105, fg_color="gray30",
             hover_color="gray25", command=self._toggle_changed_only)
@@ -4407,7 +4320,6 @@ class App(ctk.CTk):
                     self.game_label.configure(text=payload)
                 elif kind == "ready":
                     self._refresh_oodle_badge()
-                    self._refresh_updater_badge()
                     self._iw_populate()
                     self._ia_populate()
                     self._ir_populate()
@@ -4432,11 +4344,6 @@ class App(ctk.CTk):
                     self.btn_browse.configure(state="normal")
                     if self.gd is not None:      # alte Daten weiter nutzbar
                         self.btn_scan.configure(state="normal")
-                elif kind == "update_result":
-                    self._update_running = False
-                    self.btn_update.configure(state="normal",
-                                              text="⟳ Check for updates")
-                    self._show_update_result(payload)
                 elif kind == "oodle":
                     self._open_oodle_wizard()
                 elif kind == "error":
@@ -4444,83 +4351,6 @@ class App(ctk.CTk):
         except queue.Empty:
             pass
         self.after(100, self._poll_msgs)
-
-    # ------------------------------------------------- update check (#3)
-    def _check_updates(self):
-        """EIN GET auf Knopfdruck — nie automatisch (keine Telemetrie)."""
-        if self._update_running:
-            return
-        self._update_running = True
-        self.btn_update.configure(state="disabled", text="⟳ Checking …")
-        threading.Thread(target=self._fetch_latest_release,
-                         daemon=True).start()
-
-    def _fetch_latest_release(self):
-        try:
-            request = urllib.request.Request(
-                UPDATE_API_URL, headers={"User-Agent": "S2Tweaker"})
-            with urllib.request.urlopen(request, timeout=10) as resp:
-                data = json.load(resp)
-            self._msgs.put(("update_result", str(data.get("tag_name") or "")))
-        except Exception:
-            self._msgs.put(("update_result", None))
-
-    def _updater_path(self) -> Path | None:
-        """update.bat neben der EXE — nur als eingefrorene EXE sinnvoll
-        (im Dev-Modus gibt es keine EXE zum Ersetzen)."""
-        if not getattr(sys, "frozen", False):
-            return None
-        bat = app_dir() / "update.bat"
-        return bat if bat.is_file() else None
-
-    def _show_update_result(self, tag: str | None):
-        verdict = update_verdict(tag, __version__)
-        if verdict == "error":
-            messagebox.showwarning(
-                APP_TITLE,
-                "Could not reach github.com to check for updates.\n"
-                "Are you offline, or is GitHub blocked by a firewall?\n\n"
-                f"You can always check manually:\n{RELEASES_PAGE}")
-        elif verdict == "newer":
-            latest = str(tag).lstrip("vV")
-            bat = self._updater_path()
-            if bat is not None:
-                choice = messagebox.askyesnocancel(
-                    APP_TITLE,
-                    f"A newer version is available: {latest} "
-                    f"(you have {__version__}).\n\n"
-                    "Yes = update now: the tool closes itself and runs "
-                    "update.bat, which downloads the new version from "
-                    "GitHub and swaps the program files, S2Tweaker.exe "
-                    "and the _internal folder (the old ones are kept as "
-                    "S2Tweaker.exe.bak and _internal.bak). Settings, "
-                    "presets and cache stay where they are.\n\n"
-                    "No = just open the download page in the browser.")
-                if choice is True:
-                    try:
-                        os.startfile(bat)
-                    except OSError:
-                        messagebox.showerror(
-                            APP_TITLE,
-                            "Could not start update.bat - please run it "
-                            "yourself from the tool folder.")
-                        return
-                    self._on_close()
-                elif choice is False:
-                    webbrowser.open(RELEASES_PAGE + "/latest")
-                return
-            if messagebox.askyesno(
-                    APP_TITLE,
-                    f"A newer version is available: {latest} "
-                    f"(you have {__version__}).\n\n"
-                    "Open the download page in your browser?\n\n"
-                    "Updating is easy: download the new ZIP and replace "
-                    "S2Tweaker.exe - your settings, presets and cache "
-                    "stay where they are."):
-                webbrowser.open(RELEASES_PAGE + "/latest")
-        else:
-            messagebox.showinfo(
-                APP_TITLE, f"You are up to date ({__version__}).")
 
     def _prefill_game(self):
         """Beim Start: Spielordner nur VORSCHLAGEN, nichts laden."""

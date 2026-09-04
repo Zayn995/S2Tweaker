@@ -38,8 +38,9 @@ for geom in ("1010x720", "880x600"):
         b = getattr(app, name)
         assert b.winfo_ismapped() and b.winfo_width() > 50, \
             f"{name} bei {geom}: {b.winfo_width()}px"
-    # Header-Zeile 2 (Suche / Changed only / FAQ / Update) ebenso
-    for name in ("search_entry", "btn_changed", "btn_faq", "btn_update"):
+    # Header-Zeile 2 (Suche / Changed only / Oodle-Ampel / FAQ) ebenso.
+    # btn_update gibt es seit 1.19.2 nicht mehr: keine Netzfunktionen.
+    for name in ("search_entry", "btn_changed", "btn_faq", "btn_oodle"):
         b = getattr(app, name)
         assert b.winfo_ismapped() and b.winfo_width() > 60, \
             f"{name} bei {geom}: {b.winfo_width()}px"

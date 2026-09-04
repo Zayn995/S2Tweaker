@@ -127,7 +127,7 @@ try:
     assert "Without this file" in seite1, "gelbe Warnung fehlt"
     assert "Sorry that this is on you" in seite1, "Entschuldigung fehlt"
     assert "Copy" in seite1, "Kopierknopf fehlt"
-    assert "Step 1 of 4" in seite1, "Schrittanzeige fehlt"
+    assert "Step 1 of 3" in seite1, "Schrittanzeige fehlt"
     # Kopierknopf fuellt die Zwischenablage und quittiert
     assert klick("Copy"), "Kopierknopf nicht gefunden"
     app.update()
@@ -138,14 +138,14 @@ try:
     assert klick("Next"), "Weiter-Knopf fehlt"
     app.update()
     seite2 = " ".join(texte(win))
-    assert "Step 2 of 4" in seite2
+    assert "Step 2 of 3" in seite2
     assert "unverified" in seite2, "Hinweis zur Browser-Warnung fehlt"
 
     # Seite 3: Zielordner + Neustart
     assert klick("Next")
     app.update()
     seite3 = " ".join(texte(win))
-    assert "Step 3 of 4" in seite3
+    assert "Step 3 of 3" in seite3
     assert "restart S2Tweaker" in seite3, "Neustart-Hinweis fehlt"
     # Der genannte Ordner MUSS der mit S2Tweaker.exe sein. Frueher stand
     # dort der Ordner von repak.exe — im Ordner-Build also `_internal`,
@@ -156,22 +156,18 @@ try:
         "Der Assistent nennt wieder den _internal-Ordner als Ablageort"
     assert app._oodle_target_dir() == gui.app_dir()
 
-    # Seite 4: der Updater ist FREIWILLIG und wird als solcher benannt
-    assert klick("Next")
-    app.update()
-    seite4 = " ".join(texte(win))
-    assert "Step 4 of 4" in seite4
-    assert "you do not need it" in seite4, "Freiwilligkeit steht nicht da"
-    assert gui.UPDATER_URL in seite4, "Bezugsquelle des Updaters fehlt"
-    assert "Done" in seite4, "Abschluss-Knopf fehlt"
+    # Seite 3 ist die letzte: kein "Next" mehr, sondern "Done".
+    # Frueher folgte hier eine vierte Seite fuer update.bat. Die ist mit
+    # 1.19.2 weg, weil die Update-Funktion selbst weg ist.
+    assert "Done" in seite3, "Abschluss-Knopf fehlt"
+    assert "update.bat" not in seite3, "Der Assistent bewirbt wieder den Updater"
 finally:
     pakio.oodle_available = real_avail
     try:
         app.destroy()
     except Exception:
         pass
-print("Assistent: 4 Seiten, Warnung, Entschuldigung, Kopieren, Neustart, "
-      "optionaler Updater  OK")
+print("Assistent: 3 Seiten, Warnung, Entschuldigung, Kopieren, Neustart  OK")
 
 # --- 4c) Die Ampeln zeigen beide Zustaende ------------------------------
 app2 = gui.App()
@@ -184,16 +180,14 @@ try:
     pakio.oodle_available = lambda pak=None: False
     app2._refresh_oodle_badge()
     assert "missing" in app2.btn_oodle.cget("text"), app2.btn_oodle.cget("text")
-    app2._refresh_updater_badge()
-    assert app2.btn_updater.cget("text") in ("● Updater ready",
-                                             "● Updater optional")
+    assert not hasattr(app2, "btn_updater"),         "Die Updater-Ampel ist zurueck - die Update-Funktion ist weg"
 finally:
     pakio.oodle_available = real_avail2
     try:
         app2.destroy()
     except Exception:
         pass
-print("Ampeln: Oodle ready/missing und Updater ready/optional  OK")
+print("Ampel: Oodle ready/missing, keine Updater-Ampel mehr  OK")
 
 # --- 4b) Die Bilder liegen bei -----------------------------------------
 for name in ("oodle_browser.png", "oodle_folder.png"):

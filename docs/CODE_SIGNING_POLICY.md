@@ -50,13 +50,25 @@ source, and both are stated openly:
 ## Privacy
 
 S2Tweaker collects nothing. There is no telemetry, no analytics, no account
-and no usage reporting. It makes exactly two kinds of outbound request, both
-of which the user triggers:
+and no usage reporting.
 
-1. **"Check for updates"** (a button, never in the background): one request
-   to `api.github.com` asking for the latest release tag.
-2. **Oodle library**: one download from the public OodleUE mirror on GitHub,
-   once, if the library is not already present on the machine.
+Since 1.19.2 it makes **no outbound requests at all**. There is no networking
+code left in the program: no `urllib`, no sockets, no HTTP client. The
+bundled `repak.exe` is compiled from source with its download function and
+its entire HTTP/TLS stack removed, so it cannot make a request either. Both
+claims are enforced by [tests/test_no_network.py](../tests/test_no_network.py)
+and [tests/test_no_download.py](../tests/test_no_download.py) on every build,
+and anyone can verify them by grepping this repository.
+
+Two earlier network paths were removed deliberately:
+
+1. **"Check for updates"** — dropped in 1.19.2. Nexus Mods' file submission
+   guidelines prohibit executables that connect to the internet "unless where
+   it is crucial", and state that "'auto update' functionality does not
+   qualify as crucial". Updating is now a manual file swap.
+2. **Oodle library download** — dropped in 1.19.1. A program that fetches a
+   library and then loads it is dropper-shaped, and it caused antivirus false
+   positives. The user places that file once, guided by a setup window.
 
 Everything else — settings, presets, cache, generated mods — stays in the
 tool's own folder on the user's machine.

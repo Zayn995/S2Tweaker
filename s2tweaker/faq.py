@@ -615,19 +615,17 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Does S2Tweaker download anything? What is the Oodle file?",
-        "a": "No, nothing - not the tool and not the repak it bundles. "
-             "Reading your game's packed configs needs Oodle's "
-             "oo2core_9_win64.dll, which is proprietary and may not be "
-             "shipped with the tool. Older versions fetched it "
+        "a": "No. Since 1.19.2 there is no networking code in the tool at "
+             "all - not in it, not in the repak it bundles. Check the "
+             "public source yourself. Reading your game's packed configs "
+             "needs Oodle's oo2core_9_win64.dll, which is proprietary and "
+             "may not be shipped with the tool. Older versions fetched it "
              "automatically; that was dropped, because a program that "
              "downloads a library and then runs it is exactly what "
-             "malware does and it made scanners flag this tool. Now you "
+             "malware does, and it made scanners flag this tool. Now you "
              "place the file once yourself: if it is missing, S2Tweaker "
-             "says so at startup and gives you the link and the folder. "
-             "Every Unreal Engine install has the file, as do some other "
-             "S.T.A.L.K.E.R. 2 tools. Building a pak never needs it. The "
-             "only network request left is the update check, and only "
-             "when you click it.",
+             "says so at startup and shows the link and the folder. "
+             "Building a pak never needs it.",
         "k": "internet network download dll oodle offline privacy "
              "telemetry connection firewall blocked",
     },
@@ -787,16 +785,16 @@ FAQ_ENTRIES = [
     },
     {
         "q": "How do I update the tool? Is there an auto-update?",
-        "a": "Click '⟳ Check for updates' (top right): the tool asks "
-             "github.com once whether a newer release exists - never in "
-             "the background. If there is one it opens the download "
-             "page. There is also an optional helper, update.bat, that "
-             "does the swap for you and keeps your old files as .bak. It "
-             "is deliberately NOT in the download: a file that fetches "
-             "something and replaces programs is what scanners dislike. "
-             "The 'Updater' button shows whether you have it and offers "
-             "the link. Settings, presets, output and cache always stay "
-             "where they are.",
+        "a": "By hand, and on purpose. Download the new version from "
+             "where you got this one, then replace S2Tweaker.exe and the "
+             "_internal folder next to it. Your settings, presets, "
+             "output and cache stay where they are - nothing else has to "
+             "be touched. There is no update check and no auto-update "
+             "any more: a tool that talks to a server to fetch and "
+             "replace program files is the pattern antivirus scanners "
+             "and mod sites object to, and this one had enough trouble "
+             "with false positives already. The version you are running "
+             "is in the window title.",
         "k": "update autoupdate upgrade new version release download "
              "github check latest newer patch tool bat updater",
     },

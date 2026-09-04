@@ -74,9 +74,21 @@ jobs:
               throw "Versions-Ressource unvollstaendig: $f ist leer"
             }
           }
-          # Der Starter darf kein eingebettetes Archiv mehr sein.
-          if ((Get-Item $exe).Length -gt 8MB) {
+          # Der Starter darf kein eingebettetes Archiv mehr sein. Die alte
+          # Schranke von 8 MB hat das NICHT geprueft: 1.19.1 kam mit
+          # 3,17 MB durch und bestand zu 90 % aus genau dem Archiv, das
+          # hier ausgeschlossen sein sollte. Mit --debug noarchive liegt
+          # der Starter bei ~345 KB; 1 MB laesst Luft und schlaegt an,
+          # sobald der Klumpen zurueckkehrt.
+          if ((Get-Item $exe).Length -gt 1MB) {
             throw "Starter ist $((Get-Item $exe).Length) Bytes gross - steckt wieder ein Archiv drin?"
+          }
+          # Gegenprobe am Inhalt statt nur an der Groesse: die Module
+          # muessen als .pyc in _internal liegen.
+          $pyc = (Get-ChildItem "dist/S2Tweaker/_internal" -Recurse -Filter *.pyc | Measure-Object).Count
+          "Module als .pyc  : $pyc"
+          if ($pyc -lt 100) {
+            throw "Nur $pyc .pyc-Dateien - steckt der Python-Code wieder in der EXE?"
           }
 
       - name: Programmordner als Artefakt

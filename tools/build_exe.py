@@ -32,6 +32,18 @@ def build(distpath: str | None = None, workpath: str | None = None) -> int:
     cmd = [
         sys.executable, "-m", "PyInstaller", "--noconfirm",
         "--onedir",                      # NICHT --onefile, siehe Kopf
+        # --onedir allein reicht NICHT: es verschiebt nur die DLLs nach
+        # _internal, der Python-Code blieb als zlib-Klumpen IN der EXE —
+        # gemessen an 1.19.1: 2.857.284 der 3.175.748 Bytes, also 90 %,
+        # mit Entropie 7,999 von 8,0. Genau daran erkennen Analysten
+        # PyInstaller-Schadsoftware. Mit noarchive liegen die Module als
+        # normale .pyc in _internal: Starter 345 KB, Entropie 6,83.
+        # Der Download waechst dadurch um ~1,6 % — das ist es wert.
+        "--debug", "noarchive",
+        # UPX packt sonst, sobald es zufaellig im PATH liegt (die
+        # generierte .spec setzt upx=True). Ein Packer ist das Letzte,
+        # was diese EXE brauchen kann.
+        "--noupx",
         "--windowed", "--name", "S2Tweaker",
         "--icon", str(REPO / "assets" / "icon.ico"),
         "--add-binary", f"{REPO / 'assets' / 'icon.ico'};.",

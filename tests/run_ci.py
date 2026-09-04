@@ -7,7 +7,7 @@ Der darf NIE ins Repo (GSC-Copyright, siehe CLAUDE.md), also kann die CI
 die volle Batterie nicht fahren. Diese zwei Suiten kommen ohne aus und
 decken trotzdem das ab, was auf einem fremden Rechner schiefgehen kann:
 dass die GUI ueberhaupt startet, dass jeder Regler in _collect() ankommt
-und dass update.bat + Release-Verpackung zusammenpassen.
+und dass kein Netzwerkcode zurueckkehrt.
 
 Die vollstaendige Batterie (32 Suiten) laeuft weiterhin lokal vor jedem
 Release — die release-version-Skill besteht darauf.
@@ -20,7 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ORDER = [
     "test_gui_collect.py",
-    "test_update_check.py",
+    "test_no_network.py",
 ]
 
 env = dict(os.environ, PYTHONIOENCODING="utf-8")
