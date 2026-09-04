@@ -3,7 +3,8 @@
 GUI-Tool (Python/customtkinter), das aus Reglern eine `.pak`-Tweak-Mod für
 S.T.A.L.K.E.R. 2 erzeugt. Besitzer: Zayn995 (kann nicht coden — erkläre
 Änderungen einfach und erledige technische Schritte komplett selbst).
-Kompletter Projektstand: siehe [HANDOVER.md](HANDOVER.md).
+Kompletter Projektstand: siehe `HANDOVER.md` und `docs/ROADMAP.md` —
+beide liegen NUR lokal im Ordner (nicht im Repo, siehe .gitignore).
 Architektur & Mechanik: [README.md](README.md) · Recherche: [docs/SPEC.md](docs/SPEC.md).
 
 ## Eiserne Regeln

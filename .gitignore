@@ -29,3 +29,11 @@ release/*.zip
 release/screenshots/
 tests/_tmp/
 tests/_tmp/
+
+# Interne Arbeitsdokumente: bleiben LOKAL im Ordner, nie auf GitHub.
+# Sie enthalten Rechnernamen, Benutzerpfade, private Notizen und interne
+# Vorgaenge (u. a. die Nexus-Moderation, die der Staff ausdruecklich nicht
+# oeffentlich diskutiert sehen will). Wandern zwischen den Rechnern mit dem
+# Ordner, nicht ueber das Repo.
+HANDOVER.md
+docs/ROADMAP.md

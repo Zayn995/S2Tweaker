@@ -10,7 +10,8 @@ Dokument ist die Grundlage für eine spätere Umsetzung mit `add-tweak`.
 > es gibt einen **zweiten** Quest-Marker `IsQuestItemPrototype` (291 Items
 > tragen nur ihn), die Händler-Hülle darf ihre Sperre nicht transitiv
 > weitergeben, und der Namensfilter gehört auch auf Item-SIDs. Details und die
-> daraus gebaute Filterlogik: `docs/ROADMAP.md`, Abschnitt „Was der Review an
+> daraus gebaute Filterlogik ist in `gamedata.loot_generators()` und in
+> README.md beschrieben (frueher: ROADMAP, Abschnitt „Was der Review an
 > der Recherche korrigiert hat", sowie `README.md`. Zwei Angaben unten sind
 > falsch: `LesserZone_Cabin` gibt es **nicht** 4× als gleichnamigen Schlüssel
 > (die Datei hat 0 doppelte Top-Level-Schlüssel), und `Electrocollar` ist
