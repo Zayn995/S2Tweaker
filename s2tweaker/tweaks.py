@@ -800,6 +800,32 @@ def _merge_nested(dst: dict, src: dict) -> dict:
     return dst
 
 
+def _struct_dict(node) -> dict:
+    """CfgStruct -> verschachteltes dict (Werte als gestrippte Roh-Strings,
+    also exakt die Vanilla-Literale wie `40.f`)."""
+    out: dict = {k: v.strip() for k, v in node.values.items()}
+    for key, child in node.children.items():
+        out[key] = _struct_dict(child)
+    return out
+
+
+def _resolved_struct(root, node, depth: int = 0) -> dict:
+    """Wie _struct_dict, aber mit aufgeloester refkey-Vererbung innerhalb
+    derselben Datei (Vorlage zuerst, eigene Werte darueber).
+
+    Zweck: index-adressierte TOP-LEVEL-Eintraege ([0], [1] ...) KOMPLETT
+    ausgeben. Ob das Spiel solche Eintraege beim {bpatch} wie benannte
+    Structs zusammenfuehrt oder — wie Array-Elemente — ersetzt, ist nicht
+    belegt (docs/SPEC.md §0 nennt Arrays als offene Frage; Anlass war der
+    Nexus-Wetterbericht vom 04.09.). Komplett ausgegeben ist der Patch
+    unter beiden Lesarten richtig; Kosten sind ein paar Zeilen mehr."""
+    base: dict = {}
+    ref = node.attr_dict().get("refkey")
+    if ref and depth < 8 and ref in root.children:
+        base = _resolved_struct(root, root.children[ref], depth + 1)
+    return _merge_nested(base, _struct_dict(node))
+
+
 def _loot_condition_patch(gd: GameData, s: Settings) -> dict:
     """Zustand gedroppter Waffen (MinDurability/MaxDurability).
 
@@ -1303,6 +1329,11 @@ def _threats_patch(gd: GameData, s: Settings) -> dict:
         if entries:
             cfg["Actions"] = entries
         if cfg:
+            if key.startswith("["):
+                # Das Profil haengt am Index-Schluessel [1]: komplett
+                # ausgeben (siehe _resolved_struct), Aktions-Eintraege
+                # waren es schon.
+                cfg = _merge_nested(_resolved_struct(gd.threats, prof), cfg)
             patches[key] = cfg
     return patches
 
@@ -1495,7 +1526,8 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
     if not (rain_on or emission_on):
         return {}
     patches: dict = {}
-    for sid, node in gd.weatherselection.children.items():
+    root = gd.weatherselection
+    for sid, node in root.children.items():
         if "#" in sid:
             continue
         cfg: dict = {}
@@ -1515,6 +1547,10 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                     cfg.setdefault("Emission", {})["BlendWeightIncrease"] = _num(
                         increase * s.emission_factor)
         if cfg:
+            if sid.startswith("["):
+                # Index-Vorlagen [0]/[1]/[2]/[3]/[35] (Regionen erben per
+                # refkey=[1]): komplett ausgeben, siehe _resolved_struct.
+                cfg = _merge_nested(_resolved_struct(root, node), cfg)
             patches[sid] = cfg
     return patches
 

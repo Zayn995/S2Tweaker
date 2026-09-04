@@ -37,6 +37,7 @@ ORDER = [
     "test_v118_tweaks.py",
     "test_npc_combat.py",
     "test_npc_more.py",
+    "test_index_entries.py",
     "test_trader_condition.py",
     "test_emission_relext.py",
     "test_dlc_weapons.py",

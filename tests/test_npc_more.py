@@ -76,8 +76,16 @@ assert list(p) == [THR]
 root = cfgparse.parse(p[THR])
 assert list(root.children) == ["[1]"], list(root.children)     # DefaultNPC, nicht Boss/Mutanten
 prof = root.children["[1]"]
-assert prof.values == {"DefaultThreatValueFreezeTimeSeconds": "60.0",
-                       "DefaultThreatValueLossPerSecond": "15.0"}, prof.values
+# Seit 04.09. wird das Index-Profil [1] KOMPLETT ausgegeben (siehe
+# test_index_entries): die zwei skalierten Werte wie erwartet, alle
+# uebrigen Top-Level-Werte exakt Vanilla.
+assert prof.values["DefaultThreatValueFreezeTimeSeconds"] == "60.0", prof.values
+assert prof.values["DefaultThreatValueLossPerSecond"] == "15.0", prof.values
+vanilla_prof = {k: v.strip() for k, v in gd.threats.children["[1]"].values.items()}
+assert set(prof.values) == set(vanilla_prof), (set(prof.values) ^ set(vanilla_prof))
+for k, v in vanilla_prof.items():
+    if k not in ("DefaultThreatValueFreezeTimeSeconds", "DefaultThreatValueLossPerSecond"):
+        assert prof.values[k] == v, (k, v, prof.values[k])
 acts = {a.values["Type"].split("::")[-1]: a.values for a in prof.children["Actions"].children.values()}
 assert acts["TurnHead"]["ThreatLevelValueMin"] == "100" and acts["CallAllies"]["ThreatLevelValueMin"] == "350"
 assert acts["SearchEnemy"]["ThreatValueFreezeTimeSeconds"] == "60.0" and acts["SearchEnemy"]["ThreatValueLossPerSecond"] == "10.0"
