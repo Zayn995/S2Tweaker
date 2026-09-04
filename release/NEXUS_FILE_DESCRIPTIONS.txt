@@ -1,21 +1,50 @@
-NEXUS — TEXTE FUER DIE DATEI-UPLOADS
-====================================
+NEXUS — TEXTE FUER DEN DATEI-UPLOAD
+===================================
 Nexus erlaubt im Feld "File description" nur 255 Zeichen. Der laengere
 Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
+⚠ NUR EINE DATEI. Die update.bat wird NICHT mehr hochgeladen — die
+  Update-Funktion ist mit 1.19.2 ganz entfernt, und Nexus' Regeln nennen
+  Auto-Update woertlich als nicht notwendig. Wer sie trotzdem will, findet
+  sie im GitHub-Release; auf dieser Seite hat sie nichts verloren.
+
 
 ==================================================================
-DATEI 1 — Main Files
-Name:          S2Tweaker 1.19.1
-File version:  1.19.1
+DATEI — Main Files
+Name:          S2Tweaker 1.19.2
+File version:  1.19.2
 File category: Main Files
 ==================================================================
 
---- File description (244 Zeichen) -------------------------------
-The tool itself. Extract everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where to get it. VirusTotal 1/66, only Zillya, reported as a false positive.
+--- File description (247 Zeichen) -------------------------------
+The tool itself. Unzip everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where to get it. It has no internet access of any kind: no updater, no downloads.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.19.2 - no network code, and no archive hidden inside the exe
+
+- The executable was 90% compressed archive. Shipping as a folder in
+  1.19.0 only moved the DLLs out; the Python code stayed inside
+  S2Tweaker.exe as a 2,857,284-byte compressed blob with an entropy of
+  7.999 out of 8.0. A small loader in front of a large opaque block is
+  what a packer looks like, and it is how analysts recognise malware
+  built with the same tooling. The code now ships as ordinary files
+  beside the exe: the program file is 345 KB instead of 3.2 MB, and one
+  of the three scanners that flagged it stopped.
+- The update check is gone, and with it every trace of networking - no
+  urllib, no sockets, no HTTP client. Nexus' own file guidelines
+  prohibit executables that connect to the internet "unless where it is
+  crucial" and state that "'auto update' functionality does not qualify
+  as crucial". They are right, so it is out. You can verify that with
+  one search of the public source.
+- To update from now on: download the new ZIP and replace S2Tweaker.exe
+  and the _internal folder next to it. Settings, presets, cache and
+  built mods are never touched. The version is in the window title.
+- This download is the build server's own output, taken from the public
+  GitHub Actions run and uploaded unchanged. Nothing in it was built on
+  a private machine.
+- No new game files, no re-extraction. Your existing paks stay valid.
+
 1.19.1 - nothing is downloaded while the tool runs
 
 - The tool no longer fetches anything at runtime. It used to download the
@@ -27,58 +56,19 @@ The tool itself. Extract everything into one folder, keep _internal next to the 
 - The pak tool it bundles (repak) is built from source with its download
   function and whole HTTP/TLS stack removed, so it cannot fetch anything
   either. It is no longer a third-party prebuilt binary.
-- update.bat is no longer inside the download. It is available here as an
-  optional file instead - a script that downloads a release and replaces
-  program files should be your choice, not a surprise.
 - Sorry about the one manual step. The library may not be shipped, cannot
   be taken out of the game (it is compiled into the game executable), and
   the open re-implementations have no licence. Doing it automatically was
   the old answer, and that is what got this tool flagged.
-- No new game files, no re-extraction. Your existing paks stay valid.
 
 1.19.0 - shipped as a folder instead of a single exe
+
 - The exe was a self-extracting archive that unpacked into your temp
   folder and ran from there - harmless, but the shape of a dropper. Now a
-  3 MB launcher next to an "_internal" folder. Keep them together.
+  launcher next to an "_internal" folder. Keep them together.
 - The exe finally identifies itself: publisher, product, version, licence.
 - Fixed three weapons offering a "Durability" slider that could never do
   anything (they have no durability value in the game data).
 - New test suite checking every slider against your game's real values:
   over 3,000 checks, no wrong values found.
-------------------------------------------------------------------
-
-
-==================================================================
-DATEI 2 — Optional files
-Datei:         release/S2Tweaker_update_bat_v1.19.1.zip
-Name:          update.bat (optional one-click updater)
-File version:  1.19.1
-File category: Optional files
-==================================================================
-⚠ Als ZIP hochladen, nicht als .bat: Nexus nimmt nur .zip / .7z / .rar /
-.omod / .exe an. Das ZIP enthaelt genau eine Datei (update.bat), kein
-verschachteltes Archiv und kein Passwort — beides waere sonst ein
-Ablehnungsgrund, weil der Nexus-Scanner hineinsehen koennen muss.
-
---- File description (240 Zeichen) -------------------------------
-Optional. Unzip and put update.bat next to S2Tweaker.exe; the tool can then update itself in one click, old files kept as .bak. You do not need it. Deliberately not inside the main download. Plain text - the script scans 0/60 on VirusTotal.
-------------------------------------------------------------------
-
---- Changelog ----------------------------------------------------
-Split out of the main download in 1.19.1.
-
-A script that fetches a release and replaces program files is one of the
-patterns antivirus scanners dislike, so it no longer travels inside the
-package unasked - you decide whether you want it.
-
-To use it: unzip it and save update.bat next to S2Tweaker.exe. "Check for updates" in the tool
-then offers a one-click swap, keeping your previous files as .bak. Your
-settings, presets, cache and built mods are never touched.
-
-Without it nothing breaks: "Check for updates" still tells you when a new
-version exists and opens the download page, you just replace the files
-yourself.
-
-It is plain text on purpose - open it in Notepad and read exactly what it
-does before you run it.
 ------------------------------------------------------------------

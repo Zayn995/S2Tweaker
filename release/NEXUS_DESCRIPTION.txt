@@ -11,12 +11,12 @@ Everyone is free to use this mod and the tool!
 
 The full source code is open under the MIT license. There is a public S2Tweaker repository on GitHub under my name (Zayn995), but [b]I am deliberately not linking it here[/b]: while a file of mine is under review, Nexus guidelines ask authors not to point at off-site downloads, and I would rather respect that than argue about where the line is. If you want the source, it is easy to find - or just ask in the comments. Bug reports, improvements and forks are very welcome.
 
-[b]Virus scan of exactly the files on this page:[/b]
+[b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=https://www.virustotal.com/gui/file/285294fb7870eda88db2936495d30fc37ae5a6f97adc6a159e755596178fc9c4/detection]VirusTotal - 1 of 66[/url]. The single detection is Zillya ("Dropper.Agent"); every other engine, Windows Defender included, reports it clean. Zillya has been informed and asked to review it as a false positive
-[*]The optional update.bat: [url=https://www.virustotal.com/gui/file/93e4a42196fc35e58cd445ea131c0891d2af7b1eb825891f846eedee647ea1c8]VirusTotal - 0 of 60[/url]
+[*]The mod itself: [url=[LINK-A]]VirusTotal - [ZAHL-A][/url]
+[*]The program file inside it: [url=https://www.virustotal.com/gui/file/e6ad82b315682c01a74534ad800920e562c24cc1503cf7a21ca75e408aeaf973]VirusTotal - 2 detections[/url]. Both are generic guesses, not a named malware family: Microsoft's is "Wacatac.B!ml", where the "!ml" means it comes from a machine-learning model rather than a signature, and Zillya's is "Dropper.Agent". Windows Defender as installed on my machine reports every file clean. VirusTotal explains the difference in its own documentation: engines run there with "stronger heuristics, cloud interaction, inclusion of beta signatures". Both vendors have been asked to review it as a false positive
 [/list]
-Version 1.19.1 exists mainly to earn those numbers - see the changelog.
+Version 1.19.2 exists mainly to earn those numbers - see the changelog. It went from three detections to two by removing a 2.8 MB compressed blob from inside the executable.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
@@ -143,7 +143,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
 [*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 65 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
-[*][b]Check for updates[/b]: a header button asks github.com on click (never in the background) whether a newer version exists, and opens the download page. An optional helper (update.bat) can do the swap for you, keeping your old files as a backup - it is deliberately NOT in the download, because a file that fetches something and then replaces programs is what antivirus scanners dislike. Two indicators in the header show whether the Oodle library and that helper are present, and offer the links
+[*][b]No internet, at all[/b]: since 1.19.2 the tool contains no networking code - no update check, no downloads, nothing in the background. An indicator next to the FAQ button shows whether the one file you have to supply yourself (the Oodle library) is in place, and a setup window walks you through it
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -193,12 +193,21 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.19.2 - No network code, and no archive hidden inside the exe[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]The executable was 90 % compressed archive - that is fixed.[/b] Shipping as a folder in 1.19.0 only moved the DLLs out; the Python code stayed inside S2Tweaker.exe as a compressed blob of 2,857,284 bytes with an entropy of 7.999 out of a possible 8.0. A small loader in front of a large opaque block is what a packer looks like, and it is how analysts recognise malware built with the same tooling. The code now ships as ordinary files next to the exe: [b]the program file is 345 KB instead of 3.2 MB[/b], and one of the three scanners that flagged it stopped
+[*][b]The update check is gone, and with it every trace of networking.[/b] No urllib, no sockets, no HTTP client. Nexus' own file guidelines prohibit executables that connect to the internet "unless where it is crucial" and say plainly that "'auto update' functionality does not qualify as crucial" - they were right, so it is out. You can check that claim yourself with one search of the public source
+[*][b]To update from now on[/b]: download the new ZIP and replace S2Tweaker.exe and the _internal folder next to it. Your settings, presets, cache and built mods are never touched. The version you are running is in the window title
+[*][b]This download is the build server's own output[/b], downloaded from the public GitHub Actions run and uploaded here unchanged - nothing in it was built on my PC
+[*]No new game files, no re-extraction. Your existing paks stay valid
+[/list]
+
 [b]v1.19.1 - Nothing is downloaded at runtime any more[/b] (~230 tweaks, 13 tabs)
 [list]
 [*][b]The tool no longer fetches anything while it runs.[/b] Until now it downloaded the Oodle decompression library on first use, and the bundled repak could fetch it too. A program that pulls a library off the internet and then executes it is exactly what a dropper does - one of the reasons antivirus scanners kept flagging this tool. That capability is gone now, not disabled
 [*][b]repak is built from source[/b] with the download function and its whole HTTP/TLS stack removed. Measured in the binary: 113 occurrences of the TLS library before, none after; the file shrank from 4.4 MB to 2.1 MB. It is also no longer a third-party prebuilt binary, so every file in this download now comes from the public source code, built by a public GitHub Actions workflow
 [*][b]You place the Oodle library once, yourself.[/b] A setup window walks you through it with pictures: copy the link, download it in your browser (it may warn about an unverified file - that is normal for a .dll), drop it next to S2Tweaker.exe, restart. It only appears when the file is missing, and two indicators next to the FAQ button show at a glance whether it is there
-[*][b]update.bat is now optional and not included[/b]: a file that downloads a release and replaces program files is the other thing scanners dislike. "Check for updates" still tells you when a new version exists and opens the download page; the one-click swap needs the helper, and the tool offers you the link if you want it
+[*][b]update.bat is no longer included[/b]: a file that downloads a release and replaces program files is the other thing scanners dislike. (In 1.19.2 the update feature was dropped entirely.)
 [*]Sorry that this means one manual step. The library cannot legally be bundled, it cannot be taken out of the game (Oodle is compiled into the game's own executable), and the open re-implementations carry no licence at all. Doing it for you was the old answer, and that is what got this tool flagged
 [*]No new game files, no re-extraction. Generated paks are unchanged apart from the version stamp
 [/list]
