@@ -598,12 +598,18 @@ FAQ_ENTRIES = [
     },
     {
         "q": "My antivirus flags S2Tweaker.exe - is it safe?",
-        "a": "The exe is a PyInstaller one-file build of a Python app - a "
-             "well-known false-positive pattern for many AV engines. The "
-             "complete source code is public (github.com/Zayn995/"
-             "S2Tweaker, MIT license) and every release states the exact "
-             "commit it was built from, so anyone can reproduce the "
-             "build. The only bundled binary is the open-source repak.",
+        "a": "False positive - and the build was changed to provoke it "
+             "less. It used to be a PyInstaller one-file exe: a "
+             "self-extracting archive that unpacks into your temp "
+             "folder and runs from there. Harmless, but the same shape "
+             "as a dropper, so ML heuristics guess wrong. It now ships "
+             "as a folder: a 3 MB launcher next to an _internal folder, "
+             "nothing embedded, and the exe carries proper version "
+             "info. The source is public (github.com/Zayn995/S2Tweaker, "
+             "MIT) and every release names the commit it was built "
+             "from. The only bundled binary is the open-source repak. "
+             "If your scanner still complains, please report it as a "
+             "false positive.",
         "k": "antivirus virus trojan flag warning defender false positive "
              "safe malware quarantine",
     },
@@ -615,7 +621,8 @@ FAQ_ENTRIES = [
              "public OodleUE mirror on GitHub, verifies its official "
              "SHA-256 checksum and keeps it in the tools folder - "
              "offline afterwards. If your network blocks GitHub, place "
-             "that DLL next to S2Tweaker.exe yourself. There is no "
+             "that DLL next to S2Tweaker.exe yourself (the tools "
+             "folder is created next to the exe). There is no "
              "telemetry; nothing is uploaded.",
         "k": "internet network download dll oodle offline privacy "
              "telemetry connection firewall blocked",
@@ -779,8 +786,9 @@ FAQ_ENTRIES = [
         "a": "Click '⟳ Check for updates' (top right): the tool asks "
              "github.com once whether a newer release exists - it never "
              "checks in the background. If there is one, choose 'update "
-             "now' and the bundled update.bat swaps S2Tweaker.exe for "
-             "you (the old exe is kept as S2Tweaker.exe.bak), or open "
+             "now' and the bundled update.bat swaps the program files "
+             "for you - S2Tweaker.exe and the _internal folder next to "
+             "it (the old ones are kept as .bak) - or open "
              "the download page and do it yourself. Settings, presets, "
              "output and cache always stay where they are. update.bat "
              "is plain text - read it if you like.",

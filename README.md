@@ -169,7 +169,7 @@ docs/SPEC.md            research: every tweak's mechanism + sources
 release/README.txt      end-user readme shipped with the exe
 THIRD_PARTY_LICENSES.txt licences of the bundled components
 test_generate.py        end-to-end dev test (builds a test pak)
-build.bat               builds dist/S2Tweaker.exe
+build.bat               builds dist/S2Tweaker/ (exe + _internal)
 ```
 
 ## Building from source
@@ -177,8 +177,18 @@ build.bat               builds dist/S2Tweaker.exe
 ```
 pip install -r requirements.txt
 python main.py          # run the GUI directly
-build.bat               # or build dist/S2Tweaker.exe
+build.bat               # or build dist/S2Tweaker/S2Tweaker.exe
 ```
+
+The build is deliberately **`--onedir`, not `--onefile`**: a one-file
+PyInstaller exe is a self-extracting archive that unpacks itself into
+`%TEMP%` and runs from there, which antivirus ML heuristics read as
+dropper behaviour — that got the release quarantined on Nexus Mods in
+September 2026 and deleted by Windows Defender once. `--onedir` keeps the
+launcher at ~3 MB with nothing embedded, and `--version-file` stamps
+company/product/version into the exe (it had no version resource at all
+before). The tool stays portable either way: settings, cache, presets and
+output are created next to the exe.
 
 Python 3.12+ recommended. For development, the GUI prefers a local
 `vanilla/Stalker2/Content/GameLite/GameData/` folder if present (create it by
@@ -209,6 +219,10 @@ the *installed* version, and never hardcode game numbers.
 
 - **Never commit or upload extracted game files** (`vanilla/`, `cache/`) —
   that content is copyrighted by GSC Game World. `.gitignore` covers this.
+- Released builds are produced by GitHub Actions from this repository, not
+  on a personal machine — see the
+  [code signing policy](docs/CODE_SIGNING_POLICY.md) for who builds and
+  approves a release, and for the two third-party binaries involved.
 - Tool code is MIT (see [LICENSE](LICENSE)). Bundled: repak (MIT OR
   Apache-2.0), cfg.bin decoder based on public-domain code by
   joric/sdwvit/thexii. Their licence texts ship with the tool:

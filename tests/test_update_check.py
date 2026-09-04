@@ -67,6 +67,10 @@ assert raw.isascii(), "update.bat muss reines ASCII sein (cmd liest cp437)"
 text = raw.decode("ascii")
 assert "api.github.com/repos/Zayn995/S2Tweaker/releases/latest" in text
 assert "S2Tweaker.exe.bak" in text, "Backup der alten EXE fehlt"
+# Seit dem --onedir-Umbau (04.09.2026) gehoert die Laufzeit in _internal
+# dazu: eine neue EXE mit altem _internal startet nicht.
+assert "_internal.bak" in text, "Backup des alten _internal fehlt"
+assert "xcopy" in text, "_internal wird nicht mitkopiert"
 assert "RELAUNCHED" in text, "Selbst-Ersetz-Schutz (Kopie in %TEMP%) fehlt"
 assert "'*source*'" in text, "Source-ZIP-Ausschluss fehlt"
 assert "pause" in text, "Fehlerpfade muessen lesbar bleiben (pause)"

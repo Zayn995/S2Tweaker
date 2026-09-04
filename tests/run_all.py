@@ -19,6 +19,7 @@ ORDER = [
     "test_modscan_filter.py",
     "test_gui_release.py",
     "test_gui_collect.py",
+    "test_slider_sweep.py",
     "test_log_slider.py",
     "test_gui_armor.py",
     "test_gui_avoid.py",

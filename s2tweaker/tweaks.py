@@ -83,6 +83,40 @@ WEAPON_AIMTIME_KEYS = ("AimingTime", "OffsetAimingTime", "LeanAimingTime",
 WEAPON_RANGE_KEYS = ("EffectiveFireDistanceMin", "EffectiveFireDistanceMax",
                      "FireDistanceDropOff", "DistanceDropOffLength")
 
+# Welche CWS-Schluessel ein Kaskaden-Parameter braucht. _weapon_settings_patch
+# patcht nur Werte > 0 — fehlt der Wert, kann dieser Parameter fuer diese
+# Waffe NIE einen Patch erzeugen, und ein Regler dafuer waere ein
+# Blindgaenger (der Ammo- und der Ruestungsbaum blenden solche Regler
+# laengst aus). Nicht aufgefuehrte Parameter (recoil, firerate, magazine,
+# adsspeed, aimtime) stehen in WeaponGeneralSetup und existieren dort fuer
+# jede Waffe.
+WEAPON_PARAM_CWS_KEYS: dict[str, tuple[str, ...]] = {
+    "damage": ("BaseDamage",),
+    "spread": ("DispersionRadius",),
+    "durability": ("DurabilityDamagePerShot",),
+    "bleeding": ("BaseBleeding", "ChanceBleedingPerShot"),
+    "range": WEAPON_RANGE_KEYS,
+}
+
+
+def weapon_available_params(gd: GameData, cws: str | None) -> list[str]:
+    """WEAPON_PARAMS ohne die, die dieses CWS-Struct nachweislich nicht hat.
+
+    Nachweislich heisst: der Struct existiert und ALLE Schluessel des
+    Parameters loesen sich zu <= 0 auf. Ohne Struct (oder ohne bekanntes
+    CWS-Struct) wird nichts gefiltert — dann laesst sich nichts beweisen.
+    Beispiel aus den echten Spieldaten: die beiden Unterlauf-Granatwerfer
+    und der Buckshot-Launcher haben keinen DurabilityDamagePerShot, ihre
+    Waffen nutzen sich also gar nicht ab."""
+    if cws is None or cws not in gd.weaponsettings.children:
+        return list(WEAPON_PARAMS)
+    return [
+        param for param in WEAPON_PARAMS
+        if param not in WEAPON_PARAM_CWS_KEYS
+        or any(parse_number(gd.resolve(gd.weaponsettings, cws, key)) > 0
+               for key in WEAPON_PARAM_CWS_KEYS[param])
+    ]
+
 WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
     "pistol": "Pistols",
     "smg": "SMGs",

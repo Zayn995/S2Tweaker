@@ -2,9 +2,10 @@
 rem ===================================================================
 rem  S2Tweaker auto-updater
 rem
-rem  Downloads the latest release from GitHub and replaces
-rem  S2Tweaker.exe in this folder. Settings, presets, cache and
-rem  output are NOT touched. The old exe is kept as S2Tweaker.exe.bak
+rem  Downloads the latest release from GitHub and replaces the program
+rem  files in this folder: S2Tweaker.exe and the _internal folder next
+rem  to it. Settings, presets, cache and output are NOT touched.
+rem  The old ones are kept as S2Tweaker.exe.bak and _internal.bak
 rem
 rem  This file is plain text on purpose - read it, it has no secrets.
 rem  It talks to exactly one place:
@@ -66,11 +67,21 @@ set "NEWEXE="
 for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\S2Tweaker.exe" 2^>nul`) do set "NEWEXE=%%A"
 if not defined NEWEXE goto fail_dl
 
-rem ---- swap the exe (backup first), refresh README and updater ------
-echo Installing (the old exe is kept as S2Tweaker.exe.bak) ...
+rem ---- swap exe AND _internal (backup first), refresh README+updater -
+rem The tool ships as a folder: the exe next to an _internal folder
+rem holding the Python runtime. Both have to be replaced together -
+rem an old _internal with a new exe would not start.
+for %%A in ("%NEWEXE%") do set "NEWDIR=%%~dpA"
+echo Installing (the old files are kept as S2Tweaker.exe.bak / _internal.bak) ...
 if exist "S2Tweaker.exe" copy /y "S2Tweaker.exe" "S2Tweaker.exe.bak" >nul
 copy /y "%NEWEXE%" "S2Tweaker.exe" >nul
 if errorlevel 1 goto fail_swap
+if exist "%NEWDIR%_internal" (
+    if exist "_internal.bak" rmdir /s /q "_internal.bak" 2>nul
+    if exist "_internal" move /y "_internal" "_internal.bak" >nul
+    xcopy /e /i /q /y "%NEWDIR%_internal" "_internal" >nul
+    if errorlevel 1 goto fail_internal
+)
 for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\README.txt" 2^>nul`) do copy /y "%%A" "README.txt" >nul
 for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\update.bat" 2^>nul`) do copy /y "%%A" "update.bat" >nul
 rmdir /s /q "%WORK%" 2>nul
@@ -104,6 +115,16 @@ exit /b 1
 echo.
 echo Could not replace S2Tweaker.exe - is it still running?
 echo Your previous exe is unchanged (or available as S2Tweaker.exe.bak).
+echo.
+pause
+exit /b 1
+
+:fail_internal
+echo.
+echo Could not replace the _internal folder. Your previous one is still
+echo there as _internal.bak - rename it back to _internal and the old
+echo S2Tweaker.exe.bak back to S2Tweaker.exe to undo this update.
+echo Manual download: https://github.com/Zayn995/S2Tweaker/releases
 echo.
 pause
 exit /b 1

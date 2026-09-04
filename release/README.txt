@@ -69,6 +69,10 @@ TOOL FEATURES
 HOW TO USE
 ----------
 1. Extract this archive anywhere (e.g. a "S2Tweaker" folder on your desktop).
+   Keep the files together: S2Tweaker.exe needs the "_internal" folder that
+   sits next to it. Everything the tool creates later (settings, presets,
+   cache, output) also lands in that same folder - delete it and nothing
+   is left behind.
 2. Run S2Tweaker.exe.
 3. Check the suggested game folder, then click "Confirm & load game data".
    First load extracts ~85 MB of config data from your game (10-20 seconds).
@@ -108,8 +112,9 @@ TOOL UPDATES
 Click "Check for updates" in the tool (top right): it asks github.com once
 whether a newer release exists - nothing ever checks in the background. If
 there is one, you can let the bundled update.bat do the swap: it downloads
-the latest release from GitHub, keeps your old exe as S2Tweaker.exe.bak and
-replaces S2Tweaker.exe. Settings, presets, cache and output are not touched.
+the latest release from GitHub, keeps your old files as S2Tweaker.exe.bak
+and _internal.bak, and replaces S2Tweaker.exe plus the _internal folder.
+Settings, presets, cache and output are not touched.
 You can also run update.bat directly at any time, or just download the ZIP
 yourself. update.bat is plain text - feel free to read what it does.
 
@@ -144,8 +149,8 @@ CREDITS
 -------
 - repak by trumank (pak packing/unpacking, MIT OR Apache-2.0)
   https://github.com/trumank/repak
-  repak.exe is bundled inside S2Tweaker.exe; its MIT notice is reproduced
-  in full at the end of this file.
+  repak.exe ships inside the "_internal" folder next to S2Tweaker.exe; its
+  MIT notice is reproduced in full at the end of this file.
 - cfg.bin decoding based on bin2cfg.py by joric, building on S2CfgToJSON
   by sdwvit with binary reader by thexii (public domain / MIT)
   https://github.com/joric/stalker/wiki

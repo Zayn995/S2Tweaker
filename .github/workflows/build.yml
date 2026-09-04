@@ -1,0 +1,82 @@
+# Baut S2Tweaker auf GitHub statt auf einem Privatrechner.
+#
+# Warum es das gibt (04.09.2026): der Nexus-Support konnte die hochgeladene
+# Datei nicht freigeben, weil Virenscanner sie als Malware markierten. Teil
+# der Antwort darauf ist Nachvollziehbarkeit — jede veroeffentlichte EXE
+# soll beweisbar aus DIESEM oeffentlichen Quellcode stammen und nicht aus
+# einem Ordner auf einem Laptop. Das ist ausserdem die Voraussetzung fuer
+# kostenloses Code-Signing durch die SignPath Foundation, die nur
+# Artefakte aus einer automatisierten Bau-Kette signiert.
+#
+# Die Bau-Anweisung selbst steht NICHT hier, sondern in tools/build_exe.py
+# (dasselbe Skript, das build.bat lokal aufruft) — sonst haetten wir zwei
+# Kopien, die auseinanderlaufen.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Abhaengigkeiten
+        run: pip install -r requirements.txt
+
+      - name: Tests ohne Spieldaten
+        # Die volle Batterie (32 Suiten) braucht den vanilla/-Ordner mit
+        # extrahierten GameData. Die duerfen nie ins Repo (GSC-Copyright),
+        # also laeuft hier nur, was ohne sie auskommt; der Rest vor jedem
+        # Release lokal.
+        run: python tests/run_ci.py
+
+      - name: EXE bauen
+        run: python tools/build_exe.py
+
+      - name: Gegenprobe — Versions-Ressource und Layout
+        # Genau die zwei Dinge, die den Virenscanner-Fehlalarm beguenstigt
+        # haben: fehlende Herkunftsangaben und die selbstentpackende
+        # Einzeldatei. Wenn eines davon zurueckfaellt, soll der Build rot
+        # werden und nicht still ein Artefakt hochladen.
+        shell: pwsh
+        run: |
+          $exe = "dist/S2Tweaker/S2Tweaker.exe"
+          if (-not (Test-Path $exe)) { throw "EXE fehlt: $exe" }
+          if (-not (Test-Path "dist/S2Tweaker/_internal")) {
+            throw "_internal fehlt - wurde wieder --onefile gebaut?"
+          }
+          $vi = (Get-Item $exe).VersionInfo
+          "CompanyName    : $($vi.CompanyName)"
+          "ProductName    : $($vi.ProductName)"
+          "FileVersion    : $($vi.FileVersion)"
+          "Groesse        : $((Get-Item $exe).Length) Bytes"
+          foreach ($f in 'CompanyName', 'ProductName', 'FileVersion') {
+            if ([string]::IsNullOrWhiteSpace($vi.$f)) {
+              throw "Versions-Ressource unvollstaendig: $f ist leer"
+            }
+          }
+          # Der Starter darf kein eingebettetes Archiv mehr sein.
+          if ((Get-Item $exe).Length -gt 8MB) {
+            throw "Starter ist $((Get-Item $exe).Length) Bytes gross - steckt wieder ein Archiv drin?"
+          }
+
+      - name: Programmordner als Artefakt
+        # Genau dieses Artefakt bekommt spaeter die SignPath-Signatur.
+        uses: actions/upload-artifact@v4
+        with:
+          name: S2Tweaker-${{ github.sha }}
+          path: dist/S2Tweaker/
+          if-no-files-found: error

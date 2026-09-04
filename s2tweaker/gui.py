@@ -40,6 +40,7 @@ from .tweaks import (
     armor_label,
     build_patches,
     summarize,
+    weapon_available_params,
 )
 
 APP_TITLE = f"S2Tweaker {__version__} – S.T.A.L.K.E.R. 2 Mod Generator"
@@ -679,7 +680,7 @@ def footprint_settings(key: str) -> list[Settings] | None:
 class IwWeaponRow:
     """Aufklappbare Zeile EINER Waffe im Overrides-Baum.
 
-    Die 8 Regler entstehen erst beim ERSTEN Aufklappen (lazy) und werden
+    Die Regler entstehen erst beim ERSTEN Aufklappen (lazy) und werden
     danach wiederverwendet. Einzige Wahrheit bleibt app.weapon_overrides —
     eine nie geoeffnete Waffe hat gar keine Widgets, die veralten koennten.
     """
@@ -688,6 +689,10 @@ class IwWeaponRow:
         self.app = app
         self.sid = sid
         self.cat = cat
+        # Nur die Parameter, die es fuer diese Waffe in den Spieldaten gibt
+        # (wie im Munitions- und Ruestungsbaum). Ohne bekannte Liste bleibt
+        # es bei allen zehn.
+        self.params = list(app._iw_params.get(sid) or WEAPON_PARAMS)
         self.body = None                       # CTkFrame, erst bei build()
         self.sliders: dict[str, SliderRow] = {}
         self.reset_btn = None
@@ -729,6 +734,18 @@ class IwWeaponRow:
                 anchor="w", justify="left", wraplength=700,
                 font=self.app._iw_font_hint, text_color="gray60",
             ).pack(fill="x", padx=12, pady=(2, 0))
+        if len(self.params) < len(WEAPON_PARAMS):
+            missing = [WEAPON_PARAM_LABELS[p].lower()
+                       for p in WEAPON_PARAMS if p not in self.params]
+            ctk.CTkLabel(
+                self.body,
+                text="   the game data has no " + ", ".join(missing)
+                     + (" values" if len(missing) > 1 else " value")
+                     + " for this weapon – no slider is offered for "
+                     + ("them." if len(missing) > 1 else "it."),
+                anchor="w", justify="left", wraplength=700,
+                font=self.app._iw_font_hint, text_color="gray60",
+            ).pack(fill="x", padx=12, pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed auf — ohne Sperre wuerde der halb gefuellte
         # Regler-Satz den gespeicherten Override der Waffe ueberschreiben.
@@ -744,7 +761,7 @@ class IwWeaponRow:
         except Exception:
             pass
         try:
-            for param in WEAPON_PARAMS:
+            for param in self.params:
                 self.sliders[param] = SliderRow(
                     self.body, WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
                     fmt_factor, on_change=self._changed)
@@ -820,9 +837,11 @@ class IwWeaponRow:
     def refresh(self):
         n = len(self.app.weapon_overrides.get(self.sid, {}))
         arrow = "▾" if self.expanded else "▸"
-        # "N of 8 factors" statt "N overrides": die Kategorie-Kopfzeile zaehlt
+        # "N of 10 factors" statt "N overrides": die Kategorie-Kopfzeile zaehlt
         # WAFFEN, diese Zeile zaehlt PARAMETER — gleiche Zahl, andere Einheit.
-        mark = f"     ●  {n} of {len(WEAPON_PARAMS)} factors changed" if n else ""
+        # Nenner ist self.params: Waffen ohne Abnutzungswert & Co. haben
+        # weniger Regler, sonst stuende dort eine unerreichbare Zahl.
+        mark = f"     ●  {n} of {len(self.params)} factors changed" if n else ""
         self.btn.configure(text=f"{arrow}  {weapon_display(self.sid)}{mark}")
         self._apply_color(n)
 
@@ -1980,6 +1999,7 @@ class App(ctk.CTk):
         self._iw_loading = False
         self._iw_categories: dict[str, str] = {}
         self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
+        self._iw_params: dict[str, list[str]] = {}  # WGS-SID -> vorhandene Parameter
         self._iw_dlc: dict[str, str] = {}          # WGS-SID -> DLC-Edition
         self._iw_blocks: dict[str, IwCategoryBlock] = {}
         self._iw_auto_opened: set[str] = set()     # von der Suche aufgeklappt
@@ -2205,10 +2225,22 @@ class App(ctk.CTk):
             for group in by_cws.values() if len(group) > 1
             for sid in group
         }
-        # Verwaiste Overrides (Spiel-Update, andere Installation) verwerfen
+        # Parameter, die die Waffe wirklich hat (wie _ia_mods/_ir_prot in den
+        # anderen beiden Baeumen): fuer einen Wert, den es in den Spieldaten
+        # nicht gibt, wird kein Regler gebaut.
+        self._iw_params = {
+            sid: weapon_available_params(self.gd, cws)
+            for sid, (cat, cws) in weapons.items() if cat
+        }
+        # Verwaiste Overrides (Spiel-Update, andere Installation) verwerfen —
+        # auch einzelne Parameter, die es fuer diese Waffe nicht mehr gibt
+        # (sonst zaehlt die Zeile Overrides mit, zu denen der Regler fehlt).
         self.weapon_overrides = {
-            sid: params for sid, params in self.weapon_overrides.items()
+            sid: kept
+            for sid, params in self.weapon_overrides.items()
             if sid in self._iw_categories
+            and (kept := {p: v for p, v in params.items()
+                          if p in self._iw_params.get(sid, WEAPON_PARAMS)})
         }
         self._iw_build_tree()
 
@@ -4152,9 +4184,10 @@ class App(ctk.CTk):
                     f"(you have {__version__}).\n\n"
                     "Yes = update now: the tool closes itself and runs "
                     "update.bat, which downloads the new version from "
-                    "GitHub and swaps S2Tweaker.exe (the old exe is "
-                    "kept as S2Tweaker.exe.bak). Settings, presets and "
-                    "cache stay where they are.\n\n"
+                    "GitHub and swaps the program files, S2Tweaker.exe "
+                    "and the _internal folder (the old ones are kept as "
+                    "S2Tweaker.exe.bak and _internal.bak). Settings, "
+                    "presets and cache stay where they are.\n\n"
                     "No = just open the download page in the browser.")
                 if choice is True:
                     try:
@@ -5418,9 +5451,14 @@ class App(ctk.CTk):
             if key in self.cat_checks:
                 self.cat_checks[key].select() if value else self.cat_checks[key].deselect()
         for sid, params in (data.get("weapon_overrides") or {}).items():
+            # Sind die Spieldaten schon geladen, zaehlen nur Parameter, die
+            # DIESE Waffe hat — ein Preset von einer anderen Spielversion
+            # brachte sonst einen Override mit, zu dem es keinen Regler gibt
+            # und der nie einen Patch erzeugt.
+            allowed = self._iw_params.get(sid, WEAPON_PARAMS)
             try:
                 clean = {p: float(v) for p, v in params.items()
-                         if p in WEAPON_PARAMS and abs(float(v) - 1.0) > 1e-9}
+                         if p in allowed and abs(float(v) - 1.0) > 1e-9}
             except (TypeError, ValueError, AttributeError):
                 continue
             if clean:

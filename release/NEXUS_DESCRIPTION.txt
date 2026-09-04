@@ -137,7 +137,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
 [*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 65 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
-[*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old exe as a backup and replaces S2Tweaker.exe - settings, presets and cache stay where they are
+[*][b]Check for updates + auto-updater[/b]: a header button asks github.com on click (never in the background) whether a newer version exists. The ZIP ships a plain-text update.bat that can do the swap for you: it keeps your old files as a backup and replaces S2Tweaker.exe plus the _internal folder - settings, presets and cache stay where they are
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
 [*][b]Search box[/b] to find any slider - highlights matches, shows which tab, and also finds weapons and ammo rounds by name (opening their category for you)
 [*]Reads the vanilla values [b]from YOUR installed game version[/b], so multiplier tweaks stay correct after game patches
@@ -149,7 +149,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [list=1]
 [*]Download and extract the ZIP
 [*]Create a folder, for example on your desktop: Desktop\S2Tweaker
-[*]Put S2Tweaker.exe (and README.txt) into that folder
+[*]Extract the whole ZIP into that folder - S2Tweaker.exe needs the "_internal" folder that sits next to it
 [*]Run S2Tweaker.exe
 [*]The tool suggests your game folder, e.g. C:\Games\Steam\steamapps\common\S.T.A.L.K.E.R. 2 Heart of Chornobyl - check it. If it's wrong, click "Browse ..." and select your game folder (the one that contains Stalker2\Content\Paks)
 [*]Click "Confirm & load game data" and wait 10-20 seconds (only needed on first start and after game updates)
