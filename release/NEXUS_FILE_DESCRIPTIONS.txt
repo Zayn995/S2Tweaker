@@ -1,0 +1,62 @@
+NEXUS — KURZBESCHREIBUNGEN DER DATEIEN
+======================================
+Diese Texte kommen in das Feld "File description" beim jeweiligen Upload
+(Manage -> Files -> Add file / Edit). Sie stehen unter dem Dateinamen in
+der Files-Liste. Keine externen Links darin — bewusst.
+
+
+==================================================================
+DATEI 1 — Main Files
+Name:            S2Tweaker 1.19.1
+File version:    1.19.1
+File category:   Main Files
+==================================================================
+
+The tool itself. Extract the whole ZIP into one folder and run
+S2Tweaker.exe - keep the "_internal" folder next to it, it belongs to the
+program. Everything the tool creates (settings, presets, cache, your
+built mods) stays in that same folder, so deleting it removes everything.
+
+One extra file is needed to read your game's packed config values: Oodle's
+oo2core_9_win64.dll (0.6 MB). It is proprietary and may not be shipped
+with the tool. S2Tweaker does not download it either - on purpose, because
+a program that fetches a library and then runs it is exactly what malware
+does, and that is one of the reasons scanners flag tools like this one.
+Instead, a setup window shows you with pictures where to get it and where
+to put it. One minute, once. Setting sliders and building a mod work
+without it.
+
+Virus scan of this exact file: 1 of 66 engines on VirusTotal, and that one
+(Zillya) has been asked to review its detection as a false positive.
+Windows Defender and all other engines report it clean. The scan link is
+in the description above.
+
+Not play-tested in game yet - every value is cross-checked against the
+game's own config files, but reports from actual play are very welcome.
+
+
+==================================================================
+DATEI 2 — Optional files
+Name:            update.bat (optional one-click updater)
+File version:    1.19.1
+File category:   Optional files
+==================================================================
+
+Optional, and only useful if you want the tool to update itself.
+
+Put this file next to S2Tweaker.exe. The tool can then fetch a new version
+and swap the program files for you in one click, keeping your previous
+ones as .bak. Your settings, presets, cache and built mods are never
+touched.
+
+You do not need it. Without it, "Check for updates" still tells you when a
+newer version exists and opens the download page - you just replace the
+files yourself.
+
+It is deliberately NOT inside the main download: a script that downloads a
+release and replaces program files is exactly the pattern antivirus
+scanners dislike, and that should be your decision, not something that
+comes along unasked.
+
+It is plain text - open it in Notepad and you can read line by line what
+it does. Virus scan of this exact file: 0 of 60 engines on VirusTotal.

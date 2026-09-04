@@ -9,8 +9,14 @@
 Everything here was done by Claude (Anthropic's AI). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
 Everyone is free to use this mod and the tool!
 
-Full source code is open (MIT license): [url=https://github.com/Zayn995/S2Tweaker]github.com/Zayn995/S2Tweaker[/url]
-Bug reports, improvements and forks are very welcome.
+The full source code is open under the MIT license. There is a public S2Tweaker repository on GitHub under my name (Zayn995), but [b]I am deliberately not linking it here[/b]: while a file of mine is under review, Nexus guidelines ask authors not to point at off-site downloads, and I would rather respect that than argue about where the line is. If you want the source, it is easy to find - or just ask in the comments. Bug reports, improvements and forks are very welcome.
+
+[b]Virus scan of exactly the files on this page:[/b]
+[list]
+[*]The mod itself: [url=https://www.virustotal.com/gui/file/285294fb7870eda88db2936495d30fc37ae5a6f97adc6a159e755596178fc9c4/detection]VirusTotal - 1 of 66[/url]. The single detection is Zillya ("Dropper.Agent"); every other engine, Windows Defender included, reports it clean. Zillya has been informed and asked to review it as a false positive
+[*]The optional update.bat: [url=https://www.virustotal.com/gui/file/93e4a42196fc35e58cd445ea131c0891d2af7b1eb825891f846eedee647ea1c8]VirusTotal - 0 of 60[/url]
+[/list]
+Version 1.19.1 exists mainly to earn those numbers - see the changelog.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
@@ -181,7 +187,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Since game patch 2.0 the community reports that cfg-based movement-speed changes can desync from animations or partially not apply - the movement and carry-weight sliders carry an in-app warning until this settles
 [*]The fire-rate factor is reported to have the same animation limitation: firing animation and sound can desync from the actual shots. It stays available - test in-game and keep changes moderate
 [*]Some antivirus tools flag freshly built Python exes - this is a known false-positive pattern
-[*]Reading the game's packed config files needs Oodle's oo2core_9_win64.dll (0.6 MB). It is proprietary and cannot be shipped with the tool (and the game does not ship it as a separate file either), so S2Tweaker downloads it once from the public OodleUE mirror on GitHub, verifies its official checksum and keeps it in a "tools" folder next to the exe - after that everything works offline. If antivirus HTTPS inspection, a proxy or a VPN blocks github.com, simply put that DLL next to S2Tweaker.exe yourself and the tool will use it (it has to be the exact build repak expects - the tool tells you if the checksum does not match)
+[*]Reading the game's packed config files needs Oodle's oo2core_9_win64.dll (0.6 MB). It is proprietary, cannot be shipped with the tool, and the game does not ship it as a separate file either (Oodle is compiled into the game's own executable). Since 1.19.1 the tool does NOT download it - a program that fetches a library and then runs it is exactly what malware does, and that is one reason scanners flag tools like this one. Instead a setup window walks you through getting it once, with pictures, and shows you where to put it. It takes a minute, and afterwards the tool never asks again. You may already have the file: every Unreal Engine installation ships it
 [*]Debug checkbox: also exports the raw .cfg patch files to output\<ModName>_cfg so you can see exactly what the mod changes
 [/list]
 
