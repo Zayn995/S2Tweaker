@@ -187,6 +187,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.19.1 - Nothing is downloaded at runtime any more[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]The tool no longer fetches anything while it runs.[/b] Until now it downloaded the Oodle decompression library on first use, and the bundled repak could fetch it too. A program that pulls a library off the internet and then executes it is exactly what a dropper does - one of the reasons antivirus scanners kept flagging this tool. That capability is gone now, not disabled
+[*][b]repak is built from source[/b] with the download function and its whole HTTP/TLS stack removed. Measured in the binary: 113 occurrences of the TLS library before, none after; the file shrank from 4.4 MB to 2.1 MB. It is also no longer a third-party prebuilt binary, so every file in this download now comes from the public source code, built by a public GitHub Actions workflow
+[*][b]You place the Oodle library once, yourself.[/b] A setup window walks you through it with pictures: copy the link, download it in your browser (it may warn about an unverified file - that is normal for a .dll), drop it next to S2Tweaker.exe, restart. It only appears when the file is missing, and two indicators next to the FAQ button show at a glance whether it is there
+[*][b]update.bat is now optional and not included[/b]: a file that downloads a release and replaces program files is the other thing scanners dislike. "Check for updates" still tells you when a new version exists and opens the download page; the one-click swap needs the helper, and the tool offers you the link if you want it
+[*]Sorry that this means one manual step. The library cannot legally be bundled, it cannot be taken out of the game (Oodle is compiled into the game's own executable), and the open re-implementations carry no licence at all. Doing it for you was the old answer, and that is what got this tool flagged
+[*]No new game files, no re-extraction. Generated paks are unchanged apart from the version stamp
+[/list]
+
 [b]v1.19.0 - The tool now ships as a folder, to stop antivirus false positives[/b] (~230 tweaks, 13 tabs)
 [list]
 [*][b]What changes for you:[/b] extract the whole ZIP and keep the files together - S2Tweaker.exe now needs the "_internal" folder sitting next to it. Everything else is the same: double-click S2Tweaker.exe, and settings, presets, cache and output are still created next to it. The download is even slightly smaller than before
@@ -199,11 +209,13 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.18.3 - Hardening: weather templates and the NPC threat profile are written out completely[/b] (~230 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Weather report in the comments ("since 1.6.1 the weather no longer changes")[/b]: I found no definite defect, but a structural risk. "Rain & storm frequency" and "Emission frequency" also patched the weather base templates (the indexed entries at the top of the weather file that every region inherits from) with a partial patch - and whether the game merges or replaces such indexed entries is undocumented. If it replaces them, the base template shrinks to two weather types without durations. The same applied to the NPC threat profile behind "NPC alertness" and "NPC search time" since 1.18.0. Both are now written out completely (vanilla values untouched, only the scaled ones differ), which is correct either way. Regions keep their small partial patches
 [*]If your weather got stuck: please tell me your slider values and game version in the comments. At 0 % it never rains by design, at 300 % rain crowds out the clear weather - and hotfix 2.0.4 fixed several weather defects in the game itself
 [*]New test suite for the complete entries. No new game files, no re-extraction on first start. Generated paks change only for the four sliders named above
 [/list]
+[/spoiler]
 
 [b]v1.18.2 - Bug fix: crash with the Debug checkbox since 1.14[/b] (~230 tweaks, 13 tabs)
 [spoiler]
