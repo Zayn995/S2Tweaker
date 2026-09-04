@@ -3,13 +3,27 @@
 Funktionierende Mod-Paks im Spiel sind: Version V8B, Mount-Point ../../../,
 unkomprimiert, unverschluesselt — exakt die repak-Defaults.
 
+Oodle: in der Praxis gar nicht mehr noetig (nachgemessen 04.09.2026)
+-------------------------------------------------------------------
+pakchunk0 fuehrt Oodle als Kompressionsverfahren im Kopf — die Eintraege,
+die dieses Werkzeug liest, liegen aber unkomprimiert darin. Gegenprobe am
+echten Spiel, mit einer repak.exe OHNE DLL daneben: alle 33 NEEDED_FILES
+kamen byte-identisch heraus, ebenso die Editions-Paks, ebenso die
+cfg-Eintraege aus 11 fremden Mod-Paks, die Oodle im Kopf fuehren.
+
+Deshalb wird die DLL seit 04.09.2026 NUR noch geholt, wenn repak
+tatsaechlich mit einem Oodle-Fehler abbricht (siehe unpack/unpack_many) —
+faktisch also nie. Das ist auch die sauberere Rechtslage: nichts
+Proprietaeres wird geladen, solange es niemand braucht.
+
+Der Rest dieses Kopfes beschreibt die Rueckfallebene, die dann greift.
+
 Oodle-Beschaffung (Bugreport foxce, Nexus 31.08.2026)
 -----------------------------------------------------
-pakchunk0 des Spiels ist Oodle-komprimiert, deshalb braucht repak zum
-ENTPACKEN die proprietaere oo2core_9_win64.dll. Zum PACKEN nicht — unsere
-Paks sind unkomprimiert (verifiziert). repak sucht die DLL ausschliesslich
-NEBEN repak.exe und laedt sie sonst selbst von GitHub. Das ging bei einem
-Nutzer schief:
+Zum PACKEN braucht repak Oodle ohnehin nicht — unsere Paks sind
+unkomprimiert (verifiziert). Beim ENTPACKEN sucht repak die DLL
+ausschliesslich NEBEN repak.exe und laedt sie sonst selbst von GitHub.
+Das ging bei einem Nutzer schief:
 
   repak unpack fehlgeschlagen: Oodle loader error: ureq error
   Io(Custom { kind: InvalidData, error: InvalidCertificate(UnknownIssuer) })
@@ -455,21 +469,41 @@ def unpack(pak: Path, out_dir: Path, include: str | None = None,
            repak_exe: Path | None = None, progress=None) -> None:
     """Pak entpacken (fuer die Vanilla-GameData-Extraktion).
 
-    Braucht Oodle — die DLL wird vorher besorgt, damit repak sie nicht
-    selbst herunterladen muss (siehe Modul-Kopf)."""
+    Oodle wird NUR geholt, wenn repak es wirklich verlangt — genau wie in
+    unpack_many(). Frueher holte diese Funktion die DLL unbedingt vorher,
+    und damit lud JEDE Erstbenutzung 0,6 MB herunter.
+
+    Nachgemessen am Spiel (04.09.2026, Patch 2.0.x): noetig ist das nicht.
+    Die Pak fuehrt Oodle zwar als Verfahren im Kopf, die GameData-
+    Eintraege selbst liegen aber unkomprimiert darin. Ohne DLL extrahiert:
+    alle 33 NEEDED_FILES aus pakchunk0 (byte-identisch zur Extraktion MIT
+    DLL), beide Dateien aus jedem der drei Editions-Paks (ebenfalls
+    identisch) und die cfg-Eintraege aus 11 fremden Mod-Paks, die Oodle im
+    Kopf fuehren. Kein einziger Fall brauchte die Bibliothek.
+
+    Der Download bleibt als Rueckfallebene erhalten: sollte ein kuenftiger
+    Spiel-Patch die GameData doch komprimieren, greift derselbe Weg wie
+    bisher — dann eben genau dann, statt vorsorglich bei jedem Nutzer.
+    """
     repak = repak_exe or find_repak()
     if repak is None:
         raise FileNotFoundError("repak.exe nicht gefunden")
-    ensure_oodle(repak, pak=Path(pak), progress=progress)
     cmd = [str(repak), "unpack", str(pak), "-o", str(out_dir), "-q", "-f"]
     if include:
         cmd += ["-i", include]
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-    )
+
+    def run():
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+
+    result = run()
+    if result.returncode != 0 and "oodle" in result.stderr.lower():
+        ensure_oodle(repak, pak=Path(pak), progress=progress)
+        result = run()
     if result.returncode != 0:
         err = result.stderr.strip()
         if "oodle" in err.lower():

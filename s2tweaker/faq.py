@@ -614,15 +614,18 @@ FAQ_ENTRIES = [
              "safe malware quarantine",
     },
     {
-        "q": "Why does the tool download one file from the internet?",
-        "a": "Reading the game's packed configs needs Oodle's "
-             "oo2core_9_win64.dll, which is proprietary and may not be "
-             "bundled. On first use the tool fetches it once from the "
-             "public OodleUE mirror on GitHub, verifies its official "
-             "SHA-256 checksum and keeps it in the tools folder - "
-             "offline afterwards. If your network blocks GitHub, place "
-             "that DLL next to S2Tweaker.exe yourself (the tools "
-             "folder is created next to the exe). There is no "
+        "q": "Does the tool download anything from the internet?",
+        "a": "Normally nothing. Reading the game's packed configs can "
+             "need Oodle's oo2core_9_win64.dll, which is proprietary and "
+             "may not be bundled - but measured against the real game "
+             "the files this tool reads are stored uncompressed, so it "
+             "is not needed. Since 1.19.1 the tool only fetches it if "
+             "repak actually fails without it, which in practice does "
+             "not happen. If it ever does, the download comes from the "
+             "public OodleUE mirror on GitHub and its official SHA-256 "
+             "is verified; you can also place the DLL next to "
+             "S2Tweaker.exe yourself. The only other request is the "
+             "update check, and only when you click it. There is no "
              "telemetry; nothing is uploaded.",
         "k": "internet network download dll oodle offline privacy "
              "telemetry connection firewall blocked",
