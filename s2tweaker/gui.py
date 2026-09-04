@@ -48,6 +48,12 @@ APP_TITLE = f"S2Tweaker {__version__} – S.T.A.L.K.E.R. 2 Mod Generator"
 # Update-Check (GitHub Issue #3): EIN GET auf Wunsch des Nutzers, nie im
 # Hintergrund — die Support-Mail an Nexus verspricht "keine Telemetrie".
 UPDATE_API_URL = "https://api.github.com/repos/Zayn995/S2Tweaker/releases/latest"
+# update.bat liegt NICHT im Spieler-ZIP: es ist eine Datei, die
+# herunterlaedt und die EXE ersetzt — genau das Verhalten, das
+# Virenscanner an einem Werkzeug wie diesem stoert. Wer den
+# Automatik-Weg will, holt sie sich bewusst selbst.
+UPDATER_URL = ("https://raw.githubusercontent.com/Zayn995/S2Tweaker"
+               "/main/release/update.bat")
 RELEASES_PAGE = "https://github.com/Zayn995/S2Tweaker/releases"
 
 
@@ -78,6 +84,20 @@ def app_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
+
+
+def _asset(*parts: str) -> Path:
+    """Pfad zu einer mitgelieferten Datei (Bilder, Icon).
+
+    In der gebauten EXE liegen die Beigaben in PyInstallers _MEIPASS
+    (bei --onedir also in `_internal`), im Entwicklungsbetrieb im
+    `assets`-Ordner des Projekts."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        packed = Path(base).joinpath(*parts)
+        if packed.exists():
+            return packed
+    return Path(__file__).resolve().parent.parent / "assets" / Path(*parts)
 
 
 def output_dir() -> Path:
@@ -2096,25 +2116,264 @@ class App(ctk.CTk):
 
         Das Werkzeug laedt sie bewusst NICHT herunter (siehe pakio-Kopf:
         ein Programm, das zur Laufzeit Bibliotheken nachlaedt, sieht fuer
-        Virenscanner wie ein Dropper aus). Fehlt sie, sagt es das sofort
-        beim Start mit Link und Zielordner — statt den Nutzer erst beim
-        Laden der Spieldaten auflaufen zu lassen. Einmal pro Sitzung."""
+        Virenscanner wie ein Dropper aus). Fehlt sie, fuehrt ein
+        dreiseitiger Assistent durch das einmalige Danebenlegen — statt
+        den Nutzer erst beim Laden der Spieldaten auflaufen zu lassen."""
         try:
+            self._refresh_oodle_badge()
+            self._refresh_updater_badge()
             if pakio.oodle_available():
                 return
-            repak = pakio.find_repak()
-            target = (repak.parent if repak else app_dir()) / pakio.OODLE_DLL
-            messagebox.showinfo(
-                APP_TITLE,
-                pakio.OODLE_HELP.format(
-                    dll=pakio.OODLE_DLL, url=pakio.OODLE_URL,
-                    hash8=pakio.OODLE_SHA256[:8], target=str(target.parent),
-                    reason="You can set your sliders right away - this is "
-                           "only needed to read the values out of your game."))
-            self._set_status("Oodle library missing - see the dialog; "
-                             "building a pak does not need it.")
+            self._open_oodle_wizard()
+            self._set_status("Oodle library missing – follow the setup "
+                             "window; building a pak does not need it.")
         except Exception:
             pass        # eine fehlende Vorabwarnung darf den Start nie kippen
+
+    def _oodle_target_dir(self) -> Path:
+        repak = pakio.find_repak()
+        return repak.parent if repak is not None else app_dir()
+
+    def _close_oodle_wizard(self):
+        win = getattr(self, "_oodle_win", None)
+        if win is not None and win.winfo_exists():
+            win.destroy()
+        self._refresh_oodle_badge()
+        self._refresh_updater_badge()
+
+    def updater_present(self) -> bool:
+        """Liegt update.bat neben der EXE? (optionale Beigabe)"""
+        return (app_dir() / "update.bat").is_file()
+
+    def _refresh_updater_badge(self):
+        btn = getattr(self, "btn_updater", None)
+        if btn is None:
+            return
+        if self.updater_present():
+            btn.configure(text="● Updater ready", fg_color="#2E7D32",
+                          hover_color="#256428")
+        else:
+            btn.configure(text="● Updater optional", fg_color="#B3261E",
+                          hover_color="#8C1D18")
+
+    def _refresh_oodle_badge(self):
+        """Ampel neben dem FAQ-Knopf: gruen = da, rot = fehlt.
+
+        Wird beim Start und nach jedem Laden der Spieldaten aufgefrischt —
+        legt der Nutzer die Datei waehrend der Sitzung dazu, springt sie um,
+        sobald er auf 'Confirm & load game data' drueckt."""
+        btn = getattr(self, "btn_oodle", None)
+        if btn is None:
+            return
+        try:
+            ok = pakio.oodle_available()
+        except Exception:
+            ok = False
+        if ok:
+            btn.configure(text="● Oodle ready", fg_color="#2E7D32",
+                          hover_color="#256428")
+        else:
+            btn.configure(text="● Oodle missing", fg_color="#B3261E",
+                          hover_color="#8C1D18")
+
+    def _open_oodle_wizard(self, page: int = 0):
+        """Vierseitiger Assistent: Link kopieren, herunterladen, ablegen —
+        und als vierte, freiwillige Seite der Updater.
+
+        Bewusst Schritt fuer Schritt mit Bildern: der Nutzer muss eine
+        fremde DLL von Hand besorgen — das ist erklaerungsbeduerftig, und
+        eine Textwand liest niemand. Die Bilder liegen als PNG bei (Tk
+        kann PNG von Haus aus; Pillow ist im Build absichtlich draussen)."""
+        existing = getattr(self, "_oodle_win", None)
+        if existing is not None and existing.winfo_exists():
+            existing.deiconify(); existing.lift(); existing.focus_set()
+            return
+        win = ctk.CTkToplevel(self)
+        self._oodle_win = win
+        win.title("S2Tweaker – one file is missing")
+        win.geometry("880x680")
+        win.minsize(820, 600)
+        win.transient(self)
+
+        body = ctk.CTkFrame(win, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=18, pady=(14, 6))
+        nav = ctk.CTkFrame(win, fg_color="transparent")
+        nav.pack(fill="x", padx=18, pady=(0, 12))
+
+        state = {"page": 0, "images": []}
+        back_btn = ctk.CTkButton(nav, text="←  Back", width=130, height=38,
+                                 font=ctk.CTkFont(size=14))
+        step_lbl = ctk.CTkLabel(nav, text="", text_color="gray60",
+                                font=ctk.CTkFont(size=14))
+        next_btn = ctk.CTkButton(nav, text="Next  →", width=150, height=38,
+                                 font=ctk.CTkFont(size=14, weight="bold"))
+        back_btn.pack(side="left")
+        step_lbl.pack(side="left", expand=True)
+        next_btn.pack(side="right")
+
+        def show(page: int):
+            # Erst hier zusammenstellen: die Seitenfunktionen entstehen
+            # weiter unten, ein Tupel auf Modulebene waere zu frueh.
+            pages = (_page1, _page2, _page3, _page4)
+            page = max(0, min(page, len(pages) - 1))
+            state["page"] = page
+            for child in body.winfo_children():
+                child.destroy()
+            pages[page]()
+            step_lbl.configure(text=f"Step {page + 1} of {len(pages)}")
+            back_btn.configure(state="normal" if page else "disabled")
+            last = page == len(pages) - 1
+            next_btn.configure(
+                text="Done" if last else "Next  →",
+                command=(self._close_oodle_wizard if last
+                         else lambda: show(state["page"] + 1)))
+
+        back_btn.configure(command=lambda: show(max(0, state["page"] - 1)))
+
+        def heading(text: str):
+            ctk.CTkLabel(body, text=text, anchor="w", justify="left",
+                         font=ctk.CTkFont(size=20, weight="bold")
+                         ).pack(fill="x", pady=(0, 10))
+
+        def para(text: str, color: str | None = None, pady=(0, 10), size=15):
+            ctk.CTkLabel(body, text=text, anchor="w", justify="left",
+                         wraplength=810, text_color=color,
+                         font=ctk.CTkFont(size=size)).pack(fill="x", pady=pady)
+
+        def picture(name: str):
+            path = _asset("help", name)
+            try:
+                img = tk.PhotoImage(file=str(path))
+            except Exception:
+                para(f"(image {name} could not be loaded)", "gray60")
+                return
+            state["images"].append(img)      # sonst raeumt der GC sie weg
+            ctk.CTkLabel(body, image=img, text="").pack(pady=(4, 10))
+
+        # ---------------------------------------------------------- Seite 1
+        def _page1():
+            heading("S2Tweaker needs one extra file, once")
+            ctk.CTkLabel(
+                body,
+                text="⚠   Without this file S2Tweaker cannot read the values "
+                     "out of your game.",
+                anchor="w", justify="left", wraplength=810,
+                text_color="#E6B800",
+                font=ctk.CTkFont(size=16, weight="bold"),
+            ).pack(fill="x", pady=(0, 10))
+            para("Your game stores its configuration compressed. Unpacking that "
+                 "needs Oodle (oo2core_9_win64.dll, 0.6 MB) – a library that "
+                 "may not be shipped with this tool.\n\n"
+                 "S2Tweaker does not download it, on purpose: a program that "
+                 "fetches a library from the internet and then runs it looks "
+                 "exactly like malware, and that is one reason antivirus "
+                 "scanners flag tools like this one. So you fetch it once, "
+                 "yourself – it takes a minute.")
+            para("Sorry that this is on you. I did try to get rid of this step: "
+                 "the library cannot legally be bundled, it cannot be taken out "
+                 "of the game (it is compiled into the game's own executable), "
+                 "and the open re-implementations carry no licence that would "
+                 "allow shipping them. Fetching it automatically was the old "
+                 "answer – and that is precisely what got this tool flagged as "
+                 "a virus. One manual minute is the honest way out.", "gray60")
+            para("1)  Copy the download link:", pady=(4, 4))
+            row = ctk.CTkFrame(body, fg_color="transparent")
+            row.pack(fill="x")
+            entry = ctk.CTkEntry(row, font=ctk.CTkFont(size=14), height=34)
+            entry.insert(0, pakio.OODLE_URL)
+            entry.configure(state="readonly")
+            entry.pack(side="left", fill="x", expand=True)
+            copy_btn = ctk.CTkButton(row, text="⧉  Copy", width=130, height=34,
+                                     font=ctk.CTkFont(size=14))
+
+            def do_copy():
+                self.clipboard_clear()
+                self.clipboard_append(pakio.OODLE_URL)
+                copy_btn.configure(text="✓  Copied", fg_color="#2E7D32",
+                                   hover_color="#2E7D32")
+
+            copy_btn.configure(command=do_copy)
+            copy_btn.pack(side="left", padx=(8, 0))
+            para("Then click “Next” – the following steps show exactly what to "
+                 "do with it.", "gray60", pady=(10, 0))
+
+        # ---------------------------------------------------------- Seite 2
+        def _page2():
+            heading("Paste the link into your browser")
+            picture("oodle_browser.png")
+            para("Paste it into the address bar and press Enter. The download "
+                 "starts on its own – there is no page to click through.")
+            para("Your browser may warn that this file is unverified, or ask "
+                 "whether you really want to keep it. That is normal for a "
+                 ".dll and you have to confirm it. The file comes from Epic's "
+                 "official Oodle release for Unreal Engine; S2Tweaker checks "
+                 "its checksum before using it and refuses anything else.",
+                 "#E6B800")
+
+        # ---------------------------------------------------------- Seite 3
+        def _page3():
+            heading("Put the file next to S2Tweaker.exe")
+            picture("oodle_folder.png")
+            para("Move the downloaded oo2core_9_win64.dll into the folder that "
+                 "holds S2Tweaker.exe – the same place as README.txt and "
+                 "update.bat. Not into the “_internal” folder.")
+            target = ctk.CTkEntry(body, font=ctk.CTkFont(size=14), height=34)
+            target.insert(0, str(self._oodle_target_dir()))
+            target.configure(state="readonly")
+            target.pack(fill="x", pady=(0, 10))
+            ctk.CTkLabel(
+                body,
+                text="When the file is in place: restart S2Tweaker. "
+                     "That is all – it never asks again.",
+                anchor="w", justify="left", wraplength=810,
+                font=ctk.CTkFont(size=16, weight="bold"),
+            ).pack(fill="x")
+
+        # ---------------------------------------------------------- Seite 4
+        def _page4():
+            heading("Optional: the one-click updater")
+            para("S2Tweaker can update itself, but only with a small helper "
+                 "file called update.bat. It is NOT part of the download, and "
+                 "you do not need it: the tool works fully without it.")
+            para("Why it is separate: update.bat downloads a new version and "
+                 "replaces the program files. That is useful, but it is also "
+                 "the kind of behaviour antivirus scanners dislike – so it is "
+                 "your choice, not something we push on you.", "gray60")
+            state_txt = ("It is here – the one-click update works."
+                         if self.updater_present() else
+                         "It is not here. \"Check for updates\" still tells you "
+                         "when a new version exists and opens the download "
+                         "page; only the automatic swap is unavailable.")
+            ctk.CTkLabel(
+                body, text=state_txt, anchor="w", justify="left",
+                wraplength=810,
+                text_color=("#4CAF50" if self.updater_present() else "#E6B800"),
+                font=ctk.CTkFont(size=16, weight="bold"),
+            ).pack(fill="x", pady=(4, 10))
+            para("If you want it, save this file next to S2Tweaker.exe – the "
+                 "same folder as before:", pady=(4, 4))
+            row2 = ctk.CTkFrame(body, fg_color="transparent")
+            row2.pack(fill="x")
+            e2 = ctk.CTkEntry(row2, font=ctk.CTkFont(size=14), height=34)
+            e2.insert(0, UPDATER_URL)
+            e2.configure(state="readonly")
+            e2.pack(side="left", fill="x", expand=True)
+            btn2 = ctk.CTkButton(row2, text="⧉  Copy", width=130, height=34,
+                                 font=ctk.CTkFont(size=14))
+
+            def copy2():
+                self.clipboard_clear()
+                self.clipboard_append(UPDATER_URL)
+                btn2.configure(text="✓  Copied", fg_color="#2E7D32",
+                               hover_color="#2E7D32")
+
+            btn2.configure(command=copy2)
+            btn2.pack(side="left", padx=(8, 0))
+            para("It is plain text – open it in Notepad and you can read "
+                 "exactly what it does.", "gray60", pady=(10, 0))
+
+        show(page)
+        win.after(250, win.lift)
 
     def _set_icon(self):
         try:
@@ -2161,6 +2420,18 @@ class App(ctk.CTk):
                                      fg_color="gray30", hover_color="gray25",
                                      command=self._show_faq)
         self.btn_faq.pack(side="right", padx=4, pady=8)
+        # Oodle-Ampel: auf einen Blick sichtbar, ob die Bibliothek da ist.
+        # Klick oeffnet den Assistenten — auch dann, wenn alles stimmt, damit
+        # man die Anleitung jederzeit nachlesen kann.
+        self.btn_oodle = ctk.CTkButton(
+            tools, text="● Oodle", width=132, fg_color="gray30",
+            hover_color="gray25", command=self._open_oodle_wizard)
+        self.btn_oodle.pack(side="right", padx=4, pady=8)
+        self.btn_updater = ctk.CTkButton(
+            tools, text="● Updater", width=132, fg_color="gray30",
+            hover_color="gray25",
+            command=lambda: self._open_oodle_wizard(page=3))
+        self.btn_updater.pack(side="right", padx=4, pady=8)
         self.btn_changed = ctk.CTkButton(
             tools, text="Changed only", width=105, fg_color="gray30",
             hover_color="gray25", command=self._toggle_changed_only)
@@ -4129,6 +4400,8 @@ class App(ctk.CTk):
                 elif kind == "game_label":
                     self.game_label.configure(text=payload)
                 elif kind == "ready":
+                    self._refresh_oodle_badge()
+                    self._refresh_updater_badge()
                     self._iw_populate()
                     self._ia_populate()
                     self._ir_populate()
@@ -4158,6 +4431,8 @@ class App(ctk.CTk):
                     self.btn_update.configure(state="normal",
                                               text="⟳ Check for updates")
                     self._show_update_result(payload)
+                elif kind == "oodle":
+                    self._open_oodle_wizard()
                 elif kind == "error":
                     messagebox.showerror(APP_TITLE, payload)
         except queue.Empty:
@@ -4297,11 +4572,12 @@ class App(ctk.CTk):
                 + (gd.dlc_summary()
                    or "No edition (DLC) content in this install."))
             self._msgs.put(("ready", ""))
-        except pakio.OodleError as exc:
-            # Verstaendliche Klartext-Hilfe statt Python-Traceback
-            self._set_status("Missing Oodle library – see dialog for how to fix it.")
+        except pakio.OodleError:
+            # Der Assistent erklaert es Schritt fuer Schritt mit Bildern —
+            # besser als eine Textwand im Fehlerdialog.
+            self._set_status("Missing Oodle library – see the setup window.")
             self._msgs.put(("loadfail", ""))
-            self._msgs.put(("error", str(exc)))
+            self._msgs.put(("oodle", ""))
         except Exception:
             err = traceback.format_exc()
             self._set_status("Failed to load game data – see error dialog.")

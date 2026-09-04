@@ -788,14 +788,15 @@ FAQ_ENTRIES = [
     {
         "q": "How do I update the tool? Is there an auto-update?",
         "a": "Click '⟳ Check for updates' (top right): the tool asks "
-             "github.com once whether a newer release exists - it never "
-             "checks in the background. If there is one, choose 'update "
-             "now' and the bundled update.bat swaps the program files "
-             "for you - S2Tweaker.exe and the _internal folder next to "
-             "it (the old ones are kept as .bak) - or open "
-             "the download page and do it yourself. Settings, presets, "
-             "output and cache always stay where they are. update.bat "
-             "is plain text - read it if you like.",
+             "github.com once whether a newer release exists - never in "
+             "the background. If there is one it opens the download "
+             "page. There is also an optional helper, update.bat, that "
+             "does the swap for you and keeps your old files as .bak. It "
+             "is deliberately NOT in the download: a file that fetches "
+             "something and replaces programs is what scanners dislike. "
+             "The 'Updater' button shows whether you have it and offers "
+             "the link. Settings, presets, output and cache always stay "
+             "where they are.",
         "k": "update autoupdate upgrade new version release download "
              "github check latest newer patch tool bat updater",
     },

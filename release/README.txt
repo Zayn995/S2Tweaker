@@ -111,10 +111,17 @@ TOOL UPDATES
 ------------
 Click "Check for updates" in the tool (top right): it asks github.com once
 whether a newer release exists - nothing ever checks in the background. If
-there is one, you can let the bundled update.bat do the swap: it downloads
-the latest release from GitHub, keeps your old files as S2Tweaker.exe.bak
-and _internal.bak, and replaces S2Tweaker.exe plus the _internal folder.
-Settings, presets, cache and output are not touched.
+there is one, the tool opens the download page for you.
+
+There is also an optional helper, update.bat, which does the swap for you:
+it downloads the latest release from GitHub, keeps your old files as
+S2Tweaker.exe.bak and _internal.bak, and replaces S2Tweaker.exe plus the
+_internal folder. Settings, presets, cache and output are not touched.
+It is NOT included in this download on purpose - a file that fetches
+something and then replaces program files is exactly what antivirus
+scanners dislike, so you decide whether you want it. The "Updater" button
+in the tool shows whether it is there and offers the link. Without it
+everything works, you just update by hand.
 You can also run update.bat directly at any time, or just download the ZIP
 yourself. update.bat is plain text - feel free to read what it does.
 

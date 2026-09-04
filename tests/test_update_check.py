@@ -78,9 +78,12 @@ assert "pause" in text, "Fehlerpfade muessen lesbar bleiben (pause)"
 import re
 assert not re.search(r"v\d+\.\d+\.\d+", text), "Versionsnummer hardcodiert"
 
-# das Spieler-ZIP liefert die Datei mit
+# Seit 04.09.2026 liefert das Spieler-ZIP die Datei NICHT mehr mit: sie
+# laedt herunter und ersetzt Programmdateien, und genau das soll niemand
+# ungefragt im Paket haben. Der Assistent im Programm bietet sie an.
 zips = (ROOT / "tools" / "make_release_zips.py").read_text(encoding="utf-8")
-assert 'update.bat' in zips, "make_release_zips packt update.bat nicht ein"
+assert 'z.write(out / "update.bat"' not in zips,     "update.bat wandert wieder ungefragt ins Spieler-ZIP"
+assert '"update.bat" not in names' in zips, "Gegenprobe im ZIP-Bauer fehlt"
 
 # im Dev-Modus (nicht eingefroren) bietet die GUI den Bat-Weg nicht an —
 # es gibt ja keine EXE zum Ersetzen

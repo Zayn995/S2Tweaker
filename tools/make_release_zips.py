@@ -59,7 +59,6 @@ def main() -> None:
             if path.is_file():
                 z.write(path, path.relative_to(app).as_posix())
         z.write(out / "README.txt", "README.txt")
-        z.write(out / "update.bat", "update.bat")
     print(f"{player.name}: {player.stat().st_size:,} bytes")
 
     # Gegenprobe Spieler-ZIP: der Starter liegt in der Wurzel und die
@@ -70,9 +69,13 @@ def main() -> None:
     assert "S2Tweaker.exe" in names, names[:10]
     internal = [n for n in names if n.startswith("_internal/")]
     assert len(internal) > 100, f"nur {len(internal)} Dateien in _internal/"
-    assert "README.txt" in names and "update.bat" in names, names[:10]
+    assert "README.txt" in names, names[:10]
+    # update.bat ist BEWUSST nicht dabei: eine Datei, die herunterlaedt und
+    # die Programmdateien ersetzt, gehoert nicht ungefragt in jedes Paket.
+    # Wer den Automatik-Weg will, holt sie ueber den Assistenten.
+    assert "update.bat" not in names, "update.bat gehoert nicht ins Spieler-ZIP"
     print(f"Gegenprobe: S2Tweaker.exe + {len(internal)} Dateien in "
-          "_internal/ + README + update.bat OK")
+          "_internal/ + README, ohne update.bat OK")
 
     src = out / f"S2Tweaker_v{version}_source.zip"
     with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:

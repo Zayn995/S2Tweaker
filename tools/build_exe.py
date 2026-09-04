@@ -36,6 +36,9 @@ def build(distpath: str | None = None, workpath: str | None = None) -> int:
         "--icon", str(REPO / "assets" / "icon.ico"),
         "--add-binary", f"{REPO / 'assets' / 'icon.ico'};.",
         "--add-binary", f"{REPO / 'tools' / 'repak.exe'};.",
+        # Bilder des Oodle-Assistenten. Als PNG, weil Tk die von Haus aus
+        # anzeigt — Pillow bleibt damit aus dem Build draussen (s. unten).
+        "--add-data", f"{REPO / 'assets' / 'help'};help",
         "--collect-all", "customtkinter",
         "--version-file", str(version_file),
         # Pillow ist eine optionale customtkinter-Abhaengigkeit, die die App

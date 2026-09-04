@@ -70,27 +70,125 @@ for stack in (b"ureq", b"rustls", b"webpki"):
         "mit Download-Funktion. Neu bauen: python tools/build_repak.py")
 print(f"tools/repak.exe ({repak.stat().st_size:,} B): kein HTTP-/TLS-Stack  OK")
 
-# --- 4) Der Start-Hinweis erscheint genau dann, wenn die DLL fehlt ------
-shown = []
-gui.messagebox.showinfo = lambda title, msg: shown.append(msg)
+# --- 4) Der Assistent erscheint genau dann, wenn die DLL fehlt ---------
 app = gui.App()
 app.update()
 real_avail = pakio.oodle_available
 try:
     pakio.oodle_available = lambda pak=None: True
     app._check_oodle_present()
-    assert not shown, "Dialog kam, obwohl die Bibliothek da ist"
+    assert getattr(app, "_oodle_win", None) is None,         "Assistent kam, obwohl die Bibliothek da ist"
+
     pakio.oodle_available = lambda pak=None: False
     app._check_oodle_present()
-    assert len(shown) == 1, f"erwartet 1 Dialog, bekam {len(shown)}"
-    assert pakio.OODLE_URL in shown[0] and "only needed to read" in shown[0]
+    win = getattr(app, "_oodle_win", None)
+    assert win is not None and win.winfo_exists(), "Assistent kam nicht"
+    app.update()
+
+    def texte(w):
+        """Alle sichtbaren Texte einsammeln — auch den Inhalt von
+        Eingabefeldern, in denen die Links stehen."""
+        out = []
+        for child in w.winfo_children():
+            try:
+                if child.cget("text"):
+                    out.append(str(child.cget("text")))
+            except Exception:
+                pass
+            try:
+                if hasattr(child, "get") and not hasattr(child, "winfo_children_x"):
+                    value = child.get()
+                    if isinstance(value, str) and value:
+                        out.append(value)
+            except Exception:
+                pass
+            out += texte(child)
+        return out
+
+    def klick(label, w=None):
+        """Knopf mit dieser Beschriftung druecken (beliebig tief)."""
+        for child in (w or win).winfo_children():
+            try:
+                if label in str(child.cget("text")) and hasattr(child, "invoke"):
+                    child.invoke()
+                    return True
+            except Exception:
+                pass
+            if klick(label, child):
+                return True
+        return False
+
+    # Seite 1: Warnung, Entschuldigung, Kopierknopf, Link
+    seite1 = " ".join(texte(win))
+    assert "Without this file" in seite1, "gelbe Warnung fehlt"
+    assert "Sorry that this is on you" in seite1, "Entschuldigung fehlt"
+    assert "Copy" in seite1, "Kopierknopf fehlt"
+    assert "Step 1 of 4" in seite1, "Schrittanzeige fehlt"
+    # Kopierknopf fuellt die Zwischenablage und quittiert
+    assert klick("Copy"), "Kopierknopf nicht gefunden"
+    app.update()
+    assert app.clipboard_get() == pakio.OODLE_URL, "Link nicht in der Ablage"
+    assert "Copied" in " ".join(texte(win)), "Knopf quittiert den Klick nicht"
+
+    # Seite 2: Browser-Bild + Hinweis auf die Sicherheitsabfrage
+    assert klick("Next"), "Weiter-Knopf fehlt"
+    app.update()
+    seite2 = " ".join(texte(win))
+    assert "Step 2 of 4" in seite2
+    assert "unverified" in seite2, "Hinweis zur Browser-Warnung fehlt"
+
+    # Seite 3: Zielordner + Neustart
+    assert klick("Next")
+    app.update()
+    seite3 = " ".join(texte(win))
+    assert "Step 3 of 4" in seite3
+    assert "restart S2Tweaker" in seite3, "Neustart-Hinweis fehlt"
+
+    # Seite 4: der Updater ist FREIWILLIG und wird als solcher benannt
+    assert klick("Next")
+    app.update()
+    seite4 = " ".join(texte(win))
+    assert "Step 4 of 4" in seite4
+    assert "you do not need it" in seite4, "Freiwilligkeit steht nicht da"
+    assert gui.UPDATER_URL in seite4, "Bezugsquelle des Updaters fehlt"
+    assert "Done" in seite4, "Abschluss-Knopf fehlt"
 finally:
     pakio.oodle_available = real_avail
     try:
         app.destroy()
     except Exception:
         pass
-print("Start-Hinweis: nur bei fehlender Bibliothek, mit Link  OK")
+print("Assistent: 4 Seiten, Warnung, Entschuldigung, Kopieren, Neustart, "
+      "optionaler Updater  OK")
+
+# --- 4c) Die Ampeln zeigen beide Zustaende ------------------------------
+app2 = gui.App()
+app2.update()
+real_avail2 = pakio.oodle_available
+try:
+    pakio.oodle_available = lambda pak=None: True
+    app2._refresh_oodle_badge()
+    assert "ready" in app2.btn_oodle.cget("text"), app2.btn_oodle.cget("text")
+    pakio.oodle_available = lambda pak=None: False
+    app2._refresh_oodle_badge()
+    assert "missing" in app2.btn_oodle.cget("text"), app2.btn_oodle.cget("text")
+    app2._refresh_updater_badge()
+    assert app2.btn_updater.cget("text") in ("● Updater ready",
+                                             "● Updater optional")
+finally:
+    pakio.oodle_available = real_avail2
+    try:
+        app2.destroy()
+    except Exception:
+        pass
+print("Ampeln: Oodle ready/missing und Updater ready/optional  OK")
+
+# --- 4b) Die Bilder liegen bei -----------------------------------------
+for name in ("oodle_browser.png", "oodle_folder.png"):
+    img = ROOT / "assets" / "help" / name
+    assert img.is_file() and img.stat().st_size > 5000, f"{name} fehlt"
+assert gui._asset("help", "oodle_browser.png").is_file()
+print("Assistenten-Bilder vorhanden  OK")
 
 # --- 5) Das Bau-Skript fuer repak ist da und pinnt eine Version --------
 script = (ROOT / "tools" / "build_repak.py").read_text(encoding="utf-8")
