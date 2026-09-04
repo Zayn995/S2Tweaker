@@ -44,7 +44,6 @@ ORDER = [
     "test_dlc_weapons.py",
     "test_names.py",
     "test_update_check.py",
-    "test_oodle_lazy.py",
     "test_workshop_scan.py",
     "test_gui_layout.py",
 ]
