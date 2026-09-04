@@ -1,62 +1,79 @@
-NEXUS — KURZBESCHREIBUNGEN DER DATEIEN
-======================================
-Diese Texte kommen in das Feld "File description" beim jeweiligen Upload
-(Manage -> Files -> Add file / Edit). Sie stehen unter dem Dateinamen in
-der Files-Liste. Keine externen Links darin — bewusst.
+NEXUS — TEXTE FUER DIE DATEI-UPLOADS
+====================================
+Nexus erlaubt im Feld "File description" nur 255 Zeichen. Der laengere
+Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 
 ==================================================================
 DATEI 1 — Main Files
-Name:            S2Tweaker 1.19.1
-File version:    1.19.1
-File category:   Main Files
+Name:          S2Tweaker 1.19.1
+File version:  1.19.1
+File category: Main Files
 ==================================================================
 
-The tool itself. Extract the whole ZIP into one folder and run
-S2Tweaker.exe - keep the "_internal" folder next to it, it belongs to the
-program. Everything the tool creates (settings, presets, cache, your
-built mods) stays in that same folder, so deleting it removes everything.
+--- File description (244 Zeichen) -------------------------------
+The tool itself. Extract everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where to get it. VirusTotal 1/66, only Zillya, reported as a false positive.
+------------------------------------------------------------------
 
-One extra file is needed to read your game's packed config values: Oodle's
-oo2core_9_win64.dll (0.6 MB). It is proprietary and may not be shipped
-with the tool. S2Tweaker does not download it either - on purpose, because
-a program that fetches a library and then runs it is exactly what malware
-does, and that is one of the reasons scanners flag tools like this one.
-Instead, a setup window shows you with pictures where to get it and where
-to put it. One minute, once. Setting sliders and building a mod work
-without it.
+--- Changelog ----------------------------------------------------
+1.19.1 - nothing is downloaded while the tool runs
 
-Virus scan of this exact file: 1 of 66 engines on VirusTotal, and that one
-(Zillya) has been asked to review its detection as a false positive.
-Windows Defender and all other engines report it clean. The scan link is
-in the description above.
+- The tool no longer fetches anything at runtime. It used to download the
+  Oodle decompression library on first use and load it, which is exactly
+  what a dropper does and one reason scanners flagged it. That code is
+  gone. A setup window now walks you through placing that file once, with
+  pictures, and shows where it goes. It only appears when the file is
+  missing, and an indicator in the header shows the state at a glance.
+- The pak tool it bundles (repak) is built from source with its download
+  function and whole HTTP/TLS stack removed, so it cannot fetch anything
+  either. It is no longer a third-party prebuilt binary.
+- update.bat is no longer inside the download. It is available here as an
+  optional file instead - a script that downloads a release and replaces
+  program files should be your choice, not a surprise.
+- Sorry about the one manual step. The library may not be shipped, cannot
+  be taken out of the game (it is compiled into the game executable), and
+  the open re-implementations have no licence. Doing it automatically was
+  the old answer, and that is what got this tool flagged.
+- No new game files, no re-extraction. Your existing paks stay valid.
 
-Not play-tested in game yet - every value is cross-checked against the
-game's own config files, but reports from actual play are very welcome.
+1.19.0 - shipped as a folder instead of a single exe
+- The exe was a self-extracting archive that unpacked into your temp
+  folder and ran from there - harmless, but the shape of a dropper. Now a
+  3 MB launcher next to an "_internal" folder. Keep them together.
+- The exe finally identifies itself: publisher, product, version, licence.
+- Fixed three weapons offering a "Durability" slider that could never do
+  anything (they have no durability value in the game data).
+- New test suite checking every slider against your game's real values:
+  over 3,000 checks, no wrong values found.
+------------------------------------------------------------------
 
 
 ==================================================================
 DATEI 2 — Optional files
-Name:            update.bat (optional one-click updater)
-File version:    1.19.1
-File category:   Optional files
+Name:          update.bat (optional one-click updater)
+File version:  1.19.1
+File category: Optional files
 ==================================================================
 
-Optional, and only useful if you want the tool to update itself.
+--- File description (232 Zeichen) -------------------------------
+Optional. Put it next to S2Tweaker.exe and the tool can update itself in one click, old files kept as .bak. You do not need it - without it you update by hand. Deliberately not inside the main download. Plain text. VirusTotal: 0/60.
+------------------------------------------------------------------
 
-Put this file next to S2Tweaker.exe. The tool can then fetch a new version
-and swap the program files for you in one click, keeping your previous
-ones as .bak. Your settings, presets, cache and built mods are never
-touched.
+--- Changelog ----------------------------------------------------
+Split out of the main download in 1.19.1.
 
-You do not need it. Without it, "Check for updates" still tells you when a
-newer version exists and opens the download page - you just replace the
-files yourself.
+A script that fetches a release and replaces program files is one of the
+patterns antivirus scanners dislike, so it no longer travels inside the
+package unasked - you decide whether you want it.
 
-It is deliberately NOT inside the main download: a script that downloads a
-release and replaces program files is exactly the pattern antivirus
-scanners dislike, and that should be your decision, not something that
-comes along unasked.
+To use it: save it next to S2Tweaker.exe. "Check for updates" in the tool
+then offers a one-click swap, keeping your previous files as .bak. Your
+settings, presets, cache and built mods are never touched.
 
-It is plain text - open it in Notepad and you can read line by line what
-it does. Virus scan of this exact file: 0 of 60 engines on VirusTotal.
+Without it nothing breaks: "Check for updates" still tells you when a new
+version exists and opens the download page, you just replace the files
+yourself.
+
+It is plain text on purpose - open it in Notepad and read exactly what it
+does before you run it.
+------------------------------------------------------------------
