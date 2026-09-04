@@ -187,6 +187,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.19.0 - The tool now ships as a folder, to stop antivirus false positives[/b] (~230 tweaks, 13 tabs)
+[list]
+[*][b]What changes for you:[/b] extract the whole ZIP and keep the files together - S2Tweaker.exe now needs the "_internal" folder sitting next to it. Everything else is the same: double-click S2Tweaker.exe, and settings, presets, cache and output are still created next to it. The download is even slightly smaller than before
+[*][b]Why:[/b] the exe used to be a PyInstaller one-file build - a self-extracting 15 MB archive that unpacks itself into your temp folder and runs from there. That is harmless, but it is also exactly what a dropper does, so antivirus machine-learning heuristics kept guessing wrong: Windows Defender deleted one freshly built exe as Trojan:Win32/Bearfoos.A!ml, and the upload here could not be approved because scanners flagged it on download. The launcher is now 3 MB with nothing embedded in it
+[*][b]The exe finally identifies itself[/b]: publisher, product name, version and license are written into it. Until now that information was completely empty, which is another thing heuristics hold against an unsigned file
+[*][b]Releases are now built by GitHub Actions from the public source[/b], not on my own PC. The build log is public, and the build fails if the version info is missing or the old one-file layout comes back. Free code signing through the SignPath Foundation is applied for - that is the remaining piece, and it takes time to build up reputation
+[*][b]Fixed: three weapons offered a "Durability" slider that could never do anything[/b] - the two underbarrel grenade launchers and the buckshot launcher have no durability value in the game data at all, they do not wear. The tool still listed "durability x 2" as an active tweak while writing no patch. Those sliders are gone now, with a note in their place
+[*][b]New test suite that checks every slider against your game's real values[/b] - over 3,000 checks across all sliders, weapon/ammo/armor/mutant overrides and all 582 faction pairs, each one built three times to verify the maths holds. It found no wrong values, and it is the kind of test that would have caught the "quest cooldown does nothing" and "recoil at 0 % does nothing" bugs on its own
+[*]No new game files, no re-extraction on first start. Generated paks are unchanged apart from the version stamp in their manifest
+[/list]
+
 [b]v1.18.3 - Hardening: weather templates and the NPC threat profile are written out completely[/b] (~230 tweaks, 13 tabs)
 [list]
 [*][b]Weather report in the comments ("since 1.6.1 the weather no longer changes")[/b]: I found no definite defect, but a structural risk. "Rain & storm frequency" and "Emission frequency" also patched the weather base templates (the indexed entries at the top of the weather file that every region inherits from) with a partial patch - and whether the game merges or replaces such indexed entries is undocumented. If it replaces them, the base template shrinks to two weather types without durations. The same applied to the NPC threat profile behind "NPC alertness" and "NPC search time" since 1.18.0. Both are now written out completely (vanilla values untouched, only the scaled ones differ), which is correct either way. Regions keep their small partial patches
@@ -195,10 +206,12 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.18.2 - Bug fix: crash with the Debug checkbox since 1.14[/b] (~230 tweaks, 13 tabs)
+[spoiler]
 [list]
 [*][b]Fixed: "[WinError 53] The network path was not found: \\GameLite\DLCGameData\..." when building with the Debug checkbox ticked[/b] (thank you KobaltRaven, GitHub issue #5). Since 1.14.0 the edition weapons and armor get their patches under a path starting with "//", and the Debug export joined that onto the output folder - for Python that is an absolute network path, so it tried to create a folder on a network share. The pak itself was already built at that point; only the export and the success message failed. The export now maps the path like the pak builder does (edition files land under output\<Mod>_cfg\GameLite\DLCGameData\...), and a failing export can no longer hide a built pak
 [*]No other changes. Generated paks are unchanged apart from the version stamp in their manifest
 [/list]
+[/spoiler]
 
 [b]v1.18.1 - Bug fix: Steam Workshop mods are now actually scanned[/b] (~230 tweaks, 13 tabs)
 [spoiler]
