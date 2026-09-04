@@ -126,7 +126,11 @@ def _writable(directory: Path) -> bool:
 
 
 def _oodle_error(reason: str, target: Path | None = None) -> "OodleError":
-    where = str(target.parent) if target is not None else "your S2Tweaker folder"
+    # Dem Nutzer wird IMMER der Ordner mit S2Tweaker.exe genannt, nie der
+    # von repak.exe (im Ordner-Build `_internal`) — sonst widerspricht der
+    # Text der Anleitung und dem Bild im Assistenten. Von dort holt sich
+    # ensure_oodle die Datei ohnehin und verteilt sie weiter.
+    where = str(app_dir())
     return OodleError(OODLE_HELP.format(
         dll=OODLE_DLL, url=OODLE_URL, hash8=OODLE_SHA256[:8],
         reason=reason, target=where))

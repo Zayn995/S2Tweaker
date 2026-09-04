@@ -2131,8 +2131,14 @@ class App(ctk.CTk):
             pass        # eine fehlende Vorabwarnung darf den Start nie kippen
 
     def _oodle_target_dir(self) -> Path:
-        repak = pakio.find_repak()
-        return repak.parent if repak is not None else app_dir()
+        """Der Ordner, den der Nutzer sehen soll: der mit S2Tweaker.exe.
+
+        NICHT der Ordner von repak.exe — der liegt im Ordner-Build in
+        `_internal`, und genau das widerspraeche dem Bild und dem Text
+        ("neben S2Tweaker.exe, nicht in _internal"). Dort abgelegt wird
+        die Datei gefunden; weiterverteilt wird sie vom Programm selbst
+        (ensure_oodle legt eine Kopie neben repak und in tools/)."""
+        return app_dir()
 
     def _close_oodle_wizard(self):
         win = getattr(self, "_oodle_win", None)

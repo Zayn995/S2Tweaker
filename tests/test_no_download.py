@@ -52,7 +52,11 @@ except pakio.OodleError as exc:
     assert "never downloads it" in text, text[:200]
     assert pakio.OODLE_URL in text, "Bezugsquelle fehlt im Hilfetext"
     assert "Confirm & load game data" in text, "Handlungsanweisung fehlt"
-    assert str(missing) in text, "Zielordner wird nicht genannt"
+    # Genannt wird der Ordner mit S2Tweaker.exe — NICHT der interne
+    # Ablageort neben repak.exe. Sonst widerspricht der Fehlertext dem
+    # Assistenten und dem Bild darin.
+    assert str(pakio.app_dir()) in text, "Zielordner wird nicht genannt"
+    assert "_internal" not in text, "Fehlertext nennt wieder _internal"
 else:
     raise AssertionError("ensure_oodle() ist ohne DLL durchgelaufen")
 finally:
@@ -143,6 +147,14 @@ try:
     seite3 = " ".join(texte(win))
     assert "Step 3 of 4" in seite3
     assert "restart S2Tweaker" in seite3, "Neustart-Hinweis fehlt"
+    # Der genannte Ordner MUSS der mit S2Tweaker.exe sein. Frueher stand
+    # dort der Ordner von repak.exe — im Ordner-Build also `_internal`,
+    # und damit widersprach das Feld dem Bild und dem Satz daneben
+    # ("not into the _internal folder"). Genau das darf nicht zurueckkommen.
+    assert str(gui.app_dir()) in seite3, "Zielordner fehlt oder ist falsch"
+    assert "_internal" not in str(app._oodle_target_dir()), \
+        "Der Assistent nennt wieder den _internal-Ordner als Ablageort"
+    assert app._oodle_target_dir() == gui.app_dir()
 
     # Seite 4: der Updater ist FREIWILLIG und wird als solcher benannt
     assert klick("Next")
