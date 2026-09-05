@@ -24,7 +24,7 @@ Architektur & Mechanik: [README.md](README.md) · Recherche: [docs/SPEC.md](docs
 pip install -r requirements.txt
 python main.py            # GUI starten (Dev-Modus nutzt vanilla/, falls vorhanden)
 python test_generate.py   # Ende-zu-Ende-Test: baut Test-Pak mit vielen Tweaks
-build.bat                 # baut dist\S2Tweaker.exe (PyInstaller)
+build.bat                 # baut dist\S2Tweaker\ (signierte pythonw.exe + _internal, KEIN PyInstaller)
 ```
 
 Hinweis: Auf manchen Rechnern zeigen `python` und `pip` auf verschiedene

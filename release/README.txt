@@ -62,17 +62,18 @@ TOOL FEATURES
 - Search box that finds sliders, weapons, ammo rounds and armor by name
 - Built-in searchable FAQ (50 entries) and a DLC checker in the status
   line that tells you which edition content the tool found
-- "Check for updates" button + plain-text update.bat auto-updater
-  (see TOOL UPDATES below)
+- No network access at all: the tool never checks for updates, never
+  downloads anything, and the package does not even contain Python's
+  networking modules (see TOOL UPDATES below)
 
 
 HOW TO USE
 ----------
 1. Extract this archive anywhere (e.g. a "S2Tweaker" folder on your desktop).
-   Keep the files together: S2Tweaker.exe needs the "_internal" folder that
-   sits next to it. Everything the tool creates later (settings, presets,
-   cache, output) also lands in that same folder - delete it and nothing
-   is left behind.
+   Keep the files together: S2Tweaker.exe needs the DLLs and the "_internal"
+   folder that sit next to it. Everything the tool creates later (settings,
+   presets, cache, output) also lands in that same folder - delete it and
+   nothing is left behind.
 2. Run S2Tweaker.exe.
 3. Check the suggested game folder, then click "Confirm & load game data".
    First load extracts ~85 MB of config data from your game (10-20 seconds).
@@ -109,29 +110,41 @@ balance patches.
 
 TOOL UPDATES
 ------------
-Click "Check for updates" in the tool (top right): it asks github.com once
-whether a newer release exists - nothing ever checks in the background. If
-there is one, the tool opens the download page for you.
+By hand, and on purpose: download the new ZIP from where you got this one
+and extract it over your S2Tweaker folder, replacing what is there. Your
+settings, presets, cache and output are not part of the download, so they
+stay exactly as they are. The version you are running is in the window
+title.
 
-There is also an optional helper, update.bat, which does the swap for you:
-it downloads the latest release from GitHub, keeps your old files as
-S2Tweaker.exe.bak and _internal.bak, and replaces S2Tweaker.exe plus the
-_internal folder. Settings, presets, cache and output are not touched.
-It is NOT included in this download on purpose - a file that fetches
-something and then replaces program files is exactly what antivirus
-scanners dislike, so you decide whether you want it. The "Updater" button
-in the tool shows whether it is there and offers the link. Without it
-everything works, you just update by hand.
-You can also run update.bat directly at any time, or just download the ZIP
-yourself. update.bat is plain text - feel free to read what it does.
+There is no update check and no auto-updater: the tool has no networking
+code at all, and a program that talks to a server to fetch and replace its
+own files is exactly the pattern antivirus scanners and mod sites object to.
+
+
+WHAT IS IN THE FOLDER (and why the exe has a Python icon)
+---------------------------------------------------------
+S2Tweaker.exe is pythonw.exe from python.org, byte for byte, digitally
+signed by the Python Software Foundation - that is why it carries the
+Python icon and Python's version info; changing either would break the
+signature. The tool's own code sits next to it as readable Python files in
+_internal\s2tweaker, together with the Python runtime and Tcl/Tk (all
+signed by the PSF or Microsoft). The only unsigned file is
+_internal\repak.exe, an open-source pak tool that the public build workflow
+compiles from source. Nothing is packed, nothing is embedded, nothing
+unpacks into your temp folder, and the package does not even contain
+Python's networking modules (socket, ssl) - it could not go online if it
+tried. Earlier versions were built with PyInstaller, whose launcher is a
+shape antivirus heuristics distrust; that is gone.
 
 
 NOTES
 -----
 - Steam and GOG installs supported (auto-detected; you can also browse to
   any folder that contains Stalker2\Content\Paks).
-- Windows only. Some antivirus tools flag freshly built PyInstaller exes -
-  that is a known false-positive pattern for Python-based tools.
+- Windows only (Windows 10 or newer).
+- If an antivirus tool still flags anything, it is a false positive - see
+  the section above and the FAQ in the tool; please report it to your
+  vendor as such.
 - Oodle library: to read the game's packed config files, a proprietary
   decompression library (oo2core_9_win64.dll, 0.6 MB) is required. It cannot
   be shipped with this tool, and S2Tweaker does NOT download it - on purpose.
@@ -160,6 +173,10 @@ CREDITS
   https://github.com/trumank/repak
   repak.exe ships inside the "_internal" folder next to S2Tweaker.exe; its
   MIT notice is reproduced in full at the end of this file.
+- Python (Python Software Foundation, PSF licence), Tcl/Tk (BSD-style),
+  customtkinter by Tom Schimansky (MIT), darkdetect by Alberto Sottile
+  (BSD-3-Clause), packaging (Apache-2.0 OR BSD-2-Clause). Their licence
+  texts are in _internal\licenses\.
 - cfg.bin decoding based on bin2cfg.py by joric, building on S2CfgToJSON
   by sdwvit with binary reader by thexii (public domain / MIT)
   https://github.com/joric/stalker/wiki

@@ -1,10 +1,10 @@
-# Runtime
+# Runtime (customtkinter pulls in darkdetect and packaging)
 customtkinter>=5.2
 
-# Building the exe (optional)
-pyinstaller>=6.10
+# Building the program folder needs nothing beyond a python.org install:
+# tools/build_exe.py copies the signed pythonw.exe and the runtime from
+# the interpreter that runs it. No PyInstaller since 1.21.0.
 
 # Screenshots for the mod page (optional, tools/make_screenshots.py only).
-# Never used by the app itself - build.bat excludes it from the exe on
-# purpose so the build is the same size on every machine.
+# Never used by the app itself and never copied into the build.
 pillow>=10.0

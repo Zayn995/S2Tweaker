@@ -1,0 +1,185 @@
+"""S2Tweaker launcher - the only glue between S2Tweaker.exe and the program.
+
+This file is tools/launcher.py in the repository. tools/build_exe.py copies
+it unchanged into the program folder as _internal/sitecustomize.py.
+
+How the packaged program starts (there is no PyInstaller since 1.21.0):
+
+1. S2Tweaker.exe is pythonw.exe from python.org, byte for byte, digitally
+   signed by the Python Software Foundation. It loads python3XX.dll from
+   the same folder.
+2. The interpreter finds python3XX._pth next to that DLL. The file pins
+   the module search path to _internal\\python3XX.zip and _internal -
+   nothing else, not an installed Python, not PYTHONPATH - and contains
+   the line "import site".
+3. "site" imports a module named sitecustomize if one is on the path.
+   That is Python's documented hook for site-specific start-up code, and
+   this file is that module. It marks the build as packaged, points
+   Tcl/Tk at their script libraries and starts the GUI.
+4. When the window closes, this module returns. The interpreter has no
+   script to run and no console to read from, so it exits.
+
+Self-test: with the environment variable S2TWEAKER_SELFTEST=<file> the
+launcher does not open the GUI for real. It imports every bundled module
+the program relies on, proves that no networking module is present, runs
+the bundled repak once, builds the main window, tears it down again and
+writes a report to <file>. tools/build_exe.py runs this against a copy of
+every build before the build counts as done.
+"""
+import os
+import sys
+import traceback
+from pathlib import Path
+
+INTERNAL = Path(__file__).resolve().parent      # ...\S2Tweaker\_internal
+APP_DIR = INTERNAL.parent                       # the folder with S2Tweaker.exe
+
+# Standard-library modules the program imports (s2tweaker/*.py) plus the
+# ones customtkinter needs. Every one of them must come from the bundle.
+STDLIB_NEEDED = (
+    "dataclasses", "datetime", "functools", "hashlib", "json", "math",
+    "os", "pathlib", "queue", "re", "shutil", "stat", "struct",
+    "subprocess", "sys", "tempfile", "threading", "time", "tkinter",
+    "tkinter.filedialog", "tkinter.messagebox", "traceback", "typing",
+    "zipfile", "lzma", "bz2", "ctypes", "unicodedata", "decimal",
+    "xml.parsers.expat", "select", "platform", "urllib.parse",
+)
+# ... and these must be ABSENT: the package ships without any networking
+# capability at all, and that is checked, not promised.
+STDLIB_ABSENT = ("socket", "ssl", "_socket", "_ssl")
+
+
+def _prepare() -> None:
+    # "frozen" is the marker py2exe, cx_Freeze and PyInstaller set on a
+    # packaged program. s2tweaker reads it and then keeps settings, cache,
+    # presets and output next to S2Tweaker.exe - the tool stays portable.
+    sys.frozen = True
+    # On Windows, `site` also appends sys.prefix - the folder with
+    # S2Tweaker.exe, where settings, cache and output live - to sys.path.
+    # The search path is _internal and nothing else, so drop everything
+    # outside it.
+    sys.path[:] = [p for p in sys.path
+                   if Path(p).resolve().is_relative_to(INTERNAL)]
+    # Tcl and Tk look for their script libraries relative to a Python
+    # installation. Here they live in _internal\tcl, so name them
+    # explicitly (PyInstaller's runtime hook did the same).
+    tcl_root = INTERNAL / "tcl"
+    for env, prefix, marker in (("TCL_LIBRARY", "tcl", "init.tcl"),
+                                ("TK_LIBRARY", "tk", "tk.tcl")):
+        for candidate in sorted(tcl_root.glob(prefix + "[0-9]*")):
+            if (candidate / marker).is_file():
+                os.environ[env] = str(candidate)
+
+
+def _selftest(report: Path) -> None:
+    import hashlib
+    import importlib
+    import subprocess
+
+    lines = []
+    from s2tweaker import __version__
+    lines.append(f"S2Tweaker {__version__}")
+    lines.append(f"executable={sys.executable}")
+    lines.append(f"prefix={sys.prefix}")
+    lines.append("path=" + ";".join(sys.path))
+    assert all(Path(p).resolve().is_relative_to(INTERNAL) for p in sys.path), \
+        f"search path leaves _internal: {sys.path}"
+
+    for name in STDLIB_NEEDED:
+        importlib.import_module(name)
+    for name in STDLIB_ABSENT:
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            continue
+        raise AssertionError(
+            f"{name} is importable - the package must not contain it")
+    lines.append(f"stdlib: {len(STDLIB_NEEDED)} modules present, "
+                 f"{'/'.join(STDLIB_ABSENT)} absent")
+
+    # hashlib without OpenSSL (_hashlib is not shipped): built-in SHA-256
+    empty = hashlib.sha256(b"").hexdigest()
+    assert empty == ("e3b0c44298fc1c149afbf4c8996fb924"
+                     "27ae41e4649b934ca495991b7852b855"), empty
+    lines.append("hashlib: built-in sha256 OK")
+
+    for name in ("cfgparse", "emit", "faq", "game", "gamedata", "gui",
+                 "modscan", "names", "pakio", "tweaks", "vendor_bin2cfg"):
+        importlib.import_module("s2tweaker." + name)
+    for name in ("customtkinter", "darkdetect", "packaging"):
+        importlib.import_module(name)
+    lines.append("s2tweaker, customtkinter, darkdetect, packaging import OK")
+
+    from s2tweaker import gui, pakio
+    assert gui.app_dir() == APP_DIR, gui.app_dir()
+    assert pakio.app_dir() == APP_DIR, pakio.app_dir()
+    assert gui._asset("icon.ico").is_file(), gui._asset("icon.ico")
+    assert gui._asset("help", "oodle_folder.png").is_file()
+    repak = pakio.find_repak()
+    assert repak is not None and repak.parent == INTERNAL, repak
+    r = subprocess.run([str(repak), "--version"], capture_output=True,
+                       text=True, stdin=subprocess.DEVNULL, timeout=60,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+    assert r.returncode == 0, r.stderr
+    lines.append(f"repak: {r.stdout.strip()} ({repak})")
+
+    app = gui.App()
+    app.update()
+    lines.append(f"window: {app.title()} {app.geometry()}")
+    app.destroy()
+    lines.append("OK")
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _report_crash(text: str) -> None:
+    """pythonw.exe has no console: write the traceback next to the program
+    and show it, otherwise the user only sees that nothing came up."""
+    log = APP_DIR / "S2Tweaker_error.log"
+    try:
+        log.write_text(text, encoding="utf-8")
+        where = f"\n\nThe full text was saved to:\n{log}"
+    except OSError:
+        where = ""
+    try:
+        import tkinter
+        from tkinter import messagebox
+        root = tkinter.Tk()
+        root.withdraw()
+        messagebox.showerror("S2Tweaker could not start", text[-2000:] + where)
+        root.destroy()
+    except Exception:
+        pass
+
+
+def main() -> None:
+    _prepare()
+    report = os.environ.get("S2TWEAKER_SELFTEST")
+    try:
+        if report:
+            _selftest(Path(report))
+            return
+        from s2tweaker.gui import run
+        run()
+    except SystemExit as exc:
+        # sys.exit() inside the program must not bubble up into `site`:
+        # the interpreter would count that as a failed start-up (exit
+        # code 1) instead of a clean exit.
+        code = exc.code if isinstance(exc.code, int) else (
+            0 if exc.code is None else 1)
+        os._exit(code)
+    except BaseException:
+        text = traceback.format_exc()
+        if report:
+            try:
+                Path(report).write_text("FAILED\n" + text, encoding="utf-8")
+            finally:
+                os._exit(2)
+        _report_crash(text)
+        os._exit(1)
+    # A file dropped onto S2Tweaker.exe arrives as argv[1], and Python would
+    # try to run it as a script once this module returns. Not that.
+    if len(sys.argv) > 1:
+        os._exit(0)
+
+
+main()

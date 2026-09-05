@@ -1,6 +1,9 @@
-"""S2Tweaker – Einstiegspunkt (fuer python main.py und den EXE-Build)."""
+"""S2Tweaker - Einstiegspunkt fuer die Entwicklung (python main.py).
 
-import multiprocessing
+Der ausgelieferte Programmordner startet NICHT ueber diese Datei: dort ist
+S2Tweaker.exe die signierte pythonw.exe von python.org, und
+_internal/sitecustomize.py (Quelle: tools/launcher.py) ruft die GUI.
+"""
 
 
 def main():
@@ -9,5 +12,4 @@ def main():
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     main()

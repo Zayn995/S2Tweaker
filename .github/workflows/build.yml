@@ -2,15 +2,19 @@
 #
 # Warum es das gibt (04.09.2026): der Nexus-Support konnte die hochgeladene
 # Datei nicht freigeben, weil Virenscanner sie als Malware markierten. Teil
-# der Antwort darauf ist Nachvollziehbarkeit — jede veroeffentlichte EXE
+# der Antwort darauf ist Nachvollziehbarkeit — jede veroeffentlichte Datei
 # soll beweisbar aus DIESEM oeffentlichen Quellcode stammen und nicht aus
-# einem Ordner auf einem Laptop. Das ist ausserdem die Voraussetzung fuer
-# kostenloses Code-Signing durch die SignPath Foundation, die nur
-# Artefakte aus einer automatisierten Bau-Kette signiert.
+# einem Ordner auf einem Laptop.
 #
-# Die Bau-Anweisung selbst steht NICHT hier, sondern in tools/build_exe.py
+# Seit 1.21.0 (05.09.2026) gibt es keinen PyInstaller mehr: S2Tweaker.exe
+# ist die unveraenderte, von der Python Software Foundation signierte
+# pythonw.exe der python.org-Installation, und der Python-Code liegt lesbar
+# daneben. Die Bau-Anweisung steht NICHT hier, sondern in tools/build_exe.py
 # (dasselbe Skript, das build.bat lokal aufruft) — sonst haetten wir zwei
-# Kopien, die auseinanderlaufen.
+# Kopien, die auseinanderlaufen. Das Skript prueft seinen Ordner selbst
+# (Signaturen, Hash-Gleichheit mit pythonw.exe, verbotene Dateien) und
+# startet ihn einmal probeweise. Der Schritt "Gegenprobe" unten wiederholt
+# die wichtigsten Punkte unabhaengig davon mit Windows-Bordmitteln.
 name: build
 
 on:
@@ -43,56 +47,49 @@ jobs:
         run: python tools/build_repak.py
 
       - name: Tests ohne Spieldaten
-        # Die volle Batterie (32 Suiten) braucht den vanilla/-Ordner mit
-        # extrahierten GameData. Die duerfen nie ins Repo (GSC-Copyright),
-        # also laeuft hier nur, was ohne sie auskommt; der Rest vor jedem
-        # Release lokal.
+        # Die volle Batterie braucht den vanilla/-Ordner mit extrahierten
+        # GameData. Die duerfen nie ins Repo (GSC-Copyright), also laeuft
+        # hier nur, was ohne sie auskommt; der Rest vor jedem Release lokal.
         run: python tests/run_ci.py
 
-      - name: EXE bauen
+      - name: Programmordner bauen (inkl. Gegenprobe und Selbsttest)
         run: python tools/build_exe.py
 
-      - name: Gegenprobe — Versions-Ressource und Layout
-        # Genau die zwei Dinge, die den Virenscanner-Fehlalarm beguenstigt
-        # haben: fehlende Herkunftsangaben und die selbstentpackende
-        # Einzeldatei. Wenn eines davon zurueckfaellt, soll der Build rot
-        # werden und nicht still ein Artefakt hochladen.
+      - name: Gegenprobe — signierter Starter, keine Netzmodule
+        # Unabhaengig vom Bau-Skript, mit Windows-Bordmitteln: der Starter
+        # muss Byte fuer Byte die pythonw.exe des Runners sein und von der
+        # Python Software Foundation signiert; jede DLL/PYD muss gueltig
+        # signiert sein (einzige Ausnahme: das selbst gebaute repak.exe);
+        # und nichts, was Netz oder TLS kann, darf im Paket liegen.
         shell: pwsh
         run: |
-          $exe = "dist/S2Tweaker/S2Tweaker.exe"
+          $dist = "dist/S2Tweaker"
+          $exe = "$dist/S2Tweaker.exe"
           if (-not (Test-Path $exe)) { throw "EXE fehlt: $exe" }
-          if (-not (Test-Path "dist/S2Tweaker/_internal")) {
-            throw "_internal fehlt - wurde wieder --onefile gebaut?"
+          $py = Join-Path $env:pythonLocation "pythonw.exe"
+          $h1 = (Get-FileHash $exe -Algorithm SHA256).Hash
+          $h2 = (Get-FileHash $py -Algorithm SHA256).Hash
+          "S2Tweaker.exe : $h1"
+          "pythonw.exe   : $h2"
+          if ($h1 -ne $h2) { throw "S2Tweaker.exe ist nicht die unveraenderte pythonw.exe" }
+          $sig = Get-AuthenticodeSignature $exe
+          "Signatur      : $($sig.Status) / $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
+            throw "Starter nicht gueltig von der Python Software Foundation signiert"
           }
-          $vi = (Get-Item $exe).VersionInfo
-          "CompanyName    : $($vi.CompanyName)"
-          "ProductName    : $($vi.ProductName)"
-          "FileVersion    : $($vi.FileVersion)"
-          "Groesse        : $((Get-Item $exe).Length) Bytes"
-          foreach ($f in 'CompanyName', 'ProductName', 'FileVersion') {
-            if ([string]::IsNullOrWhiteSpace($vi.$f)) {
-              throw "Versions-Ressource unvollstaendig: $f ist leer"
-            }
+          $bins = Get-ChildItem $dist -Recurse -Include *.exe,*.dll,*.pyd
+          $unsigned = @($bins | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' })
+          "Binaerdateien : $($bins.Count), davon unsigniert: $($unsigned.Name -join ', ')"
+          if (@($unsigned | Where-Object { $_.Name -ne 'repak.exe' }).Count -gt 0) {
+            throw "Unsignierte Binaerdatei ausser repak.exe im Paket"
           }
-          # Der Starter darf kein eingebettetes Archiv mehr sein. Die alte
-          # Schranke von 8 MB hat das NICHT geprueft: 1.19.1 kam mit
-          # 3,17 MB durch und bestand zu 90 % aus genau dem Archiv, das
-          # hier ausgeschlossen sein sollte. Mit --debug noarchive liegt
-          # der Starter bei ~345 KB; 1 MB laesst Luft und schlaegt an,
-          # sobald der Klumpen zurueckkehrt.
-          if ((Get-Item $exe).Length -gt 1MB) {
-            throw "Starter ist $((Get-Item $exe).Length) Bytes gross - steckt wieder ein Archiv drin?"
+          foreach ($bad in '_ssl', '_socket', '_hashlib', 'libssl', 'libcrypto', 'sqlite3', '_multiprocessing') {
+            if (Get-ChildItem $dist -Recurse -Filter "$bad*") { throw "$bad* im Paket" }
           }
-          # Gegenprobe am Inhalt statt nur an der Groesse: die Module
-          # muessen als .pyc in _internal liegen.
-          $pyc = (Get-ChildItem "dist/S2Tweaker/_internal" -Recurse -Filter *.pyc | Measure-Object).Count
-          "Module als .pyc  : $pyc"
-          if ($pyc -lt 100) {
-            throw "Nur $pyc .pyc-Dateien - steckt der Python-Code wieder in der EXE?"
-          }
+          if (-not (Test-Path "$dist/_internal/sitecustomize.py")) { throw "Starter-Modul fehlt" }
+          "Groesse       : $((Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum).Sum) Bytes"
 
       - name: Programmordner als Artefakt
-        # Genau dieses Artefakt bekommt spaeter die SignPath-Signatur.
         uses: actions/upload-artifact@v4
         with:
           name: S2Tweaker-${{ github.sha }}

@@ -71,14 +71,9 @@ def app_dir() -> Path:
 def _asset(*parts: str) -> Path:
     """Pfad zu einer mitgelieferten Datei (Bilder, Icon).
 
-    In der gebauten EXE liegen die Beigaben in PyInstallers _MEIPASS
-    (bei --onedir also in `_internal`), im Entwicklungsbetrieb im
-    `assets`-Ordner des Projekts."""
-    base = getattr(sys, "_MEIPASS", None)
-    if base:
-        packed = Path(base).joinpath(*parts)
-        if packed.exists():
-            return packed
+    Der `assets`-Ordner liegt neben dem Paket: im Repo `assets/`, im
+    ausgelieferten Programmordner `_internal/assets/` (tools/build_exe.py
+    kopiert ihn dorthin). Derselbe Weg in beiden Faellen."""
     return Path(__file__).resolve().parent.parent / "assets" / Path(*parts)
 
 
@@ -2422,10 +2417,7 @@ class App(ctk.CTk):
 
     def _set_icon(self):
         try:
-            if getattr(sys, "frozen", False):
-                ico = Path(sys._MEIPASS) / "icon.ico"  # type: ignore[attr-defined]
-            else:
-                ico = app_dir() / "assets" / "icon.ico"
+            ico = _asset("icon.ico")
             if ico.is_file():
                 self.iconbitmap(str(ico))
         except Exception:

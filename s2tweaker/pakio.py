@@ -249,12 +249,12 @@ def ensure_oodle(repak: Path, pak: Path | None = None, progress=None) -> None:
 
 
 def find_repak() -> Path | None:
-    """repak.exe finden: neben der EXE gebuendelt, im tools-Ordner oder im PATH."""
-    candidates = []
-    if getattr(sys, "frozen", False):  # PyInstaller
-        candidates.append(Path(sys._MEIPASS) / "repak.exe")  # type: ignore[attr-defined]
-        candidates.append(Path(sys.executable).parent / "repak.exe")
+    """repak.exe finden: im Programmordner gebuendelt (`_internal\\repak.exe`,
+    neben dem Paket), im tools-Ordner des Repos oder im PATH."""
     here = Path(__file__).resolve().parent
+    candidates = [here.parent / "repak.exe"]
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).parent / "repak.exe")
     candidates.append(here.parent / "tools" / "repak.exe")
     found = shutil.which("repak")
     if found:

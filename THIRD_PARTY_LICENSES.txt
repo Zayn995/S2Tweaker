@@ -2,9 +2,43 @@ S2Tweaker - third-party components and their licences
 =====================================================
 
 S2Tweaker itself is MIT licensed (see LICENSE). The following third-party
-components are bundled with it (tools/repak.exe is also embedded inside
-S2Tweaker.exe by PyInstaller), and their licence texts are reproduced here
-as those licences require.
+components are bundled with it, and their licence texts are reproduced here
+or ship in the program folder under _internal\licenses\ as those licences
+require.
+
+
+-------------------------------------------------------------------------
+The runtime in the program folder (since 1.21.0, no PyInstaller)
+-------------------------------------------------------------------------
+
+S2Tweaker.exe is pythonw.exe from python.org, unmodified and signed by the
+Python Software Foundation; python3XX.dll, the extension modules (*.pyd)
+and the standard library in _internal\python3XX.zip come from the same
+installation. Licence: Python Software Foundation License (PSF), shipped
+as _internal\licenses\PYTHON-LICENSE.txt. Copyright (c) 2001-2026 Python
+Software Foundation; Copyright (c) 2000 BeOpen.com; Copyright (c)
+1995-2001 CNRI; Copyright (c) 1991-1995 Stichting Mathematisch Centrum.
+
+Tcl/Tk (tcl86t.dll, tk86t.dll, _internal\tcl\): BSD-style licence, shipped
+as _internal\licenses\TCL-TK-license.terms. Copyright the Regents of the
+University of California, Sun Microsystems, Scriptics Corporation,
+ActiveState Corporation and other parties.
+
+Visual C++ runtime (vcruntime140.dll, vcruntime140_1.dll): Microsoft,
+redistributable with applications built with Visual Studio.
+
+customtkinter (_internal\customtkinter\): MIT, Copyright (c) 2023 Tom
+Schimansky. Licence text: _internal\licenses\customtkinter-LICENSE.
+
+darkdetect (_internal\darkdetect\): BSD-3-Clause, Copyright (c) 2019
+Alberto Sottile. Licence text: _internal\licenses\darkdetect-LICENSE.
+
+packaging (_internal\packaging\): dual licensed Apache-2.0 OR BSD-2-Clause,
+Copyright (c) Donald Stufft and individual contributors. Licence texts:
+_internal\licenses\packaging-LICENSE*.
+
+None of these is modified. The tool's own code is in _internal\s2tweaker\
+as readable source.
 
 
 -------------------------------------------------------------------------
@@ -57,11 +91,8 @@ authors; adapted for S2Tweaker.
 
 
 -------------------------------------------------------------------------
-Runtime / build dependencies (not redistributed as source)
+Not bundled
 -------------------------------------------------------------------------
-
-customtkinter (MIT, Tom Schimansky) and Python itself (PSF licence) are
-linked into the built executable by PyInstaller.
 
 NOT part of this distribution: oo2core_9_win64.dll (Oodle, proprietary,
 (c) RAD Game Tools / Epic Games). It is never shipped with S2Tweaker and

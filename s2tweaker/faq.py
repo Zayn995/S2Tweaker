@@ -614,20 +614,21 @@ FAQ_ENTRIES = [
     },
     {
         "q": "My antivirus flags S2Tweaker.exe - is it safe?",
-        "a": "False positive - and the build was changed to provoke it "
-             "less. It used to be a PyInstaller one-file exe: a "
-             "self-extracting archive that unpacks into your temp "
-             "folder and runs from there. Harmless, but the same shape "
-             "as a dropper, so ML heuristics guess wrong. It now ships "
-             "as a folder: a 3 MB launcher next to an _internal folder, "
-             "nothing embedded, and the exe carries proper version "
-             "info. The source is public (github.com/Zayn995/S2Tweaker, "
-             "MIT) and every release names the commit it was built "
-             "from. The only bundled binary is the open-source repak. "
-             "If your scanner still complains, please report it as a "
-             "false positive.",
+        "a": "False positive, and since 1.21.0 there is little left to "
+             "flag. S2Tweaker.exe is the unmodified pythonw.exe from "
+             "python.org, signed by the Python Software Foundation (hence "
+             "the Python icon). The tool's code sits next to it as "
+             "readable Python files in _internal, with the Python runtime "
+             "and Tcl/Tk, all signed by the PSF or Microsoft. The only "
+             "unsigned file is repak.exe (open source, compiled by the "
+             "public workflow). Nothing is packed or embedded, and the "
+             "package has no networking modules. Older "
+             "versions used PyInstaller, whose launcher scanners distrust "
+             "because malware uses it too. Source: "
+             "github.com/Zayn995/S2Tweaker (MIT). If your scanner still "
+             "complains, report it as a false positive.",
         "k": "antivirus virus trojan flag warning defender false positive "
-             "safe malware quarantine",
+             "safe malware quarantine signed python icon",
     },
     {
         "q": "Does S2Tweaker download anything? What is the Oodle file?",
@@ -802,10 +803,10 @@ FAQ_ENTRIES = [
     {
         "q": "How do I update the tool? Is there an auto-update?",
         "a": "By hand, and on purpose. Download the new version from "
-             "where you got this one, then replace S2Tweaker.exe and the "
-             "_internal folder next to it. Your settings, presets, "
-             "output and cache stay where they are - nothing else has to "
-             "be touched. There is no update check and no auto-update "
+             "where you got this one and extract it over your S2Tweaker "
+             "folder, replacing what is there. Your settings, presets, "
+             "output and cache are not part of the download, so they "
+             "stay exactly as they are. There is no update check and no auto-update "
              "any more: a tool that talks to a server to fetch and "
              "replace program files is the pattern antivirus scanners "
              "and mod sites object to, and this one had enough trouble "

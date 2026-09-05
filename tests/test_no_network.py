@@ -35,7 +35,9 @@ VERBOTENE_AUFRUFE = {"urlopen", "urlretrieve", "socket", "create_connection",
                      "getaddrinfo", "connect"}
 
 # --- 1) Kein Modul des Pakets importiert etwas Netzfaehiges --------------
-for datei in sorted(PAKET.glob("*.py")):
+# Mitgeprueft: der Starter des Programmordners (wird als sitecustomize.py
+# ausgeliefert) - er ist Teil dessen, was beim Nutzer laeuft.
+for datei in sorted(PAKET.glob("*.py")) + [ROOT / "tools" / "launcher.py"]:
     baum = ast.parse(datei.read_text(encoding="utf-8-sig"))
     for knoten in ast.walk(baum):
         if isinstance(knoten, ast.Import):

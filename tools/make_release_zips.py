@@ -3,19 +3,17 @@
     python tools/make_release_zips.py 1.11.0
     python tools/make_release_zips.py 1.11.0 --dist C:\\pfad\\zu\\S2Tweaker
 
-Seit 04.09.2026 baut build.bat mit --onedir (Begruendung dort: die
---onefile-EXE war ein selbstentpackendes Archiv und flog bei Windows
-Defender und beim Nexus-Virenscan auf). Das Spieler-ZIP enthaelt darum
-den ganzen Programmordner FLACH in der ZIP-Wurzel:
+Das Spieler-ZIP enthaelt den ganzen Programmordner FLACH in der
+ZIP-Wurzel (Aufbau: tools/build_exe.py):
 
-    S2Tweaker.exe
+    S2Tweaker.exe          (= signierte pythonw.exe, unveraendert)
+    python3XX.dll, vcruntime140*.dll, python3XX._pth
     _internal\\...
     README.txt
-    update.bat
 
-Fuer den Spieler aendert sich damit nichts an der Bedienung — entpacken,
-S2Tweaker.exe doppelklicken —, es liegt nur zusaetzlich ein _internal-
-Ordner daneben.
+Fuer den Spieler: entpacken, S2Tweaker.exe doppelklicken. Zum
+Aktualisieren das neue ZIP ueber den alten Ordner entpacken - Einstellungen,
+Presets, Cache und Output sind nicht im ZIP und bleiben unberuehrt.
 
 Das Source-ZIP entsteht aus `git ls-files`, also exakt der versionierten
 Menge — damit koennen vanilla/, cache/, dist/, settings.json und die
@@ -74,8 +72,19 @@ def main() -> None:
     # die Programmdateien ersetzt, gehoert nicht ungefragt in jedes Paket.
     # Wer den Automatik-Weg will, holt sie ueber den Assistenten.
     assert "update.bat" not in names, "update.bat gehoert nicht ins Spieler-ZIP"
-    print(f"Gegenprobe: S2Tweaker.exe + {len(internal)} Dateien in "
-          "_internal/ + README, ohne update.bat OK")
+    # Seit 1.21.0: Suchpfad-Datei und Starter-Modul muessen dabei sein,
+    # Netz-/TLS-Module und Nutzerdaten (Reste einer Startprobe) nicht.
+    assert any(n.startswith("python3") and n.endswith("._pth") for n in names), \
+        "python3XX._pth fehlt - der Starter faende seinen Code nicht"
+    assert "_internal/sitecustomize.py" in names, "Starter-Modul fehlt"
+    verboten = [n for n in names if n.rsplit("/", 1)[-1].lower().startswith(
+        ("_ssl", "_socket", "_hashlib", "libssl", "libcrypto", "sqlite3"))]
+    assert not verboten, verboten
+    reste = [n for n in names
+             if n.split("/")[0] in ("settings.json", "cache", "output", "presets")]
+    assert not reste, reste
+    print(f"Gegenprobe: S2Tweaker.exe + ._pth + {len(internal)} Dateien in "
+          "_internal/ + README, ohne update.bat/Netzmodule/Nutzerdaten OK")
 
     src = out / f"S2Tweaker_v{version}_source.zip"
     with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:

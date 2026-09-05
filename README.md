@@ -156,7 +156,7 @@ money skip cover them fully.)
 ## Project structure
 
 ```
-main.py                 entry point (also the PyInstaller entry)
+main.py                 entry point for development (python main.py)
 s2tweaker/
   gui.py                customtkinter GUI (dark, English)
   tweaks.py             Settings dataclass + one builder per feature
@@ -167,11 +167,13 @@ s2tweaker/
   game.py               game folder auto-detection (Steam/GOG/Xbox)
   vendor_bin2cfg.py     cfg.bin → cfg decoder (vendored, public domain)
 tools/repak.exe         pak tool (MIT/Apache-2.0, by trumank)
+tools/build_exe.py      assembles the program folder dist/S2Tweaker/ (no PyInstaller)
+tools/launcher.py       shipped as _internal/sitecustomize.py: starts the GUI
 docs/SPEC.md            research: every tweak's mechanism + sources
-release/README.txt      end-user readme shipped with the exe
+release/README.txt      end-user readme shipped with the program
 THIRD_PARTY_LICENSES.txt licences of the bundled components
 test_generate.py        end-to-end dev test (builds a test pak)
-build.bat               builds dist/S2Tweaker/ (exe + _internal)
+build.bat               runs tools/build_exe.py
 ```
 
 ## Building from source
@@ -179,20 +181,35 @@ build.bat               builds dist/S2Tweaker/ (exe + _internal)
 ```
 pip install -r requirements.txt
 python main.py          # run the GUI directly
-build.bat               # or build dist/S2Tweaker/S2Tweaker.exe
+build.bat               # or assemble dist/S2Tweaker/ (needs a python.org install)
 ```
 
 `tools/repak.exe` is not the upstream release binary: `python tools/build_repak.py` rebuilds it from source (pinned tag) with the runtime Oodle download removed, so nothing in the shipped folder can fetch anything. The CI does this on every build.
 
-The build is deliberately **`--onedir`, not `--onefile`**: a one-file
-PyInstaller exe is a self-extracting archive that unpacks itself into
-`%TEMP%` and runs from there, which antivirus ML heuristics read as
-dropper behaviour — that got the release quarantined on Nexus Mods in
-September 2026 and deleted by Windows Defender once. `--onedir` keeps the
-launcher at ~3 MB with nothing embedded, and `--version-file` stamps
-company/product/version into the exe (it had no version resource at all
-before). The tool stays portable either way: settings, cache, presets and
-output are created next to the exe.
+**There is no PyInstaller since 1.21.0.** `S2Tweaker.exe` is `pythonw.exe`
+from python.org, byte for byte, signed by the Python Software Foundation;
+`python3XX._pth` next to it pins the module search path to `_internal`,
+and `_internal/sitecustomize.py` (that is `tools/launcher.py`) starts the
+GUI. The tool's own code ships as readable `.py` files, the standard
+library as a `.pyc` zip compiled from the same python.org installation —
+without `socket`, `ssl`, `asyncio` and `sqlite3`, and without any OpenSSL
+library, so the package has no networking capability at all. Every DLL,
+PYD and EXE in the folder is signed by the PSF or Microsoft except
+`repak.exe`, which the CI compiles from source.
+
+Why: the PyInstaller builds kept tripping antivirus heuristics. 1.20.0 was
+flagged by two engines on VirusTotal although its launcher was byte for
+byte PyInstaller's official `runw.exe`, which is clean on its own — the
+detections were aimed at the archive PyInstaller appends, i.e. at
+PyInstaller itself. The price of the switch is cosmetic: the exe shows the
+Python icon and Python's version info, because changing either would break
+the signature. The tool stays portable: settings, cache, presets and output
+are created next to the exe.
+
+`tools/build_exe.py` verifies its own output (signatures, hash equality
+with `pythonw.exe`, forbidden files) and then starts a copy of the folder
+once as a self-test; `tests/test_build_layout.py` runs the whole build and
+checks the layout.
 
 Python 3.12+ recommended. For development, the GUI prefers a local
 `vanilla/Stalker2/Content/GameLite/GameData/` folder if present (create it by
@@ -229,10 +246,11 @@ the *installed* version, and never hardcode game numbers.
   approves a release, and for the two third-party binaries involved.
 - Tool code is MIT (see [LICENSE](LICENSE)). Bundled: repak (MIT OR
   Apache-2.0), cfg.bin decoder based on public-domain code by
-  joric/sdwvit/thexii. Their licence texts ship with the tool:
-  [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) in the source, and the
-  repak MIT notice is also reprinted in `release/README.txt` (the file inside
-  the player ZIP, since repak.exe is embedded in the exe).
+  joric/sdwvit/thexii, the Python runtime (PSF licence), Tcl/Tk (BSD-style),
+  customtkinter (MIT), darkdetect (BSD-3), packaging (Apache-2.0 OR BSD-2).
+  Their licence texts ship with the tool in `_internal/licenses/`, listed in
+  [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt); the repak MIT notice
+  is also reprinted in `release/README.txt` (the file inside the player ZIP).
 - Known limits: DLC items aren't covered by the per-item weight slider;
   iron-sight sway is animation-driven (not cfg-tweakable); the in-game
   "Custom Rules" difficulty overlaps some multipliers (precedence untested).

@@ -1,20 +1,19 @@
 @echo off
-rem Builds dist\S2Tweaker\ (S2Tweaker.exe + _internal), needs:
+rem Baut dist\S2Tweaker\ (S2Tweaker.exe + DLLs + _internal), braucht:
 rem     pip install -r requirements.txt
+rem und eine python.org-Installation als "python" (pythonw.exe, DLLs\,
+rem Lib\, tcl\ nebeneinander) - deren signierte pythonw.exe WIRD der Starter.
 rem
-rem Die eigentliche Bau-Anweisung steht in tools\build_exe.py — GENAU EINE
+rem Die eigentliche Bau-Anweisung steht in tools\build_exe.py - GENAU EINE
 rem Stelle, weil der GitHub-Actions-Workflow (.github\workflows\build.yml)
-rem dasselbe Skript aufruft. Zwei Kopien der PyInstaller-Zeile waeren
-rem irgendwann auseinandergelaufen, und darauf beruht die Zusage, dass die
-rem veroeffentlichte EXE aus genau diesem Quellcode stammt.
+rem dasselbe Skript aufruft. Zwei Kopien waeren irgendwann
+rem auseinandergelaufen, und darauf beruht die Zusage, dass die
+rem veroeffentlichte Datei aus genau diesem Quellcode stammt.
 rem
-rem Warum --onedir und --version-file (kurz; ausfuehrlich in build_exe.py
-rem und docs/ROADMAP.md "Virenscanner-Fehlalarm"): die fruehere
-rem --onefile-EXE war ein selbstentpackendes 15-MB-Archiv, das sich beim
-rem Start nach %TEMP% auspackt — fuer ML-Heuristiken das Profil eines
-rem Droppers. Der Nexus-Support konnte die Datei deshalb nicht freigeben,
-rem und Windows Defender hat eine frisch gebaute EXE einmal geloescht.
-rem Ausserdem hatte die EXE ueberhaupt keine Versions-Angaben.
+rem Seit 1.21.0 OHNE PyInstaller (Begruendung im Kopf von build_exe.py,
+rem kurz: die Virenscanner-Treffer galten PyInstallers eigener Kennung).
+rem Das Skript prueft seinen Ordner selbst und startet ihn einmal
+rem probeweise - dabei geht kurz ein Fenster auf und wieder zu.
 python tools\build_exe.py || goto :error
 echo.
 echo Fertig: dist\S2Tweaker\S2Tweaker.exe
