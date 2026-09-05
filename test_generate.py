@@ -97,6 +97,8 @@ s = Settings(
     npc_flashlight_factor=2.0, npc_flashlight_cone_factor=1.5,
     npc_flashlight_combat_factor=0.5, npc_flashlight_on_hour=20,
     npc_flashlight_off_hour=6,
+    manual_save_slots=200, quick_save_slots=10, auto_save_slots=20,
+    autosave_interval_min=5,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

@@ -453,6 +453,10 @@ class SliderRow:
             self.dot.pack(side="left", after=self.label)
 
 
+def fmt_min(v: float) -> str:
+    return f"{int(round(v))} min"
+
+
 def fmt_int(v: float) -> str:
     return f"{v:.0f}"
 
@@ -523,6 +527,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_light": "npc_flashlight_factor", "npc_light_cone": "npc_flashlight_cone_factor",
     "npc_light_combat": "npc_flashlight_combat_factor",
     "npc_light_on": "npc_flashlight_on_hour", "npc_light_off": "npc_flashlight_off_hour",
+    "save_manual": "manual_save_slots", "save_quick": "quick_save_slots",
+    "save_auto": "auto_save_slots", "autosave_min": "autosave_interval_min",
     "mut_attack_cd": "mutant_attack_cooldown_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
@@ -3615,6 +3621,19 @@ class App(ctk.CTk):
                      "Nexus. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Saving (quality of life)")
+        self._slider(f, "save_manual", "Manual save slots", 10, 999, 1, 31, fmt_int,
+                     "How many manual saves a campaign may hold before the "
+                     "game makes you delete one (vanilla 31). The 'Unlimited "
+                     "Saves' idea from Nexus. Not play-tested yet.")
+        self._slider(f, "save_quick", "Quick save slots", 1, 30, 1, 3, fmt_int,
+                     "How many quick saves are kept (vanilla 3).")
+        self._slider(f, "save_auto", "Autosave slots", 1, 50, 1, 10, fmt_int,
+                     "How many timed autosaves are kept (vanilla 10).")
+        self._slider(f, "autosave_min", "Autosave interval", 1, 60, 1, 10, fmt_min,
+                     "Minutes between timed autosaves (vanilla 10).")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("Weight & items")
         f = self._section(body, "Weight & inventory")
         self._slider(f, "carry", "Max carry weight (hard limit)", 20, 500, 5, 80, fmt_kg)
@@ -4755,6 +4774,10 @@ class App(ctk.CTk):
             melee_range_factor=s["melee_range"].get() / 100.0,
             interaction_range_factor=s["interact"].get() / 100.0,
             dialog_range_factor=s["dialog_range"].get() / 100.0,
+            manual_save_slots=int(s["save_manual"].get()),
+            quick_save_slots=int(s["save_quick"].get()),
+            auto_save_slots=int(s["save_auto"].get()),
+            autosave_interval_min=float(s["autosave_min"].get()),
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,

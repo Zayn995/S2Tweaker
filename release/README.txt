@@ -14,8 +14,8 @@ WHAT YOU CAN TWEAK (short tour)
 -------------------------------
 - Player: health, stamina (incl. per-action costs), walk/crouch and
   run/sprint speed, jump height, fall damage, breath hold, interaction
-  reach and talk distance, max carry weight + where the overweight
-  penalty starts, item weights per category,
+  reach and talk distance, save slots and autosave interval, max carry
+  weight + where the overweight penalty starts, item weights per category,
   radiation, bleeding, hunger & sleepiness, headshot multiplier,
   explosions, hit camera shake / aim punch
 - Vaulting: seven sliders for how Skif climbs and vaults, plus the

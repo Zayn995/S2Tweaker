@@ -57,10 +57,12 @@ NEEDED_FILES = [
     "ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg.bin",
     "AIPrototypes/ThreatPrototypes.cfg.bin",
     "FlashlightPrototypes.cfg.bin",          # NPC-Taschenlampen (05.09.2026)
+    "SaveLoadVariables.cfg",                 # Speicherstaende-Limit (unbinarisiert)
+    "AutoSaveVariables.cfg",                 # Autosave-Intervall (unbinarisiert)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 16
+CACHE_SCHEMA = 17
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -369,6 +371,18 @@ class GameData:
         NPCFlashlight, WeaponFlashlightTest). Nur die NPC-Lampe traegt
         Lichtwerte; die Spieler-Lampe sitzt in Blueprint-Kurven."""
         return self._parse("FlashlightPrototypes.cfg")
+
+    @cached_property
+    def saveload(self) -> CfgStruct:
+        """SaveLoadVariables (unbinarisiert): DefaultConfig.SavesLimit je
+        Speichertyp, 0 = unbegrenzt."""
+        return self._parse("SaveLoadVariables.cfg")
+
+    @cached_property
+    def autosave(self) -> CfgStruct:
+        """AutoSaveVariables (unbinarisiert): DefaultConfig.AutoSaveIntervalTime
+        in Sekunden."""
+        return self._parse("AutoSaveVariables.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

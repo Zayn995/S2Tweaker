@@ -491,6 +491,11 @@ class Settings:
     npc_flashlight_combat_factor: float = 1.0  # FlashlightCombatUseChance je Rang (Deckel 1.0)
     npc_flashlight_on_hour: int = 22         # AIGlobals FlashlightTimeOfDayOn
     npc_flashlight_off_hour: int = 5         # AIGlobals FlashlightTimeOfDayOff
+    # --- Speichern (SaveLoadVariables / AutoSaveVariables, beide unbinarisiert) ---
+    manual_save_slots: int = 31              # SavesLimit.Manual (0 = unbegrenzt)
+    quick_save_slots: int = 3                # SavesLimit.Quick
+    auto_save_slots: int = 10                # SavesLimit.Auto
+    autosave_interval_min: float = 10.0      # AutoSaveIntervalTime (Vanilla 600 s)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2325,6 +2330,38 @@ def _holdbreath_patch(gd: GameData, s: Settings) -> dict:
     return {"DefaultHoldBreathParams": cfg}
 
 
+def _saveload_patch(gd: GameData, s: Settings) -> dict:
+    """SaveLoadVariables (unbinarisiert wie CoreVariables): SavesLimit je
+    Speichertyp (Vanilla Manual 31 / Quick 3 / Auto 10; 0 = unbegrenzt).
+    Nexus "Bode's Unlimited Saves", Recherche 05.09.2026. Live gelesen,
+    nur Abweichungen geschrieben."""
+    node = gd.saveload.children.get("DefaultConfig")
+    limits = node.children.get("SavesLimit") if node else None
+    if limits is None:
+        return {}
+    cfg: dict = {}
+    for key, wanted in (("Manual", s.manual_save_slots),
+                        ("Quick", s.quick_save_slots),
+                        ("Auto", s.auto_save_slots)):
+        raw = limits.values.get(key)
+        if raw is not None and wanted >= 0 and _neq(float(wanted), parse_number(raw)):
+            cfg[key] = str(int(round(wanted)))
+    return {"DefaultConfig": {"SavesLimit": cfg}} if cfg else {}
+
+
+def _autosave_patch(gd: GameData, s: Settings) -> dict:
+    """AutoSaveVariables (unbinarisiert): AutoSaveIntervalTime in Sekunden
+    (Vanilla 600 = 10 min). Der Regler arbeitet in Minuten."""
+    node = gd.autosave.children.get("DefaultConfig")
+    raw = node.values.get("AutoSaveIntervalTime") if node else None
+    if raw is None or s.autosave_interval_min <= 0:
+        return {}
+    wanted = s.autosave_interval_min * 60.0
+    if not _neq(wanted, parse_number(raw)):
+        return {}
+    return {"DefaultConfig": {"AutoSaveIntervalTime": str(int(round(wanted)))}}
+
+
 def _corevars_patch(gd: GameData, s: Settings) -> dict:
     cfg: dict = {}
     if _neq(s.repair_cost_factor, 1.0):
@@ -3007,6 +3044,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ObjHoldBreathParamsPrototypes/ObjHoldBreathParamsPrototypes_patch_{n}.cfg",
         _holdbreath_patch(gd, s))
     add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
+    add(f"SaveLoadVariables.cfg_patch_{n}.cfg", _saveload_patch(gd, s))
+    add(f"AutoSaveVariables.cfg_patch_{n}.cfg", _autosave_patch(gd, s))
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
     # Drei Builder teilen sich die Generator-Datei (Mengen, Waffen-Zustand,
     # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
@@ -3190,6 +3229,14 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"NPC flashlights on from {int(s.npc_flashlight_on_hour)}:00")
     if _neq(s.npc_flashlight_off_hour, 5):
         lines.append(f"NPC flashlights off at {int(s.npc_flashlight_off_hour)}:00")
+    if _neq(s.manual_save_slots, 31):
+        lines.append(f"Manual save slots {int(s.manual_save_slots)}")
+    if _neq(s.quick_save_slots, 3):
+        lines.append(f"Quick save slots {int(s.quick_save_slots)}")
+    if _neq(s.auto_save_slots, 10):
+        lines.append(f"Autosave slots {int(s.auto_save_slots)}")
+    if _neq(s.autosave_interval_min, 10.0):
+        lines.append(f"Autosave every {s.autosave_interval_min:g} min")
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)
