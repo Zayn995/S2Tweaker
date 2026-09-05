@@ -16,8 +16,11 @@ How the packaged program starts (there is no PyInstaller since 1.21.0):
    That is Python's documented hook for site-specific start-up code, and
    this file is that module. It marks the build as packaged, points
    Tcl/Tk at their script libraries and starts the GUI.
-4. When the window closes, this module returns. The interpreter has no
-   script to run and no console to read from, so it exits.
+4. When the window closes, this module ends the process explicitly
+   (os._exit). Left to itself the interpreter would next try to read a
+   program from standard input; started by a double-click there is none
+   and it would exit anyway, but started from a shell with a pipe on
+   stdin it would sit there invisibly until the pipe closes.
 
 Self-test: with the environment variable S2TWEAKER_SELFTEST=<file> the
 launcher does not open the GUI for real. It imports every bundled module
@@ -159,9 +162,9 @@ def main() -> None:
     try:
         if report:
             _selftest(Path(report))
-            return
-        from s2tweaker.gui import run
-        run()
+        else:
+            from s2tweaker.gui import run
+            run()
     except SystemExit as exc:
         # sys.exit() inside the program must not bubble up into `site`:
         # the interpreter would count that as a failed start-up (exit
@@ -178,10 +181,12 @@ def main() -> None:
                 os._exit(2)
         _report_crash(text)
         os._exit(1)
-    # A file dropped onto S2Tweaker.exe arrives as argv[1], and Python would
-    # try to run it as a script once this module returns. Not that.
-    if len(sys.argv) > 1:
-        os._exit(0)
+    # Done. End the process here rather than returning into the
+    # interpreter's start-up: it would go on to run argv[1] as a script (a
+    # file dropped onto the exe) or read one from stdin (a pipe left open
+    # by whoever started us) - see the module docstring, point 4. The
+    # window is gone and every file the program writes is closed by then.
+    os._exit(0)
 
 
 main()
