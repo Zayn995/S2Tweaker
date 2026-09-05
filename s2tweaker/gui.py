@@ -2280,8 +2280,8 @@ class App(ctk.CTk):
         win = ctk.CTkToplevel(self)
         self._oodle_win = win
         win.title("S2Tweaker – one file is missing")
-        win.geometry("880x680")
-        win.minsize(820, 600)
+        win.geometry("880x740")
+        win.minsize(820, 640)
         win.transient(self)
 
         body = ctk.CTkFrame(win, fg_color="transparent")
@@ -2339,9 +2339,28 @@ class App(ctk.CTk):
             state["images"].append(img)      # sonst raeumt der GC sie weg
             ctk.CTkLabel(body, image=img, text="").pack(pady=(4, 10))
 
+        def tldr(*lines: str):
+            """Kurzfassung in grosser Schrift ganz oben auf jeder Seite - fuer
+            alle, die die Erklaerung nicht lesen wollen (Wunsch des
+            Besitzers, 05.09.2026: „tool needs this, press copy, paste in
+            browser, download, accept, put there")."""
+            box = ctk.CTkFrame(body, fg_color="gray20", corner_radius=8)
+            box.pack(fill="x", pady=(0, 12))
+            ctk.CTkLabel(box, text="TL;DR", anchor="w", text_color=ACCENT,
+                         font=ctk.CTkFont(size=13, weight="bold")
+                         ).pack(fill="x", padx=14, pady=(8, 0))
+            for line in lines:
+                ctk.CTkLabel(box, text=line, anchor="w", justify="left",
+                             wraplength=780,
+                             font=ctk.CTkFont(size=19, weight="bold")
+                             ).pack(fill="x", padx=14, pady=(2, 0))
+            ctk.CTkLabel(box, text="", height=6).pack()
+
         # ---------------------------------------------------------- Seite 1
         def _page1():
             heading("S2Tweaker needs one extra file, once")
+            tldr("The tool needs this one file.",
+                 "→  Press “Copy” below.")
             ctk.CTkLabel(
                 body,
                 text="⚠   Without this file S2Tweaker cannot read the values "
@@ -2389,6 +2408,8 @@ class App(ctk.CTk):
         # ---------------------------------------------------------- Seite 2
         def _page2():
             heading("Paste the link into your browser")
+            tldr("→  Paste it into your browser and press Enter.",
+                 "→  Download. If the browser asks “are you sure?”, say yes.")
             picture("oodle_browser.png")
             para("Paste it into the address bar and press Enter. The download "
                  "starts on its own – there is no page to click through.")
@@ -2402,6 +2423,8 @@ class App(ctk.CTk):
         # ---------------------------------------------------------- Seite 3
         def _page3():
             heading("Put the file next to S2Tweaker.exe")
+            tldr("→  Put the file next to S2Tweaker.exe (folder below).",
+                 "→  Restart S2Tweaker. Done.")
             picture("oodle_folder.png")
             # Kein Updater-Skript mehr als Wegmarke: das gibt es seit 1.19.1
             # nicht mehr im Download. Das Bild zeigt es noch (es ist der

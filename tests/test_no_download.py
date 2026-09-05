@@ -128,6 +128,8 @@ try:
     assert "Sorry that this is on you" in seite1, "Entschuldigung fehlt"
     assert "Copy" in seite1, "Kopierknopf fehlt"
     assert "Step 1 of 3" in seite1, "Schrittanzeige fehlt"
+    # Kurzfassung fuer Nicht-Leser (Besitzer, 05.09.2026) auf jeder Seite
+    assert "TL;DR" in seite1 and "Press “Copy” below" in seite1, "TL;DR Seite 1 fehlt"
     # Kopierknopf fuellt die Zwischenablage und quittiert
     assert klick("Copy"), "Kopierknopf nicht gefunden"
     app.update()
@@ -140,6 +142,7 @@ try:
     seite2 = " ".join(texte(win))
     assert "Step 2 of 3" in seite2
     assert "unverified" in seite2, "Hinweis zur Browser-Warnung fehlt"
+    assert "TL;DR" in seite2 and "say yes" in seite2, "TL;DR Seite 2 fehlt"
 
     # Seite 3: Zielordner + Neustart
     assert klick("Next")
@@ -147,6 +150,7 @@ try:
     seite3 = " ".join(texte(win))
     assert "Step 3 of 3" in seite3
     assert "restart S2Tweaker" in seite3, "Neustart-Hinweis fehlt"
+    assert "TL;DR" in seite3 and "Restart S2Tweaker. Done." in seite3, "TL;DR Seite 3 fehlt"
     # Der genannte Ordner MUSS der mit S2Tweaker.exe sein. Frueher stand
     # dort der Ordner von repak.exe — im Ordner-Build also `_internal`,
     # und damit widersprach das Feld dem Bild und dem Satz daneben
