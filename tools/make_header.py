@@ -137,12 +137,17 @@ if x + int(d.textlength(SUFFIX, font=tag_font)) > X_MAX:
 
 
 def word_x(word: str) -> int:
-    """Linke Kante eines Wortes des Schlusssatzes im Bild."""
+    """Linke Kante eines Wortes des Satzes im Bild (Praefix oder Schluss)."""
+    if word in PREFIX:
+        return X0 + int(d.textlength(PREFIX[:PREFIX.index(word)], font=tag_font))
     return suffix_x + int(d.textlength(SUFFIX[:SUFFIX.index(word)], font=tag_font))
 
 
 # Plaetze fuer Nachtraege, in der Reihenfolge, in der sie belegt werden:
-# (x, y, Groesse, Winkel). Erst um die 41, dann ueber/unter jedem Wort.
+# (x, y, Groesse, Winkel). Erst die vier Ecken der 41, danach ueber und
+# unter den Woertern - immer das naechstgelegene freie Wort zuerst,
+# abwechselnd rechts und links der 41. Wo die aktuelle Zahl landet, ist
+# damit einfach der naechste freie Platz.
 ABOVE, BELOW = ay - 27, ay + 32
 SLOTS = [
     (ax - 32, ABOVE + 1, 20, 11),             # ueber der 41, links
@@ -150,9 +155,14 @@ SLOTS = [
     (ax - 38, BELOW, 22, -6),                 # unter der 41, links
     (ax + 22, BELOW + 3, 22, 7),              # unter der 41, rechts
 ]
-for k, word in enumerate(("tweaks", "zero", "modding", "knowledge", "needed")):
-    SLOTS.append((word_x(word) + 30, ABOVE - 2 + 5 * (k % 2), 20, (5, -5, 10, -7, 4)[k]))
-    SLOTS.append((word_x(word) + 36, BELOW + 2 - 4 * (k % 2), 22, (-9, 8, -4, 6, -8)[k]))
+# "out." fehlt absichtlich: der Platz darueber/darunter gehoert schon den
+# linken Ecken der 41.
+NEAREST_FIRST = ("tweaks", ".pak", "zero", "in.", "modding", "Sliders",
+                 "knowledge", "needed")
+for k, word in enumerate(NEAREST_FIRST):
+    wx = word_x(word) + (30 if word in SUFFIX else -4)
+    SLOTS.append((wx, ABOVE - 2 + 5 * (k % 2), 20, (5, -5, 10, -7, 4, -9, 6, -3)[k]))
+    SLOTS.append((wx + 6, BELOW + 2 - 4 * (k % 2), 22, (-9, 8, -4, 6, -8, 5, -7, 9)[k]))
 
 later = [(n, True) for n in STRUCK_NUMBERS[1:]] + [(CURRENT_NUMBER, False)]
 if len(later) > len(SLOTS):
