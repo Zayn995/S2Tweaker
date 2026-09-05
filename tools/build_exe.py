@@ -272,31 +272,58 @@ def _licence_files(name: str) -> list[Path]:
 
 
 # --- Gegenprobe --------------------------------------------------------
-def _signatures(files: list[Path]) -> dict[Path, tuple[str, str]]:
-    """Authenticode-Status und Unterzeichner je Datei (Windows-Bordmittel)."""
+def _signatures_via(shell: str, files: list[Path]) -> tuple[dict[Path, tuple[str, str]], str]:
+    """Ein Durchlauf mit einer PowerShell. Liefert (Ergebnis, Rohausgabe)."""
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
                                      encoding="utf-8-sig") as fh:
         fh.write("\n".join(str(p) for p in files))
         listfile = fh.name
+    # Fehler je Datei landen als 'ERROR ...' in der Ausgabe statt nur auf
+    # stderr - eine Gegenprobe darf nie stumm mit leeren Werten enden.
     script = (
+        "Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue; "
         "$paths = Get-Content -LiteralPath '" + listfile.replace("'", "''") + "'; "
-        "foreach ($p in $paths) { $s = Get-AuthenticodeSignature -LiteralPath $p; "
+        "foreach ($p in $paths) { if (-not $p) { continue }; try { "
+        "$s = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction Stop; "
         "$cn = ''; if ($s.SignerCertificate) { $cn = $s.SignerCertificate.Subject }; "
-        "Write-Output ('{0}|{1}|{2}' -f $s.Status, $cn, $p) }")
+        "Write-Output ('{0}|{1}|{2}' -f $s.Status, $cn, $p) } catch { "
+        "Write-Output ('ERROR {0}||{1}' -f ($_.Exception.Message -replace '[\\r\\n|]', ' '), $p) } }")
     try:
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive",
-                            "-Command", script], capture_output=True,
-                           text=True, encoding="utf-8", errors="replace")
+        r = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
     finally:
         os.unlink(listfile)
-    if r.returncode != 0:
-        raise SystemExit("Get-AuthenticodeSignature fehlgeschlagen:\n" + r.stderr)
+    raw = f"[{shell}] exit {r.returncode}\n{r.stdout}\n{r.stderr}"
     out: dict[Path, tuple[str, str]] = {}
     for line in r.stdout.splitlines():
         if line.count("|") >= 2:
             status, signer, path = line.split("|", 2)
             out[Path(path.strip())] = (status.strip(), signer.strip())
-    return out
+    return out, raw
+
+
+def _signatures(files: list[Path]) -> dict[Path, tuple[str, str]]:
+    """Authenticode-Status und Unterzeichner je Datei (Windows-Bordmittel).
+
+    Zuerst PowerShell 7 (pwsh), dann Windows PowerShell. Grund (CI-Lauf
+    33960974956, 05.09.2026): aus einem pwsh-Elternprozess heraus lieferte
+    Windows PowerShell fuer JEDE Datei einen leeren Status, und die
+    Gegenprobe meldete signierte Dateien als unsigniert. Jetzt gilt ein
+    Durchlauf nur, wenn er fuer jede Datei einen echten Status liefert."""
+    shells = [s for s in (shutil.which("pwsh"), shutil.which("powershell")) if s]
+    if not shells:
+        raise SystemExit("Weder pwsh noch powershell gefunden - Signaturen nicht pruefbar.")
+    attempts = []
+    for shell in shells:
+        out, raw = _signatures_via(shell, files)
+        complete = (len(out) == len(files)
+                    and all(out[p][0] and not out[p][0].startswith("ERROR") for p in files))
+        if complete:
+            log(f"  Signaturen geprueft mit {Path(shell).name}")
+            return out
+        attempts.append(raw)
+    raise SystemExit("Signaturpruefung unvollstaendig:\n" + "\n".join(a[-3000:] for a in attempts))
 
 
 def _selftest(out: Path) -> str:
