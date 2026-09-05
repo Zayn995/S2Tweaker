@@ -2346,15 +2346,15 @@ class App(ctk.CTk):
             browser, download, accept, put there")."""
             box = ctk.CTkFrame(body, fg_color="gray20", corner_radius=8)
             box.pack(fill="x", pady=(0, 12))
-            ctk.CTkLabel(box, text="TL;DR", anchor="w", text_color=ACCENT,
-                         font=ctk.CTkFont(size=13, weight="bold")
+            ctk.CTkLabel(box, text="TL;DR", anchor="w", text_color="#FF5252",
+                         font=ctk.CTkFont(size=17, weight="bold")
                          ).pack(fill="x", padx=14, pady=(8, 0))
             for line in lines:
                 ctk.CTkLabel(box, text=line, anchor="w", justify="left",
-                             wraplength=780,
-                             font=ctk.CTkFont(size=19, weight="bold")
+                             wraplength=790,
+                             font=ctk.CTkFont(size=24, weight="bold")
                              ).pack(fill="x", padx=14, pady=(2, 0))
-            ctk.CTkLabel(box, text="", height=6).pack()
+            ctk.CTkLabel(box, text="", height=8).pack()
 
         # ---------------------------------------------------------- Seite 1
         def _page1():
