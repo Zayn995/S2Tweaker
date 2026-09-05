@@ -217,6 +217,19 @@ running the tool once and copying the contents of `cache/vanilla-*/`), else
 it extracts from the game on "Confirm & load game data".
 `python test_generate.py` builds a test pak with many tweaks active.
 
+### The antivirus story so far
+
+| Version | What the scanners said | What changed |
+|---|---|---|
+| up to 1.20.0 | the PyInstaller launcher was flagged by Microsoft and Zillya (heuristics on the archive PyInstaller appends) | folder build, no downloads, no network code |
+| 1.21.0 | 0 detections: the launcher is the PSF-signed `pythonw.exe` | PyInstaller gone |
+| 1.22.0 | `repak.exe`, compiled from source by the CI, flagged as `Trojan:Win32/Wacatac.B!ml`; its twin build, 27 bytes apart, was clean at first and flagged a few hours later | 1.21.0 and 1.22.0 withdrawn |
+| 1.23.0 | ZIP 0 / 66, no unsigned executable left | pak code rewritten in Python |
+
+![Microsoft's verdict on repak.exe, 2026-09-05](docs/img/virustotal_microsoft_wacatac.jpg)
+
+**From the author:** I hate Microsoft for this. A machine-learning verdict with no explanation, on a file compiled in public from open source, flipping between "clean" and "trojan" for two builds that differ in a timestamp. And no, I am not buying a damn code-signing certificate to make it stop: it costs money every year, it would put my real name on every file, and Microsoft itself says that even the expensive EV kind no longer buys SmartScreen reputation. The answer is to ship nothing a classifier can guess about: readable code, and binaries signed by the Python Software Foundation.
+
 ## Adding a new tweak (3 steps)
 
 1. **[tweaks.py](s2tweaker/tweaks.py)** — add a field to `Settings`
