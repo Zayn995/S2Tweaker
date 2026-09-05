@@ -41,6 +41,7 @@ ORDER = [
     "test_npc_more.py",
     "test_npc_flashlight.py",
     "test_saves.py",
+    "test_pakfile.py",
     "test_index_entries.py",
     "test_trader_condition.py",
     "test_emission_relext.py",

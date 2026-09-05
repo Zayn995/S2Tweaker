@@ -44,9 +44,9 @@ def sha(p: Path) -> str:
 assert sha(app / "S2Tweaker.exe") == sha(Path(sys.base_prefix) / "pythonw.exe")
 print("S2Tweaker.exe == pythonw.exe der Python-Installation  OK")
 
-# --- 2) Genau zwei ausfuehrbare Dateien --------------------------------
+# --- 2) Genau EINE ausfuehrbare Datei (seit 05.09.2026 kein repak.exe) ---
 exes = sorted(p.relative_to(app).as_posix() for p in app.rglob("*.exe"))
-assert exes == ["S2Tweaker.exe", "_internal/repak.exe"], exes
+assert exes == ["S2Tweaker.exe"], exes
 
 # --- 3) Kein Netz, kein TLS, kein OpenSSL, kein PyInstaller -------------
 names = [p.name.lower() for p in app.rglob("*")]
@@ -63,7 +63,7 @@ for bad in ("ssl.pyc", "socket.pyc", "asyncio/__init__.pyc",
             "sqlite3/__init__.pyc", "test/__init__.pyc",
             "idlelib/__init__.pyc", "ensurepip/__init__.pyc"):
     assert bad not in zipped, bad
-print("Layout: zwei EXEs, keine Netz-/TLS-Module, Stdlib-Zip  OK")
+print("Layout: eine EXE, keine Netz-/TLS-Module, Stdlib-Zip  OK")
 
 # --- 4) Suchpfad und Starter --------------------------------------------
 pth = (app / f"python{ver}._pth").read_text(encoding="ascii").splitlines()
@@ -77,7 +77,7 @@ print("._pth und sitecustomize.py  OK")
 for rel in ("s2tweaker/gui.py", "s2tweaker/__pycache__",
             "customtkinter/__init__.py", "darkdetect/__init__.py",
             "packaging/version.py", "assets/icon.ico",
-            "assets/help/oodle_browser.png", "repak.exe",
+            "assets/help/oodle_browser.png", "s2tweaker/pakfile.py",
             "licenses/PYTHON-LICENSE.txt",
             "licenses/THIRD_PARTY_LICENSES.txt", "tcl"):
     assert (internal / rel).exists(), rel

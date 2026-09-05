@@ -4,10 +4,11 @@
 
 `tests/run_all.py` braucht den `vanilla/`-Ordner (extrahierte GameData).
 Der darf NIE ins Repo (GSC-Copyright, siehe CLAUDE.md), also kann die CI
-die volle Batterie nicht fahren. Diese zwei Suiten kommen ohne aus und
+die volle Batterie nicht fahren. Diese drei Suiten kommen ohne aus und
 decken trotzdem das ab, was auf einem fremden Rechner schiefgehen kann:
 dass die GUI ueberhaupt startet, dass jeder Regler in _collect() ankommt
-und dass kein Netzwerkcode zurueckkehrt.
+dass kein Netzwerkcode zurueckkehrt und dass der Pak-Code (seit 1.23.0
+reines Python statt repak.exe) packt und liest.
 
 Die vollstaendige Batterie (32 Suiten) laeuft weiterhin lokal vor jedem
 Release — die release-version-Skill besteht darauf.
@@ -21,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 ORDER = [
     "test_gui_collect.py",
     "test_no_network.py",
+    "test_pakfile.py",      # Pak-Roundtrip in reinem Python; der Spieldaten-Teil ueberspringt sich selbst
 ]
 
 env = dict(os.environ, PYTHONIOENCODING="utf-8")

@@ -40,12 +40,6 @@ jobs:
       - name: Abhaengigkeiten
         run: pip install -r requirements.txt
 
-      - name: repak aus dem Quellcode bauen
-        # Ersetzt das im Repo liegende Binaerteil durch einen frischen Build
-        # OHNE Download-Funktion (tools/build_repak.py erklaert warum).
-        # Damit stammt am Ende jede ausgelieferte Datei aus offenem Quellcode.
-        run: python tools/build_repak.py
-
       - name: Tests ohne Spieldaten
         # Die volle Batterie braucht den vanilla/-Ordner mit extrahierten
         # GameData. Die duerfen nie ins Repo (GSC-Copyright), also laeuft
@@ -59,7 +53,8 @@ jobs:
         # Unabhaengig vom Bau-Skript, mit Windows-Bordmitteln: der Starter
         # muss Byte fuer Byte die pythonw.exe des Runners sein und von der
         # Python Software Foundation signiert; jede DLL/PYD muss gueltig
-        # signiert sein (einzige Ausnahme: das selbst gebaute repak.exe);
+        # signiert sein - ohne Ausnahme (seit 05.09.2026 gibt es kein repak.exe
+        # mehr; Paks liest und schreibt s2tweaker/pakfile.py in reinem Python);
         # und nichts, was Netz oder TLS kann, darf im Paket liegen.
         shell: pwsh
         run: |
@@ -80,9 +75,8 @@ jobs:
           $bins = Get-ChildItem $dist -Recurse -Include *.exe,*.dll,*.pyd
           $unsigned = @($bins | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' })
           "Binaerdateien : $($bins.Count), davon unsigniert: $($unsigned.Name -join ', ')"
-          if (@($unsigned | Where-Object { $_.Name -ne 'repak.exe' }).Count -gt 0) {
-            throw "Unsignierte Binaerdatei ausser repak.exe im Paket"
-          }
+          if ($unsigned.Count -gt 0) { throw "Unsignierte Binaerdatei im Paket" }
+          if (Get-ChildItem $dist -Recurse -Filter repak.exe) { throw "repak.exe im Paket" }
           foreach ($bad in '_ssl', '_socket', '_hashlib', 'libssl', 'libcrypto', 'sqlite3', '_multiprocessing') {
             if (Get-ChildItem $dist -Recurse -Filter "$bad*") { throw "$bad* im Paket" }
           }

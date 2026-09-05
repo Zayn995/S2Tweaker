@@ -130,9 +130,9 @@ signed by the Python Software Foundation - that is why it carries the
 Python icon and Python's version info; changing either would break the
 signature. The tool's own code sits next to it as readable Python files in
 _internal\s2tweaker, together with the Python runtime and Tcl/Tk (all
-signed by the PSF or Microsoft). The only unsigned file is
-_internal\repak.exe, an open-source pak tool that the public build workflow
-compiles from source. Nothing is packed, nothing is embedded, nothing
+signed by the PSF or Microsoft). Since 1.23.0 there is no unsigned
+executable at all: the pak files are read and written by plain Python
+code (pakfile.py). Nothing is packed, nothing is embedded, nothing
 unpacks into your temp folder, and the package does not even contain
 Python's networking modules (socket, ssl) - it could not go online if it
 tried. Earlier versions were built with PyInstaller, whose launcher is a
@@ -158,7 +158,7 @@ NOTES
   folder is not writable - e.g. the exe sits in Program Files - it goes to
   %LOCALAPPDATA%\S2Tweaker\tools instead). You may already have the file:
   every Unreal Engine installation ships it, and so do some other
-  S.T.A.L.K.E.R. 2 modding tools. It has to be the exact build repak
+  S.T.A.L.K.E.R. 2 modding tools. It has to be the exact build this tool
   expects; other Oodle 2.9.x builds are rejected, and the tool tells you
   when it found one. Building a mod pak never needs Oodle; only reading the
   vanilla values does.
@@ -171,10 +171,10 @@ NOTES
 
 CREDITS
 -------
-- repak by trumank (pak packing/unpacking, MIT OR Apache-2.0)
-  https://github.com/trumank/repak
-  repak.exe ships inside the "_internal" folder next to S2Tweaker.exe; its
-  MIT notice is reproduced in full at the end of this file.
+- repak by trumank (https://github.com/trumank/repak, MIT OR Apache-2.0):
+  the pak reader/writer in this tool was written against the format as
+  repak implements it and verified against repak's output. No repak
+  code or binary ships with the tool since 1.23.0.
 - Python (Python Software Foundation, PSF licence), Tcl/Tk (BSD-style),
   customtkinter by Tom Schimansky (MIT), darkdetect by Alberto Sottile
   (BSD-3-Clause), packaging (Apache-2.0 OR BSD-2-Clause). Their licence

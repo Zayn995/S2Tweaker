@@ -9,9 +9,9 @@ solche Werkzeuge markieren, und der Nexus-Support die Datei nicht
 freigeben konnte.
 
 Seitdem gilt: die DLL wird nur noch LOKAL gesucht, und fehlt sie, bekommt
-der Nutzer einen Klartext-Dialog mit Link und Zielordner. repak wird aus
-dem Quellcode gebaut, wobei die Download-Funktion samt HTTP-/TLS-Stack
-entfernt wird (tools/build_repak.py).
+der Nutzer einen Klartext-Dialog mit Link und Zielordner. Ein repak.exe
+gibt es seit 05.09.2026 gar nicht mehr: Paks liest und schreibt
+s2tweaker/pakfile.py in reinem Python, die DLL wird per ctypes geladen.
 
 Dieser Test haelt beide Haelften fest. Er braucht weder Spiel noch Netz.
 """
@@ -46,7 +46,7 @@ real_cache = pakio.oodle_cache_dir
 pakio._local_oodle_candidates = lambda pak=None: []
 pakio.oodle_cache_dir = lambda: missing
 try:
-    pakio.ensure_oodle(missing / "repak.exe")
+    pakio.ensure_oodle()
 except pakio.OodleError as exc:
     text = str(exc)
     assert "never downloads it" in text, text[:200]
@@ -64,15 +64,13 @@ finally:
     pakio.oodle_cache_dir = real_cache
 print("ensure_oodle: klare Anleitung statt Download  OK")
 
-# --- 3) Die mitgelieferte repak.exe ist UNSER Build ---------------------
-repak = ROOT / "tools" / "repak.exe"
-assert repak.is_file(), "tools/repak.exe fehlt"
-blob = repak.read_bytes().lower()
-for stack in (b"ureq", b"rustls", b"webpki"):
-    assert stack not in blob, (
-        f"tools/repak.exe enthaelt {stack!r} — das ist der Upstream-Build "
-        "mit Download-Funktion. Neu bauen: python tools/build_repak.py")
-print(f"tools/repak.exe ({repak.stat().st_size:,} B): kein HTTP-/TLS-Stack  OK")
+# --- 3) Kein repak.exe mehr: Paks liest und schreibt reines Python -----
+src = (ROOT / "s2tweaker" / "pakio.py").read_text(encoding="utf-8")
+assert "subprocess" not in src, "pakio.py ruft wieder ein externes Programm auf"
+assert not (ROOT / "tools" / "build_repak.py").exists(), "tools/build_repak.py ist zurueck"
+from s2tweaker import pakfile
+assert pakfile.PakFile and pakfile.write_pak and pakfile.load_oodle
+print("pakio/pakfile: kein externes Programm, kein repak-Bauskript  OK")
 
 # --- 4) Der Assistent erscheint genau dann, wenn die DLL fehlt ---------
 app = gui.App()
@@ -199,11 +197,5 @@ for name in ("oodle_browser.png", "oodle_folder.png"):
     assert img.is_file() and img.stat().st_size > 5000, f"{name} fehlt"
 assert gui._asset("help", "oodle_browser.png").is_file()
 print("Assistenten-Bilder vorhanden  OK")
-
-# --- 5) Das Bau-Skript fuer repak ist da und pinnt eine Version --------
-script = (ROOT / "tools" / "build_repak.py").read_text(encoding="utf-8")
-assert re.search(r'REPAK_TAG = "v\d+\.\d+\.\d+"', script), "repak-Version nicht gepinnt"
-assert "ureq" in script, "der Eingriff entfernt ureq nicht mehr"
-print("tools/build_repak.py: Version gepinnt, Eingriff vorhanden  OK")
 
 print("\nKEIN-DOWNLOAD-TEST OK")

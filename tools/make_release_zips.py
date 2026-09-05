@@ -46,8 +46,11 @@ def main() -> None:
     tracked = subprocess.run(["git", "ls-files"], cwd=REPO,
                              capture_output=True, text=True,
                              check=True).stdout.splitlines()
+    # Binaerteile gehoeren nicht ins Source-ZIP: tools/repak.exe ist seit
+    # 05.09.2026 ohnehin nicht mehr versioniert (ein lokal gebautes Exemplar
+    # trug den Benutzernamen des Bau-Rechners in sich), aber sicher ist sicher.
     source_files = [f for f in tracked
-                    if not f.endswith(".zip")
+                    if not f.endswith((".zip", ".exe", ".dll", ".pyd"))
                     and not f.startswith("release/screenshots")]
 
     out = REPO / "release"
@@ -97,7 +100,8 @@ def main() -> None:
         names = z.namelist()
     forbidden = [n for n in names
                  if n.startswith(("vanilla/", "cache/", "dist/", "build/"))
-                 or "oo2core" in n or n.endswith("settings.json")]
+                 or "oo2core" in n or n.endswith("settings.json")
+                 or n.lower().endswith((".exe", ".dll", ".pyd"))]
     assert not forbidden, forbidden
     print("Gegenprobe: keine vanilla/cache/dist/oo2core/settings-Dateien OK")
 

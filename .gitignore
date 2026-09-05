@@ -22,8 +22,13 @@ tools/oo2core*
 .s2tweaker_write_test
 **/.s2tweaker_write_test
 
-# Build artifacts
+# Build artifacts. tools/repak.exe ist seit 05.09.2026 KEIN Repo-Inhalt
+# mehr: ein lokal gebautes Binaerteil trug den Windows-Benutzernamen des
+# Bau-Rechners in sich (Cargo-Pfade). Es entsteht per tools/build_repak.py
+# - reproduzierbar, in der CI vor jedem Bau.
+tools/repak.exe
 build/
+build_check/
 dist/
 __pycache__/
 *.spec

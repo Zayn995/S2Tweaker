@@ -619,12 +619,10 @@ FAQ_ENTRIES = [
              "python.org, signed by the Python Software Foundation (hence "
              "the Python icon). The tool's code sits next to it as "
              "readable Python files in _internal, with the Python runtime "
-             "and Tcl/Tk, all signed by the PSF or Microsoft. The only "
-             "unsigned file is repak.exe (open source, compiled by the "
-             "public workflow). Nothing is packed or embedded, and the "
-             "package has no networking modules. Older "
-             "versions used PyInstaller, whose launcher scanners distrust "
-             "because malware uses it too. Source: "
+             "and Tcl/Tk, all signed by the PSF or Microsoft. Since 1.23.0 "
+             "there is no unsigned executable at all: the pak files are "
+             "read and written by plain Python code. Nothing is packed or "
+             "embedded, and the package has no networking modules. Source: "
              "github.com/Zayn995/S2Tweaker (MIT). If your scanner still "
              "complains, report it as a false positive.",
         "k": "antivirus virus trojan flag warning defender false positive "
@@ -633,7 +631,7 @@ FAQ_ENTRIES = [
     {
         "q": "Does S2Tweaker download anything? What is the Oodle file?",
         "a": "No. Since 1.19.2 there is no networking code in the tool at "
-             "all - not in it, not in the repak it bundles. Check the "
+             "all, and no bundled helper program either. Check the "
              "public source yourself. Reading your game's packed configs "
              "needs Oodle's oo2core_9_win64.dll, which is proprietary and "
              "may not be shipped with the tool. Older versions fetched it "

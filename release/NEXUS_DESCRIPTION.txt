@@ -13,11 +13,10 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=[ZIP-LINK-1.22.0]]VirusTotal - [ZIP-RESULT-1.22.0][/url]
+[*]The mod itself: [url=[ZIP-LINK-1.23.0]]VirusTotal - [ZIP-RESULT-1.23.0][/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
-[*]The only unsigned file inside it, repak.exe (the open-source pak tool, compiled from source by the public build workflow): [url=https://www.virustotal.com/gui/file/73dd824ac6da17b9d1f73ae02f20a362d3262818875aea6e4860f26244317175]VirusTotal - 0 of 71[/url]
 [/list]
-Those numbers are for 1.22.0 (S2Tweaker.exe and repak.exe are byte-identical to 1.21.0's, so their reports are the same). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+Those numbers are for 1.23.0 (S2Tweaker.exe is byte-identical to 1.21.0's and 1.22.0's, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
@@ -196,6 +195,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.23.0 - No more repak.exe: the pak files are handled by plain Python now[/b] (~240 tweaks + ammo swap, 13 tabs)
+[list]
+[*][b]What changes for you:[/b] nothing in the tool. The folder no longer contains repak.exe, the open-source pak tool that earlier versions bundled for reading your game files and writing the mod pak. That job is done by the tool's own Python code now (_internal\s2tweaker\pakfile.py), which needs nothing but Python's standard library
+[*][b]Why:[/b] repak.exe was the only unsigned executable in the package. On 5 September Microsoft's machine-learning engine flagged two builds of it as a trojan although they were compiled from the same source and differed in 27 bytes of linker timestamp only - the file was fine, the classifier just dislikes the shape of an unsigned program that loads a DLL. Instead of arguing with a classifier, the reason for it is gone: [b]there is no unsigned executable left at all[/b]. S2Tweaker.exe is the signed python.org interpreter, every DLL is signed by the PSF or Microsoft, everything else is readable text
+[*][b]Verified against the real game:[/b] the new code extracts the 36 needed game files byte for byte as repak did, reads 27 third-party mod paks identically (pak versions 3, 8 and 11; raw, Zlib and Oodle), and the paks it writes have the same index, entries and checksums as repak's - repak itself reads them without complaint. That check is part of the test battery
+[*][b]Oodle stays a manual step:[/b] the proprietary oo2core_9_win64.dll is still needed to read the game's packed files, is still not shipped and still not downloaded. You place it once next to S2Tweaker.exe, exactly as before; the tool now loads it directly
+[*][b]To update:[/b] extract the ZIP over your S2Tweaker folder. Settings, presets, cache and output stay. A leftover _internal\repak.exe from an earlier version is removed on the first start; it is not used any more
+[*]Not play-tested in-game, like the rest of the tool. No new game files, no re-extraction. Your existing paks stay valid
+[/list]
+
 [b]v1.22.0 - Twelve sliders from the community wish list, and a TL;DR for the Oodle setup[/b] (~240 tweaks + ammo swap, 13 tabs)
 [list]
 [*][b]Melee range[/b] (Weapons): how far the knife and the butt strike reach (vanilla 1.6 m)
@@ -208,15 +217,17 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.21.0 - No more PyInstaller: the launcher is the signed python.org interpreter[/b] (~230 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]What changes for you:[/b] nothing in the tool - and the exe now shows the Python icon. S2Tweaker.exe is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation; changing the icon or the version info would break that signature. The tool's own version is in the window title. Extract the whole ZIP and keep the files together: next to S2Tweaker.exe there are now python312.dll, vcruntime140.dll and python312._pth as well as the _internal folder
 [*][b]Why:[/b] 1.20.0 was still flagged by two engines although its launcher was byte for byte PyInstaller's official one, which scans clean on its own - the detections were aimed at the archive PyInstaller appends to it, i.e. at PyInstaller itself. No build setting could change that, so PyInstaller is gone
 [*][b]Everything in the folder is readable or signed.[/b] The tool's own code ships as plain .py files in _internal\s2tweaker, next to the Python runtime and Tcl/Tk from the same python.org installation. Every DLL, PYD and EXE in the folder is signed by the PSF or Microsoft, with one exception: repak.exe, the open-source pak tool, which the public build workflow compiles from source
 [*][b]No networking capability at all:[/b] Python's socket and ssl modules and the OpenSSL libraries are not in the package. Since 1.19.2 the program has had no networking code; now the runtime it ships with could not open a connection either
-[*][b]Result:[/b] 0 detections on VirusTotal for the ZIP, for the exe and for repak.exe - the links are at the top of this page. 1.20.0 stood at 1 of 65 and 2 of 70
+[*][b]Result:[/b] 0 detections on VirusTotal for the ZIP, for the exe and for the then-bundled repak.exe (that helper program is gone since 1.23.0). 1.20.0 stood at 1 of 65 and 2 of 70
 [*][b]To update:[/b] extract the new ZIP over your S2Tweaker folder, replacing what is there. Settings, presets, cache and output are not in the ZIP and stay untouched
 [*]Not play-tested, like the rest of the tool. No new game files, no re-extraction. Your existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.20.0 - Change which ammunition a weapon uses[/b] (~230 tweaks + ammo swap, 13 tabs)
 [spoiler]

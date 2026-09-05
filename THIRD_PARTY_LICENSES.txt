@@ -42,17 +42,17 @@ as readable source.
 
 
 -------------------------------------------------------------------------
-repak (tools/repak.exe)
+repak (format reference only - no repak code or binary ships since 1.23.0)
 https://github.com/trumank/repak
 Dual licensed MIT OR Apache-2.0; the MIT terms are used here.
 
-MODIFIED BUILD: S2Tweaker does not ship the upstream release binary. It
-builds repak from source (pinned tag, see tools/build_repak.py) with one
-change: the function that downloads the Oodle library at runtime is
-removed, together with its HTTP/TLS stack. The build can therefore use an
-Oodle library that is already on the machine, but can never fetch one.
-Both licences permit modification; this note records that it happened.
--------------------------------------------------------------------------
+NOT BUNDLED ANY MORE: until 1.22.0 S2Tweaker shipped a repak binary
+compiled from source (with its Oodle download removed). Since 1.23.0 the
+pak files are read and written by the tool's own Python module
+(s2tweaker/pakfile.py), which implements the Unreal pak format as repak
+reads and writes it and was verified byte for byte against repak's
+output. The MIT notice below is kept in acknowledgement of that
+reference; no repak code is included.
 
 MIT License
 
@@ -101,10 +101,9 @@ never redistributed by this project.
 That library is required to decompress the game's own .pak archives. Note
 that S.T.A.L.K.E.R. 2 does not ship it as a separate file (Oodle is linked
 into the game executable), so it cannot be taken from the installation.
-S2Tweaker never downloads it, and neither does the bundled repak (see the
-note on the modified build above). The user places the file themselves;
+S2Tweaker never downloads it (and bundles no helper program that could). The user places the file themselves;
 the tool looks for it in the usual local places, verifies it against the
-SHA-256 checksum repak expects, and keeps it in the user's own S2Tweaker
+SHA-256 checksum it expects, and keeps it in the user's own S2Tweaker
 folder ("tools" next to the executable; if that folder is not writable,
 %LOCALAPPDATA%\S2Tweaker\tools is used instead). If it is missing, the
 tool says so at startup and names both the source and the target folder.

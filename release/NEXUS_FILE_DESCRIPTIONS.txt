@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.22.0
-File version:  1.22.0
+Name:          S2Tweaker 1.23.0
+File version:  1.23.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,26 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.23.0 - no more repak.exe: pak files are handled by plain Python
+
+- The folder no longer contains repak.exe (the open-source pak tool
+  earlier versions bundled). Its job is done by the tool's own Python
+  code now; nothing else changes in the tool.
+- Why: repak.exe was the only unsigned executable in the package, and
+  Microsoft's machine-learning engine flagged two builds of it (same
+  source, 27 bytes of linker timestamp apart) as a trojan. Now there is
+  no unsigned executable at all: S2Tweaker.exe is the signed python.org
+  interpreter, every DLL is signed by the PSF or Microsoft.
+- Verified against the real game: the 36 needed game files come out
+  byte for byte as repak extracted them, 27 third-party mod paks read
+  identically, and the paks written have the same index, entries and
+  checksums as repak's.
+- Oodle stays a manual step, exactly as before: not shipped, not
+  downloaded; put oo2core_9_win64.dll next to S2Tweaker.exe once.
+- A leftover _internal\repak.exe from an earlier version is removed on
+  the first start.
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.22.0 - twelve sliders from the community wish list, TL;DR for the
 Oodle setup
 

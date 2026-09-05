@@ -2233,11 +2233,9 @@ class App(ctk.CTk):
     def _oodle_target_dir(self) -> Path:
         """Der Ordner, den der Nutzer sehen soll: der mit S2Tweaker.exe.
 
-        NICHT der Ordner von repak.exe — der liegt im Ordner-Build in
-        `_internal`, und genau das widerspraeche dem Bild und dem Text
-        ("neben S2Tweaker.exe, nicht in _internal"). Dort abgelegt wird
-        die Datei gefunden; weiterverteilt wird sie vom Programm selbst
-        (ensure_oodle legt eine Kopie neben repak und in tools/)."""
+        Dort abgelegt wird die Datei gefunden (ensure_oodle sucht zuerst
+        neben der EXE und legt eine Kopie in tools/ ab); das passt zum Bild
+        und zum Text im Assistenten."""
         return app_dir()
 
     def _close_oodle_wizard(self):
@@ -5931,7 +5929,7 @@ class App(ctk.CTk):
         # Vanilla-Werte: ein Faktor auf einen Vanilla-0-Wert (viele
         # ArmorPiercingMod/CoverPiercingMod) oder ein Item-Gewicht ohne
         # angehakte Kategorie steht in "active", erzeugt aber keine Zeile.
-        # Ohne diesen Riegel bekaeme repak einen leeren Ordner und der
+        # Ohne diesen Riegel bekaeme der Packer einen leeren Ordner und der
         # Benutzer einen rohen Python-Traceback statt einer Erklaerung.
         if not patches:
             # Ursachen-Hinweis nur nennen, wenn er auch passen KANN — sonst

@@ -24,8 +24,9 @@ How the packaged program starts (there is no PyInstaller since 1.21.0):
 
 Self-test: with the environment variable S2TWEAKER_SELFTEST=<file> the
 launcher does not open the GUI for real. It imports every bundled module
-the program relies on, proves that no networking module is present, runs
-the bundled repak once, builds the main window, tears it down again and
+the program relies on, proves that no networking module is present, writes
+and reads back a tiny pak in pure Python, builds the main window, tears it
+down again and
 writes a report to <file>. tools/build_exe.py runs this against a copy of
 every build before the build counts as done.
 """
@@ -72,12 +73,21 @@ def _prepare() -> None:
         for candidate in sorted(tcl_root.glob(prefix + "[0-9]*")):
             if (candidate / marker).is_file():
                 os.environ[env] = str(candidate)
+    # Until 1.22.0 the folder shipped repak.exe; an update extracted over
+    # the old folder leaves it behind. It is not used any more (the pak
+    # code is pure Python since 1.23.0) and Microsoft's ML engine dislikes
+    # it - remove the leftover quietly.
+    stale = INTERNAL / "repak.exe"
+    if stale.exists():
+        try:
+            stale.unlink()
+        except OSError:
+            pass
 
 
 def _selftest(report: Path) -> None:
     import hashlib
     import importlib
-    import subprocess
 
     lines = []
     from s2tweaker import __version__
@@ -107,7 +117,8 @@ def _selftest(report: Path) -> None:
     lines.append("hashlib: built-in sha256 OK")
 
     for name in ("cfgparse", "emit", "faq", "game", "gamedata", "gui",
-                 "modscan", "names", "pakio", "tweaks", "vendor_bin2cfg"):
+                 "modscan", "names", "pakfile", "pakio", "tweaks",
+                 "vendor_bin2cfg"):
         importlib.import_module("s2tweaker." + name)
     for name in ("customtkinter", "darkdetect", "packaging"):
         importlib.import_module(name)
@@ -120,13 +131,17 @@ def _selftest(report: Path) -> None:
         assert Path(got).resolve() == APP_DIR, f"{name}.app_dir() = {got}"
     assert gui._asset("icon.ico").is_file(), gui._asset("icon.ico")
     assert gui._asset("help", "oodle_folder.png").is_file()
-    repak = pakio.find_repak()
-    assert repak is not None and repak.parent == INTERNAL, repak
-    r = subprocess.run([str(repak), "--version"], capture_output=True,
-                       text=True, stdin=subprocess.DEVNULL, timeout=60,
-                       creationflags=subprocess.CREATE_NO_WINDOW)
-    assert r.returncode == 0, r.stderr
-    lines.append(f"repak: {r.stdout.strip()} ({repak})")
+    # Paks in reinem Python (kein repak.exe mehr seit 05.09.2026): einmal
+    # schreiben und zuruecklesen, und die alte Binaerdatei darf nicht da sein.
+    import tempfile
+    from s2tweaker import pakfile
+    with tempfile.TemporaryDirectory(prefix="s2t_selftest_") as tmp:
+        pak = pakfile.write_pak(Path(tmp) / "t.pak", [("a/b.cfg", b"x = 1\r\n")])
+        with pakfile.PakFile(pak) as pk:
+            assert pk.version.label == "V8B", pk.version
+            assert pk.read("a/b.cfg") == b"x = 1\r\n"
+    assert not (INTERNAL / "repak.exe").exists(), "repak.exe ist zurueck"
+    lines.append("pak: pure-Python write/read roundtrip OK, no repak.exe")
 
     app = gui.App()
     app.update()

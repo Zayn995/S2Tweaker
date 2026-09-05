@@ -39,10 +39,11 @@ WAS STATTDESSEN ENTSTEHT
         tcl\\             Tcl/Tk-Skriptbibliotheken
         s2tweaker\\, customtkinter\\, darkdetect\\, packaging\\
                          lesbarer Quelltext plus vorkompiliertes __pycache__
-        assets\\, repak.exe, licenses\\
+        assets\\, licenses\\
 
-Jede ausfuehrbare Datei im Paket ist damit signiert - ausser repak.exe,
-das die CI aus dem Quelltext baut (tools/build_repak.py). verify() prueft
+Jede ausfuehrbare Datei und jede DLL im Paket ist damit signiert - seit
+05.09.2026 ohne Ausnahme (kein repak.exe mehr, s2tweaker/pakfile.py liest
+und schreibt die Paks in reinem Python). verify() prueft
 das am Ende nach (Signaturen per Get-AuthenticodeSignature, Hash-Gleichheit
 S2Tweaker.exe == pythonw.exe, verbotene Dateien, keine Heimpfade) und
 laesst eine Kopie des Ordners den Selbsttest aus tools/launcher.py fahren.
@@ -357,31 +358,27 @@ def verify(out: Path, selftest: bool = True) -> None:
     if _sha256(exe) != _sha256(PREFIX / "pythonw.exe"):
         problems.append(f"{exe.name} ist nicht die unveraenderte pythonw.exe")
 
-    # 2) Signaturen: alles gueltig, einzige Ausnahme repak.exe
+    # 2) Signaturen: alles gueltig, ohne Ausnahme
     binaries = sorted(p for p in out.rglob("*")
                       if p.suffix.lower() in (".exe", ".dll", ".pyd"))
     sigs = _signatures(binaries)
     for p in binaries:
         status, signer = sigs.get(p, ("?", ""))
-        if p == internal / "repak.exe":
-            if status == "Valid":
-                log(f"  Hinweis: repak.exe ist signiert ({signer})")
-            continue
         if status != "Valid":
             problems.append(f"{p.relative_to(out)}: Signatur {status}")
     if "Python Software Foundation" not in sigs.get(exe, ("", ""))[1]:
         problems.append(f"{exe.name}: nicht von der Python Software Foundation signiert")
 
-    # 3) Layout: genau zwei EXEs, keine verbotenen Dateien, Pflichtdateien
+    # 3) Layout: genau eine EXE, keine verbotenen Dateien, Pflichtdateien
     exes = sorted(p.relative_to(out).as_posix() for p in binaries
                   if p.suffix.lower() == ".exe")
-    if exes != [f"{APP}.exe", "_internal/repak.exe"]:
+    if exes != [f"{APP}.exe"]:
         problems.append(f"ausfuehrbare Dateien: {exes}")
     for p in out.rglob("*"):
         if p.name.lower().startswith(FORBIDDEN):
             problems.append(f"verbotene Datei: {p.relative_to(out)}")
     for rel in (PTH, PYDLL, f"_internal/{STDLIB_ZIP}", "_internal/sitecustomize.py",
-                "_internal/repak.exe", "_internal/s2tweaker/gui.py",
+                "_internal/s2tweaker/pakfile.py", "_internal/s2tweaker/gui.py",
                 "_internal/assets/icon.ico", "_internal/customtkinter/__init__.py"):
         if not (out / rel).is_file():
             problems.append(f"fehlt: {rel}")
@@ -396,8 +393,8 @@ def verify(out: Path, selftest: bool = True) -> None:
                 problems.append(f"{STDLIB_ZIP}: {bad} darf nicht drin sein")
 
     # 4) Keine Nutzerdaten, keine Reste, keine Heimpfade des Bau-Rechners.
-    #    repak.exe ist ausgenommen: Rust kompiliert Registry-Pfade des
-    #    Bau-Nutzers ein (in der CI "runneradmin"), das ist nicht unser Code.
+    #    Ohne Ausnahme - seit 05.09.2026 gibt es kein repak.exe mehr, das
+    #    Cargo-Pfade (und den Benutzernamen) des Bau-Rechners in sich trug.
     for junk in ("settings.json", "cache", "output", "presets", f"{APP}_error.log"):
         if (out / junk).exists():
             problems.append(f"gehoert nicht ins Paket: {junk}")
@@ -406,7 +403,7 @@ def verify(out: Path, selftest: bool = True) -> None:
         homes.add(os.environ["USERPROFILE"].lower())
     needles = [h.encode() for h in homes] + [h.encode("utf-16-le") for h in homes]
     for p in out.rglob("*"):
-        if not p.is_file() or p.name == "repak.exe" or p.stat().st_size > 40_000_000:
+        if not p.is_file() or p.stat().st_size > 40_000_000:
             continue
         blob = p.read_bytes().lower()
         if any(n in blob for n in needles):
@@ -418,7 +415,7 @@ def verify(out: Path, selftest: bool = True) -> None:
     files = [p for p in out.rglob("*") if p.is_file()]
     total = sum(p.stat().st_size for p in files)
     log(f"Gegenprobe OK: {len(files)} Dateien, {total:,} Bytes, "
-        f"{len(binaries)} Binaerdateien signiert (Ausnahme repak.exe), "
+        f"{len(binaries)} Binaerdateien signiert, "
         f"{exe.name} == pythonw.exe")
     if selftest:
         text = _selftest(out)
@@ -468,8 +465,8 @@ def build(distpath: Path) -> Path:
     ext_deps = _resolve_deps(pyds)
     for dep in ext_deps:
         _copy(dep, internal / dep.name)
-    # repak.exe und die Erweiterungen brauchen die VC-Laufzeit auch in
-    # _internal, damit nichts vom Systemordner abhaengt.
+    # Die Erweiterungen brauchen die VC-Laufzeit auch in _internal, damit
+    # nichts vom Systemordner abhaengt.
     for name in ("vcruntime140.dll", "vcruntime140_1.dll"):
         if (out / name).is_file():
             _copy(out / name, internal / name)
@@ -513,7 +510,6 @@ def build(distpath: Path) -> Path:
     # 7) Beigaben und Lizenzen
     _copy(REPO / "assets" / "icon.ico", internal / "assets" / "icon.ico")
     _copy_tree(REPO / "assets" / "help", internal / "assets" / "help")
-    _copy(REPO / "tools" / "repak.exe", internal / "repak.exe")
     _copy(PREFIX / "LICENSE.txt", internal / "licenses" / "PYTHON-LICENSE.txt")
     _copy(REPO / "THIRD_PARTY_LICENSES.txt",
           internal / "licenses" / "THIRD_PARTY_LICENSES.txt")

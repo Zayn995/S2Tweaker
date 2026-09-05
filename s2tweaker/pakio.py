@@ -1,18 +1,29 @@
-"""Pak-Erzeugung fuer S.T.A.L.K.E.R. 2 (ueber repak.exe).
+"""Pak-Erzeugung und -Entpacken fuer S.T.A.L.K.E.R. 2 - in reinem Python.
 
 Funktionierende Mod-Paks im Spiel sind: Version V8B, Mount-Point ../../../,
-unkomprimiert, unverschluesselt — exakt die repak-Defaults.
+unkomprimiert, unverschluesselt. Genau das schreibt s2tweaker/pakfile.py,
+und genau das schrieb bis 1.22.0 das mitgelieferte repak.exe.
 
-Oodle: wird gebraucht, aber NIE heruntergeladen
-----------------------------------------------
-pakchunk0 des Spiels ist Oodle-komprimiert, deshalb braucht repak zum
-ENTPACKEN die proprietaere oo2core_9_win64.dll (zum PACKEN nicht — unsere
-Paks sind unkomprimiert, verifiziert).
+Kein repak.exe mehr (05.09.2026)
+--------------------------------
+repak.exe (Rust, von uns aus dem Quelltext gebaut) war die einzige
+unsignierte ausfuehrbare Datei im Paket - und wurde am 05.09.2026 von
+Microsofts Machine-Learning-Erkennung als Trojaner markiert, zweimal, fuer
+Binaerdateien, die sich nur im Zeitstempel unterschieden. Die Aufgabe
+uebernimmt seitdem pakfile.py mit der Standardbibliothek; die Gegenprobe
+gegen repak an den echten Spieldateien steht in tests/test_pakfile.py.
+
+Oodle: wird gebraucht, aber NIE mitgeliefert und NIE heruntergeladen
+--------------------------------------------------------------------
+pakchunk0 des Spiels ist Oodle-komprimiert, deshalb braucht das ENTPACKEN
+die proprietaere oo2core_9_win64.dll (zum PACKEN nicht - unsere Paks sind
+unkomprimiert, verifiziert). Geladen wird sie per ctypes, so wie repak sie
+per LoadLibrary lud.
 
 Beschafft wird sie seit 04.09.2026 NICHT mehr von uns. Zwei Gruende:
 
   1. Ein Programm, das zur Laufzeit eine Bibliothek aus dem Netz holt und
-     als nativen Code laedt, zeigt exakt das Verhalten eines Droppers —
+     als nativen Code laedt, zeigt exakt das Verhalten eines Droppers -
      einer der Gruende, warum Virenscanner solche Werkzeuge markieren.
      Die Freigabe auf Nexus scheiterte an genau solchen Fehlalarmen.
   2. Der Download war ohnehin die fehleranfaelligste Stelle: Bugreport
@@ -21,13 +32,8 @@ Beschafft wird sie seit 04.09.2026 NICHT mehr von uns. Zwei Gruende:
 
 Stattdessen: lokal suchen (SHA-256 immer pruefen, die Datei wird gleich
 darauf als nativer Code geladen), und wenn sie fehlt, den Nutzer per
-Klartext-Dialog bitten, sie einmal selbst danebenzulegen — mit Link und
+Klartext-Dialog bitten, sie einmal selbst danebenzulegen - mit Link und
 Zielordner (OODLE_HELP).
-
-Auch das mitgelieferte repak kann nicht mehr laden: es wird aus dem
-Quellcode gebaut, und dabei wird die Download-Funktion samt HTTP-/TLS-
-Stack entfernt (siehe tools/build_repak.py). Nachgemessen: rustls 113 -> 0,
-ureq 66 -> 0 Vorkommen im Binaercode.
 """
 
 from __future__ import annotations
@@ -36,27 +42,23 @@ import hashlib
 import os
 import shutil
 import stat
-import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
+
+from . import pakfile
 
 GAMEDATA_PREFIX = "Stalker2/Content/GameLite/GameData"
 
-# Exakt die Werte, die in repak 0.2.3 einkompiliert sind (aus repak.exe
-# ausgelesen) — nur mit diesem Hash akzeptiert repak die DLL.
+# Die Oodle-Version, mit der die Spielpaks nachweislich gelesen werden
+# (dieselbe, die repak 0.2.3 verlangte) - nur mit diesem Hash wird die
+# DLL akzeptiert und geladen.
 OODLE_DLL = "oo2core_9_win64.dll"
 OODLE_SHA256 = "6f5d41a7892ea6b2db420f2458dad2f84a63901c9a93ce9497337b16c195f457"
 OODLE_URL = (
     "https://github.com/WorkingRobot/OodleUE/raw/refs/heads/main/Engine/Source"
     "/Programs/Shared/EpicGames.Oodle/Sdk/2.9.10/win/redist/" + OODLE_DLL
 )
-
-# Erwartete Groesse ~640 KB; alles deutlich Groessere ist keine Antwort,
-# die wir haben wollen (Blockseite, Captive Portal, boesartiger Proxy).
-OODLE_MAX_BYTES = 8 << 20
-OODLE_TIMEOUT_TOTAL = 90.0
 
 OODLE_HELP = """S2Tweaker needs the Oodle decompression library ({dll})
 to read the packed config files of your game, and it is not on this PC yet.
@@ -77,8 +79,8 @@ manual step, once:
   3) Click "Confirm & load game data" again.
 
 That is all - the file stays there and you never have to think about it
-again. It has to be exactly the build repak expects (SHA-256 starting
-with {hash8}); other Oodle 2.9.x builds are rejected on purpose.
+again. It has to be exactly this build (SHA-256 starting with {hash8});
+other Oodle 2.9.x builds are rejected on purpose.
 
 You may already have this file: every Unreal Engine installation ships
 it, and so do some other S.T.A.L.K.E.R. 2 modding tools.
@@ -125,11 +127,10 @@ def _writable(directory: Path) -> bool:
         return False
 
 
-def _oodle_error(reason: str, target: Path | None = None) -> "OodleError":
-    # Dem Nutzer wird IMMER der Ordner mit S2Tweaker.exe genannt, nie der
-    # von repak.exe (im Ordner-Build `_internal`) — sonst widerspricht der
-    # Text der Anleitung und dem Bild im Assistenten. Von dort holt sich
-    # ensure_oodle die Datei ohnehin und verteilt sie weiter.
+def _oodle_error(reason: str) -> "OodleError":
+    # Dem Nutzer wird IMMER der Ordner mit S2Tweaker.exe genannt - dort
+    # sucht ensure_oodle zuerst, und dorthin zeigen Anleitung und Bild im
+    # Assistenten.
     where = str(app_dir())
     return OodleError(OODLE_HELP.format(
         dll=OODLE_DLL, url=OODLE_URL, hash8=OODLE_SHA256[:8],
@@ -137,7 +138,7 @@ def _oodle_error(reason: str, target: Path | None = None) -> "OodleError":
 
 
 def oodle_cache_dir() -> Path:
-    """Dauerhafter Ablageort der DLL — portabel neben der EXE.
+    """Dauerhafter Ablageort der DLL - portabel neben der EXE.
 
     Falls dort nicht geschrieben werden darf (EXE in Programme\\ o.ae.),
     weicht der Cache nach %LOCALAPPDATA% aus (in README/Nexus dokumentiert)."""
@@ -198,9 +199,6 @@ def _local_oodle_candidates(pak: Path | None) -> list[Path]:
 
 def oodle_available(pak: Path | None = None) -> bool:
     """Liegt irgendwo eine brauchbare Oodle-DLL? (fuer die Pruefung beim Start)"""
-    repak = find_repak()
-    if repak is not None and _hash_ok(repak.parent / OODLE_DLL):
-        return True
     try:
         if _hash_ok(oodle_cache_dir() / OODLE_DLL):
             return True
@@ -209,60 +207,64 @@ def oodle_available(pak: Path | None = None) -> bool:
     return any(_hash_ok(c) for c in _local_oodle_candidates(pak))
 
 
-def ensure_oodle(repak: Path, pak: Path | None = None, progress=None) -> None:
-    """Die (echte) Oodle-DLL neben repak.exe legen — OHNE Download.
+def ensure_oodle(pak: Path | None = None, progress=None) -> Path:
+    """Pfad zur (echten) Oodle-DLL - OHNE Download.
 
-    Gesucht wird ausschliesslich LOKAL. Fehlt die Datei, gibt es einen
-    Klartext-Fehler mit Anleitung; heruntergeladen wird nichts (Begruendung
-    im Modul-Kopf). `progress` bleibt nur der Signatur wegen erhalten.
+    Gesucht wird ausschliesslich LOKAL: erst der Cache neben der EXE, dann
+    die ueblichen Stellen (Programmordner, Spielordner ...). Ein Fund wird
+    in den Cache kopiert, damit er beim naechsten Mal sofort da ist. Fehlt
+    die Datei ueberall, gibt es einen Klartext-Fehler mit Anleitung;
+    heruntergeladen wird nichts (Begruendung im Modul-Kopf). `progress`
+    bleibt nur der Signatur wegen erhalten.
 
-    Es wird immer der SHA-256 geprueft, nie nur die Existenz — die Datei
-    wird gleich darauf von repak als nativer Code geladen."""
-    target = repak.parent / OODLE_DLL
-    if _hash_ok(target):
-        return
-
+    Es wird immer der SHA-256 geprueft, nie nur die Existenz - die Datei
+    wird gleich darauf als nativer Code geladen."""
     cache = oodle_cache_dir() / OODLE_DLL
-    if not _hash_ok(cache):
-        source, rejected = None, []
-        for candidate in _local_oodle_candidates(pak):
-            if candidate == cache or not candidate.is_file():
-                continue
-            if _hash_ok(candidate):
-                source = candidate
-                break
-            rejected.append(str(candidate))
-        if source is None:
-            reason = "\n".join(
-                f"There is a {OODLE_DLL} at {path}, but it is a different "
-                "Oodle build (its checksum is not the one repak needs)."
-                for path in rejected) or "It is not in any of the usual places."
-            raise _oodle_error(reason, target)
-        _place(source, cache)
-
-    if target != cache:
-        _place(cache, target)
-    if not _hash_ok(target):
-        raise _oodle_error(
-            f"The library next to repak.exe ({target}) did not pass the "
-            f"checksum check after copying.", target)
+    if _hash_ok(cache):
+        return cache
+    rejected = []
+    for candidate in _local_oodle_candidates(pak):
+        if candidate == cache or not candidate.is_file():
+            continue
+        if _hash_ok(candidate):
+            try:
+                _place(candidate, cache)
+            except OodleError:
+                return candidate          # nicht kopierbar, aber benutzbar
+            if _hash_ok(cache):
+                return cache
+            return candidate
+        rejected.append(str(candidate))
+    reason = "\n".join(
+        f"There is a {OODLE_DLL} at {path}, but it is a different "
+        "Oodle build (its checksum is not the one this tool needs)."
+        for path in rejected) or "It is not in any of the usual places."
+    raise _oodle_error(reason)
 
 
-def find_repak() -> Path | None:
-    """repak.exe finden: im Programmordner gebuendelt (`_internal\\repak.exe`,
-    neben dem Paket), im tools-Ordner des Repos oder im PATH."""
-    here = Path(__file__).resolve().parent
-    candidates = [here.parent / "repak.exe"]
-    if getattr(sys, "frozen", False):
-        candidates.append(Path(sys.executable).parent / "repak.exe")
-    candidates.append(here.parent / "tools" / "repak.exe")
-    found = shutil.which("repak")
-    if found:
-        candidates.append(Path(found))
-    for c in candidates:
-        if c.is_file():
-            return c
-    return None
+_decompressors: dict[Path, object] = {}
+
+
+def oodle_decompressor(pak: Path | None = None, progress=None):
+    """OodleLZ_Decompress als Python-Funktion - laedt die DLL einmal."""
+    dll = ensure_oodle(pak, progress)
+    fn = _decompressors.get(dll)
+    if fn is None:
+        fn = pakfile.load_oodle(dll)
+        _decompressors[dll] = fn
+    return fn
+
+
+def _open(pak: Path) -> pakfile.PakFile:
+    """Pak oeffnen; Oodle wird erst geladen, wenn ein Eintrag es braucht -
+    sonst wuerde ein Offline-Rechner ohne DLL jede harmlose (unkomprimierte
+    oder Zlib-)Mod als unlesbar melden."""
+    pak = Path(pak)
+
+    def lazy(comp: bytes, raw_len: int) -> bytes:
+        return oodle_decompressor(pak)(comp, raw_len)
+
+    return pakfile.PakFile(pak, oodle=lazy)
 
 
 def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
@@ -273,10 +275,10 @@ def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
     "//"-Eintraege der Editions-Waffen unter root/GameLite/DLCGameData/...
 
     GitHub Issue #5 (KobaltRaven, 03.09.2026): der fruehere Export machte
-    `root / rel` — und ein rel, das mit "//" beginnt, ist fuer pathlib ein
+    `root / rel` - und ein rel, das mit "//" beginnt, ist fuer pathlib ein
     ABSOLUTER UNC-Pfad (\\\\GameLite\\DLCGameData\\...), der die Basis
     verdraengt. mkdir versuchte dann, einen Netzwerkpfad anzulegen
-    (WinError 53), sobald ein Editions-Patch dabei war — also bei jedem
+    (WinError 53), sobald ein Editions-Patch dabei war - also bei jedem
     Waffen-Tweak seit v1.14.0 mit angehaktem Debug. Die Pak war zu dem
     Zeitpunkt laengst gebaut; der Benutzer sah nur den Traceback."""
     root = Path(root)
@@ -290,7 +292,6 @@ def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
 
 
 def pack_mod(cfg_files: dict[str, str], out_pak: Path,
-             repak_exe: Path | None = None,
              root_files: dict[str, str] | None = None) -> Path:
     """cfg-Dateien in eine Mod-Pak packen.
 
@@ -304,20 +305,16 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
                das Spiel nie anfragt, sind an der Wurzel garantiert
                wirkungslos.
     out_pak:   Zielpfad der .pak-Datei (z.B. ...\\~mods\\zzz_S2Tweaker_P.pak).
-    """
-    repak = repak_exe or find_repak()
-    if repak is None:
-        raise FileNotFoundError("repak.exe nicht gefunden (tools/repak.exe fehlt?)")
 
+    Der Umweg ueber einen Staging-Ordner bleibt absichtlich: die Dateien
+    werden wie bisher mit write_text abgelegt (Windows-Zeilenenden), damit
+    die Pak byteidentisch mit der bisherigen repak-Erzeugung bleibt.
+    """
     out_pak = Path(out_pak)
     out_pak.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="s2tweaker_") as tmp:
-        # repak benutzt den Namen des Eingabeordners als Pak-Namen, deshalb
-        # bauen wir einen Ordner, der exakt wie die Ziel-Pak (ohne .pak) heisst.
         staging = Path(tmp) / out_pak.stem
-        # Auch bei leerem cfg_files anlegen: repak bricht sonst mit
-        # "Input is not a directory" ab statt eine (leere) Pak zu bauen.
         staging.mkdir(parents=True, exist_ok=True)
         for rel, content in cfg_files.items():
             if rel.startswith("//"):
@@ -328,113 +325,61 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
             target.write_text(content, encoding="utf-8")
         for rel, content in (root_files or {}).items():
             (staging / rel).write_text(content, encoding="utf-8")
-
-        result = subprocess.run(
-            [str(repak), "pack", "-q", str(staging), str(out_pak)],
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"repak pack fehlgeschlagen: {result.stderr.strip()}")
+        pakfile.pack_dir(staging, out_pak)
 
     if not out_pak.is_file():
         raise RuntimeError(f"Pak wurde nicht erzeugt: {out_pak}")
     return out_pak
 
 
-def list_pak(pak: Path, repak_exe: Path | None = None) -> list[str]:
-    """Dateiliste einer Pak (fuer den Mod-Scan). Liest nur den Index —
-    braucht kein Oodle und ist auch bei 2-GB-Paks schnell."""
-    repak = repak_exe or find_repak()
-    if repak is None:
-        raise FileNotFoundError("repak.exe nicht gefunden")
-    result = subprocess.run(
-        [str(repak), "list", str(pak)],
-        capture_output=True,
-        text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"repak list fehlgeschlagen: {result.stderr.strip()}")
-    return [line.strip().strip('"')
-            for line in result.stdout.splitlines() if line.strip()]
+def list_pak(pak: Path) -> list[str]:
+    """Dateiliste einer Pak (fuer den Mod-Scan), Pfade ohne ../../../ wie
+    bei `repak list`. Liest nur den Index - braucht kein Oodle und ist auch
+    bei 2-GB-Paks schnell."""
+    with _open(Path(pak)) as pk:
+        return [pk.stripped(name) for name in pk.files()]
+
+
+def _extract(pak: Path, out_dir: Path, patterns: list[str] | None,
+             progress=None) -> int:
+    """Eintraege, die ein Muster treffen (alle ohne Muster), nach out_dir
+    schreiben - Ablage wie `repak unpack`: out_dir/<Pfad ohne ../../../>."""
+    pak, out_dir = Path(pak), Path(out_dir)
+    regexes = [pakfile.glob_regex(p) for p in patterns] if patterns else None
+    written = 0
+    with _open(pak) as pk:
+        selected = []
+        for name in pk.files():
+            stripped = pk.stripped(name)
+            if regexes is None or pakfile.matches(regexes, stripped):
+                selected.append((name, stripped))
+        # Fehlt die DLL, soll der Klartext-Fehler kommen, BEVOR etwas
+        # geschrieben wird - nicht mitten im Entpacken.
+        if pk.uses_oodle([name for name, _ in selected]):
+            ensure_oodle(pak, progress)
+        for name, stripped in selected:
+            parts = stripped.split("/")
+            if any(part in ("..", "") for part in parts):
+                raise pakfile.PakError(f"refusing to write outside {out_dir}: {stripped}")
+            target = out_dir.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(pk.read(name))
+            written += 1
+    return written
 
 
 def unpack_many(pak: Path, out_dir: Path, includes: list[str],
-                repak_exe: Path | None = None, progress=None) -> None:
-    """Mehrere Eintraege in EINEM Rutsch entpacken (fuer den Mod-Scan).
-
-    repak akzeptiert -i mehrfach; gebuendelt ist das um Groessenordnungen
-    schneller als ein Prozess pro Datei. Gegen das Windows-Limit fuer
-    Kommandozeilen (~32k Zeichen) wird in Bloecke aufgeteilt."""
-    repak = repak_exe or find_repak()
-    if repak is None:
-        raise FileNotFoundError("repak.exe nicht gefunden")
-    # Oodle wird NICHT vorab besorgt: Mod-Paks sind fast immer unkomprimiert
-    # oder Zlib (repak kann beides ohne die DLL). Erst wenn repak wirklich
-    # ueber Oodle stolpert, wird die DLL einmal beschafft und der Block
-    # wiederholt — sonst wuerde ein Offline-Rechner ohne gecachte DLL jede
-    # harmlose Mod als unlesbar melden.
-    chunk: list[str] = []
-    length = 0
-    chunks: list[list[str]] = []
-    for inc in includes:
-        if chunk and length + len(inc) > 24000:
-            chunks.append(chunk)
-            chunk, length = [], 0
-        chunk.append(inc)
-        length += len(inc) + 5
-    if chunk:
-        chunks.append(chunk)
-
-    def run(part: list[str]):
-        cmd = [str(repak), "unpack", str(pak), "-o", str(out_dir), "-q", "-f"]
-        for inc in part:
-            cmd += ["-i", inc]
-        return subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-
-    oodle_ready = False
-    for part in chunks:
-        result = run(part)
-        if result.returncode != 0 and "oodle" in result.stderr.lower() \
-                and not oodle_ready:
-            ensure_oodle(repak, pak=Path(pak), progress=progress)
-            oodle_ready = True
-            result = run(part)
-        if result.returncode != 0:
-            err = result.stderr.strip()
-            if "oodle" in err.lower():
-                raise _oodle_error(err)
-            raise RuntimeError(f"repak unpack fehlgeschlagen: {err}")
+                progress=None) -> None:
+    """Mehrere Eintraege in einem Rutsch entpacken (fuer den Mod-Scan).
+    `includes` sind Glob-Muster wie bei `repak unpack -i` ('[' als '[[]')."""
+    _extract(pak, out_dir, list(includes), progress)
 
 
 def unpack(pak: Path, out_dir: Path, include: str | None = None,
-           repak_exe: Path | None = None, progress=None) -> None:
-    """Pak entpacken (fuer die Vanilla-GameData-Extraktion).
+           progress=None) -> None:
+    """Pak entpacken (fuer die Vanilla-GameData-Extraktion); `include` ist
+    ein Glob-Muster auf den Pfad ohne ../../../ - ohne Muster alles.
 
-    Braucht Oodle — die DLL wird vorher besorgt, damit repak sie nicht
-    selbst herunterladen muss (siehe Modul-Kopf)."""
-    repak = repak_exe or find_repak()
-    if repak is None:
-        raise FileNotFoundError("repak.exe nicht gefunden")
-    ensure_oodle(repak, pak=Path(pak), progress=progress)
-    cmd = [str(repak), "unpack", str(pak), "-o", str(out_dir), "-q", "-f"]
-    if include:
-        cmd += ["-i", include]
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-    )
-    if result.returncode != 0:
-        err = result.stderr.strip()
-        if "oodle" in err.lower():
-            raise _oodle_error(err)
-        raise RuntimeError(f"repak unpack fehlgeschlagen: {err}")
+    Braucht bei Oodle-komprimierten Eintraegen die DLL; fehlt sie, kommt
+    der Klartext-Fehler mit Anleitung (siehe Modul-Kopf)."""
+    _extract(pak, out_dir, [include] if include else None, progress)

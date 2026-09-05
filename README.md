@@ -17,7 +17,7 @@ Everyone is free to use it. This README tells you everything you need.
 - Generates **`{bpatch}` config patches** (the official patch system since
   game version 1.6): only the values you change are written; everything at
   "(vanilla)" is untouched and cannot conflict with other mods.
-- Packs them with **repak** into `zzz_<Name>_P.pak` (pak V8B, mount point
+- Packs them into `zzz_<Name>_P.pak` with its own pure-Python pak writer (pak V8B, mount point
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
@@ -57,13 +57,13 @@ built lazily when you expand a category, so startup stays fast.
 
 | Layer | Details |
 |---|---|
-| Network | **None.** Since 1.19.2 the program contains no networking code at all — no `urllib`, no sockets, no HTTP client — and the bundled repak is compiled without its HTTP/TLS stack. Both are enforced on every build ([tests/test_no_network.py](tests/test_no_network.py), [tests/test_no_download.py](tests/test_no_download.py)) and can be verified with one `grep` of this repository. The update check was removed with 1.19.2: Nexus' file submission guidelines prohibit internet-connecting executables "unless where it is crucial" and say "'auto update' functionality does not qualify as crucial". Updating is a manual file swap. |
-| Vanilla data | `repak unpack` of `pakchunk0-Windows.pak` (only the 29 needed GameData files), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
-| Oodle | The game's config archives are Oodle-compressed, so reading them needs the proprietary `oo2core_9_win64.dll`. The game does **not** ship it (Oodle is linked into the game executable), and **S2Tweaker never downloads it**: a program that pulls a library off the internet and then runs it looks exactly like a dropper, which is one reason scanners flag tools like this. The user places the file once; the tool looks in the usual local spots, always verifies the SHA-256, and says so at startup with a link and a target folder if it is missing. The bundled repak cannot fetch it either - it is built from source with the download function and its HTTP/TLS stack removed ([tools/build_repak.py](tools/build_repak.py)). Packing never needs Oodle. |
+| Network | **None.** Since 1.19.2 the program contains no networking code at all — no `urllib`, no sockets, no HTTP client — and since 1.23.0 there is no bundled helper program at all: pak files are read and written by [s2tweaker/pakfile.py](s2tweaker/pakfile.py) in plain Python. Both are enforced on every build ([tests/test_no_network.py](tests/test_no_network.py), [tests/test_no_download.py](tests/test_no_download.py)) and can be verified with one `grep` of this repository. The update check was removed with 1.19.2: Nexus' file submission guidelines prohibit internet-connecting executables "unless where it is crucial" and say "'auto update' functionality does not qualify as crucial". Updating is a manual file swap. |
+| Vanilla data | The needed GameData files are read straight out of `pakchunk0-Windows.pak` by [pakfile.py](s2tweaker/pakfile.py) (index parsed, only those entries decompressed), then `.cfg.bin` → text via the vendored decoder ([s2tweaker/vendor_bin2cfg.py](s2tweaker/vendor_bin2cfg.py)). Cached in `cache/vanilla-<pakSize>-s<schema>/`; a game update changes the fingerprint → automatic re-extraction. |
+| Oodle | The game's config archives are Oodle-compressed, so reading them needs the proprietary `oo2core_9_win64.dll`. The game does **not** ship it (Oodle is linked into the game executable), and **S2Tweaker never downloads it**: a program that pulls a library off the internet and then runs it looks exactly like a dropper, which is one reason scanners flag tools like this. The user places the file once; the tool looks in the usual local spots, always verifies the SHA-256, and says so at startup with a link and a target folder if it is missing. The DLL is loaded through `ctypes` only after its SHA-256 matched. Packing never needs Oodle. |
 | Ammunition swap | Per weapon, in the overrides tree: `AmmoCaliber` plus the `ProjectilePrototypeSID` of every existing `AmmoTypeProjectiles` slot in `WeaponGeneralSetupPrototypes` — the same struct `MaxAmmo` already lives in, so no new game file and no cache bump. Only existing slots are rewritten, never added or removed (whether `{bpatch}` can grow an array is untested in-game). The sort is read per index, never inferred from position: six sniper rifles carry `Supersonic` on `[0]`. The offered calibers are harvested from the weapon data, so 7.62×39 — real ammunition that no weapon uses and no generator drops — never appears. Nothing is blocked: damage lives on the weapon (`BaseDamage`), the round only multiplies, and that multiplier is 1.0 for every rifle and pistol caliber but 0.084 for 12 gauge, which shotguns offset with a much higher base value. Broken combinations are allowed and labelled with the computed factor. |
 | Parsing | [cfgparse.py](s2tweaker/cfgparse.py) parses GSC's cfg text format (`Name : struct.begin {refkey=...}` … `struct.end`) into a tree; `refkey` inheritance chains are resolved to get effective vanilla values. |
 | Patch output | [emit.py](s2tweaker/emit.py) writes `{bpatch}` structs. Patch files follow the proven convention `<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg` under `Stalker2/Content/GameLite/GameData/`. |
-| Packing | [pakio.py](s2tweaker/pakio.py) stages the files and calls the bundled `tools/repak.exe` (defaults are exactly what the game wants: V8B, mount `../../../`, uncompressed). |
+| Packing | [pakio.py](s2tweaker/pakio.py) stages the files and [pakfile.py](s2tweaker/pakfile.py) writes the pak (exactly what the game wants: V8B, mount `../../../`, uncompressed, SHA-1 per entry). Verified against repak 0.2.3: same index, same entries, same hashes, and repak reads the result. |
 | Key game files | `ObjPrototypes` (player + mutants), `ItemPrototypes`, `TradePrototypes`, `DifficultyPrototypes` (per-difficulty multiplier groups), `EffectPrototypes` (overweight effects), `FloatProviderPrototypes` (scope-sway constant — patched instead of the sway effects so offset-aiming keeps working), `WeaponData/*` (damage, wear, spread, recoil), `CoreVariables` (repair costs, stamina drain), `ObjWeightParamsPrototypes` (carry weight), `ObjHoldBreathParamsPrototypes`, `StashPrototypes` (smart loot in stashes and on bodies), `ItemGeneratorPrototypes` (9.3 MB — the world's loot generators; only `MinCount`/`MaxCount` under `PossibleItems` is scaled, and only on generators that pass a two-stage safety filter, see below), `RelationPrototypes` (faction relations: 582 pair baselines + the RelationVersion counter the patch raises so saves notice changes — research: [docs/FACTION_RELATIONS_RESEARCH.md](docs/FACTION_RELATIONS_RESEARCH.md)). |
 
 Deep research notes with sources, vanilla values and risk analysis:
@@ -163,10 +163,10 @@ s2tweaker/
   gamedata.py           extraction pipeline, parsing, inheritance resolution
   cfgparse.py           GSC cfg text parser
   emit.py               {bpatch} cfg writer
-  pakio.py              repak wrapper (pack/unpack)
+  pakfile.py            pak reader/writer in pure Python (V1-V11 read, V8B write, Oodle via ctypes)
+  pakio.py              pack/unpack/list on top of it, Oodle DLL lookup (never a download)
   game.py               game folder auto-detection (Steam/GOG/Xbox)
   vendor_bin2cfg.py     cfg.bin → cfg decoder (vendored, public domain)
-tools/repak.exe         pak tool (MIT/Apache-2.0, by trumank)
 tools/build_exe.py      assembles the program folder dist/S2Tweaker/ (no PyInstaller)
 tools/launcher.py       shipped as _internal/sitecustomize.py: starts the GUI
 docs/SPEC.md            research: every tweak's mechanism + sources
@@ -184,7 +184,7 @@ python main.py          # run the GUI directly
 build.bat               # or assemble dist/S2Tweaker/ (needs a python.org install)
 ```
 
-`tools/repak.exe` is not the upstream release binary: `python tools/build_repak.py` rebuilds it from source (pinned tag) with the runtime Oodle download removed, so nothing in the shipped folder can fetch anything. The CI does this on every build.
+**There is no repak.exe since 1.23.0.** Until 1.22.0 the folder carried a repak binary compiled from source by the CI, the only unsigned executable in the package. On 2026-09-05 Microsoft's machine-learning engine flagged two such builds as trojans although they differed in 27 bytes of linker timestamp and PDB GUID only. Rather than fight a classifier that dislikes the shape of an unsigned Rust binary, the pak handling moved into Python: [s2tweaker/pakfile.py](s2tweaker/pakfile.py) reads pak versions 1 to 11 (Zlib, Gzip, Oodle) and writes V8B, using nothing but the standard library. [tests/test_pakfile.py](tests/test_pakfile.py) checks it against the real game: the 36 needed files come out byte for byte as repak extracted them, 27 third-party mod paks read identically, and a pak we write has the same index, entries and hashes as repak's.
 
 **There is no PyInstaller since 1.21.0.** `S2Tweaker.exe` is `pythonw.exe`
 from python.org, byte for byte, signed by the Python Software Foundation;
@@ -195,7 +195,7 @@ library as a `.pyc` zip compiled from the same python.org installation —
 without `socket`, `ssl`, `asyncio` and `sqlite3`, and without any OpenSSL
 library, so the package has no networking capability at all. Every DLL,
 PYD and EXE in the folder is signed by the PSF or Microsoft except
-`repak.exe`, which the CI compiles from source.
+nothing - there is no unsigned executable left.
 
 Why: the PyInstaller builds kept tripping antivirus heuristics. 1.20.0 was
 flagged by two engines on VirusTotal although its launcher was byte for
