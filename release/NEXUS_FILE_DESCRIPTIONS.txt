@@ -11,16 +11,36 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.19.2
-File version:  1.19.2
+Name:          S2Tweaker 1.20.0
+File version:  1.20.0
 File category: Main Files
 ==================================================================
 
---- File description (247 Zeichen) -------------------------------
-The tool itself. Unzip everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where to get it. It has no internet access of any kind: no updater, no downloads.
+--- File description (242 Zeichen) -------------------------------
+The tool itself. Unzip everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where. No internet access of any kind. New: swap a weapon's ammunition type.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.20.0 - change which ammunition a weapon uses
+
+- New: an "Ammunition" dropdown per weapon (Weapons tab, "Single weapon
+  overrides", above the sliders). Requested on GitHub by Molkerr. Every
+  caliber the game actually uses is offered.
+- It does NOT change damage. Damage comes from the weapon - that is the
+  Damage slider; the round only adds a multiplier, and that multiplier
+  is the same for every rifle and pistol caliber. A swap changes
+  penetration, bullet flight, price and how easy the ammo is to find.
+- It changes NPC weapons too: the caliber lives on the weapon setup that
+  player, NPC and boss versions share. The tool tells you how many item
+  variants share the one you are about to change.
+- Nothing is blocked, not even broken combinations. A rifle on shotgun
+  shells drops to about 8 % of its damage; a shotgun on rifle rounds
+  jumps to roughly 12x. The tool computes those numbers from your own
+  game files, shows them, and then lets you do it.
+- 7.62x39 is missing on purpose: no weapon uses it and it drops from no
+  loot generator, so a weapon switched to it would never find ammo.
+- No new game files, no re-extraction. Your existing paks stay valid.
+
 1.19.2 - no network code, and no archive hidden inside the exe
 
 - The executable was 90% compressed archive. Shipping as a folder in

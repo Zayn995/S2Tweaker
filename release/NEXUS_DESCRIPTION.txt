@@ -16,7 +16,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 [*]The mod itself: [url=https://www.virustotal.com/gui/file/1fda3a616121293ecd0975e91caaa33208b93267f15f5d1c07f63ac934877ebe/detection]VirusTotal - 1 of 66[/url]. The single detection is Zillya ("Dropper.Agent"); every other engine, Windows Defender included, reports it clean. Zillya has been informed and asked to review it as a false positive
 [*]The program file inside it: [url=https://www.virustotal.com/gui/file/e6ad82b315682c01a74534ad800920e562c24cc1503cf7a21ca75e408aeaf973]VirusTotal - 2 detections[/url]. Both are generic guesses, not a named malware family: Microsoft's is "Wacatac.B!ml", where the "!ml" means it comes from a machine-learning model rather than a signature, and Zillya's is "Dropper.Agent". Windows Defender as installed on my machine reports every file clean. VirusTotal explains the difference in its own documentation: engines run there with "stronger heuristics, cloud interaction, inclusion of beta signatures". Both vendors have been asked to review it as a false positive
 [/list]
-Version 1.19.2 exists mainly to earn those numbers - see the changelog. It went from three detections to two by removing a 2.8 MB compressed blob from inside the executable.
+Those numbers are from 1.19.2, the release that earned them by removing a 2.8 MB compressed blob from inside the executable (three detections down to two). 1.20.0 is built the exact same way and only adds the ammunition dropdown.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
@@ -192,6 +192,17 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [heading]CHANGELOG[/heading]
+
+[b]v1.20.0 - Change which ammunition a weapon uses[/b] (~230 tweaks + ammo swap, 13 tabs)
+[list]
+[*][b]New: an "Ammunition" dropdown per weapon[/b] (Weapons tab, "Single weapon overrides", above the sliders). Requested on GitHub by Molkerr: put the AK-74 on 5.56, the Viper on .45, whatever you like - every caliber the game actually uses is offered
+[*][b]It does NOT change damage.[/b] Damage comes from the weapon (that is the Damage slider); the round only adds a multiplier, and that multiplier is identical for every rifle and pistol caliber. What a swap really changes is penetration, bullet flight, price and how easy the ammo is to find - 5.56 is rarer and dearer than 5.45, which is the point
+[*][b]It changes NPC weapons too.[/b] The caliber lives on the weapon setup that player, NPC and boss versions share, so an AK-74 on 5.56 means every AK-74 in the Zone. The tool tells you how many item variants share the setup you are about to change
+[*][b]Nothing is blocked, not even the broken combinations.[/b] Put a rifle on shotgun shells and it drops to about 8 % of its damage (buckshot is scored per pellet, and only shotguns carry the high base damage that makes up for it); go the other way and a shotgun jumps to roughly 12x. The tool computes those numbers from your own game files, writes them under the dropdown - and then lets you do it
+[*]One caliber is missing on purpose: 7.62x39. The ammunition exists in the game files, but no weapon uses it and it drops from no loot generator at all, so a weapon switched to it would never find ammo
+[*]Not play-tested, like the rest of the tool. Especially untested: loading a save in which the weapon was full of the old ammunition
+[*]No new game files, no re-extraction. Your existing paks stay valid
+[/list]
 
 [b]v1.19.2 - No network code, and no archive hidden inside the exe[/b] (~230 tweaks, 13 tabs)
 [list]
