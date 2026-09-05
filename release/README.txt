@@ -34,8 +34,9 @@ WHAT YOU CAN TWEAK (short tour)
   for all 57 armors and helmets (edition pieces included, real in-game
   names), armor durability, armor carry-weight bonuses
 - NPCs & AI: damage, health, accuracy, vision & hearing range, grenade
-  usage, reaction delay, "NPCs don't self-heal", NPC gear quality,
-  experimental A-Life sliders
+  usage, reaction delay, "NPCs don't self-heal", NPC gear quality, NPC
+  flashlights (brightness & reach, beam width, use in combat, on/off
+  hours), experimental A-Life sliders
 - Mutants: global damage/health/speed/hearing/regen plus a per-species
   tree in four size groups; bloodsucker cloaking
 - Factions (experimental): your standing with 13 factions, every

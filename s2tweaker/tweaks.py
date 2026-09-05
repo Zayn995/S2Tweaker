@@ -485,6 +485,12 @@ class Settings:
     # --- Reichweiten (Nexus-Recherche 05.09.2026) ---
     interaction_range_factor: float = 1.0    # Aufheben/Behaelter (CoreVariables) + Leichen (Player)
     dialog_range_factor: float = 1.0         # Gespraechsabstand zu NPCs (Player)
+    # --- NPC-Taschenlampen (FlashlightPrototypes/CoreVariables/AIGlobals) ---
+    npc_flashlight_factor: float = 1.0       # Intencity + AttenuationRadius der NPC-Lampe
+    npc_flashlight_cone_factor: float = 1.0  # OuterConeAngle (Deckel 170 Grad)
+    npc_flashlight_combat_factor: float = 1.0  # FlashlightCombatUseChance je Rang (Deckel 1.0)
+    npc_flashlight_on_hour: int = 22         # AIGlobals FlashlightTimeOfDayOn
+    npc_flashlight_off_hour: int = 5         # AIGlobals FlashlightTimeOfDayOff
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -1401,6 +1407,14 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
             settings["CombatTacticsSettings"] = {
                 "CombatTacticsParamsPerFactions": factions}
 
+    # NPC-Taschenlampen: Ein-/Ausschaltstunde (Vanilla 22 / 5), live
+    # gelesen und nur bei Abweichung geschrieben.
+    for key, wanted in (("FlashlightTimeOfDayOn", s.npc_flashlight_on_hour),
+                        ("FlashlightTimeOfDayOff", s.npc_flashlight_off_hour)):
+        raw = root.values.get(key)
+        if raw is not None and _neq(float(wanted), parse_number(raw)):
+            settings[key] = str(int(round(wanted)))
+
     return {"AISettings": settings} if settings else {}
 
 
@@ -1661,6 +1675,65 @@ def _melee_patch(gd: GameData, s: Settings) -> dict:
         if entry:
             patches[sid] = entry
     return patches
+
+
+NPC_FLASHLIGHT_SID = "NPCFlashlight"
+NPC_FLASHLIGHT_CONE_CAP = 170.0      # Grad; darueber wird aus dem Kegel eine Kugel
+
+
+def _sid_of(node) -> str:
+    return (node.values.get("SID") or "").strip().rstrip(";").strip()
+
+
+def _npc_flashlight_node(gd: GameData):
+    """(Top-Level-Key, Struct) der NPC-Lampe. Die Structs heissen in der
+    Datei nur [0]..[3]; gefunden wird ueber die SID, nicht ueber die
+    Position."""
+    for key, node in gd.flashlights.children.items():
+        if "#" in key:
+            continue
+        if _sid_of(node) == NPC_FLASHLIGHT_SID:
+            return key, node
+    return None, None
+
+
+def _flashlight_patch(gd: GameData, s: Settings) -> dict:
+    """NPC-Taschenlampen (FlashlightPrototypes, Recherche 05.09.2026).
+
+    Lichtwerte stehen nur in ExtraLightDistanceBasedParameters: drei
+    Eintraege nach Entfernung (Vanilla Intencity 7/9/18, Radius
+    175/325/500, Kegel 45/55/80). 1.600 NPC-Prototypen verweisen auf
+    diese eine Lampe. Die Spieler-Lampe hat hier keine Werte (leere
+    Tabelle; Blueprint-Kurven) - siehe ROADMAP. Array-Regel: komplette
+    Eintraege ausgeben. Der Schluessel "Intencity" ist GSCs Schreibweise."""
+    want_light = _neq(s.npc_flashlight_factor, 1.0) and s.npc_flashlight_factor > 0
+    want_cone = (_neq(s.npc_flashlight_cone_factor, 1.0)
+                 and s.npc_flashlight_cone_factor > 0)
+    if not (want_light or want_cone):
+        return {}
+    key, node = _npc_flashlight_node(gd)
+    table = node.children.get("ExtraLightDistanceBasedParameters") if node else None
+    if key is None or table is None:
+        return {}
+    entries: dict = {}
+    for idx, entry in table.children.items():
+        if "#" in idx:
+            continue
+        distance = parse_number(entry.values.get("Distance"))
+        intensity = parse_number(entry.values.get("Intencity"))
+        radius = parse_number(entry.values.get("AttenuationRadius"))
+        cone = parse_number(entry.values.get("OuterConeAngle"))
+        if want_light:
+            intensity *= s.npc_flashlight_factor
+            radius *= s.npc_flashlight_factor
+        if want_cone:
+            cone = min(NPC_FLASHLIGHT_CONE_CAP, cone * s.npc_flashlight_cone_factor)
+        entries[idx] = {"Distance": _num(distance), "Intencity": _num(intensity),
+                        "AttenuationRadius": _num(radius),
+                        "OuterConeAngle": _num(cone)}
+    if not entries:
+        return {}
+    return {key: {"ExtraLightDistanceBasedParameters": entries}}
 
 
 def _weather_patch(gd: GameData, s: Settings) -> dict:
@@ -2288,6 +2361,21 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if vanilla > 0:
                 cfg[key] = _num(vanilla * s.interaction_range_factor)
 
+    # NPC-Taschenlampen im Kampf (Recherche 05.09.2026): Nutzungschance je
+    # Rang, Vanilla Newbie 1 / Experienced 0.75 / Veteran 0.5 / Master 0.25,
+    # Deckel 1.0; Faktor 0 = nie.
+    if _neq(s.npc_flashlight_combat_factor, 1.0) and s.npc_flashlight_combat_factor >= 0:
+        node = gd.corevars.children.get("DefaultConfig")
+        chance = node.children.get("FlashlightCombatUseChance") if node else None
+        if chance is not None:
+            ranks: dict = {}
+            for rank, raw in chance.values.items():
+                value = parse_number(raw, -1.0)
+                if value >= 0:
+                    ranks[rank] = _num(min(1.0, value * s.npc_flashlight_combat_factor))
+            if ranks:
+                cfg["FlashlightCombatUseChance"] = ranks
+
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
         node = gd.corevars.children.get("DefaultConfig")
@@ -2878,6 +2966,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _mutant_abilities_patch(gd, s))
     add(f"MeleeWeaponPrototypes/MeleeWeaponPrototypes_patch_{n}.cfg",
         _melee_patch(gd, s))
+    add(f"FlashlightPrototypes/FlashlightPrototypes_patch_{n}.cfg",
+        _flashlight_patch(gd, s))
     add(f"WeatherSelectionPrototypes/WeatherSelectionPrototypes_patch_{n}.cfg",
         _weather_patch(gd, s))
 
@@ -3093,6 +3183,13 @@ def summarize(s: Settings) -> list[str]:
     f("Melee range (knife & butt strike)", s.melee_range_factor)
     f("Interaction reach (pick up, loot, containers)", s.interaction_range_factor)
     f("Talk distance (NPC dialog)", s.dialog_range_factor)
+    f("NPC flashlight brightness & reach", s.npc_flashlight_factor)
+    f("NPC flashlight beam width", s.npc_flashlight_cone_factor)
+    f("NPC flashlight use in combat", s.npc_flashlight_combat_factor)
+    if _neq(s.npc_flashlight_on_hour, 22):
+        lines.append(f"NPC flashlights on from {int(s.npc_flashlight_on_hour)}:00")
+    if _neq(s.npc_flashlight_off_hour, 5):
+        lines.append(f"NPC flashlights off at {int(s.npc_flashlight_off_hour)}:00")
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)

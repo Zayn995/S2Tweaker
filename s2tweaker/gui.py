@@ -520,6 +520,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_courage": "npc_courage_factor", "npc_stagger": "npc_stagger_factor",
     "npc_attack_cd": "npc_attack_cooldown_factor",
     "npc_rank_add": "npc_weapon_rank_add",
+    "npc_light": "npc_flashlight_factor", "npc_light_cone": "npc_flashlight_cone_factor",
+    "npc_light_combat": "npc_flashlight_combat_factor",
+    "npc_light_on": "npc_flashlight_on_hour", "npc_light_off": "npc_flashlight_off_hour",
     "mut_attack_cd": "mutant_attack_cooldown_factor",
     "mhp": "mutant_hp_factor", "mdmg": "mutant_damage_factor",
     "mspeed": "mutant_speed_factor", "mhearing": "mutant_hearing_factor",
@@ -3768,6 +3771,35 @@ class App(ctk.CTk):
                      "value, vanilla 0.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "NPC flashlights (experimental)")
+        ctk.CTkLabel(
+            f, text="   The one flashlight all 1,600 human NPCs carry. Your own "
+                    "flashlight is not affected: its light values sit in the "
+                    "game's Blueprint assets, out of reach for config patches.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11)).pack(fill="x", padx=12, pady=(2, 4))
+        self._slider(f, "npc_light", "NPC flashlight brightness & reach", 25, 400, 25, 100, fmt_pct,
+                     "Scales the intensity and the attenuation radius of NPC "
+                     "flashlights (vanilla intensity 7-18 and radius "
+                     "1.75-5 m, growing with the distance the beam travels). "
+                     "Makes NPCs easier or harder to spot at night. Not "
+                     "play-tested yet.")
+        self._slider(f, "npc_light_cone", "NPC flashlight beam width", 50, 200, 10, 100, fmt_pct,
+                     "Outer cone angle of NPC flashlights (vanilla 45-80 "
+                     "degrees by distance, capped at 170). Not play-tested yet.")
+        self._slider(f, "npc_light_combat", "NPC flashlight use in combat", 0, 200, 10, 100, fmt_pct,
+                     "Chance that an NPC keeps the flashlight on while "
+                     "fighting, by rank (vanilla newbie 100 %, experienced "
+                     "75 %, veteran 50 %, master 25 %; capped at 100 %). "
+                     "0 % = never. Not play-tested yet.")
+        self._slider(f, "npc_light_on", "NPCs switch flashlights on at (hour)", 16, 23, 1, 22, fmt_int,
+                     "In-game hour at which NPCs turn their flashlights on "
+                     "(vanilla 22).")
+        self._slider(f, "npc_light_off", "NPCs switch flashlights off at (hour)", 2, 10, 1, 5, fmt_int,
+                     "In-game hour at which NPCs turn their flashlights off "
+                     "(vanilla 5).")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "A-Life population (experimental)")
         self._warning(f, "Experimental: these change how the living world "
                          "spawns around you. Large values can hurt "
@@ -4668,6 +4700,11 @@ class App(ctk.CTk):
             npc_stagger_factor=s["npc_stagger"].get() / 100.0,
             npc_attack_cooldown_factor=s["npc_attack_cd"].get() / 100.0,
             npc_weapon_rank_add=s["npc_rank_add"].get(),
+            npc_flashlight_factor=s["npc_light"].get() / 100.0,
+            npc_flashlight_cone_factor=s["npc_light_cone"].get() / 100.0,
+            npc_flashlight_combat_factor=s["npc_light_combat"].get() / 100.0,
+            npc_flashlight_on_hour=int(s["npc_light_on"].get()),
+            npc_flashlight_off_hour=int(s["npc_light_off"].get()),
             mutant_attack_cooldown_factor=s["mut_attack_cd"].get() / 100.0,
             max_agents_factor=s["alife_agents"].get() / 100.0,
             spawn_distance_factor=s["alife_distance"].get() / 100.0,
