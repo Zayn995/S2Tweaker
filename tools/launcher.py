@@ -111,8 +111,10 @@ def _selftest(report: Path) -> None:
     lines.append("s2tweaker, customtkinter, darkdetect, packaging import OK")
 
     from s2tweaker import gui, pakio
-    assert gui.app_dir() == APP_DIR, gui.app_dir()
-    assert pakio.app_dir() == APP_DIR, pakio.app_dir()
+    # Compare resolved paths: sys.executable may carry an 8.3 short name
+    # (C:\Users\RUNNER~1\...) when the folder was started via one.
+    for name, got in (("gui", gui.app_dir()), ("pakio", pakio.app_dir())):
+        assert Path(got).resolve() == APP_DIR, f"{name}.app_dir() = {got}"
     assert gui._asset("icon.ico").is_file(), gui._asset("icon.ico")
     assert gui._asset("help", "oodle_folder.png").is_file()
     repak = pakio.find_repak()
