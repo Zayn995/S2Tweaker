@@ -3,15 +3,18 @@ rem ===================================================================
 rem  S2Tweaker auto-updater
 rem
 rem  Downloads the latest release from GitHub and replaces the program
-rem  files in this folder: S2Tweaker.exe and the _internal folder next
-rem  to it. Settings, presets, cache and output are NOT touched.
-rem  The old ones are kept as S2Tweaker.exe.bak and _internal.bak
+rem  files in this folder: S2Tweaker.exe, the Python runtime next to it
+rem  (python3XX.dll, vcruntime140*.dll, python3XX._pth) and the
+rem  _internal folder. Settings, presets, cache and output are NOT
+rem  touched. The old program is kept as S2Tweaker.exe.bak and
+rem  _internal.bak (the old runtime DLLs are moved into _internal.bak).
 rem
 rem  This file is plain text on purpose - read it, it has no secrets.
 rem  It talks to exactly one place:
 rem      https://github.com/Zayn995/S2Tweaker/releases
-rem  and it never runs by itself: you started it (double-click or the
-rem  "update now" choice inside the tool).
+rem  and it never runs by itself: you started it (double-click).
+rem  It is not part of the download and not needed: extracting the new
+rem  ZIP over your S2Tweaker folder does exactly the same thing.
 rem ===================================================================
 setlocal EnableExtensions
 
@@ -66,24 +69,25 @@ if errorlevel 1 goto fail_dl
 set "NEWEXE="
 for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\S2Tweaker.exe" 2^>nul`) do set "NEWEXE=%%A"
 if not defined NEWEXE goto fail_dl
-
-rem ---- swap exe AND _internal (backup first), refresh README+updater -
-rem The tool ships as a folder: the exe next to an _internal folder
-rem holding the Python runtime. Both have to be replaced together -
-rem an old _internal with a new exe would not start.
 for %%A in ("%NEWEXE%") do set "NEWDIR=%%~dpA"
+if not exist "%NEWDIR%_internal\" goto fail_dl
+
+rem ---- replace the whole program (backup first) ---------------------
+rem Since 1.21.0 the program is S2Tweaker.exe (the signed python.org
+rem launcher) plus the runtime DLLs and python3XX._pth next to it, plus
+rem the _internal folder. Everything the ZIP contains is copied over;
+rem the previous program goes to S2Tweaker.exe.bak and _internal.bak.
 echo Installing (the old files are kept as S2Tweaker.exe.bak / _internal.bak) ...
+if exist "_internal.bak" rmdir /s /q "_internal.bak" 2>nul
+if exist "_internal" move /y "_internal" "_internal.bak" >nul
+if not exist "_internal.bak" mkdir "_internal.bak"
 if exist "S2Tweaker.exe" copy /y "S2Tweaker.exe" "S2Tweaker.exe.bak" >nul
-copy /y "%NEWEXE%" "S2Tweaker.exe" >nul
-if errorlevel 1 goto fail_swap
-if exist "%NEWDIR%_internal" (
-    if exist "_internal.bak" rmdir /s /q "_internal.bak" 2>nul
-    if exist "_internal" move /y "_internal" "_internal.bak" >nul
-    xcopy /e /i /q /y "%NEWDIR%_internal" "_internal" >nul
-    if errorlevel 1 goto fail_internal
-)
-for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\README.txt" 2^>nul`) do copy /y "%%A" "README.txt" >nul
-for /f "usebackq delims=" %%A in (`dir /b /s "%WORK%\unpacked\update.bat" 2^>nul`) do copy /y "%%A" "update.bat" >nul
+for %%A in (python3*.dll python3*._pth vcruntime140*.dll) do move /y "%%A" "_internal.bak\" >nul 2>&1
+xcopy /e /i /q /y "%NEWDIR%." "." >nul
+if errorlevel 1 goto fail_internal
+if not exist "S2Tweaker.exe" goto fail_internal
+if not exist "_internal\sitecustomize.py" goto fail_internal
+dir /b "python3*._pth" >nul 2>&1 || goto fail_internal
 rmdir /s /q "%WORK%" 2>nul
 
 echo.
@@ -111,20 +115,14 @@ echo.
 pause
 exit /b 1
 
-:fail_swap
-echo.
-echo Could not replace S2Tweaker.exe - is it still running?
-echo Your previous exe is unchanged (or available as S2Tweaker.exe.bak).
-echo.
-pause
-exit /b 1
-
 :fail_internal
 echo.
-echo Could not replace the _internal folder. Your previous one is still
-echo there as _internal.bak - rename it back to _internal and the old
-echo S2Tweaker.exe.bak back to S2Tweaker.exe to undo this update.
-echo Manual download: https://github.com/Zayn995/S2Tweaker/releases
+echo Could not install the new program files. Your previous program is
+echo still there: S2Tweaker.exe.bak and the _internal.bak folder (which
+echo also holds the old runtime DLLs). The simplest way to a working
+echo folder is to download the ZIP and extract it over this folder:
+echo https://github.com/Zayn995/S2Tweaker/releases
+echo Settings, presets, cache and output are untouched either way.
 echo.
 pause
 exit /b 1

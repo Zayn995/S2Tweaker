@@ -1,9 +1,14 @@
-NEXUS — CREDITS UND PERMISSIONS (Stand 04.09.2026, v1.19.1)
+NEXUS — CREDITS UND PERMISSIONS (Stand 05.09.2026, v1.21.0)
 ===========================================================
 Diese beiden Felder schlucken Zeilenumbrueche — die Texte sind deshalb
 bewusst als EIN Block geschrieben und lesen sich auch so.
 
-Gegenueber der bisherigen Fassung geaendert:
+Neu seit 1.21.0: kein PyInstaller mehr. S2Tweaker.exe ist die
+PSF-signierte pythonw.exe von python.org; Python, Tcl/Tk, customtkinter,
+darkdetect und packaging sind als Komponenten genannt, die Lizenztexte
+liegen im Archiv unter _internal\licenses.
+
+Gegenueber der Fassung vom 04.09. (1.19.1) geaendert:
   1. Oodle wird NICHT mehr heruntergeladen. Der alte Satz ("fetched from
      a public mirror when first needed") beschrieb 1.19.0 und waere jetzt
      schlicht falsch — ausgerechnet an der Stelle, an der es um
@@ -20,14 +25,14 @@ Gegenueber der bisherigen Fassung geaendert:
 FELD: Credits / "Other user's assets" — Beschreibungstext
 ==================================================================
 
-This tool bundles third-party open-source components, all of which permit redistribution: repak by trumank (MIT OR Apache-2.0), included as repak.exe — note that this is a modified build, compiled from repak's source with its runtime download function and network stack removed, and that change is documented in the source; the cfg.bin decoder based on work by joric, sdwvit and thexii (public domain / MIT); customtkinter (MIT) and Python (PSF licence), linked in by PyInstaller. All are credited here and in the README inside the archive, and the full licence texts ship in THIRD_PARTY_LICENSES.txt with the source. No game assets are included: the tool reads the vanilla values from the user's own installation at runtime and ships none of GSC's files. Oodle's oo2core_9_win64.dll is proprietary, is not distributed with this tool, and is not downloaded by it either — the user obtains that file themselves, and the tool explains where to get it and where to put it. Since 1.19.2 the tool contains no networking code at all, which anyone can verify in the source. Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the {bpatch} config-patch system, and to GSC Game World for the game.
+This tool bundles third-party open-source components, all of which permit redistribution: repak by trumank (MIT OR Apache-2.0), included as repak.exe — note that this is a modified build, compiled from repak's source with its runtime download function and network stack removed, and that change is documented in the source; the cfg.bin decoder based on work by joric, sdwvit and thexii (public domain / MIT); Python itself (PSF licence) — S2Tweaker.exe is the unmodified pythonw.exe from python.org, signed by the Python Software Foundation, and the runtime, the extension modules and Tcl/Tk (BSD-style licence) come from the same python.org installation; and the pure-Python libraries customtkinter (MIT), darkdetect (BSD-3-Clause) and packaging (Apache-2.0 OR BSD-2-Clause). All are credited here and in the README inside the archive, and the full licence texts ship inside the archive in _internal\licenses. No game assets are included: the tool reads the vanilla values from the user's own installation at runtime and ships none of GSC's files. Oodle's oo2core_9_win64.dll is proprietary, is not distributed with this tool, and is not downloaded by it either — the user obtains that file themselves, and the tool explains where to get it and where to put it. Since 1.19.2 the tool contains no networking code at all, which anyone can verify in the source. Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the {bpatch} config-patch system, and to GSC Game World for the game.
 
 
 ==================================================================
 FELD: Additional info / Author notes — Permissions
 ==================================================================
 
-Everything here is MIT-licensed and yours to use — fork it, improve it, ship it, no need to ask. Two things I'd appreciate rather than require: (1) If you redistribute the compiled S2Tweaker.exe, please point people to the original source and make clear if your build is a modified one — binaries are hard for players to verify, and this tool already fights antivirus false positives. (2) Please keep the credits intact. Note on bundled components: these permissions cover S2Tweaker's own code and assets. The bundled repak.exe by trumank stays under its own MIT/Apache-2.0 licence, and the copy shipped here is a modified build with its runtime download removed. Oodle's oo2core_9_win64.dll is proprietary: it is not distributed with this tool and is not downloaded by it — the user places that file themselves.
+Everything here is MIT-licensed and yours to use — fork it, improve it, ship it, no need to ask. Two things I'd appreciate rather than require: (1) If you redistribute the program folder, please point people to the original source and make clear if your build is a modified one — binaries are hard for players to verify, and this tool has already fought enough antivirus false positives. (S2Tweaker.exe itself is the unmodified pythonw.exe from python.org and stays under the PSF licence.) (2) Please keep the credits intact. Note on bundled components: these permissions cover S2Tweaker's own code and assets. The bundled repak.exe by trumank stays under its own MIT/Apache-2.0 licence, and the copy shipped here is a modified build with its runtime download removed. Oodle's oo2core_9_win64.dll is proprietary: it is not distributed with this tool and is not downloaded by it — the user places that file themselves.
 
 
 ==================================================================

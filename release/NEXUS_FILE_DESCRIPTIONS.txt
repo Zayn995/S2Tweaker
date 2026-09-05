@@ -6,21 +6,50 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 ⚠ NUR EINE DATEI. Die update.bat wird NICHT mehr hochgeladen — die
   Update-Funktion ist mit 1.19.2 ganz entfernt, und Nexus' Regeln nennen
   Auto-Update woertlich als nicht notwendig. Wer sie trotzdem will, findet
-  sie im GitHub-Release; auf dieser Seite hat sie nichts verloren.
+  sie im GitHub-Release (seit 1.21.0 an das neue Ordner-Layout angepasst);
+  auf dieser Seite hat sie nichts verloren.
 
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.20.0
-File version:  1.20.0
+Name:          S2Tweaker 1.21.0
+File version:  1.21.0
 File category: Main Files
 ==================================================================
 
---- File description (242 Zeichen) -------------------------------
-The tool itself. Unzip everything into one folder, keep _internal next to the exe, run S2Tweaker.exe. One extra file is needed to read your game - the tool shows you where. No internet access of any kind. New: swap a weapon's ammunition type.
+--- File description (251 Zeichen) -------------------------------
+Unzip everything into one folder, keep the DLLs and _internal next to the exe, run S2Tweaker.exe. The exe is the signed python.org launcher (hence the Python icon). One extra file is needed to read your game - the tool shows where. No internet access.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.21.0 - no more PyInstaller: the launcher is the signed python.org
+interpreter
+
+- Nothing changes in the tool itself. What changes is the download:
+  S2Tweaker.exe is now pythonw.exe from python.org, byte for byte,
+  digitally signed by the Python Software Foundation. That is why the
+  exe shows the Python icon and Python's version info - changing either
+  would break the signature. The tool's version is in the window title.
+- The tool's own code ships as readable .py files in _internal, next
+  to the Python runtime and Tcl/Tk from the same python.org install.
+  Every DLL, PYD and EXE in the folder is signed by the PSF or
+  Microsoft, except repak.exe (open source, compiled from source by the
+  public build workflow).
+- No networking capability at all: Python's socket and ssl modules and
+  the OpenSSL libraries are not in the package. Since 1.19.2 the program
+  has had no networking code; now the runtime could not connect either.
+- Why: 1.20.0 was still flagged by two engines although its launcher
+  was byte for byte PyInstaller's official one, which scans clean on
+  its own. The detections were aimed at PyInstaller itself, so it is
+  gone. Result: 0 detections for the ZIP, the exe and repak.exe (links
+  at the top of the description).
+- Keep the files together: next to S2Tweaker.exe there are now
+  python312.dll, vcruntime140.dll and python312._pth as well as the
+  _internal folder. To update, extract the ZIP over your S2Tweaker
+  folder; settings, presets, cache and output are not in the ZIP and
+  stay untouched.
+- No new game files, no re-extraction. Your existing paks stay valid.
+
 1.20.0 - change which ammunition a weapon uses
 
 - New: an "Ammunition" dropdown per weapon (Weapons tab, "Single weapon
