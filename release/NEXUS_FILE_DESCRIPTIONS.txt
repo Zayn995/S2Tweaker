@@ -3,11 +3,10 @@ NEXUS — TEXTE FUER DEN DATEI-UPLOAD
 Nexus erlaubt im Feld "File description" nur 255 Zeichen. Der laengere
 Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
-⚠ NUR EINE DATEI. Die update.bat wird NICHT mehr hochgeladen — die
-  Update-Funktion ist mit 1.19.2 ganz entfernt, und Nexus' Regeln nennen
-  Auto-Update woertlich als nicht notwendig. Wer sie trotzdem will, findet
-  sie im GitHub-Release (seit 1.21.0 an das neue Ordner-Layout angepasst);
-  auf dieser Seite hat sie nichts verloren.
+⚠ NUR EINE DATEI. Einen Updater gibt es nicht mehr: die Update-Funktion
+  ist seit 1.19.2 aus dem Programm, und das Skript update.bat wurde am
+  05.09.2026 auf Bitte des Nexus-Supports komplett entfernt (Repo und
+  GitHub-Releases). Aktualisieren = neues ZIP ueber den Ordner entpacken.
 
 
 ==================================================================

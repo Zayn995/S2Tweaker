@@ -2392,8 +2392,8 @@ class App(ctk.CTk):
         def _page3():
             heading("Put the file next to S2Tweaker.exe")
             picture("oodle_folder.png")
-            # Kein "update.bat" mehr als Wegmarke: die Datei ist seit 1.19.1
-            # nicht mehr im Download. Das Bild zeigt sie noch (es ist der
+            # Kein Updater-Skript mehr als Wegmarke: das gibt es seit 1.19.1
+            # nicht mehr im Download. Das Bild zeigt es noch (es ist der
             # Ordner des Besitzers) — deshalb nennt der Text nur Dateien,
             # die JEDER wirklich hat. Nie eine Datei als Orientierung
             # nennen, die beim Nutzer gar nicht liegt.

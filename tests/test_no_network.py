@@ -82,18 +82,15 @@ finally:
         pass
 print("Werkzeugleiste ohne Update-Knopf  OK")
 
-# --- 4) update.bat wandert weiterhin NICHT ins Spieler-ZIP ---------------
-# Sie liegt nur noch als eigenstaendiger Download im Repo; im Paket der
-# Spieler hat ein Skript, das Programmdateien ersetzt, nichts verloren.
+# --- 4) Es gibt keinen Updater mehr - nirgends ---------------------------
+# release/update.bat wurde am 05.09.2026 ganz entfernt (Nexus-Pruefung:
+# "ensure your release has any possible network activity removed"). Ein
+# Skript, das ein Release laedt und Programmdateien ersetzt, darf weder
+# im Repo noch im Spieler-ZIP wieder auftauchen.
+assert not (ROOT / "release" / "update.bat").exists(), \
+    "release/update.bat ist zurueck - der Updater wurde bewusst entfernt"
 zips = (ROOT / "tools" / "make_release_zips.py").read_text(encoding="utf-8")
-assert 'z.write(out / "update.bat"' not in zips, \
-    "update.bat wandert wieder ungefragt ins Spieler-ZIP"
 assert '"update.bat" not in names' in zips, "Gegenprobe im ZIP-Bauer fehlt"
-
-bat = ROOT / "release" / "update.bat"
-if bat.is_file():
-    roh = bat.read_text(encoding="utf-8")
-    assert roh.isascii(), "update.bat muss reines ASCII sein (cmd liest cp437)"
-print("update.bat bleibt aussen vor  OK")
+print("Kein Updater im Repo, keiner im ZIP  OK")
 
 print("\nAlles gruen: das Werkzeug kann nicht mehr ins Netz.")

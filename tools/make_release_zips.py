@@ -68,9 +68,9 @@ def main() -> None:
     internal = [n for n in names if n.startswith("_internal/")]
     assert len(internal) > 100, f"nur {len(internal)} Dateien in _internal/"
     assert "README.txt" in names, names[:10]
-    # update.bat ist BEWUSST nicht dabei: eine Datei, die herunterlaedt und
-    # die Programmdateien ersetzt, gehoert nicht ungefragt in jedes Paket.
-    # Wer den Automatik-Weg will, holt sie ueber den Assistenten.
+    # Einen Updater gibt es seit 05.09.2026 nirgends mehr (Nexus-Pruefung);
+    # ein Skript, das ein Release laedt und Programmdateien ersetzt, darf
+    # auch nicht still ins Paket zurueckkehren.
     assert "update.bat" not in names, "update.bat gehoert nicht ins Spieler-ZIP"
     # Seit 1.21.0: Suchpfad-Datei und Starter-Modul muessen dabei sein,
     # Netz-/TLS-Module und Nutzerdaten (Reste einer Startprobe) nicht.
@@ -84,7 +84,7 @@ def main() -> None:
              if n.split("/")[0] in ("settings.json", "cache", "output", "presets")]
     assert not reste, reste
     print(f"Gegenprobe: S2Tweaker.exe + ._pth + {len(internal)} Dateien in "
-          "_internal/ + README, ohne update.bat/Netzmodule/Nutzerdaten OK")
+          "_internal/ + README, ohne Updater/Netzmodule/Nutzerdaten OK")
 
     src = out / f"S2Tweaker_v{version}_source.zip"
     with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:
