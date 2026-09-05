@@ -49,3 +49,6 @@ release/NEXUS_REPLIES.txt
 release/DEFENDER_FALSE_POSITIVE.txt
 release/SIGNPATH_APPLICATION.txt
 release/ISSUE_6_ANTWORT.txt
+
+# Nexus-Icon (Meme-Gesichter, nur lokal; NEXUS_ICON.png jederzeit per tools/make_icon.py neu)
+release/NEXUS_ICON*.png
