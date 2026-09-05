@@ -1,7 +1,10 @@
 # Code signing policy
 
-*This page exists because the SignPath Foundation requires every project it
-signs for to publish one. It is linked from the [README](../README.md).*
+*This page says who builds S2Tweaker, how a release is produced and what is
+signed by whom. It follows the layout the SignPath Foundation asks of
+projects it signs for, so that an application there could reuse it; no
+such application has been made. It is linked from the
+[README](../README.md).*
 
 ## Who builds and signs S2Tweaker
 
@@ -15,8 +18,7 @@ behind it and no paid work involved.
 | **Approvers** (approve a release for signing) | the owners of `Zayn995/S2Tweaker` |
 
 All roles are held by the same maintainer, who works under the pseudonym
-**Zayn995**. Multi-factor authentication is enabled on the GitHub account
-and on SignPath.
+**Zayn995**. Multi-factor authentication is enabled on the GitHub account.
 
 ## How a release is built
 
@@ -106,7 +108,13 @@ Two earlier network paths were removed deliberately:
 Everything else — settings, presets, cache, generated mods — stays in the
 tool's own folder on the user's machine.
 
-## Attribution
+## What is signed, and by whom
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate
-by the [SignPath Foundation](https://signpath.org).
+- `S2Tweaker.exe`, `python3XX.dll` and the Python extension modules carry
+  the Python Software Foundation's Authenticode signature, because they are
+  the unmodified files from python.org; the Visual C++ runtime DLLs carry
+  Microsoft's.
+- S2Tweaker's own code ships as readable Python source and is not signed.
+  `repak.exe` is compiled from source by the workflow and is not signed.
+- No code-signing service is used by this project at present. Should that
+  change, the signer and the certificate will be named here.
