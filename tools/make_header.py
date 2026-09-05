@@ -108,59 +108,69 @@ def scribbled_number(text: str, size: int, color, strike=True,
     return tile.rotate(angle, expand=True, resample=Image.BICUBIC)
 
 
-# Tagline: "Sliders in. .pak out." + die immer wieder korrigierte Zahl.
-# Idee des Besitzers (05.09.2026): die urspruengliche 41 steht fest im
-# Satz, und alle spaeteren Korrekturen sind drumherum gequetscht - links,
-# rechts, oben, unten, schief und kleiner, wie von Hand nachgetragen.
-# Direkt vor dem Satz steht die bisher endgueltige Zahl in Bernstein.
-# Bewusst unbeholfen; es muss nicht sauber aussehen. Jede weitere Zahl
-# bekommt den naechsten Platz aus SLOTS; sind die Plaetze aufgebraucht,
-# geht es unter dem Satz nach rechts weiter.
+# Tagline. Der Satz "Sliders in.  .pak out.  41 tweaks - zero modding
+# knowledge needed." ist der MASTER (Vorgabe des Besitzers, 05.09.2026):
+# er steht woertlich und an fester Stelle, die 41 durchgestrichen. Alle
+# spaeteren Zahlen - die durchgestrichenen UND die aktuelle in Bernstein -
+# sind Nachtraege, die sich dazwischenquetschen: erst um die 41 herum,
+# dann ueber und unter den naechsten Woertern des Satzes. Wo die aktuelle
+# Zahl landet, ergibt sich aus der Anzahl der Nachtraege; ob am Ende
+# jemand die Tweak-Zahl ablesen kann, ist egal. Es geht um die vielen
+# Aenderungen, und es darf unbeholfen aussehen.
 tag_font = font(28, variation="SemiBold")
-X0, X_MAX, Y_BASE = 197, 1268, 182
+X0, X_MAX, Y_BASE = 197, 1268, 186
 PREFIX = "Sliders in.  .pak out.  "
 SUFFIX = " tweaks \u2013 zero modding knowledge needed."
 STRUCK_GREY = (128, 130, 134)
-GAP_BEFORE = 26      # Luft vor der 41 (fuer die Zahl links davon)
-GAP_AFTER = 62       # Luft zwischen 41 und aktueller Zahl (fuer die Zahl dazwischen)
-# (dx, dy) relativ zur linken oberen Ecke des 41-Schnipsels, Groesse, Winkel
-SLOTS = [
-    (60, 7, 22, -11),      # rechts daneben, zwischen 41 und aktueller Zahl
-    (30, -23, 20, 9),      # oben rechts, ueber den Rand der 41 geschoben
-    (-38, 33, 23, -7),     # unten links
-    (30, 35, 23, 5),       # unten rechts
-    (-28, -24, 20, 13),    # oben links
-    (92, 31, 24, -4),      # weiter unten rechts
-]
 
 x = X0
 d.text((x, Y_BASE), PREFIX, font=tag_font, fill=GREY)
-x += int(d.textlength(PREFIX, font=tag_font)) + GAP_BEFORE
+x += int(d.textlength(PREFIX, font=tag_font))
 anchor = scribbled_number(STRUCK_NUMBERS[0], 28, STRUCK_GREY, angle=-2.5)
-ax, ay = x, Y_BASE - 12
+ax, ay = x - 12, Y_BASE - 12            # Schnipsel-Rand ausgleichen: 41 im Textfluss
 img.paste(anchor, (ax, ay), anchor)
-x += anchor.width - 8 + GAP_AFTER
-current = scribbled_number(CURRENT_NUMBER, 31, AMBER, strike=False, angle=-2.0)
-img.paste(current, (x, Y_BASE - 16), current)
-x += current.width - 14
+x += anchor.width - 18
+suffix_x = x
 d.text((x, Y_BASE), SUFFIX, font=tag_font, fill=GREY)
 if x + int(d.textlength(SUFFIX, font=tag_font)) > X_MAX:
-    raise SystemExit("Die Tagline passt nicht mehr ins Bild - PREFIX/SUFFIX kuerzen.")
+    raise SystemExit("Der Master-Satz passt nicht mehr ins Bild - PREFIX/SUFFIX kuerzen.")
 
-for i, number in enumerate(STRUCK_NUMBERS[1:]):
-    if i < len(SLOTS):
-        dx, dy, size, angle = SLOTS[i]
-    else:                                   # Nachzuegler: unter dem Satz nach rechts
-        k = i - len(SLOTS)
-        dx, dy, size, angle = 150 + 66 * k, 32, 20, (-6, 4, -3, 8)[k % 4]
-    tile = scribbled_number(number, size, STRUCK_GREY, angle=angle)
-    img.paste(tile, (ax + dx, ay + dy), tile)
 
-slider(d, 200, 740, 276, 0.67)
-slider(d, 200, 740, 318, 0.29)
+def word_x(word: str) -> int:
+    """Linke Kante eines Wortes des Schlusssatzes im Bild."""
+    return suffix_x + int(d.textlength(SUFFIX[:SUFFIX.index(word)], font=tag_font))
+
+
+# Plaetze fuer Nachtraege, in der Reihenfolge, in der sie belegt werden:
+# (x, y, Groesse, Winkel). Erst um die 41, dann ueber/unter jedem Wort.
+ABOVE, BELOW = ay - 27, ay + 32
+SLOTS = [
+    (ax - 32, ABOVE + 1, 20, 11),             # ueber der 41, links
+    (ax + 18, ABOVE - 4, 20, -8),             # ueber der 41, rechts
+    (ax - 38, BELOW, 22, -6),                 # unter der 41, links
+    (ax + 22, BELOW + 3, 22, 7),              # unter der 41, rechts
+]
+for k, word in enumerate(("tweaks", "zero", "modding", "knowledge", "needed")):
+    SLOTS.append((word_x(word) + 30, ABOVE - 2 + 5 * (k % 2), 20, (5, -5, 10, -7, 4)[k]))
+    SLOTS.append((word_x(word) + 36, BELOW + 2 - 4 * (k % 2), 22, (-9, 8, -4, 6, -8)[k]))
+
+later = [(n, True) for n in STRUCK_NUMBERS[1:]] + [(CURRENT_NUMBER, False)]
+if len(later) > len(SLOTS):
+    raise SystemExit(f"{len(later)} Nachtraege, aber nur {len(SLOTS)} Plaetze - "
+                     "SLOTS in tools/make_header.py erweitern.")
+for (number, struck), (sx, sy, size, angle) in zip(later, SLOTS):
+    if struck:
+        tile = scribbled_number(number, size, STRUCK_GREY, angle=angle)
+    else:
+        tile = scribbled_number(number, size + 4, AMBER, strike=False, angle=angle)
+        sy -= 2
+    img.paste(tile, (sx, sy), tile)
+
+slider(d, 200, 740, 278, 0.67)
+slider(d, 200, 740, 319, 0.29)
 slider(d, 200, 740, 358, 0.51)
-print(f"Tagline: 41 fest, {len(STRUCK_NUMBERS) - 1} Korrekturen drumherum, "
-      f"aktuell {CURRENT_NUMBER}")
+print(f"Master-Satz fest (41), {len(later)} Nachtraege auf {len(SLOTS)} Plaetzen; "
+      f"aktuell {CURRENT_NUMBER} sitzt auf Platz {len(later)}")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 img.save(OUT)
