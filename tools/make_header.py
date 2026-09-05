@@ -108,69 +108,59 @@ def scribbled_number(text: str, size: int, color, strike=True,
     return tile.rotate(angle, expand=True, resample=Image.BICUBIC)
 
 
-# Tagline: "Sliders in. .pak out." + immer wieder durchgestrichene Zahlen.
-# Die Zahlen fliessen wie Woerter: was rechts nicht mehr passt, wandert in
-# die naechste Zeile (Wunsch des Besitzers, 05.09.2026 - vorher schob die
-# Reihe den Satz aus dem Bild). Die aktuelle Zahl und der Satz dahinter
-# bleiben immer zusammen. Bei zwei Zeilen ruecken die Slider etwas nach
-# unten; reichen zwei Zeilen nicht, werden die Zahlen kleiner gesetzt.
+# Tagline: "Sliders in. .pak out." + die immer wieder korrigierte Zahl.
+# Idee des Besitzers (05.09.2026): die urspruengliche 41 steht fest im
+# Satz, und alle spaeteren Korrekturen sind drumherum gequetscht - links,
+# rechts, oben, unten, schief und kleiner, wie von Hand nachgetragen.
+# Direkt vor dem Satz steht die bisher endgueltige Zahl in Bernstein.
+# Bewusst unbeholfen; es muss nicht sauber aussehen. Jede weitere Zahl
+# bekommt den naechsten Platz aus SLOTS; sind die Plaetze aufgebraucht,
+# geht es unter dem Satz nach rechts weiter.
 tag_font = font(28, variation="SemiBold")
-X0, X_MAX, Y_BASE, LINE_H = 197, 1268, 172, 40
+X0, X_MAX, Y_BASE = 197, 1268, 182
 PREFIX = "Sliders in.  .pak out.  "
 SUFFIX = " tweaks \u2013 zero modding knowledge needed."
+STRUCK_GREY = (128, 130, 134)
+GAP_BEFORE = 26      # Luft vor der 41 (fuer die Zahl links davon)
+GAP_AFTER = 62       # Luft zwischen 41 und aktueller Zahl (fuer die Zahl dazwischen)
+# (dx, dy) relativ zur linken oberen Ecke des 41-Schnipsels, Groesse, Winkel
+SLOTS = [
+    (60, 7, 22, -11),      # rechts daneben, zwischen 41 und aktueller Zahl
+    (30, -23, 20, 9),      # oben rechts, ueber den Rand der 41 geschoben
+    (-38, 33, 23, -7),     # unten links
+    (30, 35, 23, 5),       # unten rechts
+    (-28, -24, 20, 13),    # oben links
+    (92, 31, 24, -4),      # weiter unten rechts
+]
 
+x = X0
+d.text((x, Y_BASE), PREFIX, font=tag_font, fill=GREY)
+x += int(d.textlength(PREFIX, font=tag_font)) + GAP_BEFORE
+anchor = scribbled_number(STRUCK_NUMBERS[0], 28, STRUCK_GREY, angle=-2.5)
+ax, ay = x, Y_BASE - 12
+img.paste(anchor, (ax, ay), anchor)
+x += anchor.width - 8 + GAP_AFTER
+current = scribbled_number(CURRENT_NUMBER, 31, AMBER, strike=False, angle=-2.0)
+img.paste(current, (x, Y_BASE - 16), current)
+x += current.width - 14
+d.text((x, Y_BASE), SUFFIX, font=tag_font, fill=GREY)
+if x + int(d.textlength(SUFFIX, font=tag_font)) > X_MAX:
+    raise SystemExit("Die Tagline passt nicht mehr ins Bild - PREFIX/SUFFIX kuerzen.")
 
-def layout(struck_size: int, current_size: int):
-    """Zeilen aus Praefix, Zahlen-Schnipseln und Schlusssatz zusammensetzen.
-    Liefert eine Liste von Zeilen; jede Zeile ist eine Liste von
-    (x, art, nutzlast, dy)."""
-    lines = [[]]
-    x = X0
-    lines[-1].append((x, "text", PREFIX, 0))
-    x += int(d.textlength(PREFIX, font=tag_font))
-    for i, number in enumerate(STRUCK_NUMBERS):
-        tile = scribbled_number(number, struck_size, (128, 130, 134),
-                                angle=(-2.5, 2.0, -1.5)[i % 3])
-        if x + tile.width > X_MAX:
-            lines.append([])
-            x = X0 - 12       # Schnipsel-Rand (14 px) ausgleichen: Ziffer buendig mit "Sliders"
-        lines[-1].append((x, "tile", tile, (-12, -17, -9)[i % 3]))
-        x += tile.width - 8
-    current = scribbled_number(CURRENT_NUMBER, current_size, AMBER,
-                               strike=False, angle=-2.0)
-    tail = (current.width - 14) + int(d.textlength(SUFFIX, font=tag_font))
-    if x + tail > X_MAX:
-        lines.append([])
-        x = X0 - 12
-    lines[-1].append((x, "tile", current, -16))
-    x += current.width - 14
-    lines[-1].append((x, "text", SUFFIX, 0))
-    return lines
+for i, number in enumerate(STRUCK_NUMBERS[1:]):
+    if i < len(SLOTS):
+        dx, dy, size, angle = SLOTS[i]
+    else:                                   # Nachzuegler: unter dem Satz nach rechts
+        k = i - len(SLOTS)
+        dx, dy, size, angle = 150 + 66 * k, 32, 20, (-6, 4, -3, 8)[k % 4]
+    tile = scribbled_number(number, size, STRUCK_GREY, angle=angle)
+    img.paste(tile, (ax + dx, ay + dy), tile)
 
-
-lines = layout(28, 31)
-if len(lines) > 2:
-    lines = layout(23, 31)
-if len(lines) > 2:
-    raise SystemExit("Zu viele durchgestrichene Zahlen fuer zwei Zeilen - "
-                     "STRUCK_NUMBERS kuerzen oder LINE_H/Slider anpassen.")
-
-for row, line in enumerate(lines):
-    y = Y_BASE + row * LINE_H
-    for x, kind, payload, dy in line:
-        if kind == "text":
-            d.text((x, y), payload, font=tag_font, fill=GREY)
-        else:
-            img.paste(payload, (x, y + dy), payload)
-
-# Slider: bei einer Tagline-Zeile wie bisher, bei zwei etwas tiefer, damit
-# die zweite Zeile nicht in den ersten Regler laeuft.
-slider_ys = (266, 312, 356) if len(lines) == 1 else (282, 322, 358)
-slider(d, 200, 740, slider_ys[0], 0.67)
-slider(d, 200, 740, slider_ys[1], 0.29)
-slider(d, 200, 740, slider_ys[2], 0.51)
-print(f"Tagline: {len(lines)} Zeile(n), {len(STRUCK_NUMBERS)} durchgestrichene "
-      f"Zahlen, aktuell {CURRENT_NUMBER}")
+slider(d, 200, 740, 276, 0.67)
+slider(d, 200, 740, 318, 0.29)
+slider(d, 200, 740, 358, 0.51)
+print(f"Tagline: 41 fest, {len(STRUCK_NUMBERS) - 1} Korrekturen drumherum, "
+      f"aktuell {CURRENT_NUMBER}")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 img.save(OUT)
