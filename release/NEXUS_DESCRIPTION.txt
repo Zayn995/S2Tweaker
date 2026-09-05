@@ -15,9 +15,9 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 [list]
 [*]The mod itself: [url=[ZIP-LINK-1.22.0]]VirusTotal - [ZIP-RESULT-1.22.0][/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
-[*]The only unsigned file inside it, repak.exe (the open-source pak tool, compiled from source by the public build workflow): [url=https://www.virustotal.com/gui/file/73dd824ac6da17b9d1f73ae02f20a362d3262818875aea6e4860f26244317175]VirusTotal - 0 of 71[/url]
+[*]The only unsigned file inside it, repak.exe (the open-source pak tool, compiled from source by the public build workflow): [url=[REPAK-LINK-1.22.0]]VirusTotal - [REPAK-RESULT-1.22.0][/url]
 [/list]
-Those numbers are for 1.22.0 (the exe and repak.exe are byte-identical to 1.21.0's, so their reports are the same). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+Those numbers are for 1.22.0 (S2Tweaker.exe is byte-identical to 1.21.0's, so its report is the same; repak.exe is compiled fresh by every build and has its own report). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
