@@ -93,6 +93,7 @@ s = Settings(
                       "Boar": {"speed": 1.5, "damage": 2.0}},
     bloodsucker_cloak_factor=2.0, bloodsucker_uncloak_factor=10.0,
     ads_speed_factor=1.2, magazine_factor=2.0, melee_damage_factor=2.0,
+    melee_range_factor=1.5, interaction_range_factor=2.0, dialog_range_factor=2.0,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

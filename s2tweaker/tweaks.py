@@ -481,6 +481,10 @@ class Settings:
     aim_time_factor: float = 1.0             # Ziel-Geschwindigkeit (Kaskade)
     magazine_factor: float = 1.0             # Magazingroesse (Waffe + Magazine)
     melee_damage_factor: float = 1.0         # Messer + Kolbenschlag
+    melee_range_factor: float = 1.0          # deren Reichweite (HitDetectionDistance)
+    # --- Reichweiten (Nexus-Recherche 05.09.2026) ---
+    interaction_range_factor: float = 1.0    # Aufheben/Behaelter (CoreVariables) + Leichen (Player)
+    dialog_range_factor: float = 1.0         # Gespraechsabstand zu NPCs (Player)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -780,6 +784,27 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             stealth["FlashLightCoef"] = _scale_literal(raw, s.flashlight_stealth_factor)
     if stealth:
         player["StealthParams"] = stealth
+
+    # Reichweiten (Nexus "Exi's Social Distancing", Recherche 05.09.2026):
+    # Gespraechsabstand (Player.Min/MaxDialogInteractDistance, Vanilla
+    # 75/130, beide gemeinsam skaliert, damit ihr Verhaeltnis bleibt) und
+    # Leichen pluendern (ProcessCorpseObjectFeatureData.
+    # CorpseInteractionDistance, Vanilla 65). Werte in cm.
+    if _neq(s.dialog_range_factor, 1.0) and s.dialog_range_factor > 0:
+        for key in ("MinDialogInteractDistance", "MaxDialogInteractDistance"):
+            raw = gd.resolve(gd.obj, "Player", key)
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.dialog_range_factor)
+                if scaled is not None:
+                    player[key] = scaled
+    if _neq(s.interaction_range_factor, 1.0) and s.interaction_range_factor > 0:
+        raw = gd.resolve(gd.obj, "Player",
+                         "ProcessCorpseObjectFeatureData.CorpseInteractionDistance")
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, s.interaction_range_factor)
+            if scaled is not None:
+                player["ProcessCorpseObjectFeatureData"] = {
+                    "CorpseInteractionDistance": scaled}
 
     return {"Player": player} if player else {}
 
@@ -1610,14 +1635,31 @@ def _invisibility_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _melee_patch(gd: GameData, s: Settings) -> dict:
-    """Messer + Kolbenschlag (MeleeWeaponPrototypes)."""
-    if not _neq(s.melee_damage_factor, 1.0) or s.melee_damage_factor <= 0:
+    """Messer + Kolbenschlag (MeleeWeaponPrototypes): Schaden und Reichweite.
+
+    Beide Structs definieren Damage UND HitDetectionDistance selbst
+    (Vanilla 160 = 1,6 m fuer Knife wie WeaponButt), also je Struct
+    patchen. Reichweite: Nexus "Increased Melee Range" / "Melee and Bash
+    Range", Recherche 05.09.2026."""
+    want_damage = _neq(s.melee_damage_factor, 1.0) and s.melee_damage_factor > 0
+    want_range = _neq(s.melee_range_factor, 1.0) and s.melee_range_factor > 0
+    if not (want_damage or want_range):
         return {}
     patches: dict = {}
     for sid in ("Knife", "WeaponButt"):
-        value = parse_number(gd.resolve(gd.melee, sid, "Damage"))
-        if value > 0:
-            patches[sid] = {"Damage": _num(value * s.melee_damage_factor)}
+        entry: dict = {}
+        if want_damage:
+            value = parse_number(gd.resolve(gd.melee, sid, "Damage"))
+            if value > 0:
+                entry["Damage"] = _num(value * s.melee_damage_factor)
+        if want_range:
+            raw = gd.resolve(gd.melee, sid, "HitDetectionDistance")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.melee_range_factor)
+                if scaled is not None:
+                    entry["HitDetectionDistance"] = scaled
+        if entry:
+            patches[sid] = entry
     return patches
 
 
@@ -2236,6 +2278,15 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         cfg["RealToGameTimeCoef"] = (str(int(round(value)))
                                      if abs(value - round(value)) < 1e-9
                                      else _num(value))
+
+    # Interaktions-Reichweite (Recherche 05.09.2026): allgemeine
+    # Interaktionsdistanz (Aufheben, Tueren) und Behaelter/Verstecke,
+    # Vanilla je 200 cm. Leichen haengen am Player (ObjPrototypes).
+    if _neq(s.interaction_range_factor, 1.0) and s.interaction_range_factor > 0:
+        for key in ("MaxInteractionDistance", "ItemContainerInteractRange"):
+            vanilla = gd.corevar(key, 200.0)
+            if vanilla > 0:
+                cfg[key] = _num(vanilla * s.interaction_range_factor)
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -3039,6 +3090,9 @@ def summarize(s: Settings) -> list[str]:
     f("ADS movement speed", s.ads_speed_factor)
     f("Magazine size", s.magazine_factor)
     f("Melee damage (knife & butt strike)", s.melee_damage_factor)
+    f("Melee range (knife & butt strike)", s.melee_range_factor)
+    f("Interaction reach (pick up, loot, containers)", s.interaction_range_factor)
+    f("Talk distance (NPC dialog)", s.dialog_range_factor)
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)

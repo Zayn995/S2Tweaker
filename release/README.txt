@@ -13,8 +13,9 @@ NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders.
 WHAT YOU CAN TWEAK (short tour)
 -------------------------------
 - Player: health, stamina (incl. per-action costs), walk/crouch and
-  run/sprint speed, jump height, fall damage, breath hold, max carry
-  weight + where the overweight penalty starts, item weights per category,
+  run/sprint speed, jump height, fall damage, breath hold, interaction
+  reach and talk distance, max carry weight + where the overweight
+  penalty starts, item weights per category,
   radiation, bleeding, hunger & sleepiness, headshot multiplier,
   explosions, hit camera shake / aim punch
 - Vaulting: seven sliders for how Skif climbs and vaults, plus the
@@ -23,8 +24,8 @@ WHAT YOU CAN TWEAK (short tour)
   per-weapon overrides for 91 weapons - all unique named guns and the
   Deluxe/Ultimate/Pre-order edition guns included. 9 factors each (damage,
   spread, recoil, durability, fire rate, effective range, bleeding, ADS
-  move speed, ADS aim-in speed), plus magazine size, melee damage, jamming
-  and scoped sway. Weapons are listed with their real in-game names
+  move speed, ADS aim-in speed), plus magazine size, melee damage and
+  range, jamming and scoped sway. Weapons are listed with their real in-game names
   ("GunAK74_ST - AKM-74S") and the search box finds both spellings
 - Ammo on TWO levels: global sliders (damage, armor piercing, armor
   damage, cover penetration) and per-round overrides for all 34 rounds in

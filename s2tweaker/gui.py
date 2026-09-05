@@ -537,7 +537,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "wrange": "weapon_range_factor", "wbleed": "weapon_bleeding_factor",
     "adsmove": "ads_speed_factor", "aimspeed": "aim_time_factor",
     "magazine": "magazine_factor",
-    "melee": "melee_damage_factor", "ammo_dmg": "ammo_damage_factor",
+    "melee": "melee_damage_factor", "melee_range": "melee_range_factor",
+    "interact": "interaction_range_factor", "dialog_range": "dialog_range_factor",
+    "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
     "anom_electro": "anomaly_electro_factor", "anom_chem": "anomaly_chemical_factor",
@@ -3599,6 +3601,17 @@ class App(ctk.CTk):
                     "tell us.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Interaction reach")
+        self._slider(f, "interact", "Interaction reach (pick up, loot, containers)", 50, 300, 10, 100, fmt_pct,
+                     "How far away you can pick up items, open stashes and "
+                     "containers and loot bodies (vanilla 2 m; bodies "
+                     "0.65 m, scaled the same way). Not play-tested yet.")
+        self._slider(f, "dialog_range", "Talk distance (NPC dialog)", 50, 300, 10, 100, fmt_pct,
+                     "How close you have to be to start a conversation "
+                     "(vanilla 1.3 m). The 'Social Distancing' idea from "
+                     "Nexus. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("Weight & items")
         f = self._section(body, "Weight & inventory")
         self._slider(f, "carry", "Max carry weight (hard limit)", 20, 500, 5, 80, fmt_kg)
@@ -3978,6 +3991,10 @@ class App(ctk.CTk):
                      "Per category or per weapon: 'Magazine size' is the "
                      "tenth factor in the trees below.")
         self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "melee_range", "Melee range (knife & butt strike)", 50, 300, 25, 100, fmt_pct,
+                     "How far the knife and the butt strike reach (vanilla "
+                     "1.6 m for both). The 'Increased Melee Range' idea from "
+                     "Nexus. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Weapon categories")
@@ -4698,6 +4715,9 @@ class App(ctk.CTk):
             aim_time_factor=s["aimspeed"].get() / 100.0,
             magazine_factor=s["magazine"].get() / 100.0,
             melee_damage_factor=s["melee"].get() / 100.0,
+            melee_range_factor=s["melee_range"].get() / 100.0,
+            interaction_range_factor=s["interact"].get() / 100.0,
+            dialog_range_factor=s["dialog_range"].get() / 100.0,
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
