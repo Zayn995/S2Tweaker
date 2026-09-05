@@ -13,7 +13,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=[ZIP-LINK-1.23.0]]VirusTotal - [ZIP-RESULT-1.23.0][/url]
+[*]The mod itself: [url=https://www.virustotal.com/gui/file/05bc7bae990193f8a63f04f850496cf4cea05947d83e84d58a658dacb479f878]VirusTotal - 0 of 66[/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 Those numbers are for 1.23.0 (S2Tweaker.exe is byte-identical to 1.21.0's and 1.22.0's, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
