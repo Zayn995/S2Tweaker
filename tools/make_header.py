@@ -133,7 +133,7 @@ def layout(struck_size: int, current_size: int):
                                 angle=(-2.5, 2.0, -1.5)[i % 3])
         if x + tile.width > X_MAX:
             lines.append([])
-            x = X0
+            x = X0 - 12       # Schnipsel-Rand (14 px) ausgleichen: Ziffer buendig mit "Sliders"
         lines[-1].append((x, "tile", tile, (-12, -17, -9)[i % 3]))
         x += tile.width - 8
     current = scribbled_number(CURRENT_NUMBER, current_size, AMBER,
@@ -141,7 +141,7 @@ def layout(struck_size: int, current_size: int):
     tail = (current.width - 14) + int(d.textlength(SUFFIX, font=tag_font))
     if x + tail > X_MAX:
         lines.append([])
-        x = X0
+        x = X0 - 12
     lines[-1].append((x, "tile", current, -16))
     x += current.width - 14
     lines[-1].append((x, "text", SUFFIX, 0))
@@ -157,13 +157,11 @@ if len(lines) > 2:
 
 for row, line in enumerate(lines):
     y = Y_BASE + row * LINE_H
-    for pos, (x, kind, payload, dy) in enumerate(line):
+    for x, kind, payload, dy in line:
         if kind == "text":
             d.text((x, y), payload, font=tag_font, fill=GREY)
         else:
-            # Schnipsel haben 14 px Rand: am Zeilenanfang so weit nach links
-            # ruecken, dass die Ziffer buendig mit "Sliders" steht.
-            img.paste(payload, (x - (12 if pos == 0 else 0), y + dy), payload)
+            img.paste(payload, (x, y + dy), payload)
 
 # Slider: bei einer Tagline-Zeile wie bisher, bei zwei etwas tiefer, damit
 # die zweite Zeile nicht in den ersten Regler laeuft.
