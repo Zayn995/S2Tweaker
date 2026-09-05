@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~230 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~240 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -13,17 +13,17 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=https://www.virustotal.com/gui/file/23a25f307d0a9145ec19b9132ccf0fb638921b2ca30abc568124466b908edbb0]VirusTotal - 0 of 66[/url]
+[*]The mod itself: [url=[ZIP-LINK-1.22.0]]VirusTotal - [ZIP-RESULT-1.22.0][/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [*]The only unsigned file inside it, repak.exe (the open-source pak tool, compiled from source by the public build workflow): [url=https://www.virustotal.com/gui/file/73dd824ac6da17b9d1f73ae02f20a362d3262818875aea6e4860f26244317175]VirusTotal - 0 of 71[/url]
 [/list]
-Those numbers are for 1.21.0. Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+Those numbers are for 1.22.0 (the exe and repak.exe are byte-identical to 1.21.0's, so their reports are the same). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]230 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]240 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -32,6 +32,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Max carry weight, overweight penalty start, item weights per category, 'quest items weigh nothing'
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
 [*]Hit camera shake / aim punch 0-300%
+[*]Interaction reach (pick up, loot, containers) and talk distance for NPC dialogs; saving: manual, quick and autosave slot limits plus the autosave interval
 [/list]
 
 [b]Vaulting - its own tab[/b]
@@ -49,7 +50,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]The 10 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights), magazine size
 [*]Magazine size on all three levels - scales a weapon's base capacity and the magazines that weapon really uses (read from its own reload table); the global slider covers all 80 magazine attachments
 [*][b]Recoil reduction from upgrades[/b]: boosts the recoil-reduction upgrades and attachments (vanilla -5 % to -30 %, capped at -100 %) - at 2000 % any recoil upgrade removes the kick entirely. Only weapons with such an upgrade installed change; community-proven on patch 2.0
-[*]Melee damage (knife & rifle butt strike)
+[*]Melee damage and melee range (knife & rifle butt strike)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
@@ -79,6 +80,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]NPC combat behaviour[/b] (experimental): the hidden per-weapon AI profiles behind 'aimbot' complaints - guaranteed-hit shots per burst (0 % = every NPC shot uses normal spread), burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
 [*][b]Stealth[/b] (experimental): crouch stealth, movement noise, bad-weather stealth (how much fog, rain and thunder blind and deafen NPCs) and how strongly your own flashlight gives you away
 [*][b]NPC awareness & nerve[/b] (experimental): alertness thresholds, search time, courage (attack / fall-back confidence), stagger threshold, attack cooldown and a weapon-rank bonus for deadlier enemies without health sponges
+[*][b]NPC flashlights[/b] (experimental): brightness & reach and beam width of the flashlight all 1,600 human NPCs carry, how often they keep it on in combat (by rank) and the hours they switch it on and off. Honest limit: your own flashlight cannot be changed from config files - its light values live in the game's Blueprint assets
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
 [*][b]A-Life spawns (experimental)[/b] - the real spawn controls, found by digging through the lair and director data: LAIR population for mutants and for humans separately (how many live in each place, per player rank), lair respawn speed, and the director's random encounters: frequency, mutant share, pack size, plus a weight per species (blind dogs, boars, fleshes, tushkans, chimeras, mixed mutant packs). Honest limits: story lairs and base guards stay vanilla, bloodsuckers and exotic mutants are never rolled as random encounters in vanilla and the tool does not invent that, and existing saves re-roll lairs slowly (sleep or change region)
 [/list]
@@ -194,6 +196,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.22.0 - Twelve sliders from the community wish list, and a TL;DR for the Oodle setup[/b] (~240 tweaks + ammo swap, 13 tabs)
+[list]
+[*][b]Melee range[/b] (Weapons): how far the knife and the butt strike reach (vanilla 1.6 m)
+[*][b]Interaction reach and talk distance[/b] (Player): pick up items, open stashes and containers and loot bodies from farther away (vanilla 2 m, bodies 0.65 m), and start conversations from farther away (vanilla 1.3 m) - the 'Social Distancing' idea
+[*][b]Saving[/b] (Player): manual save slots (vanilla 31 - beyond that the game makes you delete one), quick save and autosave slots, and the autosave interval in minutes (vanilla 10)
+[*][b]NPC flashlights[/b] (NPCs & AI, experimental): brightness & reach and beam width of the flashlight all 1,600 human NPCs carry, how often they keep it on in combat (by rank: newbie 100 %, master 25 %) and the hours they switch it on and off (vanilla 22 to 5). Honest limit: your own flashlight cannot be changed from config files - its light values live in the game's Blueprint assets, which is what the flashlight mods on this site patch
+[*][b]Oodle setup window[/b]: every page now starts with a large-print TL;DR for everyone who does not want to read the explanation
+[*]The tool now reads three more game files (flashlights, save limits, autosave). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
+[*]Not play-tested, like the rest of the tool. Your existing paks stay valid
+[/list]
+
 [b]v1.21.0 - No more PyInstaller: the launcher is the signed python.org interpreter[/b] (~230 tweaks + ammo swap, 13 tabs)
 [list]
 [*][b]What changes for you:[/b] nothing in the tool - and the exe now shows the Python icon. S2Tweaker.exe is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation; changing the icon or the version info would break that signature. The tool's own version is in the window title. Extract the whole ZIP and keep the files together: next to S2Tweaker.exe there are now python312.dll, vcruntime140.dll and python312._pth as well as the _internal folder
@@ -206,6 +219,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.20.0 - Change which ammunition a weapon uses[/b] (~230 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]New: an "Ammunition" dropdown per weapon[/b] (Weapons tab, "Single weapon overrides", above the sliders). Requested on GitHub by Molkerr: put the AK-74 on 5.56, the Viper on .45, whatever you like - every caliber the game actually uses is offered
 [*][b]It does NOT change damage.[/b] Damage comes from the weapon (that is the Damage slider); the round only adds a multiplier, and that multiplier is identical for every rifle and pistol caliber. What a swap really changes is penetration, bullet flight, price and how easy the ammo is to find - 5.56 is rarer and dearer than 5.45, which is the point
@@ -215,6 +229,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Not play-tested, like the rest of the tool. Especially untested: loading a save in which the weapon was full of the old ammunition
 [*]No new game files, no re-extraction. Your existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.19.2 - No network code, and no archive hidden inside the exe[/b] (~230 tweaks, 13 tabs)
 [spoiler]

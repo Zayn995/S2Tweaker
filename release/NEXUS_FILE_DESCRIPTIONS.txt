@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.21.0
-File version:  1.21.0
+Name:          S2Tweaker 1.22.0
+File version:  1.22.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,24 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.22.0 - twelve sliders from the community wish list, TL;DR for the
+Oodle setup
+
+- Melee range (Weapons): how far knife and butt strike reach (1.6 m).
+- Interaction reach and talk distance (Player): pick up, loot and open
+  containers from farther away (2 m, bodies 0.65 m); start conversations
+  from farther away (1.3 m).
+- Saving (Player): manual save slots (vanilla 31), quick save and
+  autosave slots, autosave interval in minutes (vanilla 10).
+- NPC flashlights (NPCs & AI, experimental): brightness & reach, beam
+  width, how often NPCs keep the light on in combat (by rank), and the
+  hours they switch it on and off (22 to 5). Your own flashlight cannot
+  be changed from config files (Blueprint assets).
+- Oodle setup window: every page starts with a large-print TL;DR.
+- Three more game files are read now; the first start re-extracts the
+  game data once (10-20 s).
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.21.0 - no more PyInstaller: the launcher is the signed python.org
 interpreter
 
