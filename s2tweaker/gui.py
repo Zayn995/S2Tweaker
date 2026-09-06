@@ -623,6 +623,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "limp_threshold": "limp_threshold_factor", "bleed_hit": "bleeding_hit_factor",
     "bleed_nonpen": "bleeding_nonpen_factor", "damage_screen": "damage_screen_factor",
     "quicksave_min": "quicksave_overwrite_min",
+    # 1.28.0 (Kern-Sweep P2)
+    "grenade_resist": "grenade_resist_factor", "armor_wear": "armor_wear_coef",
+    "anomaly_armor_diff": "anomaly_armor_difference_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -698,6 +701,7 @@ FOOTPRINT_PROBES: dict[str, float] = {
     "trader_min_durability_pct": 0.0,
     "hud_compass": 2.0, "hud_crosshair": 2.0, "hud_body_markers": 2.0,
     "hud_stash_markers": 2.0, "pistol_slot_level": 3.0,
+    "armor_wear_coef": 0.5,          # Absolutwert 0..1 (Vanilla 0.7): x2 waere nur der Deckel
 }
 
 # Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
@@ -4119,6 +4123,11 @@ class App(ctk.CTk):
         self._slider(f, "deflect_dmg", "Deflected-hit damage", 0, 300, 25, 100, fmt_pct,
                      "Damage coefficient of a deflected hit on humans and "
                      "mutants (vanilla 1.5). Experimental, not play-tested.")
+        self._slider(f, "anomaly_armor_diff", "Armor vs. anomaly strike weight (experimental)", 0, 300, 25, 100, fmt_pct,
+                     "How strongly your armor rating counts against the "
+                     "physical strike of anomalies (vanilla coefficient 1.0, "
+                     "the sibling of the bullet weight above; formula "
+                     "unknown). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("NPCs & AI")
@@ -4753,6 +4762,13 @@ class App(ctk.CTk):
         self._slider(f, "ap_psy", "PSY", 25, 400, 25, 100, fmt_pct)
         self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.5, 1, fmt_factor,
                      "Armor takes more punishment before breaking.")
+        self._slider(f, "armor_wear", "Armor wear coefficient (experimental)", 0, 1, 0.05, 0.7, fmt_dec,
+                     "The game's ArmorDurabilityParamsCoef and "
+                     "HelmetDurabilityParamsCoef (vanilla 0.7). They tie a "
+                     "piece's condition to its protection, but the direction "
+                     "is unknown: either 'protection left at zero durability' "
+                     "or the opposite. Try 0.3 against 1.0 in-game and tell "
+                     "us. Not play-tested yet.")
         self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
                      "Exoskeleton & armor/upgrade carry bonuses. "
                      "0 % = armor grants no extra carry weight.")
@@ -4767,6 +4783,14 @@ class App(ctk.CTk):
                      "give beyond that is lost. 111 % lifts the percent caps to "
                      "100 (the maximum), physical scales freely. Like the 'Max "
                      "Stats Patch'. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Grenades vs armor")
+        self._slider(f, "grenade_resist", "Armor grenade resistance", 0, 300, 25, 100, fmt_pct,
+                     "How much grenade and explosion damage each armor class "
+                     "absorbs (vanilla 0 / 10 / 20 / 40 / 60 % for physical "
+                     "protection classes 0-4, capped at 100 %). 0 % = "
+                     "grenades ignore armor. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single armor overrides (advanced)")
@@ -5618,6 +5642,10 @@ class App(ctk.CTk):
             damage_screen_factor=s["damage_screen"].get() / 100.0,
             flashlight_dialog_bright=bool(self.checks["flashlight_dialog"].get()),
             quicksave_overwrite_min=float(s["quicksave_min"].get()),
+            # 1.28.0 P2
+            grenade_resist_factor=s["grenade_resist"].get() / 100.0,
+            armor_wear_coef=float(s["armor_wear"].get()),
+            anomaly_armor_difference_factor=s["anomaly_armor_diff"].get() / 100.0,
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

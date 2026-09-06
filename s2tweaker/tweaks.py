@@ -641,6 +641,10 @@ class Settings:
     damage_screen_factor: float = 1.0        # PostEffectProcessor 15 Schadens-Prozessoren Intensity (1.0), Deckel 1
     flashlight_dialog_bright: bool = False   # CoreVariables FlashlightDialogIntensityPercent 0.525 -> 1.0
     quicksave_overwrite_min: float = 5.0     # QuickSaveVariables QuickSaveOverwriteTime (300 s), in Minuten
+    # --- 1.28.0 P2 (Ruestung und Trefferrechnung; par. 1.1) ---
+    grenade_resist_factor: float = 1.0       # CoreVariables StrikeGrenadeResistCoefs.[0..4].GrenadeDamageResist x Faktor, Deckel 1
+    armor_wear_coef: float = 0.7             # CoreVariables Armor/HelmetDurabilityParamsCoef (0.7f), absolut, experimentell
+    anomaly_armor_difference_factor: float = 1.0  # CoreVariables StrikeAnomalyArmorDifferenceCoef (1.0), experimentell
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -754,11 +758,13 @@ def _neq(a: float, b: float) -> bool:
     return abs(a - b) > 1e-9
 
 
-def _scale_literal(raw: str, factor: float) -> str | None:
+def _scale_literal(raw: str, factor: float, cap: float | None = None) -> str | None:
     """GSC-Zahlenliteral vorzeichen- und suffixerhaltend skalieren.
 
     '20' -> '40', '-0.15' -> '-0.3', '35%' -> '70%', '2.5f' -> '5.0f'.
-    None bei nicht-numerischen Werten (die bleiben unangetastet)."""
+    None bei nicht-numerischen Werten (die bleiben unangetastet).
+    cap (seit 1.28.0): Deckel auf den Zahlenwert nach dem Skalieren,
+    Suffix bleibt (0.6f x 2, cap 1.0 -> 1.0f)."""
     raw = raw.strip()
     suffix = ""
     core = raw
@@ -772,7 +778,10 @@ def _scale_literal(raw: str, factor: float) -> str | None:
         value = float(core)
     except ValueError:
         return None
-    return _num(value * factor) + suffix
+    value *= factor
+    if cap is not None:
+        value = min(cap, value)
+    return _num(value) + suffix
 
 
 def _scale_count(raw: str | None, factor: float) -> str | None:
@@ -3274,6 +3283,47 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg[key] = scaled
 
+    # 1.28.0 P2 (Ruestung und Trefferrechnung, par. 1.1): Granatenschutz je
+    # Strike-Stufe - Array KOMPLETT ausgeben (ProtectionStrike +
+    # GrenadeDamageResist, Literalform mit f bleibt), Deckel 1.0;
+    # Faktor 0 = Granaten ignorieren die Ruestung.
+    if _neq(s.grenade_resist_factor, 1.0) and s.grenade_resist_factor >= 0:
+        arr = node.children.get("StrikeGrenadeResistCoefs") if node is not None else None
+        entries = {}
+        changed = False
+        for idx, entry in (arr.children.items() if arr is not None else ()):
+            strike = entry.values.get("ProtectionStrike")
+            raw = entry.values.get("GrenadeDamageResist")
+            if strike is None or raw is None:
+                continue
+            scaled = (_scale_literal(raw, s.grenade_resist_factor, cap=1.0)
+                      if parse_number(raw) > 0 else None)
+            if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                changed = True
+            entries[idx] = {"ProtectionStrike": strike.strip(),
+                            "GrenadeDamageResist": scaled if scaled is not None else raw.strip()}
+        if changed:
+            cfg["StrikeGrenadeResistCoefs"] = entries
+    # Schutzverlust durch Abnutzung (experimentell, Richtung unbekannt -
+    # docs/SPEC.md par. 1.11): EIN Absolutregler fuer beide Koeffizienten,
+    # 0..1, live verglichen, Suffix f bleibt.
+    wanted_wear = max(0.0, min(1.0, float(s.armor_wear_coef)))
+    for key in ("ArmorDurabilityParamsCoef", "HelmetDurabilityParamsCoef"):
+        raw = raw_of(key)
+        if raw is None:
+            continue
+        live = parse_number(raw, -1.0)
+        if live >= 0 and _neq(wanted_wear, live):
+            cfg[key] = _num(wanted_wear) + ("f" if raw.strip().endswith(("f", "F")) else "")
+    # Ruestung gegen Anomalie-Schlag (experimentell; Geschwister von
+    # ArmorDifferenceCoef 2 / Explosion 0.5 / PlayerMelee 0.6)
+    if _neq(s.anomaly_armor_difference_factor, 1.0) and s.anomaly_armor_difference_factor >= 0:
+        raw = raw_of("StrikeAnomalyArmorDifferenceCoef")
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, s.anomaly_armor_difference_factor)
+            if scaled is not None:
+                cfg["StrikeAnomalyArmorDifferenceCoef"] = scaled
+
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
         node = gd.corevars.children.get("DefaultConfig")
@@ -4861,6 +4911,11 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Flashlight stays bright in dialogue")
     if _neq(s.quicksave_overwrite_min, 5.0):
         lines.append(f"Quicksave overwrite window {s.quicksave_overwrite_min:g} min (vanilla 5)")
+    # 1.28.0 P2
+    f("Armor grenade resistance", s.grenade_resist_factor)
+    if _neq(s.armor_wear_coef, 0.7):
+        lines.append(f"Armor wear coefficient {s.armor_wear_coef:g} (vanilla 0.7, experimental)")
+    f("Armor vs. anomaly strike weight (experimental)", s.anomaly_armor_difference_factor)
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

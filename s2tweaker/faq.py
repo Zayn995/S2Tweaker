@@ -897,6 +897,19 @@ FAQ_ENTRIES = [
              "talking light intensity",
     },
     {
+        "q": "Do grenades ignore my armor - and can I make them?",
+        "a": "In vanilla each physical protection class absorbs part of "
+             "grenade and explosion damage (0 / 10 / 20 / 40 / 60 % for "
+             "classes 0-4). Armor tab, 'Grenades vs armor': 'Armor "
+             "grenade resistance' scales those shares - 0 % makes "
+             "grenades ignore armor completely, 300 % is capped at 100 % "
+             "absorption for the top classes. 'Explosion damage' in the "
+             "Combat tab is the other lever and hits everyone. Not "
+             "play-tested yet.",
+        "k": "grenade grenades explosion armor ignore resist absorb rgd "
+             "f1 blast protection class strike exoskeleton",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "

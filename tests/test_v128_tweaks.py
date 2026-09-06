@@ -186,4 +186,59 @@ assert not any(k in "\n".join(summarize(S())) for k in ("Limp", "Bleeding per", 
                                                         "Flashlight stays", "Quicksave"))
 print("P1.9 Zusammenfassung: 6 Zeilen vorhanden, Schalter ersetzt den Regler, neutral leer  OK")
 
+# =========================================================================
+# P2 - Ruestung und Trefferrechnung
+# =========================================================================
+
+# --- P2.0) Live-Werte == Defaults, Neutral leer ------------------------------
+arr_live = gd.corevars.children["DefaultConfig"].children["StrikeGrenadeResistCoefs"].children
+assert [e.values["ProtectionStrike"] for e in arr_live.values()] == ["0.f", "1.f", "2.f", "3.f", "4.f"]
+for key in ("ArmorDurabilityParamsCoef", "HelmetDurabilityParamsCoef"):
+    assert abs(gd.corevar(key) - Settings().armor_wear_coef) < 1e-9, (key, gd.corevar(key))
+assert abs(gd.corevar("StrikeAnomalyArmorDifferenceCoef") - 1.0) < 1e-9
+assert not build_patches(gd, S(grenade_resist_factor=1.0, armor_wear_coef=0.7, anomaly_armor_difference_factor=1.0))
+print("P2.0 Live: 5 Strike-Stufen, Abnutzungs-Koeffizienten = Default 0.7, Neutral leer  OK")
+
+# --- P2.1) Granatenschutz: Array KOMPLETT, Literal f, Deckel 1.0 -------------
+def resist(factor):
+    core = parsed(build_patches(gd, S(grenade_resist_factor=factor)), CORE).children["DefaultConfig"]
+    assert not core.values, core.values                                      # sonst nichts
+    return core.children["StrikeGrenadeResistCoefs"].children
+
+arr = resist(2.0)
+assert set(arr) == {"[0]", "[1]", "[2]", "[3]", "[4]"}, set(arr)
+assert arr["[0]"].values == {"ProtectionStrike": "0.f", "GrenadeDamageResist": "0.0f"}, arr["[0]"].values
+assert arr["[1]"].values == {"ProtectionStrike": "1.f", "GrenadeDamageResist": "0.2f"}, arr["[1]"].values
+assert arr["[2]"].values["GrenadeDamageResist"] == "0.4f" and arr["[3]"].values["GrenadeDamageResist"] == "0.8f"
+assert arr["[4]"].values == {"ProtectionStrike": "4.f", "GrenadeDamageResist": "1.0f"}, arr["[4]"].values  # Deckel
+arr = resist(0.0)
+assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f"] * 5
+arr = resist(3.0)
+assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f", "0.3f", "0.6f", "1.0f", "1.0f"]
+text = build_patches(gd, S(grenade_resist_factor=0.5))[CORE]
+assert "StrikeGrenadeResistCoefs : struct.begin {bpatch}" in text and text.count("[") == 5, text
+assert CORE not in build_patches(gd, S(grenade_resist_factor=1.0))
+print("P2.1 Granatenschutz: x2 -> 0/0.2/0.4/0.8/1.0f (Deckel), x0 -> alles 0, x3 gedeckelt, Eintraege komplett  OK")
+
+# --- P2.2) Absolutregler Abnutzung (beide Koeffizienten, Suffix f) ------------
+assert core_values(armor_wear_coef=0.3) == {"ArmorDurabilityParamsCoef": "0.3f", "HelmetDurabilityParamsCoef": "0.3f"}
+assert core_values(armor_wear_coef=1.0) == {"ArmorDurabilityParamsCoef": "1.0f", "HelmetDurabilityParamsCoef": "1.0f"}
+assert core_values(armor_wear_coef=0.0)["HelmetDurabilityParamsCoef"] == "0.0f"
+assert core_values(armor_wear_coef=1.4)["ArmorDurabilityParamsCoef"] == "1.0f"        # geklemmt
+assert CORE not in build_patches(gd, S(armor_wear_coef=0.7))                           # = Vanilla live
+print("P2.2 Abnutzung: 0.3 / 1.0 / 0.0 fuer Ruestung + Helm, 0.7 = Vanilla, >1 geklemmt  OK")
+
+# --- P2.3) Ruestung gegen Anomalie-Schlag --------------------------------------
+assert core_values(anomaly_armor_difference_factor=2.0) == {"StrikeAnomalyArmorDifferenceCoef": "2.0"}
+assert core_values(anomaly_armor_difference_factor=0.0) == {"StrikeAnomalyArmorDifferenceCoef": "0.0"}
+assert core_values(anomaly_armor_difference_factor=0.5) == {"StrikeAnomalyArmorDifferenceCoef": "0.5"}
+print("P2.3 Anomalie-Schlag: x2 / x0 / x0.5, Geschwister unangetastet  OK")
+
+# --- P2.4) Zusammenfassung ----------------------------------------------------
+joined = "\n".join(summarize(S(grenade_resist_factor=0.0, armor_wear_coef=0.3, anomaly_armor_difference_factor=2.0)))
+for needle in ("grenade resistance", "wear coefficient 0.3", "anomaly strike"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("grenade", "wear coefficient", "anomaly strike"))
+print("P2.4 Zusammenfassung: 3 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")
