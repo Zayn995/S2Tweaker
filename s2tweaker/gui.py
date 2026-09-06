@@ -458,6 +458,10 @@ def fmt_min(v: float) -> str:
     return f"{int(round(v))} min"
 
 
+def fmt_sec(v: float) -> str:
+    return f"{int(round(v))} s"
+
+
 def fmt_hud(v: float) -> str:
     return {0: "vanilla (as the difficulty sets it)", 1: "always shown"}.get(int(round(v)), "always hidden")
 
@@ -626,6 +630,12 @@ SLIDER_FIELDS: dict[str, str] = {
     # 1.28.0 (Kern-Sweep P2)
     "grenade_resist": "grenade_resist_factor", "armor_wear": "armor_wear_coef",
     "anomaly_armor_diff": "anomaly_armor_difference_factor",
+    # 1.28.0 (Kern-Sweep P3)
+    "wounded_chance": "wounded_heal_chance", "wounded_cd": "wounded_cooldown_s",
+    "wounded_regen": "wounded_regen_factor", "wounded_threshold": "wounded_heal_threshold",
+    "npc_focus": "npc_player_focus_factor", "npc_retarget": "npc_retarget_cooldown_factor",
+    "npc_dmg_memory": "npc_damage_memory_factor",
+    "cover_distance": "cover_distance_factor", "cover_path": "cover_path_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -702,6 +712,8 @@ FOOTPRINT_PROBES: dict[str, float] = {
     "hud_compass": 2.0, "hud_crosshair": 2.0, "hud_body_markers": 2.0,
     "hud_stash_markers": 2.0, "pistol_slot_level": 3.0,
     "armor_wear_coef": 0.5,          # Absolutwert 0..1 (Vanilla 0.7): x2 waere nur der Deckel
+    "wounded_heal_chance": 50.0, "wounded_cooldown_s": 600.0,   # Absolutwerte (P3)
+    "wounded_heal_threshold": 50.0,
 }
 
 # Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
@@ -4208,6 +4220,59 @@ class App(ctk.CTk):
                      "box, which always wins when ticked.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Wounded NPCs")
+        self._slider(f, "wounded_chance", "Wounded NPCs: chance to recover", 0, 100, 5, 70, fmt_pct,
+                     "When a human NPC goes down wounded, this is the chance "
+                     "(vanilla 70 %) that they heal over time instead of "
+                     "bleeding out. 0 % = every downed NPC bleeds out. Not "
+                     "play-tested yet.")
+        self._slider(f, "wounded_cd", "Wounded-state cooldown", 30, 1800, 30, 300, fmt_sec,
+                     "Seconds before the same NPC can go down wounded again "
+                     "(vanilla 300). Very low values = NPCs drop again and "
+                     "again. Not play-tested yet.")
+        self._slider(f, "wounded_regen", "Wounded NPC health regen", 0, 400, 25, 100, fmt_pct,
+                     "Health per second a wounded NPC regains (vanilla 5). "
+                     "0 % = none. Not play-tested yet.")
+        self._slider(f, "wounded_threshold", "Wounded heal threshold (experimental)", 5, 95, 5, 35, fmt_int,
+                     "The game's HpThresholdToHealWound (vanilla 35). Either "
+                     "'healable below this many HP' or 'wakes up with this "
+                     "many HP' - the direction is not proven. Not play-tested "
+                     "yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Target choice (experimental)")
+        self._warning(f, "How NPCs pick whom to shoot at - one scoring "
+                         "profile shared by every NPC (EnemyEvaluator). The "
+                         "formula is not documented and the sign of the "
+                         "player term is unproven. Not play-tested yet.")
+        self._slider(f, "npc_focus", "NPC focus on the player", 0, 400, 25, 100, fmt_pct,
+                     "Scales the 'not the player' weight in target scoring "
+                     "(vanilla 0.15). Whether higher means MORE or LESS "
+                     "attention on you is unproven - try 0 % and 400 % and "
+                     "tell us. Not play-tested yet.")
+        self._slider(f, "npc_retarget", "NPC target-switch cooldown", 25, 400, 25, 100, fmt_pct,
+                     "Minimum seconds before an NPC changes its target "
+                     "(vanilla 3). Not play-tested yet.")
+        self._slider(f, "npc_dmg_memory", "NPC damage memory", 25, 400, 25, 100, fmt_pct,
+                     "How long recent damage keeps counting when NPCs weigh "
+                     "who hurt them (vanilla 7 s). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Cover behaviour (experimental)")
+        self._warning(f, "The shared cover profile of ~1600 human NPCs "
+                         "(DefaultCoverEvaluator); story bosses keep their own. "
+                         "Distances are game units (100 = 1 m) and the "
+                         "evaluator formula is not documented. Not play-tested "
+                         "yet.")
+        self._slider(f, "cover_distance", "NPC cover distance to enemy", 50, 200, 10, 100, fmt_pct,
+                     "The distance band NPCs prefer for a cover spot (vanilla "
+                     "8-70 m from the enemy), both ends scaled together. Not "
+                     "play-tested yet.")
+        self._slider(f, "cover_path", "NPC cover search path", 50, 400, 25, 100, fmt_pct,
+                     "How far NPCs will run to reach a cover spot (vanilla "
+                     "path length 20 m). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Stealth: how NPCs notice you (experimental)")
         self._slider(f, "darkness", "Night darkness for NPC eyes", 0, 200, 10, 100, fmt_pct,
                      "The base light level NPC eyes assume by time of day "
@@ -5646,6 +5711,16 @@ class App(ctk.CTk):
             grenade_resist_factor=s["grenade_resist"].get() / 100.0,
             armor_wear_coef=float(s["armor_wear"].get()),
             anomaly_armor_difference_factor=s["anomaly_armor_diff"].get() / 100.0,
+            # 1.28.0 P3
+            wounded_heal_chance=int(s["wounded_chance"].get()),
+            wounded_cooldown_s=int(s["wounded_cd"].get()),
+            wounded_regen_factor=s["wounded_regen"].get() / 100.0,
+            wounded_heal_threshold=int(s["wounded_threshold"].get()),
+            npc_player_focus_factor=s["npc_focus"].get() / 100.0,
+            npc_retarget_cooldown_factor=s["npc_retarget"].get() / 100.0,
+            npc_damage_memory_factor=s["npc_dmg_memory"].get() / 100.0,
+            cover_distance_factor=s["cover_distance"].get() / 100.0,
+            cover_path_factor=s["cover_path"].get() / 100.0,
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

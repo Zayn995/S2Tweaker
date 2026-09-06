@@ -241,4 +241,82 @@ for needle in ("grenade resistance", "wear coefficient 0.3", "anomaly strike"):
 assert not any(k in "\n".join(summarize(S())) for k in ("grenade", "wear coefficient", "anomaly strike"))
 print("P2.4 Zusammenfassung: 3 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P3 - NPC-Verhalten im Kampf
+# =========================================================================
+EE = "EnemyEvaluatorPrototypes/EnemyEvaluatorPrototypes_patch_S2Tweaker.cfg"
+CE = "CoverEvaluatorPrototypes/CoverEvaluatorPrototypes_patch_S2Tweaker.cfg"
+BOSSES = ("BossCoverEvaluator", "StrelokCoverEvaluator", "ScarCoverEvaluator", "KorshunovCoverEvaluator")
+
+# --- P3.0) Dateien, Schema bleibt 22, Mod-Scan, Live == Default -----------------
+assert "EnemyEvaluatorPrototypes.cfg.bin" in NEEDED_FILES and "CoverEvaluatorPrototypes.cfg.bin" in NEEDED_FILES
+assert CACHE_SCHEMA == 22, "Schema 22 gilt fuer das ganze 1.28.0-Release"
+assert "enemyevaluators" in _GD_TREES and "coverevaluators" in _GD_TREES
+for key, field in (("ChanceToGetHealOverTimeWhenWounded", "wounded_heal_chance"),
+                   ("CooldownOnFallingWounded", "wounded_cooldown_s"),
+                   ("HpThresholdToHealWound", "wounded_heal_threshold")):
+    assert abs(gd.corevar(key) - getattr(Settings(), field)) < 1e-9, (key, gd.corevar(key))
+assert abs(gd.corevar("WoundedStateHealthRegen") - 5.0) < 1e-9
+ee_live = gd.enemyevaluators.children
+assert list(ee_live) == ["[0]"] and ee_live["[0]"].values["NotPlayerCoeff"] == "0.15", list(ee_live)
+ce_live = gd.coverevaluators.children
+assert "DefaultCoverEvaluator" in ce_live and all(b in ce_live for b in BOSSES), list(ce_live)
+assert ce_live["DefaultCoverEvaluator"].children["DefaultCoverSettings"].values["MinDistanceToEnemy"] == "800.f"
+assert not build_patches(gd, S(wounded_heal_chance=70, wounded_cooldown_s=300, wounded_regen_factor=1.0,
+                               wounded_heal_threshold=35, npc_player_focus_factor=1.0,
+                               npc_retarget_cooldown_factor=1.0, npc_damage_memory_factor=1.0,
+                               cover_distance_factor=1.0, cover_path_factor=1.0))
+print("P3.0 Dateien: Schema 22, [0]-Evaluator + DefaultCoverEvaluator live, Absolutwerte = Default, Neutral leer  OK")
+
+# --- P3.1) Verwundete NPCs: Absolutwerte ganzzahlig, Faktor mit f, Tabus -------
+core = core_values(wounded_heal_chance=0, wounded_cooldown_s=60, wounded_regen_factor=2.0, wounded_heal_threshold=50)
+assert core == {"ChanceToGetHealOverTimeWhenWounded": "0", "CooldownOnFallingWounded": "60",
+                "WoundedStateHealthRegen": "10.0f", "HpThresholdToHealWound": "50"}, core
+assert core_values(wounded_heal_chance=150) == {"ChanceToGetHealOverTimeWhenWounded": "100"}   # geklemmt
+assert core_values(wounded_regen_factor=0.0) == {"WoundedStateHealthRegen": "0.0f"}
+text = build_patches(gd, S(wounded_heal_chance=0, wounded_cooldown_s=30, wounded_heal_threshold=95))[CORE]
+assert "UnkillableNPCWoundedStateResurrectionTime" not in text and "WoundHitAreasThresholds" not in text
+assert CORE not in build_patches(gd, S(wounded_cooldown_s=300))
+print("P3.1 Verwundete: Chance 0 / 100 (Klemme), Cooldown 60, Regen x2 = 10.0f, Schwelle 50, Tabus unberuehrt  OK")
+
+# --- P3.2) Zielwahl: das einzige Struct [0] in {bpatch}-Form ----------------------
+p = build_patches(gd, S(npc_player_focus_factor=2.0, npc_retarget_cooldown_factor=0.5, npc_damage_memory_factor=2.0))
+text = p[EE]
+assert text.startswith("[0] : struct.begin {bpatch}") and text.count("struct.begin") == 1, text
+assert parsed(p, EE).children["[0]"].values == {"NotPlayerCoeff": "0.3", "ChangeEnemyCooldown": "1.5",
+                                                "DamageAccumulationDurationSeconds": "14.0"}, text
+assert parsed(build_patches(gd, S(npc_player_focus_factor=0.0)), EE).children["[0]"].values == {"NotPlayerCoeff": "0.0"}
+assert EE not in build_patches(gd, S(npc_player_focus_factor=1.0))
+assert "DistanceCoeff" not in text and "RangeSearchPathToEnemies" not in text          # nur die drei
+print("P3.2 Zielwahl: [0] {bpatch}, NotPlayerCoeff x2 / x0, Zielwechsel x0.5, Gedaechtnis x2  OK")
+
+# --- P3.3) Deckung: nur DefaultCoverEvaluator, Bosse fehlen, Min <= Max ------------
+p = build_patches(gd, S(cover_distance_factor=0.5, cover_path_factor=2.0))
+ce = parsed(p, CE)
+assert list(ce.children) == ["DefaultCoverEvaluator"], list(ce.children)
+for other in BOSSES + ("AttackCoverEvaluator", "ZombieCoverEvaluator", "DLC01_ZulusMateCoverEvaluator",
+                       "LeaveCrossfireCoverEvaluator", "ExplosivesCoverSettings"):
+    assert other not in p[CE], other
+d = ce.children["DefaultCoverEvaluator"]
+assert d.values == {"MaxPathLength": "4000"}, d.values                                   # ganzzahlig
+assert d.children["DefaultCoverSettings"].values == {"MinDistanceToEnemy": "400.0f", "MaxDistanceToEnemy": "3500.0f"}
+assert "DefaultCoverEvaluator : struct.begin {bpatch}" in p[CE] and "DefaultCoverSettings : struct.begin {bpatch}" in p[CE]
+d = parsed(build_patches(gd, S(cover_distance_factor=2.0)), CE).children["DefaultCoverEvaluator"]
+v = d.children["DefaultCoverSettings"].values
+assert parse_number(v["MinDistanceToEnemy"]) <= parse_number(v["MaxDistanceToEnemy"]) and v["MaxDistanceToEnemy"] == "14000.0f"
+assert "MaxPathLength" not in d.values
+assert CE not in build_patches(gd, S(cover_distance_factor=1.0, cover_path_factor=1.0))
+print("P3.3 Deckung: nur DefaultCoverEvaluator, Bosse/Sonderkinder fehlen, 400/3500f + Pfad 4000, Min <= Max  OK")
+
+# --- P3.4) Zusammenfassung -----------------------------------------------------
+joined = "\n".join(summarize(S(wounded_heal_chance=0, wounded_cooldown_s=60, wounded_regen_factor=2.0,
+                               wounded_heal_threshold=50, npc_player_focus_factor=2.0,
+                               npc_retarget_cooldown_factor=0.5, npc_damage_memory_factor=2.0,
+                               cover_distance_factor=0.5, cover_path_factor=2.0)))
+for needle in ("Wounded NPCs recover 0 %", "cooldown 60 s", "Wounded NPC health regen", "heal threshold 50",
+               "focus on the player", "target-switch", "damage memory", "cover distance", "cover search path"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("Wounded", "focus on the player", "cover"))
+print("P3.4 Zusammenfassung: 9 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

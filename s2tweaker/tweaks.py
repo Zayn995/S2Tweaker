@@ -645,6 +645,16 @@ class Settings:
     grenade_resist_factor: float = 1.0       # CoreVariables StrikeGrenadeResistCoefs.[0..4].GrenadeDamageResist x Faktor, Deckel 1
     armor_wear_coef: float = 0.7             # CoreVariables Armor/HelmetDurabilityParamsCoef (0.7f), absolut, experimentell
     anomaly_armor_difference_factor: float = 1.0  # CoreVariables StrikeAnomalyArmorDifferenceCoef (1.0), experimentell
+    # --- 1.28.0 P3 (NPC-Verhalten im Kampf; par. 1.3 / 2.5) ---
+    wounded_heal_chance: int = 70            # CoreVariables ChanceToGetHealOverTimeWhenWounded (0-100, absolut)
+    wounded_cooldown_s: int = 300            # CoreVariables CooldownOnFallingWounded (Sekunden, absolut)
+    wounded_regen_factor: float = 1.0        # CoreVariables WoundedStateHealthRegen (5.f) x Faktor
+    wounded_heal_threshold: int = 35         # CoreVariables HpThresholdToHealWound (absolut, Richtung unbewiesen)
+    npc_player_focus_factor: float = 1.0     # EnemyEvaluator [0].NotPlayerCoeff (0.15) x Faktor, Vorzeichen unbewiesen
+    npc_retarget_cooldown_factor: float = 1.0   # EnemyEvaluator [0].ChangeEnemyCooldown (3.0) x Faktor
+    npc_damage_memory_factor: float = 1.0    # EnemyEvaluator [0].DamageAccumulationDurationSeconds (7.0) x Faktor
+    cover_distance_factor: float = 1.0       # CoverEvaluator DefaultCoverEvaluator.DefaultCoverSettings Min/MaxDistanceToEnemy (800/7000)
+    cover_path_factor: float = 1.0           # CoverEvaluator DefaultCoverEvaluator.MaxPathLength (2000)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -3040,6 +3050,68 @@ def _corevars_custom_patch(gd: GameData, core: dict) -> dict:
     return {"CustomConfigOverride": cfg} if cfg else {}
 
 
+def _enemy_evaluator_patch(gd: GameData, s: Settings) -> dict:
+    """EnemyEvaluatorPrototypes (1.28.0 P3, docs/CORE_SWEEP_RESEARCH.md par. 2.5):
+    das einzige Struct [0] (SID empty) wird als '[0] : struct.begin {bpatch}'
+    gepatcht (Muster IgnoreEquippedWeight in _items_patch). NotPlayerCoeff:
+    Vorzeichen unbewiesen - experimentell, der Tooltip sagt es."""
+    node = gd.enemyevaluators.children.get("[0]")
+    if node is None:
+        return {}
+    cfg: dict = {}
+    for key, factor in (("NotPlayerCoeff", s.npc_player_focus_factor),
+                        ("ChangeEnemyCooldown", s.npc_retarget_cooldown_factor),
+                        ("DamageAccumulationDurationSeconds", s.npc_damage_memory_factor)):
+        if not (_neq(factor, 1.0) and factor >= 0):
+            continue
+        raw = node.values.get(key)
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        scaled = _scale_literal(raw, factor)
+        if scaled is not None:
+            cfg[key] = scaled
+    return {"[0]": cfg} if cfg else {}
+
+
+def _cover_evaluator_patch(gd: GameData, s: Settings) -> dict:
+    """CoverEvaluatorPrototypes (1.28.0 P3, par. 2.5): NUR DefaultCoverEvaluator
+    (CoverEvaluatorSID an 1605 NPC-Objekten). Boss/Strelok/Scar/Korshunov
+    stehen auf der Tabu-Liste; Attack/Zombie/DLC01_ZulusMate/Default/
+    LeaveCrossfire deklarieren alles selbst, haengen an keinem Objekt und
+    bleiben ebenfalls unangetastet. Min <= Max bleibt gewahrt, MaxPathLength
+    bleibt ganzzahlig."""
+    node = gd.coverevaluators.children.get("DefaultCoverEvaluator")
+    if node is None:
+        return {}
+    cfg: dict = {}
+    if _neq(s.cover_distance_factor, 1.0) and s.cover_distance_factor > 0:
+        settings = node.children.get("DefaultCoverSettings")
+        raw_min = settings.values.get("MinDistanceToEnemy") if settings is not None else None
+        raw_max = settings.values.get("MaxDistanceToEnemy") if settings is not None else None
+        if (raw_min is not None and raw_max is not None
+                and parse_number(raw_min) > 0 and parse_number(raw_max) > 0):
+            new_max = parse_number(raw_max) * s.cover_distance_factor
+            new_min = min(parse_number(raw_min) * s.cover_distance_factor, new_max)
+            sub: dict = {}
+            for key, raw, new in (("MinDistanceToEnemy", raw_min, new_min),
+                                  ("MaxDistanceToEnemy", raw_max, new_max)):
+                if _neq(new, parse_number(raw)):
+                    sub[key] = _num(new) + ("f" if raw.strip().endswith(("f", "F")) else "")
+            if sub:
+                cfg["DefaultCoverSettings"] = sub
+    if _neq(s.cover_path_factor, 1.0) and s.cover_path_factor > 0:
+        raw = node.values.get("MaxPathLength")
+        if raw is not None and parse_number(raw) > 0:
+            core = raw.strip()
+            if core.lstrip("-").isdigit():           # 2000 bleibt ganzzahlig
+                cfg["MaxPathLength"] = str(max(1, int(round(int(core) * s.cover_path_factor))))
+            else:
+                scaled = _scale_literal(raw, s.cover_path_factor)
+                if scaled is not None:
+                    cfg["MaxPathLength"] = scaled
+    return {"DefaultCoverEvaluator": cfg} if cfg else {}
+
+
 def _corevars_patch(gd: GameData, s: Settings) -> dict:
     cfg: dict = {}
     if _neq(s.repair_cost_factor, 1.0):
@@ -3323,6 +3395,28 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, s.anomaly_armor_difference_factor)
             if scaled is not None:
                 cfg["StrikeAnomalyArmorDifferenceCoef"] = scaled
+
+    # 1.28.0 P3 (NPC-Verhalten, par. 1.3): verwundete NPCs. Absolutwerte
+    # ganzzahlig, live verglichen (Kommentare hinter den Werten strippt der
+    # Parser); UnkillableNPCWoundedStateResurrectionTime (Questrisiko) und
+    # WoundHitAreasThresholds (ungeklaert) bleiben bewusst tabu.
+    for key, wanted, lo, hi in (("ChanceToGetHealOverTimeWhenWounded", s.wounded_heal_chance, 0, 100),
+                                ("CooldownOnFallingWounded", s.wounded_cooldown_s, 0, None),
+                                ("HpThresholdToHealWound", s.wounded_heal_threshold, 0, 100)):
+        live = gd.corevar(key, -1.0)
+        if live < 0:
+            continue
+        value = max(lo, int(round(float(wanted))))
+        if hi is not None:
+            value = min(hi, value)
+        if value != int(round(live)):
+            cfg[key] = str(value)
+    if _neq(s.wounded_regen_factor, 1.0) and s.wounded_regen_factor >= 0:
+        raw = raw_of("WoundedStateHealthRegen")
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, s.wounded_regen_factor)
+            if scaled is not None:
+                cfg["WoundedStateHealthRegen"] = scaled
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -4532,6 +4626,10 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"EffectPrototypes/EffectPrototypes_patch_{n}.cfg", effect_patches)
     add(f"CombatSynchronizationPrototypes/CombatSynchronizationPrototypes_patch_{n}.cfg",
         _combat_sync_patch(gd, s))
+    add(f"EnemyEvaluatorPrototypes/EnemyEvaluatorPrototypes_patch_{n}.cfg",
+        _enemy_evaluator_patch(gd, s))
+    add(f"CoverEvaluatorPrototypes/CoverEvaluatorPrototypes_patch_{n}.cfg",
+        _cover_evaluator_patch(gd, s))
     add(f"ItemContainerPrototypes/ItemContainerPrototypes_patch_{n}.cfg",
         _container_patch(gd, s))
     add(f"ExplosionPrototypes/ExplosionPrototypes_patch_{n}.cfg",
@@ -4916,6 +5014,19 @@ def summarize(s: Settings) -> list[str]:
     if _neq(s.armor_wear_coef, 0.7):
         lines.append(f"Armor wear coefficient {s.armor_wear_coef:g} (vanilla 0.7, experimental)")
     f("Armor vs. anomaly strike weight (experimental)", s.anomaly_armor_difference_factor)
+    # 1.28.0 P3
+    if int(s.wounded_heal_chance) != 70:
+        lines.append(f"Wounded NPCs recover {int(s.wounded_heal_chance)} % of the time (vanilla 70)")
+    if int(s.wounded_cooldown_s) != 300:
+        lines.append(f"Wounded-state cooldown {int(s.wounded_cooldown_s)} s (vanilla 300)")
+    f("Wounded NPC health regen", s.wounded_regen_factor)
+    if int(s.wounded_heal_threshold) != 35:
+        lines.append(f"Wounded heal threshold {int(s.wounded_heal_threshold)} HP (vanilla 35, experimental)")
+    f("NPC focus on the player (experimental)", s.npc_player_focus_factor)
+    f("NPC target-switch cooldown", s.npc_retarget_cooldown_factor)
+    f("NPC damage memory", s.npc_damage_memory_factor)
+    f("NPC cover distance (experimental)", s.cover_distance_factor)
+    f("NPC cover search path", s.cover_path_factor)
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

@@ -71,6 +71,8 @@ NEEDED_FILES = [
     "ItemContainerPrototypes.cfg.bin",       # Behaelter-Respawn (1.27.0)
     "QuickSaveVariables.cfg",                # Schnellspeicher-Fenster (1.28.0, unbinarisiert)
     "CoreVariablesCustom.cfg",               # CustomConfigOverride-Versicherung (1.28.0, unbinarisiert)
+    "EnemyEvaluatorPrototypes.cfg.bin",      # NPC-Zielwahl (1.28.0 P3)
+    "CoverEvaluatorPrototypes.cfg.bin",      # NPC-Deckungsprofile (1.28.0 P3)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -206,17 +208,25 @@ class GameData:
         gd = cache / GAMEDATA_REL
         marker = cache / ".complete"
 
-        if not marker.is_file():
+        # 1.28.0: innerhalb EINES Schemas schieben die Kern-Sweep-Pakete
+        # P1-P8 neue Dateien nach (Schema 22 gilt fuer das ganze Release).
+        # Ein fertiger Cache, dem nur neue Dateien fehlen, wird ergaenzt
+        # statt weggeworfen; ein unfertiger wird wie bisher komplett gebaut.
+        fresh = not marker.is_file()
+        to_extract = (list(NEEDED_FILES) if fresh else
+                      [name for name in NEEDED_FILES
+                       if not (gd / _cfg_name(name)).is_file()])
+        if to_extract:
             cache.mkdir(parents=True, exist_ok=True)
             if progress:
                 progress("Extracting game data from pakchunk0 ...")
-            for name in NEEDED_FILES:
+            for name in to_extract:
                 pakio.unpack(pak, cache, include=f"{GAMEDATA_REL}/{name}",
                              progress=progress)
             # DLC-Editionen (optional): eigene Paks, eigener cfg-Zweig.
             # Bewusst fehlertolerant — ohne Editions-Pak gibt es einfach
             # keine DLC-Waffen im Baum, alles andere laeuft normal.
-            for edition, pakname in DLC_SOURCES.items():
+            for edition, pakname in (DLC_SOURCES.items() if fresh else ()):
                 dlc_pak = Path(game_dir) / "Stalker2/Content/Paks" / pakname
                 if not dlc_pak.is_file():
                     continue
@@ -505,6 +515,20 @@ class GameData:
         die Gewichts-/Ausdauer-Patches in CoreVariables still tot - darum
         spiegelt tweaks._corevars_custom_patch vier Schluessel dorthin."""
         return self._parse("CoreVariablesCustom.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P3) ---
+    @cached_property
+    def enemyevaluators(self) -> CfgStruct:
+        """EnemyEvaluatorPrototypes: ein einziges Struct [0] (SID empty) -
+        die Zielwahl aller NPCs (docs/CORE_SWEEP_RESEARCH.md par. 2.5)."""
+        return self._parse("EnemyEvaluatorPrototypes.cfg")
+
+    @cached_property
+    def coverevaluators(self) -> CfgStruct:
+        """CoverEvaluatorPrototypes: DefaultCoverEvaluator (CoverEvaluatorSID
+        an 1605 NPC-Objekten) plus Boss-/Sonderkinder, die alle 47 Schluessel
+        selbst deklarieren (par. 2.5)."""
+        return self._parse("CoverEvaluatorPrototypes.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

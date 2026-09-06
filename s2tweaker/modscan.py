@@ -77,6 +77,8 @@ _GD_TREES = (
     # 1.28.0: die zwei neuen Textdateien - ohne Index zaehlte eine fremde
     # Vollkopie von CoreVariablesCustom jeden Schluessel als Aenderung
     "corevarscustom", "quicksave",
+    # 1.28.0 P3: NPC-Zielwahl + Deckungsprofile
+    "enemyevaluators", "coverevaluators",
 )
 
 

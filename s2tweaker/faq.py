@@ -910,6 +910,21 @@ FAQ_ENTRIES = [
              "f1 blast protection class strike exoskeleton",
     },
     {
+        "q": "Why do all NPCs shoot at me and not at my allies?",
+        "a": "Target scoring is one shared profile for every NPC. NPCs & "
+             "AI tab, 'Target choice (experimental)': 'NPC focus on the "
+             "player' scales the player term (vanilla 0.15) - but its "
+             "sign is unproven, so try 0 % and 400 % and see which one "
+             "takes the heat off you; 'NPC target-switch cooldown' and "
+             "'NPC damage memory' shape how quickly they change targets. "
+             "Nearby, 'Wounded NPCs' decides whether downed NPCs recover "
+             "and 'Cover behaviour' how far they keep from you. Nothing "
+             "play-tested yet.",
+        "k": "target aggro focus shoot me allies companions everyone "
+             "attacks player priority threat enemy evaluator wounded "
+             "downed bleed out cover distance",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "
