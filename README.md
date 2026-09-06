@@ -21,7 +21,7 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~340 tweaks in 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI,
+~350 tweaks in 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34
@@ -34,7 +34,7 @@ and bloodsucker cloaking; mutant health regen ×0 = the mutant version
 of "NPCs don't self-heal"),
 headshots, explosions, armor protection per damage type, weapon damage/
 spread/recoil/durability/fire rate/range/bleeding/ADS move speed/ADS
-aim-in speed/magazine size on three levels, technician upgrade locks (take both / no blueprint / no tiers), A-Life spawns (lair population, respawn, encounter frequency, mutant share, pack size, per-species weights), day length, consumable effect duration, artifacts per field + respawn, weightless quest items, NPC combat behaviour (guaranteed-hit shots, burst length, fire pauses, engagement range, NPC weapon range, NPC regen), stealth (crouch, movement noise, weather, flashlight), NPC awareness & nerve (alertness, search time, courage, stagger, attack cooldowns, weapon rank bonus), NPC flashlights (brightness & reach, beam width, use in combat, on/off hours), melee damage & range, interaction reach & talk distance, save slots & autosave interval, jamming, scoped sway,
+aim-in speed/magazine size on three levels, technician upgrade locks (take both / no blueprint / no tiers), A-Life spawns (lair population, respawn, encounter frequency, mutant share, pack size, per-species weights), day length, consumable effect duration, artifacts per field + respawn, weightless quest items, NPC combat behaviour (guaranteed-hit shots, burst length, fire pauses, engagement range, NPC weapon range, NPC regen), stealth (crouch, movement noise, weather, flashlight), NPC awareness & nerve (alertness, search time, courage, stagger, attack cooldowns, weapon rank bonus), NPC flashlights (brightness & reach, beam width, use in combat, on/off hours), melee damage & range, interaction reach & talk distance, save slots & autosave interval, quicksave overwrite window, limp thresholds after landings, bleeding per hit, damage screen effects, jamming, scoped sway,
 breath hold, repeatable-quest cooldown, ammo
 damage/armor piercing/armor damage/cover penetration, NPC accuracy/vision/
 hearing/grenades, NPC gear quality (tilts squad loadout rolls toward

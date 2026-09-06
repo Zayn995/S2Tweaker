@@ -133,6 +133,8 @@ s = Settings(
     darkness_factor=0.5, corpse_threat_factor=2.0, damage_mercy_factor=0.5,
     psy_phantom_factor=0.5, min_resale_pct=25, container_respawn_hours=24,
     energy_tolerance_factor=2.0, npc_hip_accuracy_factor=1.5, device_price_factor=0.5,
+    limp_threshold_factor=3.0, bleeding_hit_factor=0.5, bleeding_nonpen_factor=0.0,   # 1.28.0 P1
+    damage_screen_factor=0.3, flashlight_dialog_bright=True, quicksave_overwrite_min=0,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

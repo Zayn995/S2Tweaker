@@ -69,10 +69,12 @@ NEEDED_FILES = [
     "AnomalyPrototypes.cfg.bin",             # Klicker-Anomalie (1.26.0)
     "CombatSynchronizationPrototypes.cfg.bin",  # gleichzeitige Angreifer (1.27.0)
     "ItemContainerPrototypes.cfg.bin",       # Behaelter-Respawn (1.27.0)
+    "QuickSaveVariables.cfg",                # Schnellspeicher-Fenster (1.28.0, unbinarisiert)
+    "CoreVariablesCustom.cfg",               # CustomConfigOverride-Versicherung (1.28.0, unbinarisiert)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 21
+CACHE_SCHEMA = 22
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -486,6 +488,23 @@ class GameData:
         """AutoSaveVariables (unbinarisiert): DefaultConfig.AutoSaveIntervalTime
         in Sekunden."""
         return self._parse("AutoSaveVariables.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P1) ---
+    @cached_property
+    def quicksave(self) -> CfgStruct:
+        """QuickSaveVariables (unbinarisiert): DefaultConfig.QuickSaveOverwriteTime
+        in Sekunden (Vanilla 300) - so lange ueberschreibt ein neuer
+        Schnellspeicher denselben Slot statt einen neuen anzulegen."""
+        return self._parse("QuickSaveVariables.cfg")
+
+    @cached_property
+    def corevarscustom(self) -> CfgStruct:
+        """CoreVariablesCustom (unbinarisiert): der Struct CustomConfigOverride
+        wiederholt fuenf DefaultConfig-Schluessel mit identischen Werten
+        (docs/CORE_SWEEP_RESEARCH.md par. 0). Gewinnt er beim Laden, waeren
+        die Gewichts-/Ausdauer-Patches in CoreVariables still tot - darum
+        spiegelt tweaks._corevars_custom_patch vier Schluessel dorthin."""
+        return self._parse("CoreVariablesCustom.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

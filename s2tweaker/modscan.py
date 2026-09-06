@@ -74,6 +74,9 @@ _GD_TREES = (
     "hearingsensors", "visionscanners", "camerashake", "artifactspawners",
     "passivedetectors", "fasttravel", "boolproviders", "abilities", "melee",
     "weatherselection", "itemgenerators", "relations",
+    # 1.28.0: die zwei neuen Textdateien - ohne Index zaehlte eine fremde
+    # Vollkopie von CoreVariablesCustom jeden Schluessel als Aenderung
+    "corevarscustom", "quicksave",
 )
 
 

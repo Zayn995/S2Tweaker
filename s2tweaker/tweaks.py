@@ -57,6 +57,36 @@ SPRINT_DRAIN_TAGS = {
     "EStateTag::Run",
 }
 
+# --- 1.28.0 Kern-Sweep P1 (docs/CORE_SWEEP_RESEARCH.md par. 1.1 / 3b) -------
+# Schadens-Bildschirmeffekte in PostEffectProcessorPrototypes: der rote
+# Richtungs-Blitz (8 Richtungen) plus Verbrennung, Dampf, Strom, Chemie,
+# Dunkelheit (Staerke + Radius) und Quecksilber. Jedes Kind deklariert
+# Intensity selbst -> jeden Prozessor einzeln patchen, nie nur die Basis.
+# Die SIDs kommen live aus der Datei, das Muster prueft nur den Namen;
+# GameplayGas/NVG*/LowHealth/Bleeding bleiben bewusst draussen.
+DAMAGE_SCREEN_RE = re.compile(
+    r"^(?:(?:Top|Right|Bottom|Left|TopRight|TopLeft|BottomRight|BottomLeft"
+    r"|Burn|Steam|Chemical)Damage|ElectroIntensity"
+    r"|DarknessDamage(?:Intensity|Radius)|QuicksilverDamageIntensity)"
+    r"EffectProcessor$")
+# Erwartete Vanilla-Liste (2.0.3) - Anker fuer die Tests, nicht fuer den Bau
+DAMAGE_SCREEN_PROCESSORS = (
+    "TopDamageEffectProcessor", "RightDamageEffectProcessor",
+    "BottomDamageEffectProcessor", "LeftDamageEffectProcessor",
+    "TopRightDamageEffectProcessor", "TopLeftDamageEffectProcessor",
+    "BottomRightDamageEffectProcessor", "BottomLeftDamageEffectProcessor",
+    "BurnDamageEffectProcessor", "SteamDamageEffectProcessor",
+    "ElectroIntensityEffectProcessor", "ChemicalDamageEffectProcessor",
+    "DarknessDamageIntensityEffectProcessor", "DarknessDamageRadiusEffectProcessor",
+    "QuicksilverDamageIntensityEffectProcessor",
+)
+# CoreVariablesCustom.cfg (CustomConfigOverride) wiederholt diese vier
+# DefaultConfig-Schluessel (dazu bStartWithMenu und Debug-Kram - tabu).
+# Ob der Override NACH DefaultConfig greift, ist aus den Daten nicht zu
+# entscheiden -> jeder Patch dieser Schluessel wird dorthin gespiegelt.
+COREVARS_CUSTOM_KEYS = ("InventoryPenaltyLessWeight", "InventorySPOverweightDrainCoef",
+                        "InventorySPDrainCoef", "StaminaFallingDamageCoef")
+
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
                  "range", "bleeding", "adsspeed", "aimtime", "magazine"]
@@ -603,6 +633,14 @@ class Settings:
     energy_tolerance_factor: float = 1.0     # CoreVariables VitalMaxEnergeticOveruse/Tolerance (1000/2500)
     npc_hip_accuracy_factor: float = 1.0     # Difficulty NPCCombatDifficulty.HipAccuracyMultiplier
     device_price_factor: float = 1.0         # Difficulty EconomyDifficulty Binoculars_Cost/NightVisionGoggles_Cost
+    # --- 1.28.0 P1 (06.09.2026, Kern-Sweep; docs/CORE_SWEEP_RESEARCH.md par. 1.1 / 2.3 / 3b) ---
+    limp_threshold_factor: float = 1.0       # CoreVariables LimpEffectSIDToThresholdMap Threshold 25/65 x Faktor
+    no_landing_limp: bool = False            # dito, Schwellen x1000 = praktisch nie humpeln (schlaegt den Faktor)
+    bleeding_hit_factor: float = 1.0         # CoreVariables VitalBaseBleedingValue (10.0)
+    bleeding_nonpen_factor: float = 1.0      # CoreVariables BleedingChance/PointsNonPenetrationMod (1.0)
+    damage_screen_factor: float = 1.0        # PostEffectProcessor 15 Schadens-Prozessoren Intensity (1.0), Deckel 1
+    flashlight_dialog_bright: bool = False   # CoreVariables FlashlightDialogIntensityPercent 0.525 -> 1.0
+    quicksave_overwrite_min: float = 5.0     # QuickSaveVariables QuickSaveOverwriteTime (300 s), in Minuten
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2960,6 +2998,39 @@ def _autosave_patch(gd: GameData, s: Settings) -> dict:
     return {"DefaultConfig": {"AutoSaveIntervalTime": str(int(round(wanted)))}}
 
 
+def _quicksave_patch(gd: GameData, s: Settings) -> dict:
+    """QuickSaveVariables (unbinarisiert, 1.28.0): QuickSaveOverwriteTime in
+    Sekunden (Vanilla 300 = 5 min) - so lange ueberschreibt ein neuer
+    Schnellspeicher denselben Slot. Regler in Minuten, 0 = jeder
+    Schnellspeicher bekommt einen eigenen Slot; ganzzahlig, live verglichen."""
+    node = gd.quicksave.children.get("DefaultConfig")
+    raw = node.values.get("QuickSaveOverwriteTime") if node else None
+    if raw is None or s.quicksave_overwrite_min < 0:
+        return {}
+    wanted = int(round(s.quicksave_overwrite_min * 60.0))
+    if not _neq(float(wanted), parse_number(raw)):
+        return {}
+    return {"DefaultConfig": {"QuickSaveOverwriteTime": str(wanted)}}
+
+
+def _corevars_custom_patch(gd: GameData, core: dict) -> dict:
+    """Versicherung fuer die zweite Kern-Datei (1.28.0, docs/CORE_SWEEP_RESEARCH.md
+    par. 0): CoreVariablesCustom.cfg / CustomConfigOverride wiederholt vier
+    DefaultConfig-Schluessel mit identischen Werten. Ob der Override nach
+    DefaultConfig greift, ist unbekannt - darum bekommt er dieselben Werte,
+    sobald der CoreVariables-Patch einen dieser Schluessel enthaelt (nur
+    Schluessel, die dort live stehen). Harmlos, falls er nie greift."""
+    wanted = {k: v for k, v in (core.get("DefaultConfig") or {}).items()
+              if k in COREVARS_CUSTOM_KEYS}
+    if not wanted:
+        return {}
+    node = gd.corevarscustom.children.get("CustomConfigOverride")
+    if node is None:
+        return {}
+    cfg = {k: v for k, v in wanted.items() if k in node.values}
+    return {"CustomConfigOverride": cfg} if cfg else {}
+
+
 def _corevars_patch(gd: GameData, s: Settings) -> dict:
     cfg: dict = {}
     if _neq(s.repair_cost_factor, 1.0):
@@ -3127,6 +3198,81 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             raw = raw_of(key)
             if raw is not None and parse_number(raw) > 0:
                 cfg[key] = "0.f"
+
+    # 1.28.0 P1 (Kern-Sweep, docs/CORE_SWEEP_RESEARCH.md par. 1.1): Humpeln
+    # nach harter Landung - Array-Eintraege KOMPLETT ausgeben (EffectSID +
+    # Threshold, Muster StaminaRegenStateCoefs); der Schalter setzt beide
+    # Schwellen auf Vanilla x 1000 und schlaegt den Faktor.
+    limp_factor = 1000.0 if s.no_landing_limp else s.limp_threshold_factor
+    if _neq(limp_factor, 1.0) and limp_factor > 0:
+        arr = node.children.get("LimpEffectSIDToThresholdMap") if node is not None else None
+        entries: dict = {}
+        changed = False
+        for idx, entry in (arr.children.items() if arr is not None else ()):
+            sid = entry.values.get("EffectSID")
+            raw = entry.values.get("Threshold")
+            if sid is None or raw is None:
+                continue
+            scaled = _scale_literal(raw, limp_factor) if parse_number(raw) > 0 else None
+            if scaled is not None and scaled != raw.strip():
+                changed = True
+            entries[idx] = {"EffectSID": sid.strip(),
+                            "Threshold": scaled if scaled is not None else raw.strip()}
+        if changed:
+            cfg["LimpEffectSIDToThresholdMap"] = entries
+    # Blutung je Treffer (VitalBaseBleedingValue 10 gegen MaxBleeding 100)
+    # und bei nicht durchschlagenden Treffern (Chance + Punkte, je 1.0)
+    for keys, factor in ((("VitalBaseBleedingValue",), s.bleeding_hit_factor),
+                         (("BleedingChanceNonPenetrationMod", "BleedingPointsNonPenetrationMod"),
+                          s.bleeding_nonpen_factor)):
+        if not (_neq(factor, 1.0) and factor >= 0):
+            continue
+        for key in keys:
+            raw = raw_of(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None:
+                cfg[key] = scaled
+    # Taschenlampe im Dialog: Vanilla dimmt auf 52.5 %
+    if s.flashlight_dialog_bright:
+        live = gd.corevar("FlashlightDialogIntensityPercent", -1.0)
+        if live >= 0 and _neq(live, 1.0):
+            cfg["FlashlightDialogIntensityPercent"] = "1.0"
+    # Eingefaltet in vorhandene Regler (par. 3b - kein neuer Regler):
+    # - Traglast-Ausdauer unterhalb der Ueberlast (InventorySPDrainCoef
+    #   0.024) in den Schalter, der InventorySPOverweightDrainCoef auf 0 setzt
+    # - Lande-Ausdauer (StaminaFallingDamageCoef 0.5) in den Sprung-Kosten-Regler
+    # - fuenf Leiter-Abspielraten (je 1.0f) in climb_speed_factor
+    # - vier Reichweiten + Loot-Hoehenfenster (max) in interaction_range_factor
+    # - Leichen-Greifzeit (DeadBodyPickUpTime 2.0) INVERS in corpse_drag_factor
+    # - drei globale Marker-Distanzen (300/30/20 m) in map_reveal_factor
+    if s.no_overweight_penalty:
+        raw = raw_of("InventorySPDrainCoef")
+        if raw is not None and parse_number(raw) > 0:
+            cfg["InventorySPDrainCoef"] = "0.0"
+    folded = [
+        (("StaminaFallingDamageCoef",), s.stamina_jump, True),
+        (("ClimbUpSpeed", "ClimbDownSpeed", "ClimbEnterUpSpeed", "ClimbEnterDownSpeed",
+          "ClimbExitUpSpeed"), s.climb_speed_factor, False),
+        (("WideTraceInteractionDistance", "AutoInteractionDistance",
+          "MutantLootContainerInteractRange", "DragDeadBodyInteractRange",
+          "MutantLootInteractHeightMax"), s.interaction_range_factor, False),
+        (("MarkerShowingDistance", "MarkerRevealingDistance", "MarkerExploringDistance"),
+         s.map_reveal_factor, False),
+    ]
+    if _neq(s.corpse_drag_factor, 1.0) and s.corpse_drag_factor > 0:
+        folded.append((("DeadBodyPickUpTime",), 1.0 / s.corpse_drag_factor, False))
+    for keys, factor, allow_zero in folded:
+        if not _neq(factor, 1.0) or factor < 0 or (factor == 0 and not allow_zero):
+            continue
+        for key in keys:
+            raw = raw_of(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None:
+                cfg[key] = scaled
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -4006,18 +4152,33 @@ def _buy_limits_patch(gd: GameData, s: Settings) -> dict:
 
 def _posteffect_patch(gd: GameData, s: Settings) -> dict:
     """Duck-Vignette (PostEffectProcessorPrototypes CrouchEffectProcessor.
-    Intensity 0.6) x Faktor, Deckel 1 ('Remove Crouch Vignette')."""
-    if not (_neq(s.crouch_vignette_factor, 1.0) and s.crouch_vignette_factor >= 0):
-        return {}
-    node = gd.posteffects.children.get("CrouchEffectProcessor")
-    raw = node.values.get("Intensity") if node is not None else None
-    value = parse_number(raw)
-    if raw is None or value <= 0:
-        return {}
-    new = min(1.0, value * s.crouch_vignette_factor)
-    if not _neq(new, value):
-        return {}
-    return {"CrouchEffectProcessor": {"Intensity": _num(new)}}
+    Intensity 0.6) x Faktor, Deckel 1 ('Remove Crouch Vignette'); seit
+    1.28.0 auch die 15 Schadens-Bildschirmeffekte (DAMAGE_SCREEN_RE, je
+    Intensity 1.0) x Faktor 0..1 - jeder Prozessor einzeln, weil jedes
+    Kind Intensity selbst deklariert (docs/CORE_SWEEP_RESEARCH.md par. 3b)."""
+    patches: dict = {}
+    if _neq(s.crouch_vignette_factor, 1.0) and s.crouch_vignette_factor >= 0:
+        node = gd.posteffects.children.get("CrouchEffectProcessor")
+        raw = node.values.get("Intensity") if node is not None else None
+        value = parse_number(raw)
+        if raw is not None and value > 0:
+            new = min(1.0, value * s.crouch_vignette_factor)
+            if _neq(new, value):
+                patches["CrouchEffectProcessor"] = {"Intensity": _num(new)}
+    if _neq(s.damage_screen_factor, 1.0) and s.damage_screen_factor >= 0:
+        for sid, node in gd.posteffects.children.items():
+            if sid == "[0]" or "#" in sid or not DAMAGE_SCREEN_RE.match(sid):
+                continue
+            raw = node.values.get("Intensity")
+            if raw is None:                  # heute deklariert jedes Kind selbst
+                raw = gd.resolve(gd.posteffects, sid, "Intensity")
+            value = parse_number(raw)
+            if raw is None or value <= 0:
+                continue
+            new = min(1.0, value * s.damage_screen_factor)
+            if _neq(new, value):
+                patches.setdefault(sid, {})["Intensity"] = _num(new)
+    return patches
 
 
 def _anomaly_patch(gd: GameData, s: Settings) -> dict:
@@ -4335,9 +4496,13 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _floatprovider_patch(gd, s))
     add(f"ObjHoldBreathParamsPrototypes/ObjHoldBreathParamsPrototypes_patch_{n}.cfg",
         _holdbreath_patch(gd, s))
-    add(f"CoreVariables.cfg_patch_{n}.cfg", _corevars_patch(gd, s))
+    core_patch = _corevars_patch(gd, s)
+    add(f"CoreVariables.cfg_patch_{n}.cfg", core_patch)
+    # 1.28.0: dieselben Gewichts-/Ausdauer-Werte auch in CoreVariablesCustom
+    add(f"CoreVariablesCustom.cfg_patch_{n}.cfg", _corevars_custom_patch(gd, core_patch))
     add(f"SaveLoadVariables.cfg_patch_{n}.cfg", _saveload_patch(gd, s))
     add(f"AutoSaveVariables.cfg_patch_{n}.cfg", _autosave_patch(gd, s))
+    add(f"QuickSaveVariables.cfg_patch_{n}.cfg", _quicksave_patch(gd, s))
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
     # Drei Builder teilen sich die Generator-Datei (Mengen, Waffen-Zustand,
     # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
@@ -4684,6 +4849,18 @@ def summarize(s: Settings) -> list[str]:
     f("Energy drink tolerance", s.energy_tolerance_factor)
     f("NPC hip-fire accuracy", s.npc_hip_accuracy_factor)
     f("Device prices (binoculars, NVG)", s.device_price_factor)
+    # 1.28.0 P1
+    if s.no_landing_limp:
+        lines.append("Never limp after landings")
+    else:
+        f("Limp threshold after hard landings", s.limp_threshold_factor)
+    f("Bleeding per hit", s.bleeding_hit_factor)
+    f("Bleeding from non-penetrating hits", s.bleeding_nonpen_factor)
+    f("Damage screen effects", s.damage_screen_factor)
+    if s.flashlight_dialog_bright:
+        lines.append("Flashlight stays bright in dialogue")
+    if _neq(s.quicksave_overwrite_min, 5.0):
+        lines.append(f"Quicksave overwrite window {s.quicksave_overwrite_min:g} min (vanilla 5)")
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

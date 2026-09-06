@@ -7,7 +7,7 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-Around 340 tweaks in 14 tabs: Player, Vault, Weight & items, Combat,
+Around 350 tweaks in 14 tabs: Player, Vault, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
@@ -15,8 +15,10 @@ WHAT YOU CAN TWEAK (short tour)
 -------------------------------
 - Player: health, stamina (incl. per-action costs), walk/crouch and
   run/sprint speed, jump height, fall damage, breath hold, interaction
-  reach and talk distance, ladder climb speed, save slots and autosave
-  interval, starting money for a new game, dialog/cutscene/default field
+  reach and talk distance, ladder climb speed, save slots, autosave
+  interval and quicksave overwrite window, limp thresholds after hard
+  landings, bleeding per hit, damage screen effects, starting money for
+  a new game, dialog/cutscene/default field
   of view, four HUD elements (compass, crosshair, body and stash markers)
   forced on or off, sleep rules (sleep whenever you like, minimum hours,
   sleep during emissions), max carry

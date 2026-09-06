@@ -619,6 +619,10 @@ SLIDER_FIELDS: dict[str, str] = {
     "sync_melee": "sync_melee_factor", "sync_ability": "sync_ability_factor",
     "sync_grenade": "sync_grenade_factor", "sync_suppress": "sync_suppress_factor",
     "darkness": "darkness_factor", "corpse_threat": "corpse_threat_factor",
+    # 1.28.0 (Kern-Sweep P1)
+    "limp_threshold": "limp_threshold_factor", "bleed_hit": "bleeding_hit_factor",
+    "bleed_nonpen": "bleeding_nonpen_factor", "damage_screen": "damage_screen_factor",
+    "quicksave_min": "quicksave_overwrite_min",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -678,6 +682,8 @@ CHECK_FIELDS: dict[str, str] = {
     "map_regions": "map_all_regions", "teleports_instant": "instant_teleports",
     "skip_intro": "skip_intro", "traders_no_gear": "traders_no_gear_buy",
     "npc_no_pickup": "npcs_no_weapon_pickup",
+    # 1.28.0 (Kern-Sweep P1)
+    "no_limp": "no_landing_limp", "flashlight_dialog": "flashlight_dialog_bright",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -3778,7 +3784,9 @@ class App(ctk.CTk):
 
         f = self._section(body, "Stamina costs (per action)")
         self._slider(f, "st_sprint", "Sprint (incl. continuous drain)", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "st_jump", "Jump", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "st_jump", "Jump", 0, 200, 5, 100, fmt_pct,
+                     "Since 1.28.0 this also scales the stamina lost on "
+                     "landing after a jump or fall (vanilla coefficient 0.5).")
         self._slider(f, "st_melee_l", "Melee attack (light)", 0, 200, 5, 100, fmt_pct)
         self._slider(f, "st_melee_s", "Melee attack (strong)", 0, 200, 5, 100, fmt_pct)
         self._slider(f, "st_butt", "Rifle butt strike", 0, 200, 5, 100, fmt_pct)
@@ -3845,14 +3853,17 @@ class App(ctk.CTk):
         self._slider(f, "interact", "Interaction reach (pick up, loot, containers)", 50, 300, 10, 100, fmt_pct,
                      "How far away you can pick up items, open stashes and "
                      "containers and loot bodies (vanilla 2 m; bodies "
-                     "0.65 m, scaled the same way). Not play-tested yet.")
+                     "0.65 m, scaled the same way) - since 1.28.0 plus the "
+                     "wide-trace, auto-interaction, mutant-harvest and "
+                     "body-drag ranges. Not play-tested yet.")
         self._slider(f, "dialog_range", "Talk distance (NPC dialog)", 50, 300, 10, 100, fmt_pct,
                      "How close you have to be to start a conversation "
                      "(vanilla 1.3 m). The 'Social Distancing' idea from "
                      "Nexus. Not play-tested yet.")
         self._slider(f, "climb", "Ladder climb speed", 50, 300, 10, 100, fmt_pct,
                      "How fast Skif climbs ladders (vanilla coefficient "
-                     "0.6). Not play-tested yet.")
+                     "0.6) - since 1.28.0 including the five ladder "
+                     "animation play-rates. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "New game")
@@ -3896,10 +3907,21 @@ class App(ctk.CTk):
                      "The dark screen edges while crouching (vanilla intensity "
                      "0.6). 0 % = none, like 'Remove Crouch Vignette'. Not "
                      "play-tested yet.")
+        self._slider(f, "damage_screen", "Damage screen effects", 0, 100, 10, 100, fmt_pct,
+                     "The red directional hit flash and the burn, steam, "
+                     "chemical, electric, darkness and quicksilver overlays "
+                     "(15 post-effect processors, vanilla intensity 1.0). "
+                     "0 % also removes the visual warning inside chemical "
+                     "fields. Not play-tested yet.")
+        self._check(f, "flashlight_dialog", "Flashlight stays bright in dialogue",
+                    "Vanilla dims your flashlight to 52.5 % while you talk; "
+                    "this keeps it at 100 %. Not play-tested yet.")
         self._slider(f, "map_reveal", "Map: location reveal distance", 50, 500, 25, 100, fmt_pct,
                      "How close you must come before a place appears on the "
                      "PDA map and counts as explored (vanilla mostly 100 m / "
-                     "20 m, scaled together). Not play-tested yet.")
+                     "20 m, scaled together) - since 1.28.0 plus the three "
+                     "global HUD marker distances (300 / 30 / 20 m). Not "
+                     "play-tested yet.")
         self._check(f, "map_regions", "Map: show all region names from the start",
                     "The 23 region names start hidden in vanilla. Like the "
                     "'all location names on the map' mod. Not play-tested yet.")
@@ -3948,6 +3970,14 @@ class App(ctk.CTk):
         self._slider(f, "limp", "Limping speed (wounded)", 50, 200, 10, 100, fmt_pct,
                      "Movement speed while limping (vanilla 50 % of normal, "
                      "capped at 100 %). Not play-tested yet.")
+        self._slider(f, "limp_threshold", "Limp threshold after hard landings", 1, 8, 0.5, 1, fmt_factor,
+                     "How hard a landing must be before Skif starts limping "
+                     "(vanilla thresholds 25 for the short limp, 65 for the "
+                     "longer one; \u00d7 2 = twice as hard). Not play-tested yet.")
+        self._check(f, "no_limp", "Never limp after landings",
+                    "Pushes both landing thresholds to 1000x vanilla, so no "
+                    "landing triggers the limp any more (overrides the slider "
+                    "above). Not play-tested yet.")
         self._slider(f, "jog_threshold", "Jog below stamina", 0, 90, 5, 50, fmt_pct,
                      "Below this share of stamina Skif can only jog (vanilla "
                      "50 %). 0 % = sprint until the bar is empty. Not "
@@ -3957,7 +3987,8 @@ class App(ctk.CTk):
                      "(vanilla 1.8 m). Not play-tested yet.")
         self._slider(f, "corpse_drag", "Corpse dragging speed", 50, 170, 10, 100, fmt_pct,
                      "Speed while dragging a body (vanilla 60 % of normal, "
-                     "capped at 100 %). Not play-tested yet.")
+                     "capped at 100 %); since 1.28.0 the time to grab a body "
+                     "(vanilla 2 s) shrinks the same way. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Recovery & vitals")
@@ -3972,6 +4003,14 @@ class App(ctk.CTk):
         self._slider(f, "bleed_stop", "Bleeding stops by itself", 0, 500, 25, 100, fmt_pct,
                      "How fast bleeding fades without a bandage (vanilla 0.3 "
                      "per second). Not play-tested yet.")
+        self._slider(f, "bleed_hit", "Bleeding per hit", 0, 300, 25, 100, fmt_pct,
+                     "Bleeding points a wounding hit adds (vanilla 10 on a "
+                     "bar of 100). 0 % = hits never make you bleed. Not "
+                     "play-tested yet.")
+        self._slider(f, "bleed_nonpen", "Bleeding from non-penetrating hits", 0, 300, 25, 100, fmt_pct,
+                     "Chance and amount of bleeding from hits your armor "
+                     "stops (vanilla modifiers 1.0). 0 % = only hits that "
+                     "get through make you bleed. Not play-tested yet.")
         self._slider(f, "psy_recover", "Psy recovery", 25, 500, 25, 100, fmt_pct,
                      "How fast psy damage recovers (vanilla 1 per second). Not "
                      "play-tested yet.")
@@ -3995,6 +4034,11 @@ class App(ctk.CTk):
                      "How many timed autosaves are kept (vanilla 10).")
         self._slider(f, "autosave_min", "Autosave interval", 1, 60, 1, 10, fmt_min,
                      "Minutes between timed autosaves (vanilla 10).")
+        self._slider(f, "quicksave_min", "Quicksave overwrite window", 0, 60, 1, 5, fmt_min,
+                     "For how long a new quicksave overwrites the previous "
+                     "slot instead of starting a new one (vanilla 5 min). "
+                     "0 = every quicksave gets its own slot, up to the quick "
+                     "save slot limit above. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weight & items")
@@ -4003,7 +4047,10 @@ class App(ctk.CTk):
         self._slider(f, "penalty", "Overweight penalty starts at", 10, 500, 5, 50, fmt_kg,
                      "Below this weight: no slowdown at all. Stages scale up to the hard limit.")
         self._check(f, "no_overweight", "No overweight penalty at all",
-                    "Removes the speed/stamina penalties entirely (between penalty start and hard limit).")
+                    "Removes the speed/stamina penalties entirely (between "
+                    "penalty start and hard limit) - and, since 1.28.0, the "
+                    "small stamina drain from carried weight below the "
+                    "penalty line as well.")
         self._warning(f, "Known issue since game patch 2.0 (20 Aug 2026): "
                          "changed carry-weight limits can break walking "
                          "animations, especially combined with movement-speed "
@@ -5563,6 +5610,14 @@ class App(ctk.CTk):
             energy_tolerance_factor=s["energy_tol"].get() / 100.0,
             npc_hip_accuracy_factor=s["npc_hip"].get(),
             device_price_factor=s["device_price"].get(),
+            # 1.28.0 P1
+            limp_threshold_factor=s["limp_threshold"].get(),
+            no_landing_limp=bool(self.checks["no_limp"].get()),
+            bleeding_hit_factor=s["bleed_hit"].get() / 100.0,
+            bleeding_nonpen_factor=s["bleed_nonpen"].get() / 100.0,
+            damage_screen_factor=s["damage_screen"].get() / 100.0,
+            flashlight_dialog_bright=bool(self.checks["flashlight_dialog"].get()),
+            quicksave_overwrite_min=float(s["quicksave_min"].get()),
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

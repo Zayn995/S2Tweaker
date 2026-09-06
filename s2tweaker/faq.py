@@ -852,6 +852,51 @@ FAQ_ENTRIES = [
         "k": "protection cap 90 maximum armor artifacts stack limit max stats",
     },
     {
+        "q": "Can I stop Skif from limping after jumps and hard landings?",
+        "a": "Player tab, 'Body & movement': 'Limp threshold after hard "
+             "landings' raises the landing severity that triggers the "
+             "short and the longer limp (vanilla thresholds 25 and 65), "
+             "and 'Never limp after landings' pushes both so high that no "
+             "landing limps at all. 'Limping speed (wounded)' next to it "
+             "is the other half: how fast you move while limping. Not "
+             "play-tested yet.",
+        "k": "limp limping landing fall jump hurt legs slow walk after "
+             "falling cripple threshold never limp",
+    },
+    {
+        "q": "Can I remove the red hit flash and the burn / chemical screen effects?",
+        "a": "Player tab, 'Camera & HUD': 'Damage screen effects' scales "
+             "the intensity of the red directional hit flash and of the "
+             "burn, steam, chemical, electric, darkness and quicksilver "
+             "overlays (15 post-effect processors, vanilla 1.0). 0 % turns "
+             "them off - which also removes the visual warning when you "
+             "stand in a chemical field, so watch the health bar. "
+             "Bleeding, radiation and psy overlays are separate and stay "
+             "vanilla. Not play-tested yet.",
+        "k": "screen effect red flash blood vignette overlay hit indicator "
+             "burn fire chemical acid electric shock damage post process "
+             "remove disable blur",
+    },
+    {
+        "q": "Can every quicksave get its own slot instead of overwriting the last one?",
+        "a": "Player tab, 'Saving': 'Quicksave overwrite window' is how "
+             "long (vanilla 5 minutes) a new quicksave keeps overwriting "
+             "the same slot before the game starts a new one. 0 min = "
+             "every quicksave gets its own slot, limited by 'Quick save "
+             "slots' in the same section (vanilla 3 - raise it too). Not "
+             "play-tested yet.",
+        "k": "quicksave quick save slot overwrite overwriting f5 rotate "
+             "rotation keep old quicksaves multiple",
+    },
+    {
+        "q": "Why does my flashlight get dim during conversations?",
+        "a": "Vanilla dims the flashlight to 52.5 % while a dialogue is "
+             "open. Player tab, 'Camera & HUD': 'Flashlight stays bright "
+             "in dialogue' keeps it at 100 %. Not play-tested yet.",
+        "k": "flashlight torch dim dark dialogue dialog conversation "
+             "talking light intensity",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "
