@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~290 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~340 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -22,7 +22,7 @@ Those numbers are for 1.26.0 (S2Tweaker.exe is byte-identical to the one in 1.21
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]290 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]340 tweaks[/b], sorted into 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -36,9 +36,11 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Ladder climb speed; starting money for a new game
 [*]Dialog, cutscene and default field of view; compass, crosshair, dead body and stash markers forced on or off; sleep rules (sleep whenever you like, minimum hours, sleep during emissions)
 [*]Body & movement: can't be knocked down, no slowdown in water, free look on ladders, look straight down; hands-free zoom strength and crouch vignette; PDA map reveal distance and all region names from the start; skip the intro video
+[*]Backward & sideways speed, air control, limping speed, jog-below-stamina threshold, stealth kill reach, corpse dragging speed; recovery: health regen delay, radiation decay, bleeding stopping by itself, psy recovery, sober-up speed, energy-drink tolerance; quick-wheel time speed, sleep fade
+[*]Damage to unaware NPCs, last-bullet damage multiplier, armor-vs-bullet difference weight, armor deflection chance and damage (experimental)
 [/list]
 
-[b]Vaulting - its own tab[/b]
+[b]Vault - its own tab[/b]
 [list]
 [*]Seven sliders for how Skif climbs and vaults: max vault height, trigger distance, approach angle, min obstacle height, landing tolerance, vault-over thickness and vault-over landing distance
 [*]'Improved vaulting' preset restores the tuned set of the vault mod that broke with game patch 2.0 - the sliders stack on top of it
@@ -52,12 +54,18 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Weapons show their real in-game names next to the internal ID ("GunAK74_ST · AKM-74S") and the search box finds both spellings
 [*]The 10 parameters: damage, spread, recoil, durability, fire rate, effective range, bleeding (0% = your bullets never cause it), ADS movement speed, ADS aim-in speed (how fast the weapon comes up into the sights), magazine size
 [*]Magazine size on all three levels - scales a weapon's base capacity and the magazines that weapon really uses (read from its own reload table); the global slider covers all 80 magazine attachments
-[*][b]Recoil reduction from upgrades[/b]: boosts the recoil-reduction upgrades and attachments (vanilla -5 % to -30 %, capped at -100 %) - at 2000 % any recoil upgrade removes the kick entirely. Only weapons with such an upgrade installed change; community-proven on patch 2.0
 [*]Melee damage and melee range (knife & rifle butt strike)
 [*]Shooting camera shake 0-200% and ADS zoom from none to double; aim assist switched off for mouse and/or gamepad
 [*]Bullet drop 0-300% and bullet speed 50-300%; which weapon classes fit the pistol slot (SMGs, SMGs and shotguns, any weapon - not compatible with OXA)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
 [*]Reload speed, jam clearing speed and weapon wear per butt strike
+[/list]
+
+[b]Upgrades - its own tab (new in 1.27.0)[/b]
+[list]
+[*][b]Upgrade strength[/b]: ten sliders scale what installed technician upgrades do, grouped by effect family - accuracy, recoil (vanilla -5 % to -30 %, capped at -100 %; community-proven on patch 2.0), handling, durability, range & ballistics, damage & penetration, weight, breath hold, armor protection, armor stamina regen. Only the bonus half of an upgrade scales, penalties stay vanilla, percent bonuses cap at 100
+[*][b]Technician rules[/b] - three checkboxes: take both of mutually exclusive upgrade branches, upgrades need no blueprint, no upgrade tiers. Same route as the 'Take Both Upgrades' / 'Unrestricted Upgrades' mods; which technician services which gear stays vanilla
+[*][b]Scopes[/b]: magnification of every scope class (vanilla 2x -43 % to 8x -70 % of the FOV) and the aim-time / ADS-movement penalties scopes carry - globally, and per scope for 17 scopes in five classes
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
 
@@ -84,6 +92,8 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Grenade usage (0% = no more grenade spam) and reaction delay (how long NPCs take to alert their squad)
 [*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
 [*]NPCs don't loot bodies; psy fields spawn phantoms instead of real stalkers; NPC visibility distance of the A-Life grid (vanilla 85 m)
+[*]NPCs don't pick up weapons; bodies alarm NPCs; weapon-out warnings before guards turn hostile; camper detection time; hip-fire accuracy; hidden damage mercy; psy phantom count; night darkness for NPC eyes
+[*][b]Simultaneous attackers[/b] (experimental): how many enemies may melee, use abilities, throw grenades or lay suppressive fire at the same time - the game's attack tokens per difficulty and player rank
 [*][b]NPC gear quality[/b]: tilts the random loadout pools toward the expensive end (or the cheap end, below 100 %) - the game's own price data is the quality rank. Honest limit: it only re-weights what a pool already contains, it never adds or removes items
 [*][b]NPC combat behaviour[/b] (experimental): the hidden per-weapon AI profiles behind 'aimbot' complaints - guaranteed-hit shots per burst (0 % = every NPC shot uses normal spread), burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
 [*][b]Stealth[/b] (experimental): crouch stealth, movement noise, bad-weather stealth (how much fog, rain and thunder blind and deafen NPCs) and how strongly your own flashlight gives you away
@@ -131,13 +141,14 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
 [*][b]Dropped weapon condition[/b]: sets the AVERAGE condition of weapons found on bodies and in the world (vanilla ~37.5 %) - the game keeps rolling randomly around it exactly like vanilla, so 80 % gives drops between roughly 67 and 93 %. Tick 'Exact condition' for a fixed value. Armor, helmets, artifacts and trader stock stay vanilla
 [*]Clicker anomaly strength; stash clues on bodies; weird artifacts (DLC) charge and duration; travel: fast travel when overweight, guide delay, instant teleports
+[*]Dropped items stay; day and evening start hours; containers refill after N hours (both experimental)
 [/list]
 
 [b]Economy[/b]
 [list]
 [*]Trader buy/sell prices, per-category price factors (weapons, armor, ammo, artifacts, consumables)
 [*]Repair & upgrade costs, quest rewards
-[*][b]Technician upgrades[/b] - three checkboxes: take both of mutually exclusive upgrade branches, upgrades need no blueprint, no upgrade tiers (skip the earlier tier). Same route as the 'Take Both Upgrades' / 'Unrestricted Upgrades' mods; which technician services which gear stays vanilla
+[*]Device prices (binoculars, night vision) and the minimum resale value of broken gear (vanilla 10 %)
 [*]Repeatable quest cooldown 0-400% (vanilla: task givers wait 24 in-game hours for new jobs; 0% = new jobs right away)
 [*]Fast travel cost 0-400% (0% = guides are free)
 [/list]
@@ -208,6 +219,19 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.27.0 - 30 tweaks from a sweep through the game's own config keys, and an Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
+[list]
+[*]A systematic pass over every config key the tool had never touched (CoreVariables alone has 526). Nothing is added to the game - only existing numbers and flags change
+[*][b]New tab 'Upgrades'[/b]: ten sliders scale what installed technician upgrades do, grouped by effect family - accuracy, recoil (moved here from Weapons), handling, durability, range & ballistics, damage & penetration, weight, breath hold, armor protection, armor stamina regen (vanilla mostly +10 to +30 %; only the bonus half of an upgrade scales, penalties stay, percent bonuses cap at 100). The three technician rules moved here from Economy
+[*][b]Scopes[/b] (same tab): scope magnification (vanilla 2x -43 %, 3x -51 %, 4x -60 %, 8x -70 % of the FOV) and scope handling penalties (aim time, ADS movement) - globally, and [b]per scope[/b] for 17 scopes in five classes; a scope's own factors replace the global sliders for that scope
+[*][b]Player[/b]: backward & sideways speed, air control, limping speed, jog-below-stamina threshold, stealth kill reach, corpse dragging speed; new section 'Recovery & vitals' with health regen delay, natural radiation decay, bleeding stopping by itself, psy recovery, sober-up speed and the Cost of Hope energy-drink tolerance; time speed while the quick wheel is open; sleep fade time
+[*][b]Combat[/b]: damage to unaware NPCs (the hidden 2.5x sneak bonus), last-bullet damage multiplier, armor-vs-bullet difference weight, armor deflection chance and deflected-hit damage (experimental)
+[*][b]NPCs & AI[/b]: NPCs don't pick up weapons, bodies alarm NPCs, weapon-out warnings before guards turn hostile, camper detection time, NPC hip-fire accuracy, hidden damage mercy, psy phantom count; night darkness for NPC eyes (stealth); new section 'Simultaneous attackers' - how many enemies may melee, use abilities, throw grenades or lay suppressive fire at once (the game's attack tokens per difficulty and rank)
+[*][b]World & economy[/b]: dropped items stay, day and evening start hours (experimental), containers refill after N hours (experimental), device prices (binoculars, night vision), minimum resale value
+[*]The 'Vaulting' tab is now called 'Vault' so all 14 tabs fit the 880-pixel minimum window. Two more game files are read (attack tokens, containers). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
+[*]Not play-tested in-game, like the rest of the tool - every tooltip says so; least certain are the day phases, the container respawn, the deflection coefficients and the damage mercy. Existing paks stay valid
+[/list]
+
 [b]v1.26.0 - 26 tweaks from the wider modding scene[/b] (~290 tweaks + ammo swap, 13 tabs)
 [list]
 [*]A sweep through the Steam Workshop, mod.io, ap-pro.ru, stalker-world.ru and the open sources of sdwvit's mod collection for things that are plain config values and were not in the tool yet. Nothing is added to the game - only existing numbers and flags change
@@ -224,6 +248,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.25.0 - Field of view, HUD switches, bodies, weather, ballistics, pistol slot, mutant armor, sleep[/b] (~265 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]Field of view[/b] (Player): dialog FOV (vanilla 70, the zoom-in during conversations), cutscene FOV (90) and the default gameplay FOV (90). The idea behind the FOV / dialogue / cutscene mods. If you use the FOV setting in the game's own options, that one most likely wins for gameplay
 [*][b]HUD elements[/b] (Player): compass, crosshair, dead body markers and stash markers each forced 'always shown' or 'always hidden' on every difficulty. Master hides all four in vanilla, the other difficulties show them - now you decide, like 'Enable Compass and Crosshair on Master Difficulty', or the other way round
@@ -236,6 +261,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The tool reads two more game files (projectiles, sleep). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
 [*]Not play-tested in-game, like the rest of the tool. Existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.24.0 - Artifact slots, shooting camera shake, ADS zoom, ladder speed, starting money, aim assist switches[/b] (~250 tweaks + ammo swap, 13 tabs)
 [spoiler]

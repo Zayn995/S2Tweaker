@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.26.0
-File version:  1.26.0
+Name:          S2Tweaker 1.27.0
+File version:  1.27.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,29 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.27.0 - 30 tweaks from a sweep through the game's config keys, and
+an Upgrades tab
+
+- New tab 'Upgrades': ten sliders for upgrade strength by effect family
+  (accuracy, recoil, handling, durability, range, damage, weight, breath,
+  armor protection, stamina regen); the technician rules moved here.
+- Scopes (same tab): magnification and handling penalties, globally and
+  per scope (17 scopes in five classes).
+- Player: backward/sideways speed, air control, limping speed, jog
+  threshold, stealth kill reach, corpse dragging; recovery: regen delay,
+  radiation decay, bleeding stop, psy recovery, sober-up, energy-drink
+  tolerance; quick-wheel time speed, sleep fade.
+- Combat: damage to unaware NPCs, last-bullet multiplier, armor-vs-bullet
+  difference weight, deflection chance and damage (experimental).
+- NPCs & AI: no weapon pickup, bodies alarm NPCs, weapon-out warnings,
+  camper detection, hip-fire accuracy, damage mercy, psy phantom count,
+  night darkness for NPC eyes, simultaneous attackers (attack tokens).
+- World & economy: dropped items stay, day/evening start hours,
+  container refill (experimental), device prices, minimum resale value.
+- 'Vaulting' tab renamed 'Vault' (14 tabs). Two more game files are read;
+  the first start re-extracts the game data once (10-20 s).
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.26.0 - 26 tweaks from the wider modding scene
 
 - Body & movement (Player): can't be knocked down, no slowdown in
