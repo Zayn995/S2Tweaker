@@ -139,6 +139,8 @@ s = Settings(
     wounded_heal_chance=0, wounded_cooldown_s=60, wounded_regen_factor=2.0,                 # 1.28.0 P3
     wounded_heal_threshold=50, npc_player_focus_factor=2.0, npc_retarget_cooldown_factor=0.5,
     npc_damage_memory_factor=2.0, cover_distance_factor=0.5, cover_path_factor=2.0,
+    mutant_smell_factor=0.5, mutants_no_smell=True, burer_fire_interval_factor=2.0,   # 1.28.0 P4
+    mutant_loot_widget=True,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

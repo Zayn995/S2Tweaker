@@ -319,4 +319,72 @@ for needle in ("Wounded NPCs recover 0 %", "cooldown 60 s", "Wounded NPC health 
 assert not any(k in "\n".join(summarize(S())) for k in ("Wounded", "focus on the player", "cover"))
 print("P3.4 Zusammenfassung: 9 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P4 - Mutanten
+# =========================================================================
+from s2tweaker.tweaks import FLAIR_SENSOR_SKIP, FLAIR_SENSOR_KEYS   # noqa: E402
+FL = "AIPrototypes/FlairSensorPrototypes/FlairSensorPrototypes_patch_S2Tweaker.cfg"
+TARGET = ["BlindDogFlairSensor", "ChimeraFlairSensor", "FleshFlairSensor", "PoltergeistFlairSensor"]
+
+# --- P4.0) Datei, Schema 22, Mod-Scan, Sensorliste live: 6 aktive, 2 Tabu ---------
+assert "AIPrototypes/FlairSensorPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+assert "flairsensors" in _GD_TREES
+active = sorted(sid for sid, n in gd.flairsensors.children.items()
+                if n.values.get("IsActive", "").strip() == "true")
+assert active == sorted(TARGET + ["PsyNPCFlairSensor", "PoltergeistFlairSensorYanivToxicRozliv"]), active
+assert len(active) == 6 and len(FLAIR_SENSOR_SKIP & set(active)) == 2
+assert all("FrontSensingRadius" in gd.flairsensors.children[s].values for s in ("BlindDogFlairSensor", "ChimeraFlairSensor", "FleshFlairSensor"))
+assert "FrontSensingRadius" not in gd.flairsensors.children["PoltergeistFlairSensor"].values
+assert gd.corevars.children["DefaultConfig"].values["UseMutantLootWithoutWidget"].strip() == "true"
+assert not build_patches(gd, S(mutant_smell_factor=1.0, burer_fire_interval_factor=1.0))
+print("P4.0 Witterung: 6 aktive Sensoren live, 2 davon Tabu, Front* nur bei 3, Widget-Flag true, Neutral leer  OK")
+
+# --- P4.1) Geruch x0.5: vier Sensoren, nur vorhandene Schluessel, Suffix f ---------
+p = build_patches(gd, S(mutant_smell_factor=0.5))
+fl = parsed(p, FL)
+assert sorted(fl.children) == TARGET, sorted(fl.children)
+assert fl.children["BlindDogFlairSensor"].values == {"SensingRadius": "2000.0f", "DetectionSpeed": "55.0f",
+                                                    "FrontSensingRadius": "2000.0f", "FrontDetectionSpeed": "200.0f"}
+assert fl.children["PoltergeistFlairSensor"].values == {"SensingRadius": "500.0f", "DetectionSpeed": "55.0f"}
+assert fl.children["ChimeraFlairSensor"].values["FrontSensingRadius"] == "1750.0f"
+assert fl.children["FleshFlairSensor"].values["SensingRadius"] == "1000.0f"
+for other in sorted(FLAIR_SENSOR_SKIP) + ["DugaSniperFlairSensor", "GuardNPCFlairSensor", "DefaultFlairSensor"]:
+    assert other not in p[FL], other
+assert "FrontSensingAngle" not in p[FL] and "IsActive" not in p[FL] and "MaxFlairPoints" not in p[FL]
+assert FL not in build_patches(gd, S(mutant_smell_factor=1.0))
+print("P4.1 Geruch x0.5: BlindDog 2000/55/2000/200f, Poltergeist ohne Front*, Tabu-Sensoren fehlen  OK")
+
+# --- P4.2) Schalter: IsActive = false auf genau den vier erlaubten -------------------
+fl = parsed(build_patches(gd, S(mutants_no_smell=True)), FL)
+assert sorted(fl.children) == TARGET and all(n.values == {"IsActive": "false"} for n in fl.children.values())
+both = parsed(build_patches(gd, S(mutants_no_smell=True, mutant_smell_factor=2.0)), FL)
+assert both.children["FleshFlairSensor"].values["IsActive"] == "false" and both.children["FleshFlairSensor"].values["SensingRadius"] == "4000.0f"
+print("P4.2 Schalter: genau die vier erlaubten Sensoren auf IsActive = false  OK")
+
+# --- P4.3) Burer-Waffenfeuer: zehn benannte Unter-Structs ----------------------------
+AMMO = ["A012", "AVOG", "AGA", "APG7V", "AHEDP", "A762Sniper", "A762NATO", "A918", "A919", "A045"]
+p = build_patches(gd, S(burer_fire_interval_factor=2.0))
+iv = parsed(p, CORE).children["DefaultConfig"].children["PossessedWeaponFireIntervals"].children
+assert sorted(iv) == sorted(AMMO) and len(iv) == 10, sorted(iv)
+assert iv["A012"].values == {"FireInterval": "2.0"} and iv["AVOG"].values == {"FireInterval": "8.0"}
+assert iv["AGA"].values == {"FireInterval": "4.0"} and iv["A918"].values == {"FireInterval": "1.0"}
+assert "PossessedWeaponFireIntervals : struct.begin {bpatch}" in p[CORE] and "A045 : struct.begin {bpatch}" in p[CORE]
+assert parsed(p, CORE).children["DefaultConfig"].values == {}
+iv = parsed(build_patches(gd, S(burer_fire_interval_factor=0.5)), CORE).children["DefaultConfig"] \
+    .children["PossessedWeaponFireIntervals"].children
+assert iv["A919"].values == {"FireInterval": "0.25"} and iv["APG7V"].values == {"FireInterval": "2.0"}
+print("P4.3 Burer: 10 Munitionsarten x2 (1 -> 2.0, 4 -> 8.0), x0.5 (0.5 -> 0.25)  OK")
+
+# --- P4.4) Ausweiden mit Loot-Fenster ----------------------------------------------------
+assert core_values(mutant_loot_widget=True) == {"UseMutantLootWithoutWidget": "false"}
+print("P4.4 Ausweiden: UseMutantLootWithoutWidget true -> false  OK")
+
+# --- P4.5) Zusammenfassung ----------------------------------------------------------------
+joined = "\n".join(summarize(S(mutant_smell_factor=0.5, mutants_no_smell=True, burer_fire_interval_factor=2.0,
+                               mutant_loot_widget=True)))
+for needle in ("sense of smell", "cannot smell", "Burer weapon fire", "loot window"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("smell", "Burer", "loot window"))
+print("P4.5 Zusammenfassung: 4 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

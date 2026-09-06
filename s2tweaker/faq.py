@@ -491,10 +491,13 @@ FAQ_ENTRIES = [
              "thunder blind and deafen NPCs, and 'Flashlight gives you away' "
              "how strongly your own beam fills their vision. Since 1.27.0 "
              "'Night darkness for NPC eyes' scales the base light level NPC "
-             "eyes assume by time of day (vanilla 0.2 at night) - vision and "
-             "hearing RANGE have their own sliders further up.",
+             "eyes assume by time of day (vanilla 0.2 at night); vision and "
+             "hearing RANGE have their own sliders further up. Mutants also "
+             "SMELL you: Mutants tab, 'Sense of smell' and 'Mutants cannot "
+             "smell you'.",
         "k": "stealth sneak crouch invisible dark night rain fog storm "
-             "flashlight noise footsteps hide detection axxii",
+             "flashlight noise footsteps hide detection axxii smell scent "
+             "flair nose mutant sniff",
     },
     {
         "q": "Can I make NPCs less alert, or braver?",

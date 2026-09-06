@@ -636,6 +636,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_focus": "npc_player_focus_factor", "npc_retarget": "npc_retarget_cooldown_factor",
     "npc_dmg_memory": "npc_damage_memory_factor",
     "cover_distance": "cover_distance_factor", "cover_path": "cover_path_factor",
+    # 1.28.0 (Kern-Sweep P4)
+    "mut_smell": "mutant_smell_factor", "burer_fire": "burer_fire_interval_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -697,6 +699,8 @@ CHECK_FIELDS: dict[str, str] = {
     "npc_no_pickup": "npcs_no_weapon_pickup",
     # 1.28.0 (Kern-Sweep P1)
     "no_limp": "no_landing_limp", "flashlight_dialog": "flashlight_dialog_bright",
+    # 1.28.0 (Kern-Sweep P4)
+    "mut_no_smell": "mutants_no_smell", "mut_loot_widget": "mutant_loot_widget",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -4504,6 +4508,12 @@ class App(ctk.CTk):
                      "bloodsucker 50 %, poltergeist 65 %, the rest 100 %). "
                      "Capped at 100 %; 1000 % = every mutant drops, like "
                      "'100% Chance Mutant Loot'. Not play-tested yet.")
+        self._check(f, "mut_loot_widget", "Mutant harvest: open the loot window instead of the quick animation (experimental)",
+                    "Vanilla harvests mutants with an animation and no loot "
+                    "window (UseMutantLootWithoutWidget = true; both "
+                    "animation sets ship with the game). This flips the "
+                    "flag to false, the loot-window flow. Read from the key "
+                    "name only. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Bloodsucker cloaking")
@@ -4512,6 +4522,29 @@ class App(ctk.CTk):
         self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
                      "Higher = hitting them breaks the cloak much harder. "
                      "× 0 = damage never reveals them.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Sense of smell")
+        self._slider(f, "mut_smell", "Mutant sense of smell", 25, 200, 25, 100, fmt_pct,
+                     "Range and speed of the mutants' scent sense. One "
+                     "sensor serves 38 species incl. blind dogs (40 m); "
+                     "chimeras (70 m), fleshes (20 m) and poltergeists "
+                     "(10 m) have their own, front-facing ranges scale along "
+                     "where they exist. Proof it matters: the Weird Flower "
+                     "artifact changes this sense by 60 %. The bad-weather "
+                     "stealth factor (FlairCoef) still applies on top; story "
+                     "bosses are untouched. Not play-tested yet.")
+        self._check(f, "mut_no_smell", "Mutants cannot smell you",
+                    "Switches the same scent sensors off (IsActive = "
+                    "false); hearing and sight stay. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Burer telekinesis")
+        self._slider(f, "burer_fire", "Burer weapon fire interval", 50, 400, 25, 100, fmt_pct,
+                     "Seconds between shots of a weapon a burer levitates "
+                     "and fires (vanilla 0.5 to 4 s depending on the ammo "
+                     "type). 200 % = half as many shots. Not play-tested "
+                     "yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Per-species overrides (advanced)")
@@ -5721,6 +5754,11 @@ class App(ctk.CTk):
             npc_damage_memory_factor=s["npc_dmg_memory"].get() / 100.0,
             cover_distance_factor=s["cover_distance"].get() / 100.0,
             cover_path_factor=s["cover_path"].get() / 100.0,
+            # 1.28.0 P4
+            mutant_smell_factor=s["mut_smell"].get() / 100.0,
+            mutants_no_smell=bool(self.checks["mut_no_smell"].get()),
+            burer_fire_interval_factor=s["burer_fire"].get() / 100.0,
+            mutant_loot_widget=bool(self.checks["mut_loot_widget"].get()),
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

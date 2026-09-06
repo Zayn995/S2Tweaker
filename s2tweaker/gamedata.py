@@ -73,6 +73,7 @@ NEEDED_FILES = [
     "CoreVariablesCustom.cfg",               # CustomConfigOverride-Versicherung (1.28.0, unbinarisiert)
     "EnemyEvaluatorPrototypes.cfg.bin",      # NPC-Zielwahl (1.28.0 P3)
     "CoverEvaluatorPrototypes.cfg.bin",      # NPC-Deckungsprofile (1.28.0 P3)
+    "AIPrototypes/FlairSensorPrototypes.cfg.bin",   # Mutanten-Witterung (1.28.0 P4)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -529,6 +530,14 @@ class GameData:
         an 1605 NPC-Objekten) plus Boss-/Sonderkinder, die alle 47 Schluessel
         selbst deklarieren (par. 2.5)."""
         return self._parse("CoverEvaluatorPrototypes.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P4) ---
+    @cached_property
+    def flairsensors(self) -> CfgStruct:
+        """FlairSensorPrototypes (Witterung, par. 2.4): zehn Sensoren, Kinder
+        von DefaultFlairSensor, die alle Schluessel selbst deklarieren;
+        BlindDogFlairSensor haengt an 38 Mutanten-Prototypen."""
+        return self._parse("AIPrototypes/FlairSensorPrototypes.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

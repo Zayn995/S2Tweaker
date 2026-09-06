@@ -86,6 +86,13 @@ DAMAGE_SCREEN_PROCESSORS = (
 # entscheiden -> jeder Patch dieser Schluessel wird dorthin gespiegelt.
 COREVARS_CUSTOM_KEYS = ("InventoryPenaltyLessWeight", "InventorySPOverweightDrainCoef",
                         "InventorySPDrainCoef", "StaminaFallingDamageCoef")
+# 1.28.0 P4: Witterung (FlairSensorPrototypes, par. 2.4). Tabu-Liste: Boss
+# (ohnehin inaktiv), PsyNPC (kein Objekt nutzt ihn) und die Quest-Variante
+# Yaniv - die werden nie angefasst, auch nicht vom Schalter.
+FLAIR_SENSOR_SKIP = {"BossFlairSensor", "PsyNPCFlairSensor",
+                     "PoltergeistFlairSensorYanivToxicRozliv"}
+FLAIR_SENSOR_KEYS = ("SensingRadius", "FrontSensingRadius",
+                     "DetectionSpeed", "FrontDetectionSpeed")
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
@@ -655,6 +662,11 @@ class Settings:
     npc_damage_memory_factor: float = 1.0    # EnemyEvaluator [0].DamageAccumulationDurationSeconds (7.0) x Faktor
     cover_distance_factor: float = 1.0       # CoverEvaluator DefaultCoverEvaluator.DefaultCoverSettings Min/MaxDistanceToEnemy (800/7000)
     cover_path_factor: float = 1.0           # CoverEvaluator DefaultCoverEvaluator.MaxPathLength (2000)
+    # --- 1.28.0 P4 (Mutanten; par. 2.4 / 1.3 / 1.1) ---
+    mutant_smell_factor: float = 1.0         # FlairSensor Sensing/FrontSensingRadius + Detection/FrontDetectionSpeed (aktive Sensoren)
+    mutants_no_smell: bool = False           # FlairSensor IsActive -> false auf denselben Sensoren
+    burer_fire_interval_factor: float = 1.0  # CoreVariables PossessedWeaponFireIntervals.<Ammo>.FireInterval (0.5-4 s) x Faktor
+    mutant_loot_widget: bool = False         # CoreVariables UseMutantLootWithoutWidget true -> false (Loot-Fenster statt Animation)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2280,6 +2292,39 @@ def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
     return {"MutantsHearingSensor": {"SoundEvents": entries}}
 
 
+def _flair_patch(gd: GameData, s: Settings) -> dict:
+    """FlairSensorPrototypes (1.28.0 P4, docs/CORE_SWEEP_RESEARCH.md par. 2.4):
+    Witterung der Mutanten. Alle Sensoren mit IsActive = true ausser der
+    Tabu-Liste FLAIR_SENSOR_SKIP (live: BlindDog fuer 38 Arten, Chimera,
+    Flesh, Poltergeist). Jedes Kind deklariert seine Schluessel selbst; die
+    Front*-Schluessel gibt es nur bei BlindDog/Chimera/Flesh -> nur
+    vorhandene Schluessel patchen. Der Schalter setzt IsActive = false auf
+    dieselben Sensoren. AIGlobals.FlairCoef (Wetter-Regler) gilt weiter."""
+    smell_on = _neq(s.mutant_smell_factor, 1.0) and s.mutant_smell_factor > 0
+    if not (smell_on or s.mutants_no_smell):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.flairsensors.children.items():
+        if sid == "[0]" or "#" in sid or sid in FLAIR_SENSOR_SKIP:
+            continue
+        if _bool_literal(node.values.get("IsActive")) is not True:
+            continue
+        cfg: dict = {}
+        if s.mutants_no_smell:
+            cfg["IsActive"] = "false"
+        if smell_on:
+            for key in FLAIR_SENSOR_KEYS:
+                raw = node.values.get(key)
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, s.mutant_smell_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
 
@@ -3417,6 +3462,25 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, s.wounded_regen_factor)
             if scaled is not None:
                 cfg["WoundedStateHealthRegen"] = scaled
+
+    # 1.28.0 P4 (Mutanten, par. 1.3 / 1.1): Burer-Waffenfeuer - zehn benannte
+    # Unter-Structs (A012 ... A045), also normaler bpatch je Struct; und das
+    # Ausweiden: Vanilla true = Animation OHNE Loot-Fenster (beide
+    # Animationssaetze liegen in der Datei), false = Fenster-Ablauf.
+    if _neq(s.burer_fire_interval_factor, 1.0) and s.burer_fire_interval_factor > 0:
+        arr = node.children.get("PossessedWeaponFireIntervals") if node is not None else None
+        entries = {}
+        for ammo, entry in (arr.children.items() if arr is not None else ()):
+            raw = entry.values.get("FireInterval")
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, s.burer_fire_interval_factor)
+            if scaled is not None:
+                entries[ammo] = {"FireInterval": scaled}
+        if entries:
+            cfg["PossessedWeaponFireIntervals"] = entries
+    if s.mutant_loot_widget and _bool_literal(raw_of("UseMutantLootWithoutWidget")) is True:
+        cfg["UseMutantLootWithoutWidget"] = "false"
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -4686,6 +4750,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     hearing.update(_mutant_hearing_patch(gd, s))
     add("AIPrototypes/HearingSensorPrototypes/"
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
+    add("AIPrototypes/FlairSensorPrototypes/"
+        f"FlairSensorPrototypes_patch_{n}.cfg", _flair_patch(gd, s))
     items_patches, items_dlc = _items_patch(gd, s)
     _merge_nested(items_patches, _weird_artifact_patch(gd, s))
     _merge_nested(items_patches, scope_items)
@@ -5027,6 +5093,13 @@ def summarize(s: Settings) -> list[str]:
     f("NPC damage memory", s.npc_damage_memory_factor)
     f("NPC cover distance (experimental)", s.cover_distance_factor)
     f("NPC cover search path", s.cover_path_factor)
+    # 1.28.0 P4
+    f("Mutant sense of smell", s.mutant_smell_factor)
+    if s.mutants_no_smell:
+        lines.append("Mutants cannot smell you")
+    f("Burer weapon fire interval", s.burer_fire_interval_factor)
+    if s.mutant_loot_widget:
+        lines.append("Mutant harvest opens the loot window (experimental)")
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

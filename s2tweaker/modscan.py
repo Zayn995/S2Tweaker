@@ -79,6 +79,8 @@ _GD_TREES = (
     "corevarscustom", "quicksave",
     # 1.28.0 P3: NPC-Zielwahl + Deckungsprofile
     "enemyevaluators", "coverevaluators",
+    # 1.28.0 P4: Witterung
+    "flairsensors",
 )
 
 
