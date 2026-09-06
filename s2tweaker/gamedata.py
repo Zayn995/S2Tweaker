@@ -67,10 +67,12 @@ NEEDED_FILES = [
     "CorpseClueStashPrototypes.cfg.bin",     # Versteck-Hinweise (1.26.0)
     "MarkerPrototypes.cfg.bin",              # PDA-Karte (1.26.0)
     "AnomalyPrototypes.cfg.bin",             # Klicker-Anomalie (1.26.0)
+    "CombatSynchronizationPrototypes.cfg.bin",  # gleichzeitige Angreifer (1.27.0)
+    "ItemContainerPrototypes.cfg.bin",       # Behaelter-Respawn (1.27.0)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 20
+CACHE_SCHEMA = 21
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -511,6 +513,17 @@ class GameData:
         return self._parse("MarkerPrototypes.cfg")
 
     @cached_property
+    def combatsync(self) -> CfgStruct:
+        """CombatSynchronizationPrototypes: Default + je Grad, darin je Rang
+        FilterGroups mit MaxScore (Token-Budgets) - 1.27.0."""
+        return self._parse("CombatSynchronizationPrototypes.cfg")
+
+    @cached_property
+    def containers(self) -> CfgStruct:
+        """ItemContainerPrototypes: 25 Behaeltertypen, RespawnTimeSeconds 0 - 1.27.0."""
+        return self._parse("ItemContainerPrototypes.cfg")
+
+    @cached_property
     def anomalies(self) -> CfgStruct:
         """AnomalyPrototypes (nur ClickerAnomaly wird angefasst)."""
         return self._parse("AnomalyPrototypes.cfg")
@@ -527,6 +540,38 @@ class GameData:
                 continue
             out.append(sid)
         return out
+
+    def scope_effects(self) -> dict[str, tuple[str | None, list[str]]]:
+        """{Scope-SID: (Zoom-Effekt-SID | None, [Nachteil-Effekt-SIDs])} aller
+        Zielfernrohr-Items (AttachType Scope, keine Templates) mit einem
+        Zoom-Effekt (AimingFOVX*) oder Nachteilen (ScopeAimingTimeNeg*,
+        ScopeAimingMovementNeg*) in ihrer EffectPrototypeSIDs-Liste. In
+        Vanilla definiert jedes Scope-Item die Liste selbst (1.27.0)."""
+        result: dict[str, tuple[str | None, list[str]]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            chain = self._resolve_chain(self.items, sid)
+            if self._chain_get(chain, "AttachType") != "EAttachType::Scope":
+                continue
+            effects: list[str] = []
+            for node in chain:
+                if "EffectPrototypeSIDs" in node.children:
+                    effects = [v.strip() for v in node.children["EffectPrototypeSIDs"].values.values()]
+                    break
+            zoom = next((e for e in effects if e.startswith("AimingFOVX")), None)
+            pens = [e for e in effects if e.startswith(("ScopeAimingTimeNeg", "ScopeAimingMovementNeg"))]
+            if zoom or pens:
+                result[sid] = (zoom, pens)
+        return result
+
+    def scope_effect_list(self, sid: str) -> dict[str, str]:
+        """{Index: Effekt-SID} der EffectPrototypeSIDs-Liste eines Scope-Items
+        (eigene Liste, sonst die naechste geerbte)."""
+        for node in self._resolve_chain(self.items, sid):
+            if "EffectPrototypeSIDs" in node.children:
+                return {k: v.strip() for k, v in node.children["EffectPrototypeSIDs"].values.items()}
+        return {}
 
     @cached_property
     def trade_text(self) -> str:

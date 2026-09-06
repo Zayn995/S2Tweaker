@@ -21,8 +21,8 @@ Everyone is free to use it. This README tells you everything you need.
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
 
-~290 tweaks in 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
-Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders), plus per-weapon overrides
+~340 tweaks in 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI,
+Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34
 ammo types and per-piece

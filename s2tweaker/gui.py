@@ -593,6 +593,32 @@ SLIDER_FIELDS: dict[str, str] = {
     "ft_lock": "fast_travel_lock", "guide_delay": "guide_delay_factor",
     "prot_cap": "protection_cap_factor", "weird_art": "weird_artifact_factor",
     "clicker": "clicker_factor",
+    # 1.27.0
+    "back_speed": "back_speed_factor", "air_control": "air_control_factor",
+    "limp": "limp_speed_factor", "jog_threshold": "slow_run_threshold_pct",
+    "regen_delay": "hp_regen_delay", "rad_decay": "radiation_decay_factor",
+    "bleed_stop": "bleeding_stop_factor", "psy_recover": "psy_recovery_factor",
+    "sober": "sober_up_factor", "stealth_kill": "stealth_kill_range_factor",
+    "wheel_time": "wheel_time_pct", "sleep_fade": "sleep_fade_factor",
+    "corpse_drag": "corpse_drag_factor", "item_despawn": "item_despawn_factor",
+    "day_start": "day_start_hour", "evening_start": "evening_start_hour",
+    "calm_dmg": "calm_damage_factor", "last_bullet": "last_bullet_multiplier",
+    "armor_diff": "armor_difference_factor", "deflect_chance": "armor_deflect_chance_pct",
+    "deflect_dmg": "armor_deflect_damage_factor",
+    "scope_zoom": "scope_zoom_factor", "scope_penalty": "scope_penalty_factor",
+    "upg_accuracy": "upg_accuracy_factor", "upg_handling": "upg_handling_factor",
+    "upg_durability": "upg_durability_factor", "upg_range": "upg_range_factor",
+    "upg_damage": "upg_damage_factor", "upg_weight": "upg_weight_factor",
+    "upg_breath": "upg_breath_factor", "upg_armor_prot": "upg_armor_protection_factor",
+    "upg_armor_misc": "upg_armor_misc_factor",
+    "warn_count": "weapon_warning_count", "warn_delay": "weapon_warning_delay_factor",
+    "camper_time": "camper_time_factor", "npc_hip": "npc_hip_accuracy_factor",
+    "dmg_mercy": "damage_mercy_factor", "psy_phantoms_n": "psy_phantom_factor",
+    "min_resale": "min_resale_pct", "container_respawn": "container_respawn_hours",
+    "energy_tol": "energy_tolerance_factor", "device_price": "device_price_factor",
+    "sync_melee": "sync_melee_factor", "sync_ability": "sync_ability_factor",
+    "sync_grenade": "sync_grenade_factor", "sync_suppress": "sync_suppress_factor",
+    "darkness": "darkness_factor", "corpse_threat": "corpse_threat_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -651,12 +677,16 @@ CHECK_FIELDS: dict[str, str] = {
     "psy_phantoms": "psy_phantoms_only", "npc_no_loot": "npcs_no_corpse_loot",
     "map_regions": "map_all_regions", "teleports_instant": "instant_teleports",
     "skip_intro": "skip_intro", "traders_no_gear": "traders_no_gear_buy",
+    "npc_no_pickup": "npcs_no_weapon_pickup",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
 FOOTPRINT_PROBES: dict[str, float] = {
     "fall_damage_pct": 50.0,
     "fast_travel_lock": 0.0,
+    "slow_run_threshold_pct": 25.0,
+    "evening_start_hour": 22.0,
+    "armor_deflect_chance_pct": 50.0,
     "npc_weapon_rank_add": 2.0,
     "scope_sway_pct": 50.0,
     "trader_min_durability_pct": 0.0,
@@ -2190,6 +2220,10 @@ class App(ctk.CTk):
         self._iw_expand_job: str | None = None  # laufender after()-Auftrag
         # Einzelmunitions-Overrides: {Ammo-SID: {param: faktor}} (nur != 1.0)
         self.ammo_overrides: dict[str, dict[str, float]] = {}
+        self.scope_overrides: dict[str, dict[str, float]] = {}   # 1.27.0
+        self._isc_rows: dict[str, dict] = {}
+        self._isc_loading = False
+        self._scope_box = None
         # Einzelruestungs-Overrides: {Item-SID: {param: faktor}} (nur != 1.0)
         # Dritter Baum, dritter strikt eigener Namensraum (_ir_*).
         self.armor_overrides: dict[str, dict[str, float]] = {}
@@ -2846,6 +2880,110 @@ class App(ctk.CTk):
                     self._iw_auto_opened.add(cat)
 
     # -------------------------------------------- Einzelmunitions-Overrides
+    # -------------------------------------------- Einzel-Zielfernrohre (1.27.0)
+    SCOPE_CLASS_LABELS = {"AimingFOVX2Effect": "2x scopes", "AimingFOVX3Effect": "3x scopes",
+                          "AimingFOVX4Effect": "4x scopes", "AimingFOVX8Effect": "8x scopes",
+                          None: "Collimators & holo sights (penalties only)"}
+
+    def _isc_label(self, sid: str, zoom, pens) -> str:
+        """Fernrohr-Name (aus der SID) plus Vanilla-Werte der Effekte."""
+        parts = []
+        for eff in ([zoom] if zoom else []) + list(pens):
+            node = self.gd.effects.children.get(eff) if self.gd is not None else None
+            raw = (node.values.get("ValueMin") or "").strip() if node is not None else ""
+            if not raw:
+                continue
+            if eff.startswith("AimingFOVX"):
+                parts.append(f"zoom {raw}")
+            elif eff.startswith("ScopeAimingTimeNeg"):
+                parts.append(f"aim time +{raw.lstrip('+')}")
+            else:
+                parts.append(f"ADS move {raw}")
+        name = sid.replace("_", " ")
+        return f"{name}   \u00b7   vanilla: " + ", ".join(parts) if parts else name
+
+    def _isc_populate(self):
+        """Fernrohr-Liste aus den Spieldaten aufbauen (je Klasse ein
+        aufklappbarer Block). Wahrheit ist self.scope_overrides."""
+        box = self._scope_box
+        if box is None:
+            return
+        for child in box.winfo_children():
+            child.destroy()
+        self._isc_rows = {}
+        if self.gd is None:
+            return
+        table = self.gd.scope_effects()
+        self.scope_overrides = {sid: p for sid, p in self.scope_overrides.items() if sid in table}
+        groups: dict = {}
+        for sid, (zoom, _pens) in table.items():
+            groups.setdefault(zoom, []).append(sid)
+        for key in ("AimingFOVX2Effect", "AimingFOVX3Effect", "AimingFOVX4Effect", "AimingFOVX8Effect", None):
+            sids = sorted(groups.get(key, []))
+            if sids:
+                self._isc_block(box, self.SCOPE_CLASS_LABELS[key], sids, table)
+
+    def _isc_block(self, parent, label: str, sids: list, table: dict) -> None:
+        btn = ctk.CTkButton(parent, text="\u25b8  " + label, anchor="w",
+                            fg_color="transparent", hover_color="gray25",
+                            font=ctk.CTkFont(size=13), state=self._ia_state)
+        btn.pack(fill="x", padx=8, pady=1)
+        content = ctk.CTkFrame(parent, fg_color="transparent")
+        prev = self._isc_loading
+        self._isc_loading = True
+        try:
+            for sid in sids:
+                zoom, pens = table[sid]
+                ctk.CTkLabel(content, text=self._isc_label(sid, zoom, pens), anchor="w",
+                             justify="left", wraplength=760,
+                             font=ctk.CTkFont(size=12, weight="bold")).pack(fill="x", padx=12, pady=(6, 0))
+                rows: dict = {}
+                stored = self.scope_overrides.get(sid, {})
+                if zoom:
+                    rows["zoom"] = SliderRow(content, "Magnification", 0.25, 4, 0.25, 1, fmt_factor,
+                                             on_change=lambda *_a, s=sid: self._isc_changed(s))
+                    rows["zoom"].set(float(stored.get("zoom", 1.0)))
+                if pens:
+                    rows["penalty"] = SliderRow(content, "Handling penalties", 0, 4, 0.25, 1, fmt_factor,
+                                                on_change=lambda *_a, s=sid: self._isc_changed(s))
+                    rows["penalty"].set(float(stored.get("penalty", 1.0)))
+                for row in rows.values():
+                    row.set_state(self._ia_state)
+                self._isc_rows[sid] = rows
+        finally:
+            self._isc_loading = prev
+
+        def toggle():
+            if content.winfo_manager():
+                content.pack_forget()
+                btn.configure(text="\u25b8  " + label)
+            else:
+                content.pack(fill="x", padx=16, after=btn)
+                btn.configure(text="\u25be  " + label)
+
+        btn.configure(command=toggle)
+
+    def _isc_changed(self, sid: str) -> None:
+        if self._isc_loading:
+            return
+        rows = self._isc_rows.get(sid, {})
+        values = {p: float(r.get()) for p, r in rows.items() if abs(float(r.get()) - 1.0) > 1e-9}
+        if values:
+            self.scope_overrides[sid] = values
+        else:
+            self.scope_overrides.pop(sid, None)
+
+    def _isc_clear_all(self):
+        self.scope_overrides.clear()
+        prev = self._isc_loading
+        self._isc_loading = True
+        try:
+            for rows in self._isc_rows.values():
+                for row in rows.values():
+                    row.set(1.0)
+        finally:
+            self._isc_loading = prev
+
     def _ia_populate(self):
         """Munitionsliste einlesen und den Ammo-Baum neu aufbauen."""
         if self.gd is None:
@@ -3644,7 +3782,7 @@ class App(ctk.CTk):
         self._slider(f, "st_vault", "Vault / climb", 0, 200, 5, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
-        body = self._tab("Vaulting")
+        body = self._tab("Vault")
         # Eigener Tab (Wunsch des Besitzers): 7 Regler + 2 Schalter sind zu
         # viel fuer den Player-Tab. Die Schluessel bleiben identisch ->
         # settings.json, Presets und Pak-Manifeste laufen unveraendert.
@@ -3762,6 +3900,10 @@ class App(ctk.CTk):
         self._check(f, "map_regions", "Map: show all region names from the start",
                     "The 23 region names start hidden in vanilla. Like the "
                     "'all location names on the map' mod. Not play-tested yet.")
+        self._slider(f, "wheel_time", "Time speed while the quick wheel is open", 5, 100, 5, 30, fmt_pct,
+                     "The game slows to 30 % while the item selector is open "
+                     "(vanilla). 100 % = real time, 5 % = almost paused. Not "
+                     "play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Sleep")
@@ -3773,6 +3915,9 @@ class App(ctk.CTk):
                      "play-tested yet.")
         self._check(f, "sleep_emission", "Allow sleeping during emissions",
                     "Vanilla forbids it. Not play-tested yet.")
+        self._slider(f, "sleep_fade", "Sleep fade time", 0, 200, 10, 100, fmt_pct,
+                     "The fade to black (vanilla 1.5 s) and the black screen "
+                     "(3.5 s) when sleeping. 0 % = instant. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Body & movement")
@@ -3790,6 +3935,50 @@ class App(ctk.CTk):
         self._check(f, "look_down", "Look straight down",
                     "Vanilla stops the camera at 80° below the horizon; this "
                     "allows 90°. Not play-tested yet.")
+        self._slider(f, "back_speed", "Backward & sideways speed", 50, 200, 10, 100, fmt_pct,
+                     "Walking backwards is 50 % of forward speed in vanilla, "
+                     "running backwards 43 %, crouched 47-54 %, diagonal 72-75 %. "
+                     "Capped at forward speed. Not play-tested yet.")
+        self._slider(f, "air_control", "Air control while jumping", 50, 500, 25, 100, fmt_pct,
+                     "How much you can steer mid-air (vanilla coefficient 0.1, "
+                     "capped at 1.0). Not play-tested yet.")
+        self._slider(f, "limp", "Limping speed (wounded)", 50, 200, 10, 100, fmt_pct,
+                     "Movement speed while limping (vanilla 50 % of normal, "
+                     "capped at 100 %). Not play-tested yet.")
+        self._slider(f, "jog_threshold", "Jog below stamina", 0, 90, 5, 50, fmt_pct,
+                     "Below this share of stamina Skif can only jog (vanilla "
+                     "50 %). 0 % = sprint until the bar is empty. Not "
+                     "play-tested yet.")
+        self._slider(f, "stealth_kill", "Stealth kill reach", 50, 300, 25, 100, fmt_pct,
+                     "How close you must be behind an NPC for a stealth kill "
+                     "(vanilla 1.8 m). Not play-tested yet.")
+        self._slider(f, "corpse_drag", "Corpse dragging speed", 50, 170, 10, 100, fmt_pct,
+                     "Speed while dragging a body (vanilla 60 % of normal, "
+                     "capped at 100 %). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Recovery & vitals")
+        self._slider(f, "regen_delay", "Health regen delay", 0, 30, 1, 5, fmt_dec,
+                     "Seconds after the last hit before health regeneration "
+                     "starts (vanilla 5). Pairs with the passive regen slider "
+                     "above. Not play-tested yet.")
+        self._slider(f, "rad_decay", "Natural radiation decay", 0, 500, 25, 100, fmt_pct,
+                     "How fast accumulated radiation fades on its own (vanilla "
+                     "0.05 per second). 0 % = only pills and vodka help. Not "
+                     "play-tested yet.")
+        self._slider(f, "bleed_stop", "Bleeding stops by itself", 0, 500, 25, 100, fmt_pct,
+                     "How fast bleeding fades without a bandage (vanilla 0.3 "
+                     "per second). Not play-tested yet.")
+        self._slider(f, "psy_recover", "Psy recovery", 25, 500, 25, 100, fmt_pct,
+                     "How fast psy damage recovers (vanilla 1 per second). Not "
+                     "play-tested yet.")
+        self._slider(f, "sober", "Sober-up speed", 25, 500, 25, 100, fmt_pct,
+                     "How fast drunkenness wears off (vanilla 1 per second). "
+                     "Not play-tested yet.")
+        self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 25, 100, fmt_pct,
+                     "How many energy drinks Skif takes before overuse and "
+                     "tolerance effects kick in (vanilla overuse 1000, "
+                     "tolerance 2500 points). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Saving (quality of life)")
@@ -3862,6 +4051,24 @@ class App(ctk.CTk):
                     "sniper effect (like 'NoInstaGibByGuards'). Guards are "
                     "meant to be deadly - use at your own risk. Not play-tested "
                     "yet.")
+        self._slider(f, "calm_dmg", "Damage to unaware NPCs", 25, 400, 25, 100, fmt_pct,
+                     "Your hits on NPCs that have not noticed you deal 2.5x in "
+                     "vanilla (a hidden sneak-attack bonus). Not play-tested yet.")
+        self._slider(f, "last_bullet", "Last-bullet damage multiplier", 1, 5, 0.25, 2, fmt_factor,
+                     "A hidden multiplier the game keeps for the last bullet "
+                     "(vanilla 2.0). Honest note: which shot it applies to is "
+                     "not verified - x 1 switches it off. Not play-tested yet.")
+        self._slider(f, "armor_diff", "Armor vs. bullet difference weight", 25, 300, 25, 100, fmt_pct,
+                     "How strongly the gap between armor rating and bullet "
+                     "penetration changes damage (vanilla coefficients 2.0 "
+                     "global, 1.6 projectiles, 1.3 melee). Experimental, not "
+                     "play-tested.")
+        self._slider(f, "deflect_chance", "Armor deflection chance", 0, 100, 1, 93, fmt_pct,
+                     "Chance that armor far above a bullet's class deflects "
+                     "the hit (vanilla 93 %). Experimental, not play-tested.")
+        self._slider(f, "deflect_dmg", "Deflected-hit damage", 0, 300, 25, 100, fmt_pct,
+                     "Damage coefficient of a deflected hit on humans and "
+                     "mutants (vanilla 1.5). Experimental, not play-tested.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("NPCs & AI")
@@ -3901,6 +4108,13 @@ class App(ctk.CTk):
                     "The psy-field effect normally spawns real hostile NPCs; "
                     "this switches it to the harmless phantom variant (like "
                     "'NoPsyStalkerSpawns'). Not play-tested yet.")
+        self._check(f, "npc_no_pickup", "NPCs don't pick up weapons",
+                    "Vanilla NPCs grab weapons from bodies and the ground "
+                    "(better ones by price). Not play-tested yet.")
+        self._slider(f, "corpse_threat", "Bodies alarm NPCs", 0, 400, 25, 100, fmt_pct,
+                     "How long a fresh body counts as a threat sign for NPCs "
+                     "(vanilla 120 s). 0 % = they ignore bodies. Not "
+                     "play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "NPC combat behaviour (experimental)")
@@ -3936,6 +4150,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Stealth: how NPCs notice you (experimental)")
+        self._slider(f, "darkness", "Night darkness for NPC eyes", 0, 200, 10, 100, fmt_pct,
+                     "The base light level NPC eyes assume by time of day "
+                     "(vanilla night 0.2, dawn 0.3, morning 0.6, day 1.0). "
+                     "0 % = pitch black nights for NPCs; only values below 1 "
+                     "scale, capped at 1.0. Experimental, not play-tested.")
         self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 25, 100, fmt_pct,
                      "How much crouching and crawling hide you from eyes AND "
                      "ears (vanilla: crouched you are 25 % less visible and "
@@ -3974,6 +4193,29 @@ class App(ctk.CTk):
                      "Damage within 2 s that makes a human NPC flinch (vanilla "
                      "40; bosses far higher). 25 % = they stagger from almost "
                      "any hit, 400 % = they barely flinch.")
+        self._slider(f, "warn_count", "Weapon-out warnings before guards turn hostile", 1, 10, 1, 3, fmt_int,
+                     "How often guards warn you to holster before they attack "
+                     "(vanilla 3). Not play-tested yet.")
+        self._slider(f, "warn_delay", "Time between weapon-out warnings", 25, 400, 25, 100, fmt_pct,
+                     "Vanilla 10 s between warnings. Not play-tested yet.")
+        self._slider(f, "camper_time", "Camper detection time", 25, 500, 25, 100, fmt_pct,
+                     "How long you may stay in one spot (5 m radius) before "
+                     "NPCs treat you as a camper and flank (vanilla 10 s). Not "
+                     "play-tested yet.")
+        self._slider(f, "npc_hip", "NPC hip-fire accuracy", 0.25, 3, 0.25, 1, fmt_factor,
+                     "The difficulty multiplier for NPC hip fire (vanilla 1.0 "
+                     "everywhere). Direction assumed: higher = more precise. "
+                     "Not play-tested yet.")
+        self._slider(f, "dmg_mercy", "Hidden damage mercy", 0, 300, 25, 100, fmt_pct,
+                     "The game dampens damage you take in quick succession; "
+                     "the curve weights are 0.33-0.75 on Medium, 0.15-0.5 on "
+                     "Hard, 0.12-0.4 on Stalker, 1.0 on Easy. Scaled per "
+                     "difficulty, capped at 1.0. Direction not verified - "
+                     "experimental.")
+        self._slider(f, "psy_phantoms_n", "Psy phantom count (Stalker difficulty)", 25, 400, 25, 100, fmt_pct,
+                     "The Stalker difficulty spawns twice the psy phantoms "
+                     "(multiplier 2.0); other difficulties have no entry. Not "
+                     "play-tested yet.")
         self._slider(f, "npc_attack_cd", "NPC attack cooldown", 25, 400, 25, 100, fmt_pct,
                      "Difficulty multiplier on human NPC attack cooldowns "
                      "(vanilla 1.0 on every difficulty). Effect scope not "
@@ -3983,6 +4225,25 @@ class App(ctk.CTk):
                      "steps (Newbie -> Experienced -> Veteran -> Master): "
                      "deadlier enemies without health sponges. Difficulty "
                      "value, vanilla 0.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Simultaneous attackers (experimental)")
+        ctk.CTkLabel(
+            f, text="   The game hands out attack tokens per difficulty and player "
+                    "rank: only so many enemies may melee, use special "
+                    "abilities, throw grenades or lay suppressive fire at the "
+                    "same time. Ranged shots are unlimited in vanilla. Never "
+                    "below 1. Not play-tested yet.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "sync_melee", "Simultaneous melee attackers", 25, 400, 25, 100, fmt_pct,
+                     "Vanilla 5 on every difficulty.")
+        self._slider(f, "sync_ability", "Simultaneous special attacks", 100, 500, 50, 100, fmt_pct,
+                     "Abilities and knockdowns (vanilla 1 at a time).")
+        self._slider(f, "sync_grenade", "Simultaneous grenade throwers", 100, 500, 50, 100, fmt_pct,
+                     "Vanilla 1 at a time.")
+        self._slider(f, "sync_suppress", "Simultaneous suppressive fire", 25, 400, 25, 100, fmt_pct,
+                     "Vanilla 2 to 5 depending on difficulty and rank.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "NPC flashlights (experimental)")
@@ -4236,13 +4497,6 @@ class App(ctk.CTk):
                      "The per-shot pattern shape is a game asset and keeps "
                      "its direction, only its size follows the slider. Not "
                      "play-tested yet - report back.")
-        self._slider(f, "recoil_upgrades", "Recoil reduction from upgrades", 100, 2000, 100, 100, fmt_pct,
-                     "Multiplies the recoil reduction of weapon upgrades and "
-                     "attachments (vanilla -5 % to -30 %), capped at -100 %. "
-                     "2000 % = any recoil upgrade removes the kick entirely. "
-                     "Only weapons with such an upgrade installed change. "
-                     "Community-proven on patch 2.0 (same route as the "
-                     "'Dead Steady' mod).")
         self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
                      "Scales effective fire distance and damage drop-off "
                      "start/length together.")
@@ -4493,6 +4747,73 @@ class App(ctk.CTk):
         self._ir_build_tree()            # zeigt zunaechst nur den Platzhalter
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        body = self._tab("Upgrades")
+        f = self._section(body, "Upgrade strength (technician upgrades)")
+        ctk.CTkLabel(
+            f, text="   Scales what each installed upgrade does (vanilla mostly "
+                    "+10 to +30 %). Only upgrades you actually install change; "
+                    "penalty parts of an upgrade stay vanilla. Percent bonuses "
+                    "cap at 100 %. Not play-tested yet.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "upg_accuracy", "Accuracy upgrades (spread)", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "recoil_upgrades", "Recoil reduction from upgrades", 100, 2000, 100, 100, fmt_pct,
+                     "Multiplies the recoil reduction of weapon upgrades and "
+                     "attachments (vanilla -5 % to -30 %), capped at -100 %. "
+                     "2000 % = any recoil upgrade removes the kick entirely. "
+                     "Community-proven on patch 2.0 (same route as the "
+                     "'Dead Steady' mod).")
+        self._slider(f, "upg_handling", "Handling upgrades (aim time, ADS move, sway, draw, recovery, capacity)", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_durability", "Durability upgrades (weapons & armor)", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_range", "Range & ballistics upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_damage", "Damage & penetration upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_weight", "Weight reduction upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_breath", "Breath-hold upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_armor_prot", "Armor protection upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_armor_misc", "Armor stamina-regen upgrades", 0, 500, 25, 100, fmt_pct)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Technician upgrade rules")
+        self._check(f, "upgrades_take_both", "Take both of mutually exclusive upgrades",
+                    "Upgrade branches that normally exclude each other (barrel A "
+                    "or barrel B ...) can all be installed. Same idea as the "
+                    "'Take Both Upgrades' Nexus mod. Not play-tested yet.")
+        self._check(f, "upgrades_no_blueprint", "Upgrades need no blueprint",
+                    "Upgrades that normally need a blueprint item become "
+                    "available without it. Technicians still only service the "
+                    "gear they are scripted for. Both boxes above = "
+                    "'Unrestricted Upgrades'.")
+        self._check(f, "upgrades_no_tiers", "No upgrade tiers (skip earlier tiers)",
+                    "Tier 2/3 upgrades no longer require the earlier tier "
+                    "first. All three boxes = 'Unrestricted Upgrades - "
+                    "NoTiers'. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Scopes")
+        self._slider(f, "scope_zoom", "Scope magnification", 25, 200, 25, 100, fmt_pct,
+                     "Scales the zoom of every scope class (vanilla 2x -43 %, "
+                     "3x -51 %, 4x -60 %, 8x -70 % of the FOV; capped at -90 %). "
+                     "Not play-tested yet.")
+        self._slider(f, "scope_penalty", "Scope handling penalties", 0, 200, 10, 100, fmt_pct,
+                     "The aim-time and ADS-movement penalties scopes carry "
+                     "(vanilla +7 to +20 % aim time, -5 to -10 % movement). "
+                     "0 % = none. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Single scope overrides (advanced)")
+        ctk.CTkLabel(
+            f, text="   Open a scope class and set magnification and handling "
+                    "penalties per scope. A scope's own factor REPLACES the two "
+                    "global sliders above for that scope. Collimators and holo "
+                    "sights have no zoom effect; those with an aim-time penalty "
+                    "are listed. The list fills after the game data is loaded. "
+                    "Not play-tested yet.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._scope_box = ctk.CTkFrame(f, fg_color="transparent")
+        self._scope_box.pack(fill="x")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("World")
         f = self._section(body, "World & survival")
         self._slider(f, "anomaly", "Anomaly damage (all types)", 0.1, 5, 0.1, 1, fmt_factor,
@@ -4559,6 +4880,16 @@ class App(ctk.CTk):
         self._slider(f, "weather_dur", "Weather duration", 25, 400, 25, 100, fmt_pct,
                      "How long each weather lasts before the next roll "
                      "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
+        self._slider(f, "item_despawn", "Dropped items stay", 25, 500, 25, 100, fmt_pct,
+                     "How long items lying in the world remain (vanilla 1 h "
+                     "untouched, 3 h otherwise). Not play-tested yet.")
+        self._slider(f, "day_start", "Day starts at", 3, 10, 1, 6, fmt_hours,
+                     "The hour the game counts as day (vanilla 6; dawn 4 "
+                     "moves along if needed). Which systems read these "
+                     "phases is not verified - experimental.")
+        self._slider(f, "evening_start", "Evening starts at", 16, 23, 1, 20, fmt_hours,
+                     "The hour the game counts as evening (vanilla 20). "
+                     "Experimental.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Travel & teleports")
@@ -4605,6 +4936,10 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Loot amount (NPCs, containers, world)")
+        self._slider(f, "container_respawn", "Containers refill after", 0, 168, 6, 0, fmt_hours,
+                     "Respawn time of every container type (vanilla 0 = never). "
+                     "Experimental: in-game hours, could refill world crates and "
+                     "safes. Not play-tested yet.")
         ctk.CTkLabel(
             f, text="   The game's other, much larger loot system: the item "
                     "generators behind dead stalkers and mutants and behind "
@@ -4698,22 +5033,12 @@ class App(ctk.CTk):
         self._slider(f, "price_ammo", "Ammo prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_artifact", "Artifact prices", 0.25, 4, 0.25, 1, fmt_factor)
         self._slider(f, "price_consumable", "Consumable prices", 0.25, 4, 0.25, 1, fmt_factor)
-        ctk.CTkLabel(f, text="", height=2).pack()
-
-        f = self._section(body, "Technician upgrades (weapons & armor)")
-        self._check(f, "upgrades_take_both", "Take both of mutually exclusive upgrades",
-                    "Upgrade branches that normally exclude each other (barrel A "
-                    "or barrel B ...) can all be installed. Same idea as the "
-                    "'Take Both Upgrades' Nexus mod. Not play-tested yet.")
-        self._check(f, "upgrades_no_blueprint", "Upgrades need no blueprint",
-                    "Upgrades that normally need a blueprint item become "
-                    "available without it. Technicians still only service the "
-                    "gear they are scripted for. Both boxes above = "
-                    "'Unrestricted Upgrades'.")
-        self._check(f, "upgrades_no_tiers", "No upgrade tiers (skip earlier tiers)",
-                    "Tier 2/3 upgrades no longer require the earlier tier "
-                    "first. All three boxes = 'Unrestricted Upgrades - "
-                    "NoTiers'. Not play-tested yet.")
+        self._slider(f, "device_price", "Device prices (binoculars, night vision)", 0.25, 4, 0.25, 1, fmt_factor,
+                     "The two remaining per-category price factors. Not "
+                     "play-tested yet.")
+        self._slider(f, "min_resale", "Minimum resale value", 0, 100, 5, 10, fmt_pct,
+                     "Broken gear never sells for less than this share of its "
+                     "price (vanilla 10 %). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Traders")
@@ -4819,6 +5144,9 @@ class App(ctk.CTk):
         self._ia_state = state   # dito fuer den Ammo-Baum
         for row in self.sliders.values():
             row.set_state(state)
+        for rows in self._isc_rows.values():
+            for row in rows.values():
+                row.set_state(state)
         for key, box in self.checks.items():
             locked = key in self._locked_checks
             box.configure(state="disabled" if locked else state)
@@ -4870,6 +5198,7 @@ class App(ctk.CTk):
                     self._refresh_oodle_badge()
                     self._iw_populate()
                     self._ia_populate()
+                    self._isc_populate()
                     self._ir_populate()
                     self._if_populate()
                     self._im_populate()
@@ -5179,6 +5508,57 @@ class App(ctk.CTk):
             skip_intro=bool(self.checks["skip_intro"].get()),
             traders_no_gear_buy=bool(self.checks["traders_no_gear"].get()),
             clicker_factor=s["clicker"].get() / 100.0,
+            # 1.27.0
+            back_speed_factor=s["back_speed"].get() / 100.0,
+            air_control_factor=s["air_control"].get() / 100.0,
+            limp_speed_factor=s["limp"].get() / 100.0,
+            slow_run_threshold_pct=float(s["jog_threshold"].get()),
+            hp_regen_delay=float(s["regen_delay"].get()),
+            radiation_decay_factor=s["rad_decay"].get() / 100.0,
+            bleeding_stop_factor=s["bleed_stop"].get() / 100.0,
+            psy_recovery_factor=s["psy_recover"].get() / 100.0,
+            sober_up_factor=s["sober"].get() / 100.0,
+            stealth_kill_range_factor=s["stealth_kill"].get() / 100.0,
+            wheel_time_pct=float(s["wheel_time"].get()),
+            sleep_fade_factor=s["sleep_fade"].get() / 100.0,
+            corpse_drag_factor=s["corpse_drag"].get() / 100.0,
+            item_despawn_factor=s["item_despawn"].get() / 100.0,
+            day_start_hour=int(s["day_start"].get()),
+            evening_start_hour=int(s["evening_start"].get()),
+            calm_damage_factor=s["calm_dmg"].get() / 100.0,
+            last_bullet_multiplier=float(s["last_bullet"].get()),
+            armor_difference_factor=s["armor_diff"].get() / 100.0,
+            armor_deflect_chance_pct=float(s["deflect_chance"].get()),
+            armor_deflect_damage_factor=s["deflect_dmg"].get() / 100.0,
+            scope_zoom_factor=s["scope_zoom"].get() / 100.0,
+            scope_penalty_factor=s["scope_penalty"].get() / 100.0,
+            upg_accuracy_factor=s["upg_accuracy"].get() / 100.0,
+            upg_handling_factor=s["upg_handling"].get() / 100.0,
+            upg_durability_factor=s["upg_durability"].get() / 100.0,
+            upg_range_factor=s["upg_range"].get() / 100.0,
+            upg_damage_factor=s["upg_damage"].get() / 100.0,
+            upg_weight_factor=s["upg_weight"].get() / 100.0,
+            upg_breath_factor=s["upg_breath"].get() / 100.0,
+            upg_armor_protection_factor=s["upg_armor_prot"].get() / 100.0,
+            upg_armor_misc_factor=s["upg_armor_misc"].get() / 100.0,
+            weapon_warning_count=int(s["warn_count"].get()),
+            weapon_warning_delay_factor=s["warn_delay"].get() / 100.0,
+            camper_time_factor=s["camper_time"].get() / 100.0,
+            sync_melee_factor=s["sync_melee"].get() / 100.0,
+            sync_ability_factor=s["sync_ability"].get() / 100.0,
+            sync_grenade_factor=s["sync_grenade"].get() / 100.0,
+            sync_suppress_factor=s["sync_suppress"].get() / 100.0,
+            npcs_no_weapon_pickup=bool(self.checks["npc_no_pickup"].get()),
+            darkness_factor=s["darkness"].get() / 100.0,
+            corpse_threat_factor=s["corpse_threat"].get() / 100.0,
+            damage_mercy_factor=s["dmg_mercy"].get() / 100.0,
+            psy_phantom_factor=s["psy_phantoms_n"].get() / 100.0,
+            min_resale_pct=float(s["min_resale"].get()),
+            container_respawn_hours=float(s["container_respawn"].get()),
+            energy_tolerance_factor=s["energy_tol"].get() / 100.0,
+            npc_hip_accuracy_factor=s["npc_hip"].get(),
+            device_price_factor=s["device_price"].get(),
+            scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
@@ -6067,6 +6447,7 @@ class App(ctk.CTk):
             box.select()
         self._iw_clear_all()
         self._ia_clear_all()
+        self._isc_clear_all()
         self._ir_clear_all()
         self._if_clear_all()
         self._im_clear_all()
@@ -6086,6 +6467,7 @@ class App(ctk.CTk):
             "weapon_overrides": self.weapon_overrides,
             "weapon_calibers": self.weapon_calibers,
             "ammo_overrides": self.ammo_overrides,
+            "scope_overrides": self.scope_overrides,
             "armor_overrides": self.armor_overrides,
             "mutant_overrides": self.mutant_overrides,
             "faction_relations": self.faction_relations,
@@ -6151,6 +6533,7 @@ class App(ctk.CTk):
         if self.gd is not None:
             self._iw_populate()
             self._ia_populate()
+            self._isc_populate()
             self._ir_populate()
             self._if_populate()
             self._im_populate()
@@ -6241,6 +6624,15 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.mutant_overrides[species] = clean
+        for sid, params in (data.get("scope_overrides") or {}).items():
+            try:
+                clean = {p: float(v) for p, v in params.items()
+                         if p in ("zoom", "penalty") and abs(float(v) - 1.0) > 1e-9
+                         and (p != "zoom" or float(v) > 0)}
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if clean:
+                self.scope_overrides[sid] = clean
         for sid, params in (data.get("ammo_overrides") or {}).items():
             try:
                 clean = {p: float(v) for p, v in params.items()
@@ -6414,6 +6806,7 @@ class App(ctk.CTk):
         if self.gd is not None:
             self._iw_populate()
             self._ia_populate()
+            self._isc_populate()
             self._ir_populate()
             self._if_populate()
             self._im_populate()

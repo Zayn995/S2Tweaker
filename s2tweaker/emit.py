@@ -18,8 +18,15 @@ INDENT = "   "
 
 def _emit_struct(name: str, content: dict, depth: int, lines: list[str]) -> None:
     pad = INDENT * depth
-    lines.append(f"{pad}{name} : struct.begin {{bpatch}}")
+    # "__attrs__" = zusaetzliche Struct-Attribute, z.B. refkey=Basis fuer einen
+    # NEUEN Knoten, der von einem vorhandenen erbt ({refkey=X;bpatch},
+    # sdwvit-Muster; seit 1.27.0 fuer die Pro-Fernrohr-Effekte)
+    attrs = content.get("__attrs__")
+    head = f"{attrs};bpatch" if attrs else "bpatch"
+    lines.append(f"{pad}{name} : struct.begin {{{head}}}")
     for key, value in content.items():
+        if key == "__attrs__":
+            continue
         if isinstance(value, dict):
             _emit_struct(key, value, depth + 1, lines)
         else:

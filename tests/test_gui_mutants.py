@@ -51,7 +51,7 @@ req = round(seg.winfo_reqwidth() / seg._get_widget_scaling())
 assert req <= 860, f"Tab-Leiste {req}px - zu breit fuer das 880-px-Minimum"
 names = list(app.tabs._name_list)
 assert names.index("Mutants") == names.index("NPCs & AI") + 1
-assert names[-1] == "Traders" and len(names) == 13, names
+assert names[-1] == "Traders" and len(names) == 14, names
 print(f"Tab-Leiste: {req}px bei 13 Tabs  OK")
 
 # --- 3) Override setzen -> Patch mit VitalParams-MERGE ------------------

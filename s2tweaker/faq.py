@@ -311,7 +311,7 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
-        "a": "Yes - there is a whole Vaulting tab: seven sliders (max height, trigger "
+        "a": "Yes - there is a whole Vault tab: seven sliders (max height, trigger "
              "distance, approach angle, min obstacle height, landing "
              "tolerance, vault-over thickness and landing distance), "
              "an experimental 'vault while sprinting' toggle, "
@@ -398,7 +398,7 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I install all weapon and armor upgrades at once?",
-        "a": "Economy tab, 'Technician upgrades': three boxes. 'Take both "
+        "a": "'Upgrades' tab, 'Technician upgrade rules': three boxes. 'Take both "
              "of mutually exclusive upgrades' lets you install branches "
              "that normally exclude each other; 'Upgrades need no "
              "blueprint' drops the blueprint item requirement; 'No upgrade "
@@ -489,8 +489,9 @@ FAQ_ENTRIES = [
              "ears, 'Movement noise' the footstep noise of walking, running "
              "and sprinting, 'Bad-weather stealth' how much fog, rain and "
              "thunder blind and deafen NPCs, and 'Flashlight gives you away' "
-             "how strongly your own beam fills their vision. Darkness itself "
-             "is driven by light curves the tool cannot touch - vision and "
+             "how strongly your own beam fills their vision. Since 1.27.0 "
+             "'Night darkness for NPC eyes' scales the base light level NPC "
+             "eyes assume by time of day (vanilla 0.2 at night) - vision and "
              "hearing RANGE have their own sliders further up.",
         "k": "stealth sneak crouch invisible dark night rain fog storm "
              "flashlight noise footsteps hide detection axxii",
@@ -812,6 +813,21 @@ FAQ_ENTRIES = [
              "is in the window title.",
         "k": "update autoupdate upgrade new version release download "
              "github check latest newer patch tool bat updater",
+    },
+    {
+        "q": "Can I make technician upgrades stronger, or tune one scope?",
+        "a": "Yes - the 'Upgrades' tab (1.27.0). Ten sliders scale what "
+             "installed upgrades do, grouped by effect: accuracy, recoil, "
+             "handling, durability, range, damage, weight, breath hold, armor "
+             "protection and stamina regen (vanilla mostly +10 to +30 %). Only "
+             "the bonus half of an upgrade scales; penalty parts and the "
+             "artifact-slot unlocks stay vanilla, percent bonuses cap at 100. "
+             "The same tab holds the technician rules, the scope magnification "
+             "and penalty sliders, and 'Single scope overrides': open a scope "
+             "class, set zoom and penalty factors per scope - an override "
+             "replaces the global sliders for that scope. Not play-tested yet.",
+        "k": "upgrade strength technician stronger weaker scope zoom magnification "
+             "single scope override tab",
     },
     {
         "q": "Can I reload faster or clear jams quicker?",

@@ -553,6 +553,56 @@ class Settings:
     skip_intro: bool = False                 # QuestNode E01_MQ01_PlayVideo Launcher-Verbindung leeren
     traders_no_gear_buy: bool = False        # TradePrototypes BuyLimitations + Weapon/Armor
     clicker_factor: float = 1.0              # AnomalyPrototypes ClickerAnomaly.ParticleMaxCount + Hit-Schaden
+    # --- 1.27.0 (06.09.2026, Schluessel-Sweep; docs/ROADMAP.md 'Fuenfte Datenrecherche') ---
+    back_speed_factor: float = 1.0           # Player.MovementParams *Back*Coef (Deckel 1.0)
+    air_control_factor: float = 1.0          # Player.MovementParams.AirControlCoef (0.1, Deckel 1.0)
+    limp_speed_factor: float = 1.0           # Player.MovementParams.LimpSpeedCoef (0.5, Deckel 1.0)
+    slow_run_threshold_pct: float = 50.0     # CoreVariables SlowRunThreshold (0.5)
+    hp_regen_delay: float = 5.0              # Player.VitalParams.RegenHPDelayTimeSeconds
+    radiation_decay_factor: float = 1.0      # Player.VitalParams.DegenRadiation (0.05)
+    bleeding_stop_factor: float = 1.0        # Player.VitalParams.DegenBleeding (0.3)
+    psy_recovery_factor: float = 1.0         # Player.VitalParams.DegenPsyPoints (1.0)
+    sober_up_factor: float = 1.0             # Player.VitalParams.DegenDrunknessPoints (1)
+    stealth_kill_range_factor: float = 1.0   # Player.StealthKillParams.StealthKillDistance (180)
+    wheel_time_pct: float = 30.0             # CoreVariables ItemSelectorTimeDilationCoefficient (0.3)
+    sleep_fade_factor: float = 1.0           # CoreVariables PlayerBedFadeToBlackTime/BlackScreenTime (1.5/3.5)
+    corpse_drag_factor: float = 1.0          # CoreVariables DraggingCorpseSpeedCoef (0.6, Deckel 1.0)
+    item_despawn_factor: float = 1.0         # CoreVariables Untouched/DespawnItemTime (3600/10800 s)
+    day_start_hour: int = 6                  # CoreVariables DayStartTime (Dawn rutscht mit)
+    evening_start_hour: int = 20             # CoreVariables EveningStartTime
+    calm_damage_factor: float = 1.0          # CoreVariables CalmDamageFromPlayerCoef (2.5)
+    last_bullet_multiplier: float = 2.0      # CoreVariables LastBulletBaseDamageMultiplier
+    armor_difference_factor: float = 1.0     # CoreVariables ArmorDifferenceCoef (2) + Player *ArmorDifferenceCoef*
+    armor_deflect_chance_pct: float = 93.0   # CoreVariables ArmorDeflectMin/MaxChance (0.93)
+    armor_deflect_damage_factor: float = 1.0 # CoreVariables ArmorDeflectDamageCoefHuman/Mutant (1.5)
+    scope_zoom_factor: float = 1.0           # EffectPrototypes AimingFOVX2/X3/X4/X8Effect (-43..-70 %, Deckel -90)
+    scope_penalty_factor: float = 1.0        # EffectPrototypes ScopeAimingTimeNeg*/ScopeAimingMovementNeg*
+    upg_accuracy_factor: float = 1.0         # Upgrade-Effekte: Streuung
+    upg_handling_factor: float = 1.0         # Upgrade-Effekte: Zielzeit, ADS-Tempo, Sway, Ziehen, Schusserholung, Kapazitaet
+    upg_durability_factor: float = 1.0       # Upgrade-Effekte: Haltbarkeit (Waffe + Ruestung)
+    upg_range_factor: float = 1.0            # Upgrade-Effekte: Reichweite, Abfall, Geschosstempo
+    upg_damage_factor: float = 1.0           # Upgrade-Effekte: Schaden, Durchschlag, Deckungsdurchschlag
+    upg_weight_factor: float = 1.0           # Upgrade-Effekte: Gewicht (Waffe + Ruestung)
+    upg_breath_factor: float = 1.0           # Upgrade-Effekte: Atem anhalten
+    upg_armor_protection_factor: float = 1.0 # Upgrade-Effekte: Ruestungsschutz je Art (Deckel 100 %)
+    upg_armor_misc_factor: float = 1.0       # Upgrade-Effekte: Ausdauer-Regeneration der Ruestungen
+    weapon_warning_count: int = 3            # Player.HideWeaponWarning.WarningAttemptsBeforeAlert
+    weapon_warning_delay_factor: float = 1.0 # Player.HideWeaponWarning.BarkDelay (10)
+    camper_time_factor: float = 1.0          # Player.CamperFeatureData.TimeToAssumeAsCamper (10)
+    sync_melee_factor: float = 1.0           # CombatSynchronization: Nahkampf-Token (MaxScore)
+    sync_ability_factor: float = 1.0         # CombatSynchronization: Faehigkeiten/Knockdown-Token
+    sync_grenade_factor: float = 1.0         # CombatSynchronization: Granatenwuerfe-Token
+    sync_suppress_factor: float = 1.0        # CombatSynchronization: Sperrfeuer-Token
+    npcs_no_weapon_pickup: bool = False      # AIGlobals AllowWeaponPickupWhenLooting/BasedOnPrice -> false
+    darkness_factor: float = 1.0             # AIGlobals TimeOfDayBaseLuminance (Nacht 0.2 ...), Deckel 1.0
+    corpse_threat_factor: float = 1.0        # AIGlobals DeadBodyToConsiderAsThreatDuration (120)
+    damage_mercy_factor: float = 1.0         # Difficulty AccumulatedDamageReductionCurveWeightMin/Max (Deckel 1)
+    psy_phantom_factor: float = 1.0          # Difficulty PsyPhantomNPCOverrides[*].PsyPhantomNPCCountMultiplier
+    min_resale_pct: float = 10.0             # CoreVariables ItemCostMinPercent (0.1)
+    container_respawn_hours: float = 0.0     # ItemContainerPrototypes RespawnTimeSeconds (0 = nie)
+    energy_tolerance_factor: float = 1.0     # CoreVariables VitalMaxEnergeticOveruse/Tolerance (1000/2500)
+    npc_hip_accuracy_factor: float = 1.0     # Difficulty NPCCombatDifficulty.HipAccuracyMultiplier
+    device_price_factor: float = 1.0         # Difficulty EconomyDifficulty Binoculars_Cost/NightVisionGoggles_Cost
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -574,6 +624,9 @@ class Settings:
     weapon_calibers: dict = field(default_factory=dict)
     # Einzelruestungs-Overrides: {Item-SID: {strike/burn/...: faktor}}
     armor_overrides: dict = field(default_factory=dict)
+    # Einzel-Zielfernrohr-Overrides (1.27.0): {Item-SID: {zoom/penalty: faktor}};
+    # ein Eintrag ERSETZT die globalen Scope-Regler fuer dieses Fernrohr.
+    scope_overrides: dict = field(default_factory=dict)
 
     # --- Welt & Survival ---
     anomaly_damage_factor: float = 1.0
@@ -653,7 +706,10 @@ class Settings:
 
 
 def _num(x: float) -> str:
-    return fmt_float(round(x, 4))
+    x = round(x, 4)
+    if x == 0:
+        x = 0.0          # nie '-0.0' (Faktor 0 auf negative Werte)
+    return fmt_float(x)
 
 
 def _neq(a: float, b: float) -> bool:
@@ -749,6 +805,35 @@ PROTECTION_CAP_TYPES = {"ProtectionStrike": False, "ProtectionBurn": True,
                         "ProtectionPSY": True, "ProtectionRadiation": True}
 FAST_TRAVEL_LOCKS = {0: "EOverweightLock::NoLock", 1: "EOverweightLock::Partial",
                      2: "EOverweightLock::Full"}
+# 1.27.0: Upgrade-Effektfamilien (Effekt-Typ -> Regler, Richtung). "neg" = der
+# Bonus steht als negative Zahl (-20 % Streuung), "pos" = als positive
+# (+15 % Haltbarkeit). Gegenteilige Vorzeichen sind Malus-Effekte
+# (RecoilNeg20, DurabilityPerShotNeg20) und bleiben unangetastet.
+UPGRADE_FAMILIES = {
+    "upg_accuracy_factor": {"Dispersion": "neg", "DispersionMaxRadiusExtension": "neg",
+                            "DispersionPerIterationRadiusExtension": "neg"},
+    "upg_handling_factor": {"AimingTime": "neg", "AimingMovementSpeed": "pos",
+                            "IdleSwayXModifier": "neg", "IdleSwayYModifier": "neg",
+                            "ShowEquipmentTime": "pos", "HideEquipmentTime": "pos",
+                            "RecoilRadiusNormalizationInterval": "neg", "AmmoCapacity": "pos"},
+    "upg_durability_factor": {"MaxDurability": "pos", "DurabilityDamagePerShot": "neg"},
+    "upg_range_factor": {"EffectiveFireDistance": "pos", "BulletDropLength": "pos",
+                         "MinBulletDistanceDamage": "pos", "BulletSpeedSlowdown": "neg"},
+    "upg_damage_factor": {"BaseDamage": "pos", "ArmorPiercing": "pos", "CoverPiercing": "pos"},
+    "upg_weight_factor": {"WeaponItemWeight": "neg", "ArmorItemWeight": "neg"},
+    "upg_breath_factor": {"HoldBreathDrain": "neg"},
+    "upg_armor_protection_factor": {"ProtectionStrike": "pos", "ProtectionBurn": "pos",
+                                    "ProtectionShock": "pos", "ProtectionChemical": "pos",
+                                    "ProtectionPSY": "pos", "ProtectionRadiation": "pos"},
+    "upg_armor_misc_factor": {"RegenStamina": "pos"},
+}
+BACK_SPEED_KEYS = ("WalkBackCoef", "RunBackCoef", "MoveBackCrouchCoef",
+                   "MoveBackLowCrouchCoef", "RunDiagonalBackCoef", "WalkDiagonalBackCoef")
+SYNC_GROUPS = {"sync_melee_factor": ("TokenTag.Melee",),
+               "sync_ability_factor": ("TokenTag.Ability", "TokenTag.Ability.Knockdown"),
+               "sync_grenade_factor": ("TokenTag.CombatAction.ThrowGrenade",
+                                       "TokenTag.CombatAction.Special.ThrowGrenade"),
+               "sync_suppress_factor": ("TokenTag.CombatAction.SuppressiveFire",)}
 
 
 # ------------------------------------------------------------------ features
@@ -771,6 +856,21 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if _neq(s.sleepiness_rate_factor, 1.0):
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "VitalParams.RegenSleepinessPoints"), 0.01)
         vital["RegenSleepinessPoints"] = _num(vanilla * s.sleepiness_rate_factor)
+
+    # 1.27.0: Regen-Verzoegerung (absolut) und die vier Erholungs-Raten
+    live_delay = parse_number(gd.resolve(gd.obj, "Player", "VitalParams.RegenHPDelayTimeSeconds"), -1.0)
+    if live_delay >= 0 and _neq(float(s.hp_regen_delay), live_delay):
+        vital["RegenHPDelayTimeSeconds"] = _num(max(0.0, float(s.hp_regen_delay)))
+    for key, factor in (("DegenRadiation", s.radiation_decay_factor),
+                        ("DegenBleeding", s.bleeding_stop_factor),
+                        ("DegenPsyPoints", s.psy_recovery_factor),
+                        ("DegenDrunknessPoints", s.sober_up_factor)):
+        if _neq(factor, 1.0) and factor >= 0:
+            raw = gd.resolve(gd.obj, "Player", f"VitalParams.{key}")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None:
+                    vital[key] = scaled
 
     player: dict = {}
     if vital:
@@ -864,6 +964,19 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                               "VaultingParams.StartWithSprintPressed") or "")
         if current.strip().rstrip(";").strip().lower() != "true":
             vault["StartWithSprintPressed"] = "true"
+    # 1.27.0: rueckwaerts/seitwaerts, Luftkontrolle, Humpeln (Deckel 1.0 =
+    # nie schneller als vorwaerts)
+    for keys, factor in ((BACK_SPEED_KEYS, s.back_speed_factor),
+                         (("AirControlCoef",), s.air_control_factor),
+                         (("LimpSpeedCoef",), s.limp_speed_factor)):
+        if not (_neq(factor, 1.0) and factor > 0):
+            continue
+        for key in keys:
+            vanilla = parse_number(gd.resolve(gd.obj, "Player", f"MovementParams.{key}"))
+            if vanilla > 0:
+                new = min(1.0, vanilla * factor)
+                if _neq(new, vanilla):
+                    movement[key] = _num(new)
     if movement:
         player["MovementParams"] = movement
 
@@ -909,6 +1022,35 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 player["ProcessCorpseObjectFeatureData"] = {
                     "CorpseInteractionDistance": scaled}
+
+    # 1.27.0: Stealth-Kill-Reichweite, Waffe-weg-Warnungen, Camper-Erkennung,
+    # Ruestung-gegen-Kugel-Gewichtung des Spielers
+    if _neq(s.stealth_kill_range_factor, 1.0) and s.stealth_kill_range_factor > 0:
+        raw = gd.resolve(gd.obj, "Player", "StealthKillParams.StealthKillDistance")
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, s.stealth_kill_range_factor)
+            if scaled is not None:
+                player["StealthKillParams"] = {"StealthKillDistance": scaled}
+    warning: dict = {}
+    live_count = parse_number(gd.resolve(gd.obj, "Player", "HideWeaponWarning.WarningAttemptsBeforeAlert"), -1.0)
+    if live_count >= 0 and int(s.weapon_warning_count) != int(live_count):
+        warning["WarningAttemptsBeforeAlert"] = str(max(1, int(s.weapon_warning_count)))
+    if _neq(s.weapon_warning_delay_factor, 1.0) and s.weapon_warning_delay_factor > 0:
+        raw = gd.resolve(gd.obj, "Player", "HideWeaponWarning.BarkDelay")
+        if raw is not None and parse_number(raw) > 0:
+            warning["BarkDelay"] = _num(parse_number(raw) * s.weapon_warning_delay_factor)
+    if warning:
+        player["HideWeaponWarning"] = warning
+    if _neq(s.camper_time_factor, 1.0) and s.camper_time_factor > 0:
+        raw = gd.resolve(gd.obj, "Player", "CamperFeatureData.TimeToAssumeAsCamper")
+        if raw is not None and parse_number(raw) > 0:
+            player["CamperFeatureData"] = {
+                "TimeToAssumeAsCamper": _num(parse_number(raw) * s.camper_time_factor)}
+    if _neq(s.armor_difference_factor, 1.0) and s.armor_difference_factor > 0:
+        for key in ("ArmorDifferenceCoefProjectiles", "ArmorDifferenceCoefMeleeAttacks"):
+            raw = gd.resolve(gd.obj, "Player", key)
+            if raw is not None and parse_number(raw) > 0:
+                player[key] = _num(parse_number(raw) * s.armor_difference_factor)
 
     # 1.26.0: nicht umwerfbar (sdwvit CantBeKnockedDown) und kein
     # Schleichgang im Wasser (sdwvit NoSluggishWater: die Kurven-Effekte der
@@ -1430,6 +1572,35 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
                 threats[key] = _num(vanilla * s.npc_reaction_factor)
         if threats:
             settings["ThreatsSettings"] = threats
+
+    # 1.27.0: Waffen aufheben, Leichen als Bedrohung, Dunkelheit fuer NPC-Augen
+    if s.npcs_no_weapon_pickup:
+        for key in ("AllowWeaponPickupWhenLooting", "AllowWeaponPickupBasedOnPrice"):
+            if _bool_literal(root.values.get(key)) is not False:
+                settings[key] = "false"
+    if _neq(s.corpse_threat_factor, 1.0) and s.corpse_threat_factor >= 0:
+        raw = root.values.get("DeadBodyToConsiderAsThreatDuration")
+        if raw is not None and parse_number(raw) > 0:
+            settings["DeadBodyToConsiderAsThreatDuration"] = _num(parse_number(raw) * s.corpse_threat_factor)
+    if _neq(s.darkness_factor, 1.0) and s.darkness_factor >= 0:
+        lum = root.children.get("LuminanceSettings")
+        env = lum.children.get("EnvironmentLuminanceCoefficients") if lum is not None else None
+        table = env.children.get("TimeOfDayBaseLuminance") if env is not None else None
+        if table is not None:
+            # die Eintraege stehen in Vanilla als [*] (Auto-Index): in
+            # Reihenfolge als [0], [1], ... ansprechen; nur Werte < 1 skalieren
+            rows: dict = {}
+            for idx, entry in enumerate(table.children.values()):
+                raw = entry.values.get("Luminance")
+                value = parse_number(raw)
+                if raw is None or value <= 0 or value >= 1.0:
+                    continue
+                new = min(1.0, value * s.darkness_factor)
+                if _neq(new, value):
+                    rows[f"[{idx}]"] = {"Luminance": _num(new) + "f"}
+            if rows:
+                settings["LuminanceSettings"] = {"EnvironmentLuminanceCoefficients": {
+                    "TimeOfDayBaseLuminance": rows}}
 
     if _neq(s.max_agents_factor, 1.0):
         vanilla = parse_number(root.values.get("MaxAgentsCount"), 52.0)
@@ -2108,6 +2279,43 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("EconomyDifficulty", "Ammo_Cost", s.ammo_price_factor)
     apply("EconomyDifficulty", "Artifact_Cost", s.artifact_price_factor)
     apply("EconomyDifficulty", "Consumable_Cost", s.consumable_price_factor)
+    # 1.27.0
+    apply("NPCCombatDifficulty", "HipAccuracyMultiplier", s.npc_hip_accuracy_factor)
+    apply("EconomyDifficulty", "Binoculars_Cost", s.device_price_factor)
+    apply("EconomyDifficulty", "NightVisionGoggles_Cost", s.device_price_factor)
+    if _neq(s.damage_mercy_factor, 1.0) and s.damage_mercy_factor >= 0:
+        # nur selbst definierte Werte, Deckel 1.0 (Easy/Custom stehen schon auf 1)
+        for sid, node in gd.difficulty.children.items():
+            if sid == "[0]" or "#" in sid:
+                continue
+            combat = node.children.get("NPCCombatDifficulty")
+            if combat is None:
+                continue
+            for key in ("AccumulatedDamageReductionCurveWeightMin",
+                        "AccumulatedDamageReductionCurveWeightMax"):
+                raw = combat.values.get(key)
+                value = parse_number(raw)
+                if raw is None or value <= 0:
+                    continue
+                new = min(1.0, value * s.damage_mercy_factor)
+                if _neq(new, value):
+                    patches.setdefault(sid, {}).setdefault("NPCCombatDifficulty", {})[key] = _num(new)
+    if _neq(s.psy_phantom_factor, 1.0) and s.psy_phantom_factor >= 0:
+        for sid, node in gd.difficulty.children.items():
+            if sid == "[0]" or "#" in sid:
+                continue
+            combat = node.children.get("NPCCombatDifficulty")
+            overrides = combat.children.get("PsyPhantomNPCOverrides") if combat is not None else None
+            if overrides is None:
+                continue
+            rows: dict = {}
+            for idx, entry in overrides.children.items():
+                raw = entry.values.get("PsyPhantomNPCCountMultiplier")
+                if raw is not None and parse_number(raw) > 0:
+                    rows[idx] = {"PsyPhantomNPCCountMultiplier": _num(parse_number(raw) * s.psy_phantom_factor)}
+            if rows:
+                patches.setdefault(sid, {}).setdefault("NPCCombatDifficulty", {})[
+                    "PsyPhantomNPCOverrides"] = rows
     return patches
 
 
@@ -2862,6 +3070,63 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             live = gd.corevar(key, 0.0)
             if live > 0:
                 cfg[key] = _num(live * s.alife_vision_factor)
+
+    # 1.27.0 (Schluessel-Sweep): Absolutwerte werden live verglichen,
+    # Faktoren ueber _scale_literal (Suffix f bleibt).
+    node = gd.corevars.children.get("DefaultConfig")
+    raw_of = (lambda key: node.values.get(key) if node is not None else None)
+    live = gd.corevar("SlowRunThreshold", -1.0)
+    if live >= 0 and _neq(s.slow_run_threshold_pct / 100.0, live):
+        cfg["SlowRunThreshold"] = _num(max(0.0, min(1.0, s.slow_run_threshold_pct / 100.0))) + "f"
+    live = gd.corevar("ItemSelectorTimeDilationCoefficient", -1.0)
+    if live >= 0 and _neq(s.wheel_time_pct / 100.0, live):
+        cfg["ItemSelectorTimeDilationCoefficient"] = _num(max(0.05, min(1.0, s.wheel_time_pct / 100.0)))
+    for keys, factor, cap in ((("PlayerBedFadeToBlackTime", "PlayerBedBlackScreenTime"), s.sleep_fade_factor, None),
+                              (("UntouchedDespawnItemTime", "DespawnItemTime"), s.item_despawn_factor, None),
+                              (("VitalMaxEnergeticOveruse", "VitalMaxEnergeticTolerance"), s.energy_tolerance_factor, None),
+                              (("ArmorDifferenceCoef",), s.armor_difference_factor, None),
+                              (("ArmorDeflectDamageCoefHuman", "ArmorDeflectDamageCoefMutant"), s.armor_deflect_damage_factor, None),
+                              (("CalmDamageFromPlayerCoef",), s.calm_damage_factor, None),
+                              (("DraggingCorpseSpeedCoef",), s.corpse_drag_factor, 1.0)):
+        if not (_neq(factor, 1.0) and factor >= 0):
+            continue
+        for key in keys:
+            raw = raw_of(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            if cap is not None:
+                new = min(cap, parse_number(raw) * factor)
+                if _neq(new, parse_number(raw)):
+                    cfg[key] = _num(new)
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None:
+                cfg[key] = scaled
+    live = gd.corevar("LastBulletBaseDamageMultiplier", -1.0)
+    if live >= 0 and _neq(float(s.last_bullet_multiplier), live):
+        cfg["LastBulletBaseDamageMultiplier"] = _num(max(0.0, float(s.last_bullet_multiplier)))
+    live = gd.corevar("ArmorDeflectMinChance", -1.0)
+    if live >= 0 and _neq(s.armor_deflect_chance_pct / 100.0, live):
+        chance = _num(max(0.0, min(1.0, s.armor_deflect_chance_pct / 100.0)))
+        cfg["ArmorDeflectMinChance"] = chance
+        cfg["ArmorDeflectMaxChance"] = chance
+    live = gd.corevar("ItemCostMinPercent", -1.0)
+    if live >= 0 and _neq(s.min_resale_pct / 100.0, live):
+        cfg["ItemCostMinPercent"] = _num(max(0.0, min(1.0, s.min_resale_pct / 100.0)))
+    live_day = gd.corevar("DayStartTime", -1.0)
+    if live_day >= 0 and int(s.day_start_hour) != int(live_day):
+        cfg["DayStartTime"] = _num(int(s.day_start_hour))
+        dawn = gd.corevar("DawnStartTime", -1.0)
+        if dawn >= 0 and int(s.day_start_hour) <= int(dawn):
+            cfg["DawnStartTime"] = _num(max(0, int(s.day_start_hour) - 1))
+    live_eve = gd.corevar("EveningStartTime", -1.0)
+    if live_eve >= 0 and int(s.evening_start_hour) != int(live_eve):
+        cfg["EveningStartTime"] = _num(int(s.evening_start_hour))
+    if s.instant_teleports:
+        for key in ("GenericTeleportScreenShowDelay", "GenericTeleportScreenHideDelay"):
+            raw = raw_of(key)
+            if raw is not None and parse_number(raw) > 0:
+                cfg[key] = "0.f"
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -3772,6 +4037,218 @@ def _anomaly_patch(gd: GameData, s: Settings) -> dict:
     return {"ClickerAnomaly": {"ParticleMaxCount": str(new)}}
 
 
+# ------------------------------------------------------------ 1.27.0
+
+def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
+    """Staerke der Techniker-Upgrades: alle Effekte, die UpgradePrototypes
+    referenzieren, nach Effekt-Typ in Familien (UPGRADE_FAMILIES) - je Familie
+    ein Regler. Nur die Bonus-Richtung wird skaliert (Malus-Effekte wie
+    RecoilNeg20 bleiben), Prozent-Boni deckeln bei -100 bzw. Schutz bei 100."""
+    factors = {fam: getattr(s, fam) for fam in UPGRADE_FAMILIES}
+    if not any(_neq(f, 1.0) and f >= 0 for f in factors.values()):
+        return {}
+    by_type: dict[str, tuple[str, str]] = {}
+    for fam, types in UPGRADE_FAMILIES.items():
+        for typ, direction in types.items():
+            by_type[typ] = (fam, direction)
+    refs: set[str] = set()
+    for node in gd.upgrades.children.values():
+        sids = node.children.get("EffectPrototypeSIDs")
+        if sids is not None:
+            refs.update(v.strip() for v in sids.values.values())
+    patches: dict = {}
+    for sid in sorted(refs):
+        node = gd.effects.children.get(sid)
+        if node is None:
+            continue
+        typ = (node.values.get("Type") or "").replace("EEffectType::", "").strip()
+        if typ not in by_type:
+            continue
+        fam, direction = by_type[typ]
+        factor = factors[fam]
+        if not (_neq(factor, 1.0) and factor >= 0):      # 0 = Upgrades wirken nicht
+            continue
+        cfg: dict = {}
+        for key in ("ValueMin", "ValueMax"):
+            raw = node.values.get(key)
+            if raw is None:
+                continue
+            core = raw.strip()
+            suffix = "%" if core.endswith("%") else ("f" if core.endswith(("f", "F")) else "")
+            number = core[:-1] if suffix else core
+            try:
+                value = float(number.rstrip(".") or "0")
+            except ValueError:
+                continue
+            if (direction == "neg" and value >= 0) or (direction == "pos" and value <= 0):
+                continue
+            new = value * factor
+            if suffix == "%":
+                if direction == "neg":
+                    new = max(-100.0, new)
+                elif typ.startswith("Protection"):
+                    new = min(100.0, new)
+            if not _neq(new, value):
+                continue
+            cfg[key] = _num(new) + suffix
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _scope_patch(gd: GameData, s: Settings) -> dict:
+    """Zielfernrohre (EffectPrototypes): Vergroesserung AimingFOVX2..X8
+    (-43..-70 %, Deckel -90) und die Nachteile ScopeAimingTimeNeg* /
+    ScopeAimingMovementNeg* (0 = keine)."""
+    zoom_on = _neq(s.scope_zoom_factor, 1.0) and s.scope_zoom_factor > 0
+    pen_on = _neq(s.scope_penalty_factor, 1.0) and s.scope_penalty_factor >= 0
+    if not (zoom_on or pen_on):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.effects.children.items()):
+        if "#" in sid:
+            continue
+        is_zoom = sid.startswith("AimingFOVX") and sid.endswith("Effect")
+        is_pen = sid.startswith(("ScopeAimingTimeNeg", "ScopeAimingMovementNeg"))
+        if not ((zoom_on and is_zoom) or (pen_on and is_pen)):
+            continue
+        factor = s.scope_zoom_factor if is_zoom else s.scope_penalty_factor
+        cfg: dict = {}
+        for key in ("ValueMin", "ValueMax"):
+            raw = node.values.get(key)
+            if raw is None or not raw.strip().endswith("%"):
+                continue
+            try:
+                value = float(raw.strip()[:-1])
+            except ValueError:
+                continue
+            new = value * factor
+            if is_zoom:
+                new = max(-90.0, new)
+            if _neq(new, value):
+                cfg[key] = _num(new) + "%"
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _scope_override_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
+    """Pro-Fernrohr (1.27.0): fuer jedes Fernrohr mit Override einen abgeleiteten
+    Effekt S2T_<Scope>_<Effekt> {refkey=<Effekt>;bpatch} mit Vanilla x Faktor
+    anlegen (Zoom-Deckel -90 %) und die komplette EffectPrototypeSIDs-Liste des
+    Items mit den ersetzten Eintraegen ausgeben (jedes Scope-Item definiert
+    die Liste in Vanilla selbst). Liefert (Effekt-Patches, Item-Patches)."""
+    if not s.scope_overrides:
+        return {}, {}
+    table = gd.scope_effects()
+    effects: dict = {}
+    items: dict = {}
+    for sid, params in sorted(s.scope_overrides.items()):
+        if sid not in table or not isinstance(params, dict):
+            continue
+        zoom_sid, pen_sids = table[sid]
+        replacements: dict[str, str] = {}
+
+        def derive(orig: str, factor: float, floor: float | None) -> str | None:
+            node = gd.effects.children.get(orig)
+            if node is None:
+                return None
+            cfg: dict = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None or not raw.strip().endswith("%"):
+                    continue
+                try:
+                    value = float(raw.strip()[:-1])
+                except ValueError:
+                    continue
+                new = value * factor
+                if floor is not None:
+                    new = max(floor, new)
+                cfg[key] = _num(new) + "%"
+            if not cfg:
+                return None
+            new_sid = f"S2T_{sid}_{orig}"
+            effects[new_sid] = {"__attrs__": f"refkey={orig}", **cfg}
+            return new_sid
+
+        zoom_f = params.get("zoom")
+        if zoom_sid and zoom_f is not None and _neq(zoom_f, 1.0) and zoom_f > 0:
+            new = derive(zoom_sid, float(zoom_f), -90.0)
+            if new:
+                replacements[zoom_sid] = new
+        pen_f = params.get("penalty")
+        if pen_sids and pen_f is not None and _neq(pen_f, 1.0) and pen_f >= 0:
+            for orig in pen_sids:
+                new = derive(orig, float(pen_f), None)
+                if new:
+                    replacements[orig] = new
+        if not replacements:
+            continue
+        entries = gd.scope_effect_list(sid)
+        if not entries:
+            continue
+        items[sid] = {"EffectPrototypeSIDs": {idx: replacements.get(v, v) for idx, v in entries.items()}}
+    return effects, items
+
+
+def _combat_sync_patch(gd: GameData, s: Settings) -> dict:
+    """CombatSynchronizationPrototypes: Token-Budgets (MaxScore) je Grad und
+    Spielerrang - wie viele Gegner gleichzeitig im Nahkampf angreifen,
+    Faehigkeiten einsetzen, Granaten werfen oder Sperrfeuer geben."""
+    factors = {fam: getattr(s, fam) for fam in SYNC_GROUPS}
+    if not any(_neq(f, 1.0) and f > 0 for f in factors.values()):
+        return {}
+    by_tag = {tag: fam for fam, tags in SYNC_GROUPS.items() for tag in tags}
+    patches: dict = {}
+    for sid, node in sorted(gd.combatsync.children.items()):
+        if "#" in sid:
+            continue
+        for rank, rank_node in node.children.items():
+            groups = rank_node.children.get("FilterGroups")
+            if groups is None:
+                continue
+            rows: dict = {}
+            for idx, group in groups.children.items():
+                tags = group.children.get("AllowedTags")
+                tag = (tags.values.get("[0]") or "").strip() if tags is not None else ""
+                fam = by_tag.get(tag)
+                if fam is None:
+                    continue
+                factor = factors[fam]
+                if not (_neq(factor, 1.0) and factor > 0):
+                    continue
+                raw = group.values.get("MaxScore")
+                value = parse_number(raw)
+                if raw is None or value <= 0 or value >= 1000:
+                    continue
+                new = max(1, int(round(value * factor)))
+                if new != int(value):
+                    rows[idx] = {"MaxScore": f"{new}.f"}
+            if rows:
+                patches.setdefault(sid, {})[rank] = {"FilterGroups": rows}
+    return patches
+
+
+def _container_patch(gd: GameData, s: Settings) -> dict:
+    """ItemContainerPrototypes: RespawnTimeSeconds (Vanilla 0 = nie) auf
+    Stunden x 3600 - Behaelter fuellen sich wieder (experimentell)."""
+    hours = float(s.container_respawn_hours)
+    if hours <= 0:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.containers.children.items()):
+        if sid == "[0]" or "#" in sid:
+            continue
+        raw = node.values.get("RespawnTimeSeconds")
+        if raw is None:
+            continue
+        seconds = int(round(hours * 3600))
+        if seconds != int(parse_number(raw)):
+            patches[sid] = {"RespawnTimeSeconds": str(seconds)}
+    return patches
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -3836,7 +4313,16 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _weight_params_patch(gd, s))
     add(f"ObjEffectMaxParamsPrototypes/ObjEffectMaxParamsPrototypes_patch_{n}.cfg",
         _effect_max_patch(gd, s))
-    add(f"EffectPrototypes/EffectPrototypes_patch_{n}.cfg", _effects_patch(gd, s))
+    effect_patches = _effects_patch(gd, s)
+    _merge_nested(effect_patches, _upgrade_strength_patch(gd, s))
+    _merge_nested(effect_patches, _scope_patch(gd, s))
+    scope_effects, scope_items = _scope_override_patch(gd, s)
+    _merge_nested(effect_patches, scope_effects)
+    add(f"EffectPrototypes/EffectPrototypes_patch_{n}.cfg", effect_patches)
+    add(f"CombatSynchronizationPrototypes/CombatSynchronizationPrototypes_patch_{n}.cfg",
+        _combat_sync_patch(gd, s))
+    add(f"ItemContainerPrototypes/ItemContainerPrototypes_patch_{n}.cfg",
+        _container_patch(gd, s))
     add(f"ExplosionPrototypes/ExplosionPrototypes_patch_{n}.cfg",
         _explosion_patch(gd, s))
     add(f"PostEffectProcessorPrototypes/PostEffectProcessorPrototypes_patch_{n}.cfg",
@@ -3889,6 +4375,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
     items_patches, items_dlc = _items_patch(gd, s)
     _merge_nested(items_patches, _weird_artifact_patch(gd, s))
+    _merge_nested(items_patches, scope_items)
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", items_patches)
     for edition, ed_patches in sorted(items_dlc.items()):
         add(f"//GameLite/DLCGameData/{edition}/ItemPrototypes/"
@@ -4136,6 +4623,70 @@ def summarize(s: Settings) -> list[str]:
     if s.traders_no_gear_buy:
         lines.append("Traders don't buy weapons or armor")
     f("Clicker anomaly strength", s.clicker_factor)
+    # 1.27.0
+    f("Backward/sideways speed", s.back_speed_factor)
+    f("Air control", s.air_control_factor)
+    f("Limping speed", s.limp_speed_factor)
+    if _neq(s.slow_run_threshold_pct, 50.0):
+        lines.append(f"Jog below {s.slow_run_threshold_pct:g} % stamina (vanilla 50)")
+    if _neq(s.hp_regen_delay, 5.0):
+        lines.append(f"Health regen delay {s.hp_regen_delay:g} s (vanilla 5)")
+    f("Radiation decay", s.radiation_decay_factor)
+    f("Bleeding stops by itself", s.bleeding_stop_factor)
+    f("Psy recovery", s.psy_recovery_factor)
+    f("Sober-up speed", s.sober_up_factor)
+    f("Stealth kill reach", s.stealth_kill_range_factor)
+    if _neq(s.wheel_time_pct, 30.0):
+        lines.append(f"Quick wheel time speed {s.wheel_time_pct:g} % (vanilla 30)")
+    f("Sleep fade time", s.sleep_fade_factor)
+    f("Corpse dragging speed", s.corpse_drag_factor)
+    f("Dropped items stay", s.item_despawn_factor)
+    if int(s.day_start_hour) != 6:
+        lines.append(f"Day starts at {int(s.day_start_hour)}:00 (vanilla 6)")
+    if int(s.evening_start_hour) != 20:
+        lines.append(f"Evening starts at {int(s.evening_start_hour)}:00 (vanilla 20)")
+    f("Damage to unaware NPCs", s.calm_damage_factor)
+    if _neq(s.last_bullet_multiplier, 2.0):
+        lines.append(f"Last-bullet damage multiplier {s.last_bullet_multiplier:g} (vanilla 2)")
+    f("Armor vs. bullet difference weight", s.armor_difference_factor)
+    if _neq(s.armor_deflect_chance_pct, 93.0):
+        lines.append(f"Armor deflection chance {s.armor_deflect_chance_pct:g} % (vanilla 93)")
+    f("Deflected-hit damage", s.armor_deflect_damage_factor)
+    f("Scope magnification", s.scope_zoom_factor)
+    f("Scope handling penalties", s.scope_penalty_factor)
+    f("Upgrades: accuracy", s.upg_accuracy_factor)
+    f("Upgrades: handling", s.upg_handling_factor)
+    f("Upgrades: durability", s.upg_durability_factor)
+    f("Upgrades: range & ballistics", s.upg_range_factor)
+    f("Upgrades: damage & penetration", s.upg_damage_factor)
+    f("Upgrades: weight", s.upg_weight_factor)
+    f("Upgrades: breath hold", s.upg_breath_factor)
+    f("Upgrades: armor protection", s.upg_armor_protection_factor)
+    f("Upgrades: armor stamina regen", s.upg_armor_misc_factor)
+    if int(s.weapon_warning_count) != 3:
+        lines.append(f"Weapon-out warnings before alert {int(s.weapon_warning_count)} (vanilla 3)")
+    f("Time between weapon-out warnings", s.weapon_warning_delay_factor)
+    f("Camper detection time", s.camper_time_factor)
+    f("Simultaneous melee attackers", s.sync_melee_factor)
+    f("Simultaneous special attacks", s.sync_ability_factor)
+    f("Simultaneous grenade throwers", s.sync_grenade_factor)
+    f("Simultaneous suppressive fire", s.sync_suppress_factor)
+    if s.npcs_no_weapon_pickup:
+        lines.append("NPCs don't pick up weapons")
+    f("Night darkness for NPC eyes", s.darkness_factor)
+    f("Bodies alarm NPCs", s.corpse_threat_factor)
+    f("Hidden damage mercy", s.damage_mercy_factor)
+    f("Psy phantom count", s.psy_phantom_factor)
+    if _neq(s.min_resale_pct, 10.0):
+        lines.append(f"Minimum resale value {s.min_resale_pct:g} % (vanilla 10)")
+    if float(s.container_respawn_hours) > 0:
+        lines.append(f"Containers refill after {s.container_respawn_hours:g} h")
+    f("Energy drink tolerance", s.energy_tolerance_factor)
+    f("NPC hip-fire accuracy", s.npc_hip_accuracy_factor)
+    f("Device prices (binoculars, NVG)", s.device_price_factor)
+    if s.scope_overrides:
+        n_sc = len(s.scope_overrides)
+        lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)
