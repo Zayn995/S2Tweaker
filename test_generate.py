@@ -153,6 +153,7 @@ s = Settings(
     artifact_radius_factor=10.0, artifacts_no_hop=True, artifact_keepaway_factor=0.5,   # 1.28.0 P7
     artifact_hop_pause_factor=2.0, artifact_caches_drop=True,
     loot_reroll_radius_factor=2.0, loot_reroll_timer_factor=0.5,
+    repair_cost_reputation=True, infotopic_refresh_hours=6,   # 1.28.0 P8
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

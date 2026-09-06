@@ -970,6 +970,19 @@ FAQ_ENTRIES = [
              "shy hop jump away run escape catch detector distance",
     },
     {
+        "q": "Why do repairs cost more with some factions?",
+        "a": "Vanilla prices repairs by your standing: enemies pay double, "
+             "disaffected 1.5x, neutral the normal price, friends 25 % less. "
+             "Economy tab: 'Reputation doesn't affect repair prices' puts "
+             "every level on the neutral price, and 'Repair cost' scales all "
+             "of them together. Since 1.28.0 the buy/sell/money sliders also "
+             "patch the coefficients that nine traders carry on their own NPC "
+             "entry - which of the two the game uses is not verified, so both "
+             "get the same factor. Not play-tested yet.",
+        "k": "repair cost price reputation faction standing enemy friend "
+             "technician expensive discount trader coefficient",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "

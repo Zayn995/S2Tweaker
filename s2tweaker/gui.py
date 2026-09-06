@@ -657,6 +657,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "art_radius": "artifact_radius_factor", "art_keepaway": "artifact_keepaway_factor",
     "art_hop_pause": "artifact_hop_pause_factor",
     "loot_reroll": "loot_reroll_radius_factor", "loot_reroll_time": "loot_reroll_timer_factor",
+    # 1.28.0 (Kern-Sweep P8)
+    "infotopic": "infotopic_refresh_hours",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -722,6 +724,8 @@ CHECK_FIELDS: dict[str, str] = {
     "mut_no_smell": "mutants_no_smell", "mut_loot_widget": "mutant_loot_widget",
     # 1.28.0 (Kern-Sweep P7)
     "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
+    # 1.28.0 (Kern-Sweep P8)
+    "repair_no_rep": "repair_cost_reputation",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -5364,10 +5368,25 @@ class App(ctk.CTk):
 
         body = self._tab("Economy")
         f = self._section(body, "Economy & traders")
-        self._slider(f, "buyprice", "Trader buy prices (what you get)", 0.25, 4, 0.25, 1, fmt_factor)
-        self._slider(f, "sellprice", "Trader sell prices (what you pay)", 0.25, 4, 0.25, 1, fmt_factor)
+        self._slider(f, "buyprice", "Trader buy prices (what you get)", 0.25, 4, 0.25, 1, fmt_factor,
+                     "Since 1.28.0 this also patches the nine traders that "
+                     "carry their own buy coefficient on the NPC itself "
+                     "(precedence between the two is unverified).")
+        self._slider(f, "sellprice", "Trader sell prices (what you pay)", 0.25, 4, 0.25, 1, fmt_factor,
+                     "Since 1.28.0 this also patches the nine traders that "
+                     "carry their own sell coefficient on the NPC itself "
+                     "(precedence between the two is unverified).")
         self._slider(f, "repair", "Repair cost", 0, 200, 5, 100, fmt_pct,
                      "0 % = free repairs.")
+        self._check(f, "repair_no_rep", "Reputation doesn't affect repair prices",
+                    "Vanilla charges by standing: enemies pay double, "
+                    "disaffected 1.5x, neutral normal, friends 25 % less. "
+                    "This puts every level on the neutral price. Not "
+                    "play-tested yet.")
+        self._slider(f, "infotopic", "NPC rumour refresh", 1, 72, 1, 24, fmt_hours,
+                     "Game hours before stalkers have something new to say "
+                     "(vanilla 24). Lower = fresh rumours and hints sooner. "
+                     "Not play-tested yet.")
         self._slider(f, "upgrade", "Upgrade cost", 0, 200, 5, 100, fmt_pct)
         self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.25, 1, fmt_factor)
         self._slider(f, "rq_cooldown", "Repeatable quest cooldown", 0, 400, 25, 100, fmt_pct,
@@ -5415,7 +5434,9 @@ class App(ctk.CTk):
                      "Scales the coupon wallet traders pay you from. "
                      "Honest note: most traders (59 of 73) already have "
                      "unlimited money in vanilla – this affects the "
-                     "finite wallets (bartenders etc.).")
+                     "finite wallets (bartenders etc.). Since 1.28.0 it also "
+                     "scales the coupon amounts carried on the NPC structs "
+                     "themselves (22 of them, precedence unverified).")
         self._check(f, "trader_inf_money", "All traders have unlimited money",
                     "Switches the remaining finite wallets to unlimited "
                     "(most are already unlimited in vanilla).")
@@ -5972,6 +5993,9 @@ class App(ctk.CTk):
             artifact_caches_drop=bool(self.checks["art_caches"].get()),
             loot_reroll_radius_factor=s["loot_reroll"].get() / 100.0,
             loot_reroll_timer_factor=s["loot_reroll_time"].get() / 100.0,
+            # 1.28.0 P8
+            repair_cost_reputation=bool(self.checks["repair_no_rep"].get()),
+            infotopic_refresh_hours=int(s["infotopic"].get()),
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

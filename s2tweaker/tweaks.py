@@ -721,6 +721,9 @@ class Settings:
     artifact_caches_drop: bool = False       # PackOfItems ArtifactUncommon: 20 Weight 0 -> 1
     loot_reroll_radius_factor: float = 1.0   # CoreVariables RegenerateItemsOnRankUpdateRadius (40000.f)
     loot_reroll_timer_factor: float = 1.0    # CoreVariables RegenerateItemsOnRankUpdateTimer (10.f)
+    # --- 1.28.0 P8 (Haendler und Wirtschaft; par. 1.3 / 2.9) ---
+    repair_cost_reputation: bool = False     # CoreVariables ReputationRepairCostModifiers.[0..3] alle auf 1.0
+    infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolut, Spielstunden)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2745,6 +2748,49 @@ def _packofitems_patch(gd: GameData, s: Settings) -> dict:
     return {"ArtifactUncommon": {"PackOfItemsSettings": settings}} if settings else {}
 
 
+def _npc_trader_patch(gd: GameData, s: Settings) -> dict:
+    """NPCPrototypes (1.28.0 P8, docs/CORE_SWEEP_RESEARCH.md par. 2.9): die
+    Haendler tragen NEBEN ihren TradePrototypes-Werten eigene Zahlen am
+    NPC-Struct, die die Preisregler bisher nie angefasst haben. Gemessen:
+    genau neun NPCs mit `BuyCoefficient` 0.8 UND `SellCoefficient` 2.0
+    (dieselbe Neunermenge), und 22 Structs mit `Money` > 0 (16x 20000,
+    4x 10, 1x 10000, 1x 5). Welche Zahl das Spiel am Ende nimmt - die des
+    Handelsprototyps oder die des NPC - ist unbewiesen; darum bekommen beide
+    denselben Faktor, was im schlechtesten Fall wirkungslos ist und im besten
+    eine Luecke schliesst. Die 1.8-MB-Datei wird nur bei aktivem Regler
+    geparst; alle Struct-Schluessel sind Namen, keine Indizes."""
+    buy_on = _neq(s.trader_buy_price_factor, 1.0) and s.trader_buy_price_factor > 0
+    sell_on = _neq(s.trader_sell_price_factor, 1.0) and s.trader_sell_price_factor > 0
+    money_on = _neq(s.trader_money_factor, 1.0) and s.trader_money_factor > 0
+    if not (buy_on or sell_on or money_on):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.npcprototypes.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        cfg: dict = {}
+        for on, key, factor in ((buy_on, "BuyCoefficient", s.trader_buy_price_factor),
+                                (sell_on, "SellCoefficient", s.trader_sell_price_factor)):
+            if not on:
+                continue
+            raw = node.values.get(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                cfg[key] = scaled
+        if money_on:
+            raw = node.values.get("Money")
+            value = parse_number(raw, 0.0) if raw is not None else 0.0
+            if value > 0:
+                new = max(0, int(round(value * s.trader_money_factor)))
+                if new != int(round(value)):
+                    cfg["Money"] = str(new)
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
 
@@ -3984,6 +4030,28 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         scaled = _scale_literal(raw, factor)
         if scaled is not None:
             cfg[key] = scaled
+
+    # 1.28.0 P8 (Haendler und Wirtschaft, par. 1.3): Reparaturpreis je Ruf -
+    # der Schalter zieht alle vier Stufen (Enemy 2.0 / Disaffection 1.5 /
+    # Neutral 1.0 / Friend 0.75) auf den Neutral-Wert 1.0, Array-Eintraege
+    # komplett (RelationLevel + Modifier). Dazu die Geruechte-Auffrischung.
+    if s.repair_cost_reputation:
+        arr = node.children.get("ReputationRepairCostModifiers") if node is not None else None
+        entries: dict = {}
+        changed = False
+        for idx, entry in (arr.children.items() if arr is not None else ()):
+            level = entry.values.get("RelationLevel")
+            raw = entry.values.get("Modifier")
+            if level is None or raw is None:
+                continue
+            if _neq(parse_number(raw), 1.0):
+                changed = True
+            entries[idx] = {"RelationLevel": level.strip(), "Modifier": "1.0"}
+        if changed:
+            cfg["ReputationRepairCostModifiers"] = entries
+    live = gd.corevar("InfotopicRefreshHours", -1.0)
+    if live >= 0 and int(s.infotopic_refresh_hours) != int(round(live)):
+        cfg["InfotopicRefreshHours"] = str(max(1, int(s.infotopic_refresh_hours)))
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -5267,6 +5335,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(trade_patches, _trader_wallet_patch(gd, s))
     _merge_nested(trade_patches, _buy_limits_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", trade_patches)
+    add(f"NPCPrototypes/NPCPrototypes_patch_{n}.cfg", _npc_trader_patch(gd, s))
     add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
         _relations_patch(gd, s))
     quest_patches = _quest_timer_patch(gd, s)
@@ -5661,6 +5730,11 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Uncommon artifact caches actually drop (experimental)")
     f("Loot re-roll radius on rank-up", s.loot_reroll_radius_factor)
     f("Loot re-roll delay on rank-up", s.loot_reroll_timer_factor)
+    # 1.28.0 P8
+    if s.repair_cost_reputation:
+        lines.append("Reputation does not affect repair prices")
+    if int(s.infotopic_refresh_hours) != 24:
+        lines.append(f"NPC rumours refresh every {int(s.infotopic_refresh_hours)} h (vanilla 24)")
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

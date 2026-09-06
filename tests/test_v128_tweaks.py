@@ -745,4 +745,73 @@ for needle in ("visibility radius", "don't hop away", "keep-away", "hop pause",
 assert not any(k in "\n".join(summarize(S())) for k in ("visibility radius", "hop", "caches", "re-roll"))
 print("P7.6 Zusammenfassung: 7 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P8 Teil A - Haendler und Wirtschaft
+# =========================================================================
+NPCP = "NPCPrototypes/NPCPrototypes_patch_S2Tweaker.cfg"
+TRADE = "TradePrototypes/TradePrototypes_patch_S2Tweaker.cfg"
+TRADERS9 = ["Eger", "Guron", "Koldun", "KoldunM", "Sinak", "drabadan", "sulc",
+            "supack_trader_selma_0", "trader_assistent_medulin_0"]
+
+# --- P8.0) Datei, Schema 22, Mod-Scan bewusst OHNE NPCPrototypes ------------------
+assert "NPCPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+# Bewusste Ausnahme: die 1.8-MB-Datei bleibt aus dem Vanilla-Index des
+# Mod-Scans draussen (wie QuestNodePrototypes) - sie wuerde jeden Scan
+# spuerbar verlangsamen, ohne dass dort Regler haengen.
+assert "npcprototypes" not in _GD_TREES
+assert int(gd.corevar("InfotopicRefreshHours")) == Settings().infotopic_refresh_hours
+rep = gd.corevars.children["DefaultConfig"].children["ReputationRepairCostModifiers"].children
+assert [e.values["Modifier"] for e in rep.values()] == ["2.0", "1.5", "1.0", "0.75"]
+assert not build_patches(gd, S(repair_cost_reputation=False, infotopic_refresh_hours=24))
+print("P8.0 Datei: NPCPrototypes in NEEDED_FILES, bewusst nicht im Mod-Scan, Live-Werte = Default  OK")
+
+# --- P8.1) Reparaturpreis je Ruf: Array komplett, alle vier auf 1.0 ----------------
+p = build_patches(gd, S(repair_cost_reputation=True))
+arr = parsed(p, CORE).children["DefaultConfig"].children["ReputationRepairCostModifiers"].children
+assert sorted(arr) == ["[0]", "[1]", "[2]", "[3]"], sorted(arr)
+assert arr["[0]"].values == {"RelationLevel": "ERelationLevel::Enemy", "Modifier": "1.0"}
+assert arr["[3]"].values == {"RelationLevel": "ERelationLevel::Friend", "Modifier": "1.0"}
+assert all(e.values["Modifier"] == "1.0" for e in arr.values())
+assert "BaseRepairCostModifier" not in p[CORE]                    # der Preisregler bleibt getrennt
+print("P8.1 Reparatur-Ruf: alle vier Stufen auf 1.0, RelationLevel mitgeschrieben  OK")
+
+# --- P8.2) Geruechte-Auffrischung (absolut, ganzzahlig) ----------------------------
+assert core_values(infotopic_refresh_hours=6) == {"InfotopicRefreshHours": "6"}
+assert core_values(infotopic_refresh_hours=72) == {"InfotopicRefreshHours": "72"}
+assert CORE not in build_patches(gd, S(infotopic_refresh_hours=24))
+print("P8.2 Geruechte: 6 h / 72 h, Vanilla 24 erzeugt nichts  OK")
+
+# --- P8.3) Haendler auf NPC-Ebene: neun Koeffizienten, 22 Geldbeutel ---------------
+live_buy = {s for s, n in gd.npcprototypes.children.items() if "BuyCoefficient" in n.values}
+live_sell = {s for s, n in gd.npcprototypes.children.items() if "SellCoefficient" in n.values}
+assert sorted(live_buy) == TRADERS9 and live_buy == live_sell, sorted(live_buy)
+live_money = {s for s, n in gd.npcprototypes.children.items()
+              if parse_number(n.values.get("Money"), 0.0) > 0}
+assert len(live_money) == 22, len(live_money)
+np_ = parsed(build_patches(gd, S(trader_buy_price_factor=2.0, trader_sell_price_factor=0.5)), NPCP)
+assert sorted(np_.children) == TRADERS9, sorted(np_.children)
+assert np_.children["Koldun"].values == {"BuyCoefficient": "1.6", "SellCoefficient": "1.0"}
+np_ = parsed(build_patches(gd, S(trader_money_factor=2.0)), NPCP)
+assert len(np_.children) == 22 and all(list(n.values) == ["Money"] for n in np_.children.values())
+assert np_.children["Eger"].values == {"Money": "40000"}
+assert all("." not in n.values["Money"] for n in np_.children.values())      # ganzzahlig
+p = build_patches(gd, S(trader_buy_price_factor=2.0))
+assert TRADE in p and NPCP in p                     # beide Ebenen bekommen denselben Faktor
+assert NPCP not in build_patches(gd, S(trader_min_durability_pct=0))   # anderer Regler, keine NPC-Datei
+print("P8.3 Haendler: 9 Koeffizienten (0.8 -> 1.6 / 2.0 -> 1.0), 22 Geldbeutel x2, beide Ebenen  OK")
+
+# --- P8.4) Die 1.8-MB-Datei wird nur bei aktivem Regler geparst --------------------
+fresh = GameData(VANILLA)
+assert not build_patches(fresh, S())
+assert "npcprototypes" not in fresh.__dict__, "Neutral hat die 1.8-MB-Datei geparst"
+build_patches(fresh, S(trader_money_factor=2.0))
+assert "npcprototypes" in fresh.__dict__
+print("P8.4 Lazy: NPCPrototypes bleibt neutral ungeparst, wird bei aktivem Regler geladen  OK")
+
+# --- P8.5) Zusammenfassung ----------------------------------------------------------
+joined = "\n".join(summarize(S(repair_cost_reputation=True, infotopic_refresh_hours=6)))
+assert "Reputation does not affect repair prices" in joined and "rumours refresh every 6 h" in joined
+assert not any(k in "\n".join(summarize(S())) for k in ("Reputation does not", "rumours refresh"))
+print("P8.5 Zusammenfassung: 2 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

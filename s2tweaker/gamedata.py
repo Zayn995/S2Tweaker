@@ -83,6 +83,7 @@ NEEDED_FILES = [
     "WeatherChainPrototypes.cfg.bin",        # Wetteruebergaenge (1.28.0 P6)
     "SingletonConstants.cfg",                # Nacht/Himmel (1.28.0 P6, unbinarisiert)
     "PackOfItemsGroupPrototypes.cfg.bin",    # Welt-Loot-Haufen (1.28.0 P7)
+    "NPCPrototypes.cfg.bin",                 # Haendler auf NPC-Ebene (1.28.0 P8, 1.8 MB - lazy geparst)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -607,6 +608,15 @@ class GameData:
         Welt-Loot-Haufen. Nur ArtifactUncommon wird angefasst (20 Eintraege,
         alle mit Weight 0); die Rang-Sperren der anderen Gruppen sind tabu."""
         return self._parse("PackOfItemsGroupPrototypes.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P8) ---
+    @cached_property
+    def npcprototypes(self) -> CfgStruct:
+        """NPCPrototypes (par. 2.9): 1353 NPC-Structs, davon neun Haendler mit
+        eigenem BuyCoefficient/SellCoefficient und 22 mit Money > 0. Die Datei
+        ist 1.8 MB gross - dieser Accessor wird nur beruehrt, wenn einer der
+        drei Haendler-Regler nicht auf Vanilla steht."""
+        return self._parse("NPCPrototypes.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:
