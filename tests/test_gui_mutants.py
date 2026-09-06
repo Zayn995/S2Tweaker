@@ -46,13 +46,26 @@ app.update_idletasks()
 # winfo_reqwidth liefert physische Pixel: bei 150 % Windows-Skalierung
 # (Zayns PC, 03.09.) sind das 1238 px fuer dieselben ~825 Layout-Pixel.
 # Darum auf 100 % normieren, sonst haengt das Ergebnis am Monitor.
-seg = app.tabs._segmented_button
-req = round(seg.winfo_reqwidth() / seg._get_widget_scaling())
+bar = app.tabs._bar
+req = round(bar.winfo_reqwidth() / app.tabs._get_widget_scaling())
 assert req <= 860, f"Tab-Leiste {req}px - zu breit fuer das 880-px-Minimum"
 names = list(app.tabs._name_list)
 assert names.index("Mutants") == names.index("NPCs & AI") + 1
 assert names[-1] == "Traders" and len(names) == 14, names
-print(f"Tab-Leiste: {req}px bei 13 Tabs  OK")
+# Seit 1.29.0 zwei Reihen (Besitzer: "eine 2. Reihe ... Namen wieder voll
+# ausschreiben") - in EINER Reihe blieben bei 880 px rund 60 px je Knopf
+# und "Weight & items" wurde abgeschnitten.
+rows = sorted({app.tabs._buttons[n].grid_info()["row"] for n in names})
+assert rows == [0, 1], rows
+app.geometry("880x600")
+app.update_idletasks()
+app.update()
+font = app.tabs._font
+for name in names:
+    have = app.tabs._buttons[name].winfo_width()
+    assert have >= font.measure(name), \
+        f"Tab '{name}': {have}px fuer {font.measure(name)}px Text"
+print(f"Tab-Leiste: {req}px, 2 Reihen, alle 14 Namen vollstaendig  OK")
 
 # --- 3) Override setzen -> Patch mit VitalParams-MERGE ------------------
 blk = app._im_blocks["humanoid"]

@@ -20,8 +20,23 @@ Everyone is free to use it. This README tells you everything you need.
 - Packs them into `zzz_<Name>_P.pak` with its own pure-Python pak writer (pak V8B, mount point
   `../../../`) — into an `output` folder, or directly into `~mods`.
 - Fully **portable**: settings, cache and output live next to the exe.
+- Every slider has a **number box** for exact values (dot and comma both work
+  as the decimal mark), and the sliders themselves always stop exactly on the
+  vanilla value, so an untouched tool never writes a patch. The mouse wheel
+  only scrolls the page by default, so it can't nudge a value by accident —
+  a toolbar switch hands it back to the sliders.
+- **12 colour themes** in the style of the game's factions (Loners, Bandits,
+  Duty, Freedom, Military, Ward, Spark, Monolith, Ecologists, Mercenaries,
+  Clear Sky) next to the default blue and amber — each one sets background,
+  cards, buttons, sliders and text; switched live, remembered between runs,
+  and purely cosmetic. Two layers on purpose: the faction sets the look, the
+  system colours never move — green means ready, red means destructive and
+  amber means warning in every theme, and those buttons carry an outline so
+  they stay recognisable even in the red Duty theme. The palettes are our own
+  reading of the factions: the game files carry no faction colours, and no
+  game artwork is shipped.
 
-~400 tweaks in 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI,
+~400 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34

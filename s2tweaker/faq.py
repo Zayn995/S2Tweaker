@@ -17,6 +17,50 @@ Regeln fuer neue Eintraege:
 FAQ_ENTRIES = [
     # ------------------------------------------------------------ finding things
     {
+        "q": "Can I type an exact value instead of dragging the slider?",
+        "a": "Yes - every slider has a number box on its right. Type the "
+             "value and press Enter (or just click somewhere else). Both "
+             "the dot and the comma work as the decimal mark, so 1.37 and "
+             "1,37 mean the same thing. The box accepts values the slider "
+             "itself cannot stop on, which is the point: the slider is for "
+             "quick changes, the box for exact ones. Values outside the "
+             "slider's range fall back to the nearest end, and sliders that "
+             "only know whole numbers (seconds, save slots, percent) round "
+             "what you type. The arrow button next to it puts the slider "
+             "back to the vanilla value.",
+        "k": "type enter exact value number box input field custom decimal "
+             "comma dot point precise manual keyboard eingeben zahl",
+    },
+    {
+        "q": "Can I change the colours of the tool?",
+        "a": "Yes - the 'Theme' button in the toolbar opens 12 colour themes "
+             "in the style of the game's factions (Loners, Bandits, Duty, "
+             "Freedom, Military, Ward, Spark, Monolith, Ecologists, "
+             "Mercenaries, Clear Sky) next to the default. Each sets the "
+             "background, cards, buttons, sliders and text; one click "
+             "changes the window and the choice is remembered. Purely "
+             "cosmetic - the mod you build is identical. Green and red never "
+             "change, and those buttons carry an outline, because they mean "
+             "ready, missing and destructive in every theme. Honest note: "
+             "the game files carry no faction palette and no game artwork is "
+             "used, so these colours are our own reading of the factions.",
+        "k": "theme colour color skin design faction red green blue look "
+             "appearance dark farbe design fraktion aussehen",
+    },
+    {
+        "q": "Can the mouse wheel change sliders while I scroll the page?",
+        "a": "Not unless you ask for it. The toolbar button left of the "
+             "Oodle light starts red and reads '● Wheel scrolls only': the "
+             "wheel just scrolls, so you cannot nudge a value by accident "
+             "while looking around. Change values by dragging, with the "
+             "arrow keys or in the number box. Click the button and it turns "
+             "green ('● Wheel moves sliders'): from then on the wheel does "
+             "both - it scrolls the page and moves the slider under the "
+             "pointer. It always starts red again when you reopen the tool.",
+        "k": "scroll wheel mouse accidental change slider lock page scrolling "
+             "wheel scrollen mausrad versehentlich",
+    },
+    {
         "q": "How do I heal more per medkit / health pack?",
         "a": "Two sliders in the World tab: 'Medkit & bandage healing' "
              "scales ONLY medical items (medkits and bandages), while "
@@ -313,7 +357,7 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
-        "a": "Yes - there is a whole Vault tab: seven sliders (max height, trigger "
+        "a": "Yes - there is a whole Vaulting tab: seven sliders (max height, trigger "
              "distance, approach angle, min obstacle height, landing "
              "tolerance, vault-over thickness and landing distance), "
              "an experimental 'vault while sprinting' toggle, "

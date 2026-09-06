@@ -99,11 +99,11 @@ scroll_top(app.tabs.tab("Player"))
 shot("01_player.png")
 
 # ------------------------------------------------------------ 2 Vaulting
-app.tabs.set("Vault")
+app.tabs.set("Vaulting")
 S["vault_height"].set(150)
 S["vault_distance"].set(400)
 app.checks["improved_vaulting"].select()
-scroll_top(app.tabs.tab("Vault"))
+scroll_top(app.tabs.tab("Vaulting"))
 shot("02_vaulting.png")
 app.checks["improved_vaulting"].deselect()
 

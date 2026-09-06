@@ -7,6 +7,7 @@ _ui_state/_apply_ui_state und den erzeugten Patch.
 
 Wie immer: SETTINGS_FILE umbiegen, nie _on_close/_save_ui_settings rufen.
 """
+import math
 import sys
 from pathlib import Path
 
@@ -42,7 +43,12 @@ for value in (50, 100, 250, 999, 1000, 4560, 25000, 100000):
     hp.set(value)
     assert abs(hp.get() - value) < 1e-9, (value, hp.get())
 hp.set(99999)
-assert hp.get() == 100000, hp.get()          # 3 signifikante Stellen
+assert hp.get() == 99999, hp.get()           # seit 1.29.0 exakt (Zahlenfeld)
+# Die 3-Stellen-Rundung gilt weiter fuer die SCHIENE: wer mit der Maus
+# zieht, landet auf runden Zahlen statt auf 99999 oder 251.
+hp.slider.set(math.log10(99999))
+hp._on_rail()
+assert hp.get() == 100000, hp.get()
 hp.set(20)
 assert hp.get() == 50, hp.get()              # unter Minimum -> Minimum
 hp.set(500000)

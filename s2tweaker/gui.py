@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import traceback
+import weakref
 from pathlib import Path
 
 import tkinter as tk
@@ -18,7 +19,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, faq, game, modscan, pakio
+from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
@@ -99,11 +100,50 @@ MANIFEST_NAME = "S2Tweaker_Manifest.json"
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 
+# Werkseinstellung JETZT festhalten (nach set_default_color_theme, vor dem
+# ersten Widget): "Default" fuehrt sonst nicht exakt hierher zurueck.
+theme.snapshot()
+# Und sofort das Standard-Design setzen — schwarzer Grund, dunkle Karten.
+theme._theme_defaults(theme.get(theme.DEFAULT_NAME))
+
+# Farben, die das Design mitzieht. Modul-Globale, weil sie an rund 60
+# Stellen beim BAUEN der Widgets gelesen werden; _set_theme bindet sie neu.
+PANEL = theme.get(theme.DEFAULT_NAME)["panel"]     # Karten
+PANEL2 = theme.get(theme.DEFAULT_NAME)["panel2"]   # zweite Ebene
+PANEL2_HOVER = theme.get(theme.DEFAULT_NAME)["panel2_hover"]
+MUTED = theme.get(theme.DEFAULT_NAME)["secondary"]  # Erklaerzeilen
+
+# --- Systemfarben: in JEDEM Design gleich (theme.py ist die Quelle) ------
+# Gruen = bereit/erfolgreich, Rot = zerstoerend, Bernstein = Warnung. Ohne
+# diese feste Ebene waere im Duty-Design ein roter "Remove from ~mods" nicht
+# mehr von einem roten Bestaetigen-Knopf zu unterscheiden.
+OK_GREEN = theme.SUCCESS
+OK_GREEN_HOVER = theme.SUCCESS_HOVER
+BAD_RED = theme.DANGER
+BAD_RED_HOVER = theme.DANGER_HOVER
+WARN_AMBER = theme.WARNING
+OK_BORDER = theme.SUCCESS_BORDER
+BAD_BORDER = theme.DANGER_BORDER
+ATTENTION = theme.ATTENTION
+ATTENTION_HOVER = theme.ATTENTION_HOVER
+ATTENTION_BORDER = theme.ATTENTION_BORDER
+SYS_BORDER = theme.SYSTEM_BORDER_WIDTH
+
+# Grundschrift eine Stufe groesser (Besitzer 06.09.: "Schrift allgemein ein
+# wenig groesser"). Muss VOR dem ersten Widget stehen: CTkFont() liest die
+# Groesse beim Erzeugen aus dem Thema.
+ctk.ThemeManager.theme["CTkFont"]["size"] = 14   # war 13
+# Die ausdruecklich gesetzten Groessen im Rest der Datei (Erklaerungszeilen,
+# Baum-Zeilen, Ueberschriften) wurden im selben Zug um genau 1 angehoben,
+# damit das Groessenverhaeltnis untereinander gleich bleibt.
+
 PAD = {"padx": 12, "pady": 3}
 
-# Bernstein: eine einzige Quelle fuer Suchtreffer, Warnhinweise und
-# Override-Marker im Waffenbaum.
-ACCENT = "#d9a648"
+# Akzent des aktiven Designs: Suchtreffer, Override-Marker im Waffenbaum,
+# "Changed only". WARNUNGEN benutzen ihn NICHT mehr — die haben mit
+# WARN_AMBER ihre eigene, feste Farbe, damit eine Warnung in jedem Design
+# als Warnung erkennbar bleibt.
+ACCENT = theme.DEFAULT_ACCENT
 
 # Mod-Scan-Markierungen: bewusst WEDER rot (Gefahr/Remove-Knopf) NOCH das
 # Bernstein der Warnhinweise und Suchtreffer — beides hat schon eine
@@ -224,7 +264,7 @@ class FaqRow:
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.btn = ctk.CTkButton(
             self.frame, text="\u25b8  " + entry["q"], anchor="w",
-            fg_color="transparent", hover_color="gray25", font=font_q,
+            fg_color="transparent", hover_color=PANEL2_HOVER, font=font_q,
             command=self.toggle)
         self.btn.pack(fill="x")
         self.answer = ctk.CTkLabel(
@@ -279,8 +319,114 @@ class HoverTip:
             self.tip = None
 
 
+# Schrittweiten, die auf einer Skala "rund" aussehen: 1, 2, 2.5 und 5 mal
+# einer Zehnerpotenz. In 1/10000-Einheiten, damit alles ganzzahlig bleibt.
+_NICE_STEPS = sorted(m * 10 ** e for e in range(0, 10)
+                     for m in (1, 2, 25, 5) if m * 10 ** e <= 10 ** 9)
+
+
+def grid_steps(lo: float, hi: float, default: float, step: float) -> int:
+    """Anzahl Rasten fuer die Schiene — so, dass der VANILLA-WERT auf einer
+    Raste liegt.
+
+    customtkinter kennt keine Schrittweite, sondern nur eine Anzahl Rasten:
+    es rastet auf lo + k*(hi-lo)/n. Geht (hi-lo)/Schritt nicht glatt auf,
+    liegt der Vanilla-Wert zwischen zwei Rasten und ist mit der Maus nicht
+    mehr einstellbar — ein neu gestartetes Werkzeug wuerde dann schon ohne
+    Zutun des Benutzers patchen (gemessen 06.09.: 74 von 376 Reglern).
+    Darum wird der gewuenschte Schritt hier auf den naechstkleineren
+    verkleinert, der sowohl in die Spanne als auch genau auf den
+    Vanilla-Wert passt; runde Schritte (0.05, 5, 10 ...) haben Vorrang."""
+    span = hi - lo
+    if span <= 0 or step <= 0:
+        return 1
+    unit = 10000                      # Rechnen in 1/10000, alles ganzzahlig
+    span_i = int(round(span * unit))
+    off_i = int(round((default - lo) * unit))
+    if span_i <= 0:
+        return 1
+    # Groesster Schritt, der Spanne UND Vanilla-Wert trifft
+    base = span_i if off_i <= 0 or off_i >= span_i else math.gcd(span_i, off_i)
+    want = max(1, int(round(step * unit)))
+    fits = [d for d in _NICE_STEPS if d <= want and base % d == 0]
+    if fits:
+        return max(1, span_i // fits[-1])
+    # Kein runder Teiler: den groessten beliebigen Teiler <= want nehmen
+    for k in range(max(1, -(-base // want)), base + 1):
+        if base % k == 0:
+            return max(1, span_i // (base // k))
+    return max(1, span_i)
+
+
 class SliderRow:
-    """Label + Slider + Wertanzeige + Reset auf Vanilla."""
+    """Label + Slider + Zahlenfeld + Wertanzeige + Reset auf Vanilla.
+
+    Der Wert wird SELBST gehalten (`self._value`), nicht aus der Schiene
+    gelesen. Nur so kann das Zahlenfeld Werte zwischen zwei Rasten
+    annehmen ("custom Zahlen") und der Vanilla-Wert exakt getroffen werden.
+    Die Schiene zeigt dann die naechstgelegene Raste — der gemeldete Wert
+    bleibt der eingetippte."""
+
+    # Scrollrad-Schalter (Besitzer 06.09.: "scrollen im Menue ohne
+    # ausversehen slider verschieben"). customtkinter haengt das Mausrad an
+    # die Schiene SELBST; das Blaettern der Seite kommt dagegen aus einer
+    # bind_all-Bindung des Scroll-Rahmens. Loesen wir also nur die Bindung
+    # der Schiene, bleibt das Blaettern erhalten und nur das versehentliche
+    # Verstellen hoert auf. Klassenweit, damit auch die erst spaeter
+    # aufgeklappten Baum-Regler (Waffen, Munition ...) sofort mitziehen.
+    # Startwert False: beim ersten Start blaettert das Rad NUR, es verstellt
+    # keinen Regler (Besitzer 06.09., Praezisierung: "das mousewheel soll
+    # beim ersten start automatisch keine slider verschieben und rot sein.
+    # Wenn man es aktiviert geht beides scrollen und slider moven").
+    _wheel_enabled = False
+    _instances: "weakref.WeakSet" = weakref.WeakSet()
+
+    @classmethod
+    def set_wheel_enabled(cls, enabled: bool) -> None:
+        cls._wheel_enabled = bool(enabled)
+        for row in list(cls._instances):
+            try:
+                row._apply_wheel()
+            except Exception:
+                pass          # Zeile schon zerstoert (Baum wieder zugeklappt)
+
+    def _apply_wheel(self) -> None:
+        canvas = self.slider._canvas
+        handler = (self.slider._mouse_scroll_event if SliderRow._wheel_enabled
+                   else self._wheel_scrolls_page)
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            canvas.bind(seq, handler)
+
+    def _scroll_frame(self):
+        """Der scrollbare Rahmen, in dem diese Zeile liegt (einmal gesucht)."""
+        if self._scroller is None:
+            widget = self.row
+            while widget is not None:
+                if isinstance(widget, ctk.CTkScrollableFrame):
+                    self._scroller = widget
+                    break
+                widget = getattr(widget, "master", None)
+        return self._scroller
+
+    def _wheel_scrolls_page(self, event):
+        """Rad ueber einem Regler bei ausgeschaltetem Schalter: die SEITE
+        bewegen statt des Reglers.
+
+        Das muss von Hand sein: customtkinter laesst ueber einem CTkSlider
+        gar nicht blaettern (`_check_if_valid_scroll` liefert fuer alles
+        unterhalb eines Reglers False, weil dort normalerweise der Regler
+        das Rad bekommt). Ohne diese Zeilen taete das Rad ueber einem
+        Regler nach dem Loesen der Bindung schlicht NICHTS."""
+        frame = self._scroll_frame()
+        if frame is None:
+            return "break"
+        canvas = frame._parent_canvas
+        if canvas.yview() != (0.0, 1.0):
+            if getattr(event, "num", 0) in (4, 5):
+                canvas.yview_scroll(-1 if event.num == 4 else 1, "units")
+            else:
+                canvas.yview("scroll", -int(event.delta / 6), "units")
+        return "break"
 
     def __init__(self, parent, label: str, from_: float, to: float, step: float,
                  default: float, fmt, tooltip: str = "", on_change=None,
@@ -288,6 +434,7 @@ class SliderRow:
         self.default = default
         self.fmt = fmt
         self.on_change = on_change
+        self._value = float(default)
         # Wertebereich in WERT-Einheiten (auch im Log-Modus); get()/set()
         # sprechen immer Werte, nur die Schiene rechnet intern in log10.
         self.lo, self.hi = float(from_), float(to)
@@ -301,9 +448,15 @@ class SliderRow:
         self.locked = False                  # Avoid-conflicts-Sperre
         self._on_unlock = None
         self._base_state = "normal"
+        self._typing = False                 # Zahlenfeld hat gerade den Fokus
+        self._scroller = None                # scrollbarer Rahmen (lazy)
         self.dot: ctk.CTkLabel | None = None
         self._dot_tip = ""
-        self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w")
+        # wraplength: ohne das schnitt der laengste Reglername ("Handling
+        # upgrades (aim time, ADS move, sway, draw, recovery, capacity)")
+        # bei 260 px einfach ab. Jetzt bricht er in eine zweite Zeile um.
+        self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w",
+                                  justify="left", wraplength=255)
         self.label.pack(side="left")
         if self.log:
             # Logarithmische Schiene (GitHub #4 "Higher health value"): feine
@@ -313,48 +466,129 @@ class SliderRow:
             # 3 signifikante Stellen.
             self.slider = ctk.CTkSlider(
                 row, from_=math.log10(self.lo), to=math.log10(self.hi),
-                command=self._changed
+                command=self._on_rail
             )
+            grid = 1.0
         else:
-            steps = max(1, int(round((to - from_) / step)))
+            steps = grid_steps(self.lo, self.hi, float(default), step)
             self.slider = ctk.CTkSlider(
-                row, from_=from_, to=to, number_of_steps=steps, command=self._changed
+                row, from_=from_, to=to, number_of_steps=steps, command=self._on_rail
             )
+            grid = (self.hi - self.lo) / steps
+        # Kennt die Schiene nur ganze Zahlen (Sekunden, Slots, Prozent),
+        # dann rundet auch das Zahlenfeld — sonst stuende dort 3,7, waehrend
+        # die Anzeige daneben "4" meldet.
+        self._whole = (grid >= 1.0 and float(grid).is_integer()
+                       and all(float(v).is_integer()
+                               for v in (self.lo, self.hi, default)))
         self.slider.pack(side="left", fill="x", expand=True, padx=8)
         self.value_label = ctk.CTkLabel(row, text="", width=110, anchor="e")
         self.value_label.pack(side="left")
+        # Zahlenfeld fuer eigene Werte (Besitzer 06.09.: "boxen hinter den
+        # slidern um custom zahlen einzugeben"). Komma und Punkt gelten
+        # beide als Dezimaltrenner.
+        self.entry = ctk.CTkEntry(row, width=62, justify="right")
+        self.entry.pack(side="left", padx=(6, 0))
+        self.entry.bind("<FocusIn>", self._entry_focus)
+        self.entry.bind("<Return>", self._entry_apply)
+        self.entry.bind("<KP_Enter>", self._entry_apply)
+        self.entry.bind("<FocusOut>", self._entry_apply)
+        self.entry.bind("<Escape>", self._entry_cancel)
         self.reset_btn = ctk.CTkButton(row, text="↺", width=28, command=self.reset)
         self.reset_btn.pack(side="left", padx=(6, 0))
         self._orig_color = self.label.cget("text_color")
+        SliderRow._instances.add(self)
+        self._apply_wheel()
         self.set(default)
         if tooltip:
+            # wraplength wie bei Checkboxen und Warnhinweisen: die
+            # Erklaerzeilen der Regler waren als EINZIGE ohne Umbruch und
+            # wurden am rechten Rand mitten im Wort abgeschnitten.
             hint = ctk.CTkLabel(parent, text="   " + tooltip, anchor="w",
-                                font=ctk.CTkFont(size=11), text_color="gray60")
+                                justify="left", wraplength=780,
+                                font=ctk.CTkFont(size=12), text_color=MUTED)
             hint.pack(fill="x", padx=12)
+
+    def _on_rail(self, _=None):
+        """Die Schiene wurde gezogen — ihr Rastwert ist jetzt der Wert."""
+        if self.log:
+            value = 10.0 ** float(self.slider.get())
+            mag = 10.0 ** math.floor(math.log10(max(value, 1e-9)))
+            value = round(value / mag * 100.0) / 100.0 * mag   # 3 signifikante Stellen
+        else:
+            value = float(self.slider.get())
+        self._value = round(min(self.hi, max(self.lo, value)), 4)
+        self._changed()
 
     def _changed(self, _=None):
         value = self.get()
         vanilla = "  (vanilla)" if abs(value - self.default) < 1e-9 else ""
         lock = "  \U0001f512" if self.locked else ""
         self.value_label.configure(text=self.fmt(value) + vanilla + lock)
+        self._entry_show()
         if self.conflict_mods:
             self._update_dot()
         if self.on_change is not None:
             self.on_change()
 
+    # ------------------------------------------------------- Zahlenfeld
+    def _entry_focus(self, _=None):
+        self._typing = True
+
+    def _entry_cancel(self, _=None):
+        self._typing = False
+        self._entry_show()
+
+    def _entry_show(self, _=None):
+        """Feld auf den aktuellen Wert setzen — nicht waehrend des Tippens,
+        sonst wird die Eingabe unter den Fingern ersetzt."""
+        if self._typing:
+            return
+        text = f"{self.get():g}"
+        if self.entry.get() == text:
+            return
+        # Ein gesperrtes Feld nimmt weder delete noch insert an; sonst
+        # stuende dort eine veraltete Zahl, sobald Presets oder gespeicherte
+        # Einstellungen geladen werden, bevor die Spieldaten da sind.
+        state = str(self.entry.cget("state"))
+        if state != "normal":
+            self.entry.configure(state="normal")
+        self.entry.delete(0, "end")
+        self.entry.insert(0, text)
+        if state != "normal":
+            self.entry.configure(state=state)
+
+    def _entry_apply(self, _=None):
+        """Eingetippte Zahl uebernehmen. Komma und Punkt gelten beide als
+        Dezimaltrenner; Unsinn und Werte ausserhalb der Spanne fallen auf
+        den erlaubten Bereich zurueck."""
+        self._typing = False
+        raw = self.entry.get().strip().replace(",", ".").replace("%", "")
+        raw = raw.replace("×", "").replace("x", "").strip()
+        try:
+            value = float(raw)
+        except ValueError:
+            self._entry_show()
+            return
+        self.set(value)          # set() rundet ganzzahlige Raster selbst
+
+    def _snap(self, value: float) -> float:
+        """Ganzzahlige Raster (Stunden, Sekunden, Slots, Prozent) kennen
+        keine halben Werte — egal ob sie aus dem Zahlenfeld, aus einem
+        Preset oder aus einem Test kommen. Bewusst kaufmaennisch aufrunden
+        statt mit Pythons round(), das aus 22,5 eine 22 machen wuerde."""
+        return math.floor(value + 0.5) if self._whole else value
+
     def get(self) -> float:
-        if self.log:
-            value = 10.0 ** float(self.slider.get())
-            mag = 10.0 ** math.floor(math.log10(max(value, 1e-9)))
-            value = round(value / mag * 100.0) / 100.0 * mag   # 3 signifikante Stellen
-            return round(min(self.hi, max(self.lo, value)), 4)
-        return round(float(self.slider.get()), 4)
+        return self._value
 
     def set(self, value: float):
+        value = self._snap(min(self.hi, max(self.lo, float(value))))
+        self._value = round(value, 4)
         if self.log:
-            self.slider.set(math.log10(min(self.hi, max(self.lo, float(value)))))
+            self.slider.set(math.log10(max(self._value, 1e-9)))
         else:
-            self.slider.set(value)
+            self.slider.set(self._value)
         self._changed()
 
     def reset(self):
@@ -365,6 +599,7 @@ class SliderRow:
         # deaktiviert, wenn die GUI insgesamt wieder freigeschaltet wird.
         self._base_state = state
         self.slider.configure(state="disabled" if self.locked else state)
+        self.entry.configure(state="disabled" if self.locked else state)
         self.reset_btn.configure(state=state)
 
     def set_locked(self, locked: bool, on_unlock=None):
@@ -377,9 +612,11 @@ class SliderRow:
         self._on_unlock = on_unlock
         if locked:
             self.slider.configure(state="disabled")
+            self.entry.configure(state="disabled")
             self.reset_btn.configure(text="\U0001f513", command=self._unlock)
         else:
             self.slider.configure(state=self._base_state)
+            self.entry.configure(state=self._base_state)
             self.reset_btn.configure(text="\u21ba", command=self.reset)
         self._changed()
         if self.conflict_mods:
@@ -504,6 +741,28 @@ def fmt_kg(v: float) -> str:
 
 def fmt_dec(v: float) -> str:
     return f"{v:g}"
+
+
+# Regler-Bereich je Kaskaden-Parameter (Besitzer 06.09.: "haltbarkeit bis
+# maximal 4? lieber bis minimum 10"). Untergrenze bleibt bei den invertierten
+# Parametern (firerate, aimtime) ueber 0 - der Builder ueberspringt dort
+# Faktor 0, ein Regler mit 0 waere ein Blindgaenger.
+WEAPON_PARAM_RANGE = {
+    "damage": (0.1, 10.0),
+    "spread": (0.1, 4.0),
+    "recoil": (0.1, 4.0),
+    "durability": (0.25, 10.0),
+    "firerate": (0.25, 4.0),
+    "range": (0.25, 4.0),
+    "bleeding": (0.1, 5.0),
+    "adsspeed": (0.25, 4.0),
+    "aimtime": (0.25, 4.0),
+    "magazine": (0.25, 10.0),
+}
+
+
+def weapon_param_range(param: str) -> tuple[float, float]:
+    return WEAPON_PARAM_RANGE.get(param, (0.25, 4.0))
 
 
 # ------------------------------------------------------------------ Mod-Scan
@@ -860,7 +1119,7 @@ class IwWeaponRow:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_row,
+            hover_color=PANEL2_HOVER, font=app._iw_font_row,
             command=self.toggle, state=app._iw_state)
         self.btn.pack(fill="x", padx=(16, 8), pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -878,7 +1137,7 @@ class IwWeaponRow:
                 self.body,
                 text="   shares combat stats with: " + ", ".join(shared),
                 anchor="w", justify="left", wraplength=700,
-                font=self.app._iw_font_hint, text_color="gray60",
+                font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         edition = self.app._iw_dlc.get(self.sid)
         if edition:
@@ -889,7 +1148,7 @@ class IwWeaponRow:
                      "the DLC config branch (untested in-game; harmless "
                      "if you don't own that edition).",
                 anchor="w", justify="left", wraplength=700,
-                font=self.app._iw_font_hint, text_color="gray60",
+                font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         if len(self.params) < len(WEAPON_PARAMS):
             missing = [WEAPON_PARAM_LABELS[p].lower()
@@ -901,7 +1160,7 @@ class IwWeaponRow:
                      + " for this weapon – no slider is offered for "
                      + ("them." if len(missing) > 1 else "it."),
                 anchor="w", justify="left", wraplength=700,
-                font=self.app._iw_font_hint, text_color="gray60",
+                font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         self._build_caliber_row()
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
@@ -920,8 +1179,9 @@ class IwWeaponRow:
             pass
         try:
             for param in self.params:
+                lo, hi = weapon_param_range(param)
                 self.sliders[param] = SliderRow(
-                    self.body, WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    self.body, WEAPON_PARAM_LABELS[param], lo, hi, 0.1, 1,
                     fmt_factor, on_change=self._changed)
         finally:
             self.app._iw_loading = prev
@@ -986,7 +1246,7 @@ class IwWeaponRow:
         ctk.CTkLabel(self.body, text="   " + note, anchor="w",
                      justify="left", wraplength=700,
                      font=self.app._iw_font_hint,
-                     text_color="gray60").pack(fill="x", padx=12, pady=(2, 0))
+                     text_color=MUTED).pack(fill="x", padx=12, pady=(2, 0))
         self.cal_warn = ctk.CTkLabel(
             self.body, text="", anchor="w", justify="left", wraplength=700,
             font=self.app._iw_font_hint, text_color="#E6B800")
@@ -1153,7 +1413,7 @@ class IwCategoryBlock:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_cat,
+            hover_color=PANEL2_HOVER, font=app._iw_font_cat,
             command=self.toggle, state=app._iw_state)
         self.btn.pack(fill="x", padx=8, pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1299,7 +1559,7 @@ class IaAmmoRow:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_row,
+            hover_color=PANEL2_HOVER, font=app._iw_font_row,
             command=self.toggle, state=app._ia_state)
         self.btn.pack(fill="x", padx=(16, 8), pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1328,7 +1588,7 @@ class IaAmmoRow:
                          "above ×1 makes that penalty bigger.")
             ctk.CTkLabel(self.body, text=text, anchor="w", justify="left",
                          wraplength=700, font=self.app._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12,
+                         text_color=MUTED).pack(fill="x", padx=12,
                                                    pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed auf -- ohne Sperre wuerde der halb gefuellte
@@ -1345,7 +1605,7 @@ class IaAmmoRow:
         try:
             for param in self.params:
                 self.sliders[param] = SliderRow(
-                    self.body, AMMO_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    self.body, AMMO_PARAM_LABELS[param], 0.1, 5, 0.1, 1,
                     fmt_factor, on_change=self._changed)
         finally:
             self.app._ia_loading = prev
@@ -1468,7 +1728,7 @@ class IaCaliberBlock:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_cat,
+            hover_color=PANEL2_HOVER, font=app._iw_font_cat,
             command=self.toggle, state=app._ia_state)
         self.btn.pack(fill="x", padx=8, pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1576,7 +1836,7 @@ class IrArmorRow:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_row,
+            hover_color=PANEL2_HOVER, font=app._iw_font_row,
             command=self.toggle, state=app._ir_state)
         self.btn.pack(fill="x", padx=(16, 8), pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1597,7 +1857,7 @@ class IrArmorRow:
                          "\u2013 no slider is offered for them.")
             ctk.CTkLabel(self.body, text=text, anchor="w", justify="left",
                          wraplength=700, font=self.app._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12,
+                         text_color=MUTED).pack(fill="x", padx=12,
                                                    pady=(2, 0))
         edition = self.app._ir_dlc.get(self.sid)
         if edition:
@@ -1608,7 +1868,7 @@ class IrArmorRow:
                      "the DLC config branch (untested in-game; harmless "
                      "if you don't own that edition).",
                 anchor="w", justify="left", wraplength=700,
-                font=self.app._iw_font_hint, text_color="gray60",
+                font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # und damit _changed — ohne Sperre loescht der halb gebaute Satz den
@@ -1623,7 +1883,7 @@ class IrArmorRow:
         try:
             for param in self.params:
                 self.sliders[param] = SliderRow(
-                    self.body, ARMOR_PARAM_LABELS[param], 0.25, 4, 0.25, 1,
+                    self.body, ARMOR_PARAM_LABELS[param], 0.1, 5, 0.1, 1,
                     fmt_factor, on_change=self._changed)
         finally:
             self.app._ir_loading = prev
@@ -1736,7 +1996,7 @@ class IrGroupBlock:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_cat,
+            hover_color=PANEL2_HOVER, font=app._iw_font_cat,
             command=self.toggle, state=app._ir_state)
         self.btn.pack(fill="x", padx=8, pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1852,7 +2112,7 @@ class IfFactionBlock:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_cat,
+            hover_color=PANEL2_HOVER, font=app._iw_font_cat,
             command=self.toggle, state=app._if_state)
         self.btn.pack(fill="x", padx=8, pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -1993,7 +2253,7 @@ class ImSpeciesRow:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_row,
+            hover_color=PANEL2_HOVER, font=app._iw_font_row,
             command=self.toggle, state=app._im_state)
         self.btn.pack(fill="x", padx=(16, 8), pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -2009,7 +2269,7 @@ class ImSpeciesRow:
             ctk.CTkLabel(self.body, text="   " + hint, anchor="w",
                          justify="left", wraplength=700,
                          font=self.app._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12,
+                         text_color=MUTED).pack(fill="x", padx=12,
                                                    pady=(2, 0))
         # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
         # -> on_change (die Waffenbaum-Lehre, wie bei allen Baeumen).
@@ -2022,9 +2282,9 @@ class ImSpeciesRow:
             pass
         try:
             for param in self.params:
-                lo, hi = (0.0, 4.0) if param in ("regen", "protection") else (0.25, 5.0)
+                lo, hi = (0.0, 5.0) if param in ("regen", "protection") else (0.1, 10.0)
                 self.sliders[param] = SliderRow(
-                    self.body, MUT_PARAM_LABELS[param], lo, hi, 0.25, 1,
+                    self.body, MUT_PARAM_LABELS[param], lo, hi, 0.1, 1,
                     fmt_factor, on_change=self._changed)
         finally:
             self.app._im_loading = prev
@@ -2136,7 +2396,7 @@ class ImGroupBlock:
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
             self.frame, text="", anchor="w", fg_color="transparent",
-            hover_color="gray25", font=app._iw_font_cat,
+            hover_color=PANEL2_HOVER, font=app._iw_font_cat,
             command=self.toggle, state=app._im_state)
         self.btn.pack(fill="x", padx=8, pady=1)
         self._orig_color = self.btn.cget("text_color")
@@ -2222,6 +2482,147 @@ class ImGroupBlock:
         self.btn.configure(state=state)
         for row in self.rows.values():
             row.set_state(state)
+
+
+# Ein kleines Zeichen vor jedem Tab-Namen (Besitzer 06.09.: "auch kleine
+# Symbole koennten funktionieren ... aber sehr sparsam, sonst wird es schnell
+# kitschig"). Fuenf davon hat er selbst vorgeschlagen (Player, Vaulting,
+# Combat, Upgrades, World); der Rest folgt derselben Linie: thematisch, wo es
+# eindeutig ist, sonst eine schlichte geometrische Form. Bewusst KEINE Emoji —
+# die wuerden bunt gerendert und rissen die Leiste auseinander.
+TAB_ICONS = {
+    "Player": "◉", "Vaulting": "◈", "Weight & items": "⚖", "Combat": "⚔",
+    "NPCs & AI": "◎", "Mutants": "☣", "Factions": "⚑", "Weapons": "◆",
+    "Ammo": "▪", "Armor": "◇", "Upgrades": "⚙", "World": "☢",
+    "Economy": "¤", "Traders": "⇄",
+}
+
+
+# Zeichen je Design fuer die Fusszeile. Bewusst KEINE Fraktionslogos aus dem
+# Spiel: das ist GSC-Grafik, und dieses Projekt liefert grundsaetzlich keine
+# Spieldateien mit (dieselbe Regel wie fuer vanilla/ und die Oodle-DLL).
+# Das hier sind gewoehnliche Schriftzeichen.
+THEME_MARKS = {
+    "Standard": "◐", "Loners": "◈", "Bandits": "☠", "Duty": "⛨", "Freedom": "☘",
+    "Military": "★", "Ward": "⚔", "Spark": "⌁", "Monolith": "◆",
+    "Ecologists": "⚗", "Mercenaries": "⌾", "Clear Sky": "☁",
+}
+
+
+class TabBar(ctk.CTkFrame):
+    """Tab-Leiste in MEHREREN Reihen (Besitzer 06.09.: "zusaetzlich eine
+    2. Reihe fuer die Menues ... und dann die Namen wieder voll
+    ausschreiben").
+
+    CTkTabview quetscht alle Tabs in EINE Reihe: bei 14 Tabs und dem
+    880-px-Minimum bleiben rund 60 px je Knopf, und Beschriftungen wie
+    "Weight & items" werden abgeschnitten. Diese Leiste verteilt dieselben
+    Knoepfe auf zwei Reihen und gibt jeder Spalte mindestens die Breite des
+    laengsten Namens — damit steht ueberall der volle Name.
+
+    Die Schnittstelle bleibt die von CTkTabview, soweit das Werkzeug sie
+    nutzt: add(name) liefert den Inhalts-Frame, dazu set/get und die
+    Attribute _tab_dict / _name_list."""
+
+    def __init__(self, master, rows: int = 2, **kw):
+        super().__init__(master, fg_color="transparent", **kw)
+        self._rows = max(1, int(rows))
+        self._bar = ctk.CTkFrame(self, fg_color="transparent")
+        self._bar.pack(fill="x")
+        self._holder = ctk.CTkFrame(self, fg_color="transparent")
+        self._holder.pack(fill="both", expand=True)
+        self._tab_dict: dict[str, ctk.CTkFrame] = {}
+        self._buttons: dict[str, ctk.CTkButton] = {}
+        self._labels: dict[str, str] = {}      # Name -> Aufschrift mit Symbol
+        self._name_list: list[str] = []
+        self._current_name = ""
+        self._font = ctk.CTkFont(size=14)
+        theme = ctk.ThemeManager.theme["CTkSegmentedButton"]
+        self._sel = theme["selected_color"]
+        self._sel_hover = theme["selected_hover_color"]
+        self._unsel = theme["unselected_color"]
+        self._unsel_hover = theme["unselected_hover_color"]
+
+    # ---------------------------------------------------------- Aufbau
+    def add(self, name: str) -> ctk.CTkFrame:
+        if name in self._tab_dict:
+            return self._tab_dict[name]
+        frame = ctk.CTkFrame(self._holder, fg_color="transparent")
+        icon = TAB_ICONS.get(name, "")
+        label = (icon + "  " + name) if icon else name
+        self._labels[name] = label
+        btn = ctk.CTkButton(self._bar, text=label, height=28, width=1,
+                            font=self._font, corner_radius=6,
+                            fg_color=self._unsel, hover_color=self._unsel_hover,
+                            command=lambda n=name: self.set(n))
+        self._tab_dict[name] = frame
+        self._buttons[name] = btn
+        self._name_list.append(name)
+        self._relayout()
+        if len(self._name_list) == 1:
+            self.set(name)
+        return frame
+
+    def _relayout(self) -> None:
+        """Knoepfe gleichmaessig auf die Reihen verteilen und jeder Spalte
+        die Breite des laengsten Namens sichern."""
+        per_row = -(-len(self._name_list) // self._rows)   # aufgerundet
+        for i, name in enumerate(self._name_list):
+            row, col = divmod(i, per_row)
+            self._buttons[name].grid(row=row, column=col, padx=2, pady=2,
+                                     sticky="ew")
+        # Jede Spalte nur so breit wie IHR laengster Name — nicht alle gleich
+        # breit. Mit den Tab-Symbolen waeren gleich breite Knoepfe 945 px
+        # und wuerden beim 880-px-Minimum abgeschnitten; so sind es 706 px.
+        # Die zwei Reihen bleiben trotzdem sauber untereinander, weil sie
+        # sich dieselben Spalten teilen.
+        for col in range(per_row):
+            widest = max(self._font.measure(self._labels[n])
+                         for i, n in enumerate(self._name_list)
+                         if i % per_row == col)
+            self._bar.grid_columnconfigure(col, weight=1, uniform="",
+                                           minsize=widest + 16)
+        # Spalten einer frueheren, breiteren Aufteilung wieder freigeben
+        for col in range(per_row, len(self._name_list)):
+            self._bar.grid_columnconfigure(col, weight=0, uniform="",
+                                           minsize=0)
+
+    # ----------------------------------------------------------- Zugriff
+    def set(self, name: str) -> None:
+        if name not in self._tab_dict or name == self._current_name:
+            if name in self._tab_dict:
+                self._paint()
+            return
+        if self._current_name:
+            self._tab_dict[self._current_name].pack_forget()
+        self._current_name = name
+        self._tab_dict[name].pack(fill="both", expand=True)
+        self._paint()
+
+    def get(self) -> str:
+        return self._current_name
+
+    def tab(self, name: str) -> ctk.CTkFrame:
+        """Inhalts-Frame eines Tabs (wie CTkTabview.tab) — tools/
+        make_screenshots.py greift darueber auf die Seiten zu."""
+        return self._tab_dict[name]
+
+    def restyle(self, pal: dict) -> None:
+        """Farben eines Designs uebernehmen. Die Leiste faerbt sich selbst,
+        weil ihre Knoepfe gewoehnliche CTkButtons sind — der allgemeine
+        Umfaerber koennte sie nicht vom Rest unterscheiden.
+        Aktiver Tab = Akzent, die uebrigen = zweite Ebene."""
+        self._sel, self._sel_hover = pal["button"], pal["button_hover"]
+        self._unsel, self._unsel_hover = pal["panel2"], pal["panel2_hover"]
+        self._paint()
+
+    def _paint(self) -> None:
+        for name, btn in self._buttons.items():
+            if name == self._current_name:
+                btn.configure(fg_color=self._sel, hover_color=self._sel_hover)
+            else:
+                btn.configure(fg_color=self._unsel,
+                              hover_color=self._unsel_hover)
 
 
 class App(ctk.CTk):
@@ -2321,9 +2722,9 @@ class App(ctk.CTk):
         self._iw_state = "disabled"                # gilt fuer lazy Widgets
         # Schriften EINMAL bauen und an alle Baum-Zeilen weiterreichen —
         # CTkFont-Objekte sind teuer, 79 Waffen x eigene Font waere Verschwendung
-        self._iw_font_cat = ctk.CTkFont(size=13)
-        self._iw_font_row = ctk.CTkFont(size=12)
-        self._iw_font_hint = ctk.CTkFont(size=11)
+        self._iw_font_cat = ctk.CTkFont(size=14)
+        self._iw_font_row = ctk.CTkFont(size=13)
+        self._iw_font_hint = ctk.CTkFont(size=12)
         self._msgs: "queue.Queue[tuple[str, str]]" = queue.Queue()
         # Mod-Scan (Vorab-Scan fremder Paks in ~mods)
         self.modscan_pref = "ask"               # "ask" | "never"
@@ -2345,10 +2746,18 @@ class App(ctk.CTk):
         # "Changed only": dimmt alles, was auf Vanilla steht
         self.changed_only = False
         self._oc_job: str | None = None
+        # Farbdesign. Muss VOR _build_header stehen (_set_theme liest es) und
+        # faengt immer beim Standard an; _load_ui_settings schaltet danach
+        # auf das gemerkte um.
+        self.theme_name = theme.DEFAULT_NAME
 
         self._build_header()
         self._build_body()
         self._build_footer()
+        # Einmal durch die Design-Routine, auch im Standard: setzt die
+        # Schriftfarbe je Knopf und das Zeichen in der Fusszeile. Sonst
+        # griffe beides erst beim ersten Design-Wechsel.
+        self._set_theme(self.theme_name)
 
         self._load_ui_settings()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -2360,6 +2769,52 @@ class App(ctk.CTk):
         self.after(100, self._poll_msgs)
         self.after(150, self._prefill_game)
         self.after(600, self._check_oodle_present)
+        # Erst nachdem der Spielordner gesucht wurde — sonst pulst der Knopf
+        # kurz, obwohl er noch gesperrt ist.
+        self._blink_job = None
+        self.after(900, self._blink_confirm)
+
+    def destroy(self):
+        """Beim Schliessen den Puls-Auftrag abbestellen.
+
+        Sonst feuert `after` noch einmal auf ein zerstoertes Fenster —
+        Tk meldet dann "invalid command name ..._blink_confirm", und in der
+        Testbatterie (die mehrere Fenster nacheinander baut) hat genau das
+        den Prozess abgeschossen, ohne eine Zeile Ausgabe zu hinterlassen."""
+        job = getattr(self, "_blink_job", None)
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except Exception:
+                pass
+            self._blink_job = None
+        super().destroy()
+
+    def _blink_confirm(self):
+        """"Confirm & load game data" pulsiert, solange die Spieldaten nicht
+        geladen sind (Besitzer 06.09.: "soll lieber blinken solange nicht
+        gedrueckt wurde"). Ohne diesen Klick tut das Werkzeug gar nichts —
+        und genau den haben Nutzer uebersehen.
+
+        Gepulst wird nur der RAND, nicht die Flaeche: Gruen bedeutet im
+        ganzen Programm "bereit", und eine Flaeche, die zwischen zwei Gruens
+        springt, wuerde diese Bedeutung verwaschen. Sobald die Daten stehen
+        (oder das Fenster weg ist), hoert es von selbst auf."""
+        self._blink_job = None
+        if not self.winfo_exists():
+            return
+        if self.gd is not None:                      # geladen: gruen, Ruhe
+            self.btn_confirm.configure(
+                fg_color=OK_GREEN, hover_color=OK_GREEN_HOVER,
+                border_color=OK_BORDER, text_color="#DCE4EE")
+            return
+        self._blink_on = not getattr(self, "_blink_on", False)
+        if str(self.btn_confirm.cget("state")) == "normal":
+            self.btn_confirm.configure(
+                fg_color=ATTENTION, hover_color=ATTENTION_HOVER,
+                text_color="#DCE4EE",
+                border_color=ATTENTION_BORDER if self._blink_on else ATTENTION)
+        self._blink_job = self.after(650, self._blink_confirm)
 
     def _check_oodle_present(self):
         """Beim Start pruefen, ob die Oodle-Bibliothek da ist.
@@ -2407,11 +2862,13 @@ class App(ctk.CTk):
         except Exception:
             ok = False
         if ok:
-            btn.configure(text="● Oodle ready", fg_color="#2E7D32",
-                          hover_color="#256428")
+            btn.configure(text="● Oodle ready", fg_color=OK_GREEN,
+                          hover_color=OK_GREEN_HOVER,
+                          border_width=SYS_BORDER, border_color=OK_BORDER)
         else:
-            btn.configure(text="● Oodle missing", fg_color="#B3261E",
-                          hover_color="#8C1D18")
+            btn.configure(text="● Oodle missing", fg_color=BAD_RED,
+                          hover_color=BAD_RED_HOVER,
+                          border_width=SYS_BORDER, border_color=BAD_BORDER)
 
     def _open_oodle_wizard(self, page: int = 0):
         """Dreiseitiger Assistent: Link kopieren, herunterladen, ablegen.
@@ -2438,11 +2895,11 @@ class App(ctk.CTk):
 
         state = {"page": 0, "images": []}
         back_btn = ctk.CTkButton(nav, text="←  Back", width=130, height=38,
-                                 font=ctk.CTkFont(size=14))
-        step_lbl = ctk.CTkLabel(nav, text="", text_color="gray60",
-                                font=ctk.CTkFont(size=14))
+                                 font=ctk.CTkFont(size=15))
+        step_lbl = ctk.CTkLabel(nav, text="", text_color=MUTED,
+                                font=ctk.CTkFont(size=15))
         next_btn = ctk.CTkButton(nav, text="Next  →", width=150, height=38,
-                                 font=ctk.CTkFont(size=14, weight="bold"))
+                                 font=ctk.CTkFont(size=15, weight="bold"))
         back_btn.pack(side="left")
         step_lbl.pack(side="left", expand=True)
         next_btn.pack(side="right")
@@ -2468,7 +2925,7 @@ class App(ctk.CTk):
 
         def heading(text: str):
             ctk.CTkLabel(body, text=text, anchor="w", justify="left",
-                         font=ctk.CTkFont(size=20, weight="bold")
+                         font=ctk.CTkFont(size=21, weight="bold")
                          ).pack(fill="x", pady=(0, 10))
 
         def para(text: str, color: str | None = None, pady=(0, 10), size=15):
@@ -2494,12 +2951,12 @@ class App(ctk.CTk):
             box = ctk.CTkFrame(body, fg_color="gray20", corner_radius=8)
             box.pack(fill="x", pady=(0, 12))
             ctk.CTkLabel(box, text="TL;DR", anchor="w", text_color="#FF5252",
-                         font=ctk.CTkFont(size=17, weight="bold")
+                         font=ctk.CTkFont(size=18, weight="bold")
                          ).pack(fill="x", padx=14, pady=(8, 0))
             for line in lines:
                 ctk.CTkLabel(box, text=line, anchor="w", justify="left",
                              wraplength=790,
-                             font=ctk.CTkFont(size=24, weight="bold")
+                             font=ctk.CTkFont(size=25, weight="bold")
                              ).pack(fill="x", padx=14, pady=(2, 0))
             ctk.CTkLabel(box, text="", height=8).pack()
 
@@ -2514,7 +2971,7 @@ class App(ctk.CTk):
                      "out of your game.",
                 anchor="w", justify="left", wraplength=810,
                 text_color="#E6B800",
-                font=ctk.CTkFont(size=16, weight="bold"),
+                font=ctk.CTkFont(size=17, weight="bold"),
             ).pack(fill="x", pady=(0, 10))
             para("Your game stores its configuration compressed. Unpacking that "
                  "needs Oodle (oo2core_9_win64.dll, 0.6 MB) – a library that "
@@ -2534,18 +2991,18 @@ class App(ctk.CTk):
             para("1)  Copy the download link:", pady=(4, 4))
             row = ctk.CTkFrame(body, fg_color="transparent")
             row.pack(fill="x")
-            entry = ctk.CTkEntry(row, font=ctk.CTkFont(size=14), height=34)
+            entry = ctk.CTkEntry(row, font=ctk.CTkFont(size=15), height=34)
             entry.insert(0, pakio.OODLE_URL)
             entry.configure(state="readonly")
             entry.pack(side="left", fill="x", expand=True)
             copy_btn = ctk.CTkButton(row, text="⧉  Copy", width=130, height=34,
-                                     font=ctk.CTkFont(size=14))
+                                     font=ctk.CTkFont(size=15))
 
             def do_copy():
                 self.clipboard_clear()
                 self.clipboard_append(pakio.OODLE_URL)
-                copy_btn.configure(text="✓  Copied", fg_color="#2E7D32",
-                                   hover_color="#2E7D32")
+                copy_btn.configure(text="✓  Copied", fg_color=OK_GREEN,
+                                   hover_color=OK_GREEN)
 
             copy_btn.configure(command=do_copy)
             copy_btn.pack(side="left", padx=(8, 0))
@@ -2581,7 +3038,7 @@ class App(ctk.CTk):
             para("Move the downloaded oo2core_9_win64.dll into the folder that "
                  "holds S2Tweaker.exe – the same place as README.txt. "
                  "Not into the “_internal” folder.")
-            target = ctk.CTkEntry(body, font=ctk.CTkFont(size=14), height=34)
+            target = ctk.CTkEntry(body, font=ctk.CTkFont(size=15), height=34)
             target.insert(0, str(self._oodle_target_dir()))
             target.configure(state="readonly")
             target.pack(fill="x", pady=(0, 10))
@@ -2590,7 +3047,7 @@ class App(ctk.CTk):
                 text="When the file is in place: restart S2Tweaker. "
                      "That is all – it never asks again.",
                 anchor="w", justify="left", wraplength=810,
-                font=ctk.CTkFont(size=16, weight="bold"),
+                font=ctk.CTkFont(size=17, weight="bold"),
             ).pack(fill="x")
 
         show(page)
@@ -2606,6 +3063,9 @@ class App(ctk.CTk):
 
     # ------------------------------------------------------------ layout
     def _build_header(self):
+        # Die Mausrad-Sperre ist klassenweit: bei einem neuen Fenster (und in
+        # den Tests, die mehrere Apps bauen) wieder auf den Startzustand.
+        SliderRow.set_wheel_enabled(False)
         # Zeile 1: NUR der Spielordner (Wunsch des Besitzers: erst Ordner
         # bestaetigen, dann kommen die Werkzeuge — nichts vermischen)
         head = ctk.CTkFrame(self)
@@ -2613,7 +3073,9 @@ class App(ctk.CTk):
         self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w")
         self.btn_confirm = ctk.CTkButton(
             head, text="✓ Confirm & load game data", width=200,
-            fg_color="#2d6a3f", hover_color="#377f4c", command=self._confirm_game)
+            fg_color=ATTENTION, hover_color=ATTENTION_HOVER,
+            border_width=SYS_BORDER, border_color=ATTENTION_BORDER,
+            command=self._confirm_game)
         self.btn_confirm.pack(side="right", padx=(4, 10), pady=8)
         self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
                                         command=self._pick_game_dir)
@@ -2632,26 +3094,41 @@ class App(ctk.CTk):
         self.search_entry.pack(side="left", padx=(10, 4), pady=8,
                                fill="x", expand=True)
         self.btn_faq = ctk.CTkButton(tools, text="? FAQ", width=70,
-                                     fg_color="gray30", hover_color="gray25",
+                                     fg_color=PANEL2, hover_color=PANEL2_HOVER,
                                      command=self._show_faq)
         self.btn_faq.pack(side="right", padx=(4, 10), pady=8)
         # Oodle-Ampel: auf einen Blick sichtbar, ob die Bibliothek da ist.
         # Klick oeffnet den Assistenten — auch dann, wenn alles stimmt, damit
         # man die Anleitung jederzeit nachlesen kann.
         self.btn_oodle = ctk.CTkButton(
-            tools, text="● Oodle", width=132, fg_color="gray30",
-            hover_color="gray25", command=self._open_oodle_wizard)
+            tools, text="● Oodle", width=132, fg_color=PANEL2,
+            hover_color=PANEL2_HOVER, command=self._open_oodle_wizard)
         self.btn_oodle.pack(side="right", padx=4, pady=8)
+        # Scrollrad-Schalter, direkt links neben der Oodle-Ampel und in
+        # denselben Farben. Startet AUS (rot): das Rad blaettert dann nur,
+        # niemand verstellt beim Scrollen aus Versehen einen Regler.
+        self.btn_scroll = ctk.CTkButton(
+            tools, text="● Wheel scrolls only", width=168,
+            fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
+            border_width=SYS_BORDER, border_color=BAD_BORDER,
+            command=self._toggle_wheel)
+        self.btn_scroll.pack(side="right", padx=4, pady=8)
+        # Farbdesigns (Fraktionen). Der Knopf traegt den Akzent des aktiven
+        # Designs, damit man ohne Aufklappen sieht, worauf es steht.
+        self.btn_theme = ctk.CTkButton(
+            tools, text="◐ Theme", width=86, fg_color=PANEL2,
+            hover_color=PANEL2_HOVER, command=self._show_theme_window)
+        self.btn_theme.pack(side="right", padx=4, pady=8)
         self.btn_changed = ctk.CTkButton(
-            tools, text="Changed only", width=105, fg_color="gray30",
-            hover_color="gray25", command=self._toggle_changed_only)
+            tools, text="Changed only", width=105, fg_color=PANEL2,
+            hover_color=PANEL2_HOVER, command=self._toggle_changed_only)
         self.btn_changed.pack(side="right", padx=4, pady=8)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(parent)
         frame.pack(fill="x", pady=(8, 2), padx=4)
-        ctk.CTkLabel(frame, text=title, font=ctk.CTkFont(size=15, weight="bold"),
+        ctk.CTkLabel(frame, text=title, font=ctk.CTkFont(size=16, weight="bold"),
                      anchor="w").pack(fill="x", padx=12, pady=(8, 2))
         return frame
 
@@ -2662,17 +3139,41 @@ class App(ctk.CTk):
                                       fmt, tooltip, log=log)
         self.slider_tabs[key] = self._current_tab
 
-    def _warning(self, parent, text: str) -> None:
-        """Auffaelliger (bernsteinfarbener) Hinweis unterhalb von Reglern."""
-        ctk.CTkLabel(parent, text="⚠ " + text, anchor="w", justify="left",
-                     wraplength=780, font=ctk.CTkFont(size=11),
-                     text_color=ACCENT).pack(fill="x", padx=12, pady=(2, 4))
+    def _warning(self, parent, text: str, title: str = "Note") -> None:
+        """Technische Warnbox: dunkles Panel, duenner Bernstein-Streifen
+        links, Ueberschrift in Versalien, darunter der Text.
+
+        Besitzer 06.09.: der alte einzeilige Hinweis sah "hineingeklatscht"
+        aus — "ich wuerde daraus eine richtige technische Warnbox machen:
+        dunkles Panel + duenne Amber-Linie links"."""
+        box = ctk.CTkFrame(parent, fg_color=PANEL,
+                           corner_radius=8)
+        box.pack(fill="x", padx=12, pady=(4, 6))
+        # Der Streifen: eigener schmaler Rahmen, der die volle Hoehe fuellt.
+        # height=1 ist noetig — ein CTkFrame ohne Kinder behaelt sonst seine
+        # Standardhoehe von 200 px und blaeht die Box auf.
+        strip = ctk.CTkFrame(box, width=3, height=1, fg_color=WARN_AMBER,
+                             corner_radius=2)
+        strip.pack(side="left", fill="y", padx=(7, 0), pady=7)
+        body = ctk.CTkFrame(box, fg_color="transparent")
+        body.pack(side="left", fill="both", expand=True, padx=(11, 12), pady=8)
+        # Mittig (Besitzer 06.09.: "known issue Nachrichten mittig sieht
+        # denke ich besser aus") — Ueberschrift und Text zentriert, der
+        # Streifen bleibt links.
+        ctk.CTkLabel(
+            body, text="⚠   " + title.upper(), anchor="center",
+            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
+            text_color=WARN_AMBER).pack(fill="x")
+        ctk.CTkLabel(body, text=text, anchor="center", justify="center",
+                     wraplength=720, font=ctk.CTkFont(size=12),
+                     text_color=("gray25", "gray72")).pack(fill="x",
+                                                           pady=(4, 0))
 
     def _collapsible_category(self, parent, cat: str, label: str) -> None:
         """Aufklappbarer Block mit den 5 Parameter-Reglern einer Kategorie."""
         btn = ctk.CTkButton(parent, text="▸  " + label, anchor="w",
-                            fg_color="transparent", hover_color="gray25",
-                            font=ctk.CTkFont(size=13))
+                            fg_color="transparent", hover_color=PANEL2_HOVER,
+                            font=ctk.CTkFont(size=14))
         btn.pack(fill="x", padx=8, pady=1)
         content = ctk.CTkFrame(parent, fg_color="transparent")
         # Fuer die Suche merken: sonst bliebe dieser Block als einziger
@@ -2680,8 +3181,9 @@ class App(ctk.CTk):
         # aussehende Knopf im Overrides-Baum aufleuchtet.
         self._wcat_btns[cat] = (btn, label, btn.cget("text_color"), content)
         for param in WEAPON_PARAMS:
+            lo, hi = weapon_param_range(param)
             self._slider(content, f"wcat_{cat}_{param}",
-                         WEAPON_PARAM_LABELS[param], 0.25, 4, 0.25, 1, fmt_factor)
+                         WEAPON_PARAM_LABELS[param], lo, hi, 0.1, 1, fmt_factor)
 
         def toggle():
             if content.winfo_manager():
@@ -2793,7 +3295,7 @@ class App(ctk.CTk):
                     "   – no player weapons found in this game version –")
             ctk.CTkLabel(self.iw_tree, text=text,
                          anchor="w", font=self._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12)
+                         text_color=MUTED).pack(fill="x", padx=12)
             self._iw_update_info()
             return
         by_cat: dict[str, list[str]] = {}
@@ -2982,8 +3484,8 @@ class App(ctk.CTk):
 
     def _isc_block(self, parent, label: str, sids: list, table: dict) -> None:
         btn = ctk.CTkButton(parent, text="\u25b8  " + label, anchor="w",
-                            fg_color="transparent", hover_color="gray25",
-                            font=ctk.CTkFont(size=13), state=self._ia_state)
+                            fg_color="transparent", hover_color=PANEL2_HOVER,
+                            font=ctk.CTkFont(size=14), state=self._ia_state)
         btn.pack(fill="x", padx=8, pady=1)
         self._isc_btns.append(btn)
         content = ctk.CTkFrame(parent, fg_color="transparent")
@@ -2994,15 +3496,15 @@ class App(ctk.CTk):
                 zoom, pens = table[sid]
                 ctk.CTkLabel(content, text=self._isc_label(sid, zoom, pens), anchor="w",
                              justify="left", wraplength=760,
-                             font=ctk.CTkFont(size=12, weight="bold")).pack(fill="x", padx=12, pady=(6, 0))
+                             font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", padx=12, pady=(6, 0))
                 rows: dict = {}
                 stored = self.scope_overrides.get(sid, {})
                 if zoom:
-                    rows["zoom"] = SliderRow(content, "Magnification", 0.25, 4, 0.25, 1, fmt_factor,
+                    rows["zoom"] = SliderRow(content, "Magnification", 0.25, 4, 0.1, 1, fmt_factor,
                                              on_change=lambda *_a, s=sid: self._isc_changed(s))
                     rows["zoom"].set(float(stored.get("zoom", 1.0)))
                 if pens:
-                    rows["penalty"] = SliderRow(content, "Handling penalties", 0, 4, 0.25, 1, fmt_factor,
+                    rows["penalty"] = SliderRow(content, "Handling penalties", 0, 4, 0.1, 1, fmt_factor,
                                                 on_change=lambda *_a, s=sid: self._isc_changed(s))
                     rows["penalty"].set(float(stored.get("penalty", 1.0)))
                 for row in rows.values():
@@ -3083,7 +3585,7 @@ class App(ctk.CTk):
                     "   – no ammo found in this game version –")
             ctk.CTkLabel(self.ia_tree, text=text, anchor="w",
                          font=self._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12)
+                         text_color=MUTED).pack(fill="x", padx=12)
             self._ia_update_info()
             return
         by_cal: dict[str, list[str]] = {}
@@ -3270,7 +3772,7 @@ class App(ctk.CTk):
                     "   \u2013 no armor found in this game version \u2013")
             ctk.CTkLabel(self.ir_tree, text=text, anchor="w",
                          font=self._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12)
+                         text_color=MUTED).pack(fill="x", padx=12)
             self._ir_update_info()
             return
         by_group: dict[str, list[str]] = {}
@@ -3455,7 +3957,7 @@ class App(ctk.CTk):
                          "version –")
             ctk.CTkLabel(self.if_tree, text=text, anchor="w",
                          font=self._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12)
+                         text_color=MUTED).pack(fill="x", padx=12)
             self._if_update_info()
             return
         if self._if_player_keys:
@@ -3663,7 +4165,7 @@ class App(ctk.CTk):
                     "   – no mutants found in this game version –")
             ctk.CTkLabel(self.im_tree, text=text, anchor="w",
                          font=self._iw_font_hint,
-                         text_color="gray60").pack(fill="x", padx=12)
+                         text_color=MUTED).pack(fill="x", padx=12)
             self._im_update_info()
             return
         assigned: set[str] = set()
@@ -3790,8 +4292,8 @@ class App(ctk.CTk):
             # wraplength seit 1.26.0: laengere Erklaerungen (Wachen, Karte)
             # wurden am Fensterrand abgeschnitten
             ctk.CTkLabel(parent, text="      " + tooltip, anchor="w", justify="left",
-                         wraplength=780, font=ctk.CTkFont(size=11),
-                         text_color="gray60").pack(fill="x", padx=12)
+                         wraplength=780, font=ctk.CTkFont(size=12),
+                         text_color=MUTED).pack(fill="x", padx=12)
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
@@ -3802,7 +4304,7 @@ class App(ctk.CTk):
         return frame
 
     def _build_body(self):
-        self.tabs = ctk.CTkTabview(self)
+        self.tabs = TabBar(self, rows=2)
         self.tabs.pack(fill="both", expand=True, padx=10, pady=0)
 
         body = self._tab("Player")
@@ -3813,7 +4315,7 @@ class App(ctk.CTk):
                      "accepts it). Medkits heal a fixed amount (basic medkit "
                      "70 HP), so at very high health raise 'Medkit & bandage "
                      "healing' too.", log=True)
-        self._slider(f, "hp_regen", "Passive health regen (HP/s)", 0, 20, 0.5, 0, fmt_dec,
+        self._slider(f, "hp_regen", "Passive health regen (HP/s)", 0, 20, 0.1, 0, fmt_dec,
                      "Vanilla: no passive regen. NPCs use 1 HP/s.")
         self._slider(f, "sp", "Max stamina", 50, 1000, 10, 100, fmt_int)
         self._slider(f, "sp_regen", "Stamina regen (per second)", 0, 50, 1, 5, fmt_dec)
@@ -3823,11 +4325,11 @@ class App(ctk.CTk):
         self._slider(f, "run", "Run & sprint speed", 50, 150, 5, 100, fmt_pct,
                      "Animations and footstep sounds can't scale with speed "
                      "(engine limitation) – subtle changes feel best.")
-        self._warning(f, "Known issue since game patch 2.0 (20 Aug 2026): "
-                         "players report that speed changes sometimes only "
+        self._warning(f, "Players report that speed changes sometimes only "
                          "affect the animation instead of the actual movement. "
                          "Test in-game before settling on values. "
-                         "(Status: 29 Aug 2026)")
+                         "(Status: 29 Aug 2026)",
+                      title="Known issue — game patch 2.0")
         self._slider(f, "jump", "Jump height", 50, 200, 5, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
@@ -3842,7 +4344,7 @@ class App(ctk.CTk):
         self._slider(f, "st_vault", "Vault / climb", 0, 200, 5, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
-        body = self._tab("Vault")
+        body = self._tab("Vaulting")
         # Eigener Tab (Wunsch des Besitzers): 7 Regler + 2 Schalter sind zu
         # viel fuer den Player-Tab. Die Schluessel bleiben identisch ->
         # settings.json, Presets und Pak-Manifeste laufen unveraendert.
@@ -3859,12 +4361,12 @@ class App(ctk.CTk):
                     "the vault animation keeps up with extreme values is "
                     "exactly what needs testing.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         self._slider(f, "vault_height", "Max vault height", 50, 250, 10, 100, fmt_pct,
                      "How high an obstacle you can still vault or climb over "
                      "(vanilla detection limit ~1.3 m). All vault sliders "
                      "stack on top of the preset below when both are used.")
-        self._slider(f, "vault_distance", "Vault trigger distance", 100, 800, 50, 100, fmt_pct,
+        self._slider(f, "vault_distance", "Vault trigger distance", 100, 800, 10, 100, fmt_pct,
                      "From how far away vaulting triggers (vanilla is very "
                      "strict - the old vault mod used roughly 750 %).")
         self._slider(f, "vault_angle", "Vault approach angle", 100, 240, 10, 100, fmt_pct,
@@ -3873,15 +4375,15 @@ class App(ctk.CTk):
         self._slider(f, "vault_min_height", "Vault min obstacle height", 50, 200, 10, 100, fmt_pct,
                      "Below 100 % even small crates trigger vaulting; above, "
                      "only taller obstacles do.")
-        self._slider(f, "vault_landing", "Vault landing tolerance", 100, 600, 25, 100, fmt_pct,
+        self._slider(f, "vault_landing", "Vault landing tolerance", 100, 600, 10, 100, fmt_pct,
                      "How forgiving the landing check is: farther, steeper "
                      "and lower landing spots count (three game values "
                      "scaled together).")
-        self._slider(f, "vault_over_depth", "Vault-over max thickness", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "vault_over_depth", "Vault-over max thickness", 50, 300, 5, 100, fmt_pct,
                      "How deep/thick an obstacle may be and still be cleared "
                      "in one vault-over. The old vault mod HALVED this, "
                      "preferring quick climbs onto thick objects.")
-        self._slider(f, "vault_over_offset", "Vault-over landing distance", 100, 500, 25, 100, fmt_pct,
+        self._slider(f, "vault_over_offset", "Vault-over landing distance", 100, 500, 5, 100, fmt_pct,
                      "How far beyond the obstacle you land when vaulting "
                      "over it (the old mod used 500 % - clean jumps over "
                      "fences instead of stopping on them).")
@@ -3942,7 +4444,7 @@ class App(ctk.CTk):
                     "other difficulties show them. These force one state on "
                     "every difficulty. Not play-tested yet.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         self._slider(f, "hud_compass", "Compass", 0, 2, 1, 0, fmt_hud)
         self._slider(f, "hud_crosshair", "Crosshair", 0, 2, 1, 0, fmt_hud)
         self._slider(f, "hud_bodies", "Dead body markers", 0, 2, 1, 0, fmt_hud)
@@ -3965,7 +4467,7 @@ class App(ctk.CTk):
         self._check(f, "flashlight_dialog", "Flashlight stays bright in dialogue",
                     "Vanilla dims your flashlight to 52.5 % while you talk; "
                     "this keeps it at 100 %. Not play-tested yet.")
-        self._slider(f, "map_reveal", "Map: location reveal distance", 50, 500, 25, 100, fmt_pct,
+        self._slider(f, "map_reveal", "Map: location reveal distance", 50, 500, 10, 100, fmt_pct,
                      "How close you must come before a place appears on the "
                      "PDA map and counts as explored (vanilla mostly 100 m / "
                      "20 m, scaled together) - since 1.28.0 plus the three "
@@ -4023,13 +4525,13 @@ class App(ctk.CTk):
                      "Walking backwards is 50 % of forward speed in vanilla, "
                      "running backwards 43 %, crouched 47-54 %, diagonal 72-75 %. "
                      "Capped at forward speed. Not play-tested yet.")
-        self._slider(f, "air_control", "Air control while jumping", 50, 500, 25, 100, fmt_pct,
+        self._slider(f, "air_control", "Air control while jumping", 50, 500, 10, 100, fmt_pct,
                      "How much you can steer mid-air (vanilla coefficient 0.1, "
                      "capped at 1.0). Not play-tested yet.")
         self._slider(f, "limp", "Limping speed (wounded)", 50, 200, 10, 100, fmt_pct,
                      "Movement speed while limping (vanilla 50 % of normal, "
                      "capped at 100 %). Not play-tested yet.")
-        self._slider(f, "limp_threshold", "Limp threshold after hard landings", 1, 8, 0.5, 1, fmt_factor,
+        self._slider(f, "limp_threshold", "Limp threshold after hard landings", 1, 8, 0.1, 1, fmt_factor,
                      "How hard a landing must be before Skif starts limping "
                      "(vanilla thresholds 25 for the short limp, 65 for the "
                      "longer one; \u00d7 2 = twice as hard). Not play-tested yet.")
@@ -4041,7 +4543,7 @@ class App(ctk.CTk):
                      "Below this share of stamina Skif can only jog (vanilla "
                      "50 %). 0 % = sprint until the bar is empty. Not "
                      "play-tested yet.")
-        self._slider(f, "stealth_kill", "Stealth kill reach", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "stealth_kill", "Stealth kill reach", 50, 300, 5, 100, fmt_pct,
                      "How close you must be behind an NPC for a stealth kill "
                      "(vanilla 1.8 m). Not play-tested yet.")
         self._slider(f, "corpse_drag", "Corpse dragging speed", 50, 170, 10, 100, fmt_pct,
@@ -4055,28 +4557,28 @@ class App(ctk.CTk):
                      "Seconds after the last hit before health regeneration "
                      "starts (vanilla 5). Pairs with the passive regen slider "
                      "above. Not play-tested yet.")
-        self._slider(f, "rad_decay", "Natural radiation decay", 0, 500, 25, 100, fmt_pct,
+        self._slider(f, "rad_decay", "Natural radiation decay", 0, 500, 10, 100, fmt_pct,
                      "How fast accumulated radiation fades on its own (vanilla "
                      "0.05 per second). 0 % = only pills and vodka help. Not "
                      "play-tested yet.")
-        self._slider(f, "bleed_stop", "Bleeding stops by itself", 0, 500, 25, 100, fmt_pct,
+        self._slider(f, "bleed_stop", "Bleeding stops by itself", 0, 500, 10, 100, fmt_pct,
                      "How fast bleeding fades without a bandage (vanilla 0.3 "
                      "per second). Not play-tested yet.")
-        self._slider(f, "bleed_hit", "Bleeding per hit", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "bleed_hit", "Bleeding per hit", 0, 300, 5, 100, fmt_pct,
                      "Bleeding points a wounding hit adds (vanilla 10 on a "
                      "bar of 100). 0 % = hits never make you bleed. Not "
                      "play-tested yet.")
-        self._slider(f, "bleed_nonpen", "Bleeding from non-penetrating hits", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "bleed_nonpen", "Bleeding from non-penetrating hits", 0, 300, 5, 100, fmt_pct,
                      "Chance and amount of bleeding from hits your armor "
                      "stops (vanilla modifiers 1.0). 0 % = only hits that "
                      "get through make you bleed. Not play-tested yet.")
-        self._slider(f, "psy_recover", "Psy recovery", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "psy_recover", "Psy recovery", 25, 500, 10, 100, fmt_pct,
                      "How fast psy damage recovers (vanilla 1 per second). Not "
                      "play-tested yet.")
-        self._slider(f, "sober", "Sober-up speed", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "sober", "Sober-up speed", 25, 500, 10, 100, fmt_pct,
                      "How fast drunkenness wears off (vanilla 1 per second). "
                      "Not play-tested yet.")
-        self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 5, 100, fmt_pct,
                      "How many energy drinks Skif takes before overuse and "
                      "tolerance effects kick in (vanilla overuse 1000, "
                      "tolerance 2500 points). Not play-tested yet.")
@@ -4110,10 +4612,10 @@ class App(ctk.CTk):
                     "penalty start and hard limit) - and, since 1.28.0, the "
                     "small stamina drain from carried weight below the "
                     "penalty line as well.")
-        self._warning(f, "Known issue since game patch 2.0 (20 Aug 2026): "
-                         "changed carry-weight limits can break walking "
+        self._warning(f, "Changed carry-weight limits can break walking "
                          "animations, especially combined with movement-speed "
-                         "changes. Test in-game. (Status: 29 Aug 2026)")
+                         "changes. Test in-game. (Status: 29 Aug 2026)",
+                      title="Known issue — game patch 2.0")
         self._slider(f, "weight", "Item weight", 0, 200, 5, 100, fmt_pct,
                      "0 % = selected categories weigh nothing.")
         grid = ctk.CTkFrame(f, fg_color="transparent")
@@ -4133,23 +4635,23 @@ class App(ctk.CTk):
 
         body = self._tab("Combat")
         f = self._section(body, "Combat")
-        self._slider(f, "pdmg", "Player damage (guns)", 0.25, 10, 0.25, 1, fmt_factor,
+        self._slider(f, "pdmg", "Player damage (guns)", 0.25, 10, 0.1, 1, fmt_factor,
                      "Applied via difficulty multipliers, all difficulty levels.")
-        self._slider(f, "headshot", "Player headshot damage", 0.25, 5, 0.25, 1, fmt_factor)
-        self._slider(f, "aimpunch", "Hit camera shake (aim punch)", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "headshot", "Player headshot damage", 0.25, 5, 0.1, 1, fmt_factor)
+        self._slider(f, "aimpunch", "Hit camera shake (aim punch)", 0, 300, 5, 100, fmt_pct,
                      "Camera kick when YOU get shot. 0 % = no flinch, "
                      "300 % = heavy aim punch.")
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
-        self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.5, 1, fmt_factor,
+        self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.1, 1, fmt_factor,
                      "Weapons wear less per shot fired.")
         self._slider(f, "jam", "Weapon jamming", 0, 2, 0.1, 1, fmt_factor,
                      "× 0 = weapons never jam.")
-        self._slider(f, "expl_radius", "Explosion radius", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "expl_radius", "Explosion radius", 50, 300, 5, 100, fmt_pct,
                      "Blast, impulse and concussion radius of grenades, "
                      "launcher rounds, barrels and gas cylinders (vanilla "
                      "RGD-5 7 m, F1 10 m). Like 'IncreaseGrenadeRadius'. Not "
                      "play-tested yet.")
-        self._slider(f, "expl_npc", "Explosion damage to NPCs", 0.25, 5, 0.25, 1, fmt_factor,
+        self._slider(f, "expl_npc", "Explosion damage to NPCs", 0.25, 5, 0.1, 1, fmt_factor,
                      "The DamageNPC value of every explosion type (vanilla "
                      "RGD-5 260, RPG 2700). Damage to YOU is the slider above. "
                      "Not play-tested yet.")
@@ -4160,14 +4662,14 @@ class App(ctk.CTk):
                     "sniper effect (like 'NoInstaGibByGuards'). Guards are "
                     "meant to be deadly - use at your own risk. Not play-tested "
                     "yet.")
-        self._slider(f, "calm_dmg", "Damage to unaware NPCs", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "calm_dmg", "Damage to unaware NPCs", 25, 400, 5, 100, fmt_pct,
                      "Your hits on NPCs that have not noticed you deal 2.5x in "
                      "vanilla (a hidden sneak-attack bonus). Not play-tested yet.")
-        self._slider(f, "last_bullet", "Last-bullet damage multiplier", 1, 5, 0.25, 2, fmt_factor,
+        self._slider(f, "last_bullet", "Last-bullet damage multiplier", 1, 5, 0.1, 2, fmt_factor,
                      "A hidden multiplier the game keeps for the last bullet "
                      "(vanilla 2.0). Honest note: which shot it applies to is "
                      "not verified - x 1 switches it off. Not play-tested yet.")
-        self._slider(f, "armor_diff", "Armor vs. bullet difference weight", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "armor_diff", "Armor vs. bullet difference weight", 25, 300, 5, 100, fmt_pct,
                      "How strongly the gap between armor rating and bullet "
                      "penetration changes damage (vanilla coefficients 2.0 "
                      "global, 1.6 projectiles, 1.3 melee). Experimental, not "
@@ -4175,10 +4677,10 @@ class App(ctk.CTk):
         self._slider(f, "deflect_chance", "Armor deflection chance", 0, 100, 1, 93, fmt_pct,
                      "Chance that armor far above a bullet's class deflects "
                      "the hit (vanilla 93 %). Experimental, not play-tested.")
-        self._slider(f, "deflect_dmg", "Deflected-hit damage", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "deflect_dmg", "Deflected-hit damage", 0, 300, 5, 100, fmt_pct,
                      "Damage coefficient of a deflected hit on humans and "
                      "mutants (vanilla 1.5). Experimental, not play-tested.")
-        self._slider(f, "anomaly_armor_diff", "Armor vs. anomaly strike weight (experimental)", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "anomaly_armor_diff", "Armor vs. anomaly strike weight (experimental)", 0, 300, 5, 100, fmt_pct,
                      "How strongly your armor rating counts against the "
                      "physical strike of anomalies (vanilla coefficient 1.0, "
                      "the sibling of the bullet weight above; formula "
@@ -4189,7 +4691,7 @@ class App(ctk.CTk):
         f = self._section(body, "Human NPCs")
         self._slider(f, "npcdmg", "NPC damage (to you)", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "npchp", "NPC health", 0.1, 5, 0.1, 1, fmt_factor)
-        self._slider(f, "npc_acc", "NPC accuracy", 0.25, 3, 0.25, 1, fmt_factor,
+        self._slider(f, "npc_acc", "NPC accuracy", 0.25, 3, 0.1, 1, fmt_factor,
                      "× 2 = NPCs shoot twice as precisely (smaller bullet spread).")
         self._slider(f, "npc_vision", "NPC vision range", 10, 200, 5, 100, fmt_pct,
                      "How far human NPCs (incl. the Faust fight) can see you. "
@@ -4198,7 +4700,7 @@ class App(ctk.CTk):
         self._slider(f, "npc_hearing", "NPC hearing range", 10, 200, 5, 100, fmt_pct,
                      "Footsteps, shots, voices etc. Mutants are unaffected "
                      "(except Supersoldiers – they use NPC hearing).")
-        self._slider(f, "npc_reaction", "NPC reaction delay", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_reaction", "NPC reaction delay", 25, 400, 5, 100, fmt_pct,
                      "How long NPCs take to report threats/enemies to their "
                      "squad (vanilla 2–3 s). 400 % = slow, sleepy AI; "
                      "25 % = instant alarm.")
@@ -4207,7 +4709,7 @@ class App(ctk.CTk):
         self._check(f, "npc_no_heal", "NPCs don't self-heal",
                     "Vanilla: NPCs passively regenerate health (guards up to 20 HP/s) "
                     "while the player regenerates none. Includes bosses.")
-        self._slider(f, "npc_gear", "NPC gear quality", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_gear", "NPC gear quality", 25, 400, 5, 100, fmt_pct,
                      "Tilts each squad's weapon/armor lottery toward the "
                      "pricier gear it can ALREADY carry (400 % = the best "
                      "gun in a pool is 4x as likely, 25 % = rust buckets "
@@ -4225,7 +4727,7 @@ class App(ctk.CTk):
         self._check(f, "npc_no_pickup", "NPCs don't pick up weapons",
                     "Vanilla NPCs grab weapons from bodies and the ground "
                     "(better ones by price). Not play-tested yet.")
-        self._slider(f, "corpse_threat", "Bodies alarm NPCs", 0, 400, 25, 100, fmt_pct,
+        self._slider(f, "corpse_threat", "Bodies alarm NPCs", 0, 400, 5, 100, fmt_pct,
                      "How long a fresh body counts as a threat sign for NPCs "
                      "(vanilla 120 s). 0 % = they ignore bodies. Not "
                      "play-tested yet.")
@@ -4236,16 +4738,17 @@ class App(ctk.CTk):
                          "'aimbot' complaints (same data the 'Grounded Combat' "
                          "and 'Better Gunfights' mods edit). Every NPC weapon "
                          "profile, rank and distance scales together. Not "
-                         "play-tested yet.")
+                         "play-tested yet.",
+                      title="Experimental — NPC aim profiles")
         self._slider(f, "npc_free_shots", "NPC guaranteed-hit shots", 0, 200, 10, 100, fmt_pct,
                      "Shots per burst that NPCs fire with ZERO spread - the "
                      "opening 'laser' fire (vanilla e.g. rifles 2-3 at long, "
                      "4-6 at short range). 0 % = every NPC shot uses normal "
                      "spread; shotguns and launchers already have 0.")
-        self._slider(f, "npc_burst", "NPC burst length", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "npc_burst", "NPC burst length", 25, 300, 5, 100, fmt_pct,
                      "Shots per burst (vanilla e.g. rifles 3-6 at long, 8-16 "
                      "at short range).")
-        self._slider(f, "npc_fire_pause", "NPC fire pauses", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_fire_pause", "NPC fire pauses", 25, 400, 5, 100, fmt_pct,
                      "Pause between bursts (vanilla ~0.8-2.5 s) and between "
                      "single shots of semi-auto weapons. 200 % = NPCs shoot "
                      "half as often.")
@@ -4273,7 +4776,7 @@ class App(ctk.CTk):
                      "Seconds before the same NPC can go down wounded again "
                      "(vanilla 300). Very low values = NPCs drop again and "
                      "again. Not play-tested yet.")
-        self._slider(f, "wounded_regen", "Wounded NPC health regen", 0, 400, 25, 100, fmt_pct,
+        self._slider(f, "wounded_regen", "Wounded NPC health regen", 0, 400, 5, 100, fmt_pct,
                      "Health per second a wounded NPC regains (vanilla 5). "
                      "0 % = none. Not play-tested yet.")
         self._slider(f, "wounded_threshold", "Wounded heal threshold (experimental)", 5, 95, 5, 35, fmt_int,
@@ -4287,16 +4790,17 @@ class App(ctk.CTk):
         self._warning(f, "How NPCs pick whom to shoot at - one scoring "
                          "profile shared by every NPC (EnemyEvaluator). The "
                          "formula is not documented and the sign of the "
-                         "player term is unproven. Not play-tested yet.")
-        self._slider(f, "npc_focus", "NPC focus on the player", 0, 400, 25, 100, fmt_pct,
+                         "player term is unproven. Not play-tested yet.",
+                      title="Experimental — NPC target choice")
+        self._slider(f, "npc_focus", "NPC focus on the player", 0, 400, 5, 100, fmt_pct,
                      "Scales the 'not the player' weight in target scoring "
                      "(vanilla 0.15). Whether higher means MORE or LESS "
                      "attention on you is unproven - try 0 % and 400 % and "
                      "tell us. Not play-tested yet.")
-        self._slider(f, "npc_retarget", "NPC target-switch cooldown", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_retarget", "NPC target-switch cooldown", 25, 400, 5, 100, fmt_pct,
                      "Minimum seconds before an NPC changes its target "
                      "(vanilla 3). Not play-tested yet.")
-        self._slider(f, "npc_dmg_memory", "NPC damage memory", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_dmg_memory", "NPC damage memory", 25, 400, 5, 100, fmt_pct,
                      "How long recent damage keeps counting when NPCs weigh "
                      "who hurt them (vanilla 7 s). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -4306,12 +4810,13 @@ class App(ctk.CTk):
                          "(DefaultCoverEvaluator); story bosses keep their own. "
                          "Distances are game units (100 = 1 m) and the "
                          "evaluator formula is not documented. Not play-tested "
-                         "yet.")
+                         "yet.",
+                      title="Experimental — NPC cover")
         self._slider(f, "cover_distance", "NPC cover distance to enemy", 50, 200, 10, 100, fmt_pct,
                      "The distance band NPCs prefer for a cover spot (vanilla "
                      "8-70 m from the enemy), both ends scaled together. Not "
                      "play-tested yet.")
-        self._slider(f, "cover_path", "NPC cover search path", 50, 400, 25, 100, fmt_pct,
+        self._slider(f, "cover_path", "NPC cover search path", 50, 400, 5, 100, fmt_pct,
                      "How far NPCs will run to reach a cover spot (vanilla "
                      "path length 20 m). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -4322,7 +4827,7 @@ class App(ctk.CTk):
                      "(vanilla night 0.2, dawn 0.3, morning 0.6, day 1.0). "
                      "0 % = pitch black nights for NPCs; only values below 1 "
                      "scale, capped at 1.0. Experimental, not play-tested.")
-        self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 5, 100, fmt_pct,
                      "How much crouching and crawling hide you from eyes AND "
                      "ears (vanilla: crouched you are 25 % less visible and "
                      "much quieter). 200 % = twice as hard to notice while "
@@ -4331,7 +4836,7 @@ class App(ctk.CTk):
                      "Noise of walking, running and sprinting (vanilla 0.6 / "
                      "0.8 / 1.0). 0 % = silent feet; crouch noise has its "
                      "own slider above.")
-        self._slider(f, "stealth_weather", "Bad-weather stealth", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "stealth_weather", "Bad-weather stealth", 0, 300, 5, 100, fmt_pct,
                      "How much fog, rain and thunder blind and deafen NPCs "
                      "(vanilla: fog -30 % sight / -60 % hearing, thunder "
                      "-20 % / -70 %). 0 % = weather changes nothing, 300 % = "
@@ -4343,47 +4848,47 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "NPC awareness & nerve (experimental)")
-        self._slider(f, "npc_alertness", "NPC alertness", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "npc_alertness", "NPC alertness", 25, 300, 5, 100, fmt_pct,
                      "How little suspicion it takes before NPCs turn their "
                      "head (200), search (350), move in (500) or call allies "
                      "(700 points; a gunshot is worth 700). 200 % = they react "
                      "at half the suspicion. Human NPCs only.")
-        self._slider(f, "npc_search", "NPC search time", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_search", "NPC search time", 25, 400, 5, 100, fmt_pct,
                      "How long NPCs stay suspicious and keep searching "
                      "(vanilla: suspicion frozen 30 s, then fades 30 points/s). "
                      "25 % = they forget you fast.")
-        self._slider(f, "npc_courage", "NPC courage", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "npc_courage", "NPC courage", 25, 300, 5, 100, fmt_pct,
                      "Confidence needed before human squads attack or fall "
                      "back (vanilla bandits 2 / 1, monolith 0.5 / 0, others "
                      "3 / 0.5). Higher = braver. Mutants stay vanilla.")
-        self._slider(f, "npc_stagger", "NPC stagger threshold", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_stagger", "NPC stagger threshold", 25, 400, 5, 100, fmt_pct,
                      "Damage within 2 s that makes a human NPC flinch (vanilla "
                      "40; bosses far higher). 25 % = they stagger from almost "
                      "any hit, 400 % = they barely flinch.")
         self._slider(f, "warn_count", "Weapon-out warnings before guards turn hostile", 1, 10, 1, 3, fmt_int,
                      "How often guards warn you to holster before they attack "
                      "(vanilla 3). Not play-tested yet.")
-        self._slider(f, "warn_delay", "Time between weapon-out warnings", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "warn_delay", "Time between weapon-out warnings", 25, 400, 5, 100, fmt_pct,
                      "Vanilla 10 s between warnings. Not play-tested yet.")
-        self._slider(f, "camper_time", "Camper detection time", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "camper_time", "Camper detection time", 25, 500, 10, 100, fmt_pct,
                      "How long you may stay in one spot (5 m radius) before "
                      "NPCs treat you as a camper and flank (vanilla 10 s). Not "
                      "play-tested yet.")
-        self._slider(f, "npc_hip", "NPC hip-fire accuracy", 0.25, 3, 0.25, 1, fmt_factor,
+        self._slider(f, "npc_hip", "NPC hip-fire accuracy", 0.25, 3, 0.1, 1, fmt_factor,
                      "The difficulty multiplier for NPC hip fire (vanilla 1.0 "
                      "everywhere). Direction assumed: higher = more precise. "
                      "Not play-tested yet.")
-        self._slider(f, "dmg_mercy", "Hidden damage mercy", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "dmg_mercy", "Hidden damage mercy", 0, 300, 5, 100, fmt_pct,
                      "The game dampens damage you take in quick succession; "
                      "the curve weights are 0.33-0.75 on Medium, 0.15-0.5 on "
                      "Hard, 0.12-0.4 on Stalker, 1.0 on Easy. Scaled per "
                      "difficulty, capped at 1.0. Direction not verified - "
                      "experimental.")
-        self._slider(f, "psy_phantoms_n", "Psy phantom count (Stalker difficulty)", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "psy_phantoms_n", "Psy phantom count (Stalker difficulty)", 25, 400, 5, 100, fmt_pct,
                      "The Stalker difficulty spawns twice the psy phantoms "
                      "(multiplier 2.0); other difficulties have no entry. Not "
                      "play-tested yet.")
-        self._slider(f, "npc_attack_cd", "NPC attack cooldown", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "npc_attack_cd", "NPC attack cooldown", 25, 400, 5, 100, fmt_pct,
                      "Difficulty multiplier on human NPC attack cooldowns "
                      "(vanilla 1.0 on every difficulty). Effect scope not "
                      "verified in-game - experimental.")
@@ -4402,14 +4907,14 @@ class App(ctk.CTk):
                     "same time. Ranged shots are unlimited in vanilla. Never "
                     "below 1. Not play-tested yet.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "sync_melee", "Simultaneous melee attackers", 25, 400, 25, 100, fmt_pct,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "sync_melee", "Simultaneous melee attackers", 25, 400, 5, 100, fmt_pct,
                      "Vanilla 5 on every difficulty.")
-        self._slider(f, "sync_ability", "Simultaneous special attacks", 100, 500, 50, 100, fmt_pct,
+        self._slider(f, "sync_ability", "Simultaneous special attacks", 100, 500, 5, 100, fmt_pct,
                      "Abilities and knockdowns (vanilla 1 at a time).")
-        self._slider(f, "sync_grenade", "Simultaneous grenade throwers", 100, 500, 50, 100, fmt_pct,
+        self._slider(f, "sync_grenade", "Simultaneous grenade throwers", 100, 500, 5, 100, fmt_pct,
                      "Vanilla 1 at a time.")
-        self._slider(f, "sync_suppress", "Simultaneous suppressive fire", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "sync_suppress", "Simultaneous suppressive fire", 25, 400, 5, 100, fmt_pct,
                      "Vanilla 2 to 5 depending on difficulty and rank.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
@@ -4419,8 +4924,8 @@ class App(ctk.CTk):
                     "flashlight is not affected: its light values sit in the "
                     "game's Blueprint assets, out of reach for config patches.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11)).pack(fill="x", padx=12, pady=(2, 4))
-        self._slider(f, "npc_light", "NPC flashlight brightness & reach", 25, 400, 25, 100, fmt_pct,
+            font=ctk.CTkFont(size=12)).pack(fill="x", padx=12, pady=(2, 4))
+        self._slider(f, "npc_light", "NPC flashlight brightness & reach", 25, 400, 5, 100, fmt_pct,
                      "Scales the intensity and the attenuation radius of NPC "
                      "flashlights (vanilla intensity 7-18 and radius "
                      "1.75-5 m, growing with the distance the beam travels). "
@@ -4443,10 +4948,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "A-Life population (experimental)")
-        self._warning(f, "Experimental: these change how the living world "
-                         "spawns around you. Large values can hurt "
-                         "performance or break quest pacing – change in "
-                         "small steps and keep a backup save.")
+        self._warning(f, "These change how the living world spawns around "
+                         "you. Large values can hurt performance or break "
+                         "quest pacing – change in small steps and keep a "
+                         "backup save.",
+                      title="Experimental — A-Life spawns")
         self._slider(f, "alife_agents", "Max simultaneous NPCs & mutants", 50, 200, 10, 100, fmt_pct,
                      "Vanilla: 52 A-Life agents around the player. "
                      "200 % = a much busier Zone (heavy CPU load!).")
@@ -4465,34 +4971,35 @@ class App(ctk.CTk):
                          "encounters rolled around you). 'Max simultaneous NPCs "
                          "& mutants' above is only a cap on top of both – raise it "
                          "too. Existing saves re-roll lairs slowly (sleep or "
-                         "change region). Not play-tested yet.")
-        self._slider(f, "lair_mutants", "Lair population: mutants", 50, 300, 25, 100, fmt_pct,
+                         "change region). Not play-tested yet.",
+                      title="How the Zone spawns")
+        self._slider(f, "lair_mutants", "Lair population: mutants", 50, 300, 5, 100, fmt_pct,
                      "How many mutants a lair holds (all species, per player "
                      "rank). Story lairs and base guards are never touched.")
-        self._slider(f, "lair_humans", "Lair population: humans", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "lair_humans", "Lair population: humans", 50, 300, 5, 100, fmt_pct,
                      "How many stalkers a faction lair holds. Base guards "
                      "(Guard lairs) stay vanilla on purpose.")
-        self._slider(f, "lair_respawn", "Lair respawn speed", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "lair_respawn", "Lair respawn speed", 25, 400, 5, 100, fmt_pct,
                      "How fast fallen lair members are replaced (vanilla 3 / 8 "
                      "min, wipe 8 min). Story lairs with instant refill stay as "
                      "they are.")
-        self._slider(f, "refill_cd", "Lair refill cooldown", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "refill_cd", "Lair refill cooldown", 25, 400, 5, 100, fmt_pct,
                      "The A-Life policy's pause before a wiped-out lair is "
                      "refilled (vanilla 360 s after a full wipe, 120 s after a "
                      "partial one). 25 % = lairs come back four times as fast. "
                      "Not play-tested yet.")
-        self._slider(f, "refill_dist", "Lair refill distance", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "refill_dist", "Lair refill distance", 50, 300, 5, 100, fmt_pct,
                      "How far from you a lair must be before it refills "
                      "(vanilla 200-250 m band). Not play-tested yet.")
         self._slider(f, "corpse_budget", "Offline corpse budget", 5, 120, 5, 30, fmt_int,
                      "How many A-Life bodies may pile up within a lair radius "
                      "(100 m) before offline decomposition kicks in (vanilla "
                      "30). Not play-tested yet.")
-        self._slider(f, "enc_freq", "Random encounters: frequency", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "enc_freq", "Random encounters: frequency", 25, 400, 5, 100, fmt_pct,
                      "How often the director rolls a new encounter around you "
                      "(vanilla 60–90 s in the open world, plus a timeout after "
                      "each spawn – both scale).")
-        self._slider(f, "enc_mutants", "Random encounters: mutant share", 0, 400, 25, 100, fmt_pct,
+        self._slider(f, "enc_mutants", "Random encounters: mutant share", 0, 400, 5, 100, fmt_pct,
                      "Weight of pure-mutant encounters against human ones "
                      "(vanilla ~37 % of the open-world rolls). 0 % = no random "
                      "mutant packs (lair mutants stay). Weights the game never "
@@ -4512,10 +5019,10 @@ class App(ctk.CTk):
                 ("enc_generic", "Encounters: mixed mutant packs",
                  "Weight of the generic 'mutants' encounters, which pick any "
                  "spawnable species.")):
-            self._slider(f, key, label, 0, 400, 25, 100, fmt_pct,
+            self._slider(f, key, label, 0, 400, 5, 100, fmt_pct,
                          tip + " Stacks with the mutant-share slider. Bloodsuckers "
                          "have no slider: the open world never rolls them (weight 0).")
-        self._slider(f, "squad_expansion", "A-Life squad expansion (experimental)", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "squad_expansion", "A-Life squad expansion (experimental)", 25, 300, 5, 100, fmt_pct,
                      "How quickly the urge to send out expansion squads grows "
                      "in 16 NPC need presets (vanilla 6-10 points per minute "
                      "for humans, zombies 1-3, mutants 7-11; a squad leaves at "
@@ -4526,7 +5033,7 @@ class App(ctk.CTk):
                      "lair turns into a battle (vanilla 50 % for all 29 "
                      "factions). Offline simulation, rarely visible. Not "
                      "play-tested yet.")
-        self._slider(f, "faction_pace", "Faction expansion pace (experimental)", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "faction_pace", "Faction expansion pace (experimental)", 25, 400, 5, 100, fmt_pct,
                      "Scales the population manager's ALifeLairExpansionTime "
                      "(vanilla 50) inversely: 200 % = factions expand twice as "
                      "often, if the value is a time at all - its unit is not "
@@ -4535,7 +5042,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Camp life (atmosphere)")
-        self._slider(f, "camp_life", "Camp life", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "camp_life", "Camp life", 50, 300, 5, 100, fmt_pct,
                      "How often stalkers in camps feel like playing the "
                      "guitar, telling a joke, chatting, smoking, sleeping, "
                      "resting, eating or drinking (vanilla e.g. guitar 4-6, "
@@ -4552,23 +5059,23 @@ class App(ctk.CTk):
         self._slider(f, "mdmg", "Mutant damage (all species)", 0.1, 5, 0.1, 1, fmt_factor,
                      "Via difficulty multiplier – species overrides below "
                      "scale the individual attack values on top.")
-        self._slider(f, "mspeed", "Mutant speed (all species)", 0.25, 2, 0.25, 1, fmt_factor,
+        self._slider(f, "mspeed", "Mutant speed (all species)", 0.25, 2, 0.1, 1, fmt_factor,
                      "Walk/run/sprint speed of every mutant species.")
         self._slider(f, "mhearing", "Mutant hearing range", 10, 200, 5, 100, fmt_pct,
                      "All mutant species share one hearing sensor. Mutants "
                      "have no config-side vision range – sight is engine "
                      "logic, so no slider is offered.")
-        self._slider(f, "mut_regen", "Mutant health regen", 0, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "mut_regen", "Mutant health regen", 0, 4, 0.1, 1, fmt_factor,
                      "Mutants passively regenerate health, just like human "
                      "NPCs (vanilla varies by species). × 0 = wounds stay "
                      "– the mutant counterpart of 'NPCs don't self-heal'.")
-        self._slider(f, "mprot", "Mutant physical protection", 0, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "mprot", "Mutant physical protection", 0, 4, 0.1, 1, fmt_factor,
                      "The Protection values of every mutant (vanilla: mostly "
                      "melee 'Strike' protection, 1 to 4; bullet protection is "
                      "0 everywhere and stays 0). \u00d7 0 = no protection, like "
                      "'No More Tanky Mutants'. Per-species overrides in the "
                      "tree below. Not play-tested yet.")
-        self._slider(f, "mut_attack_cd", "Mutant attack cooldown", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "mut_attack_cd", "Mutant attack cooldown", 25, 400, 5, 100, fmt_pct,
                      "Difficulty multiplier on the pause between mutant "
                      "attacks (vanilla 1.0 on every difficulty). 200 % = "
                      "mutants attack half as often. Not play-tested yet.")
@@ -4578,11 +5085,11 @@ class App(ctk.CTk):
                     "anomalies in vanilla; dogs, boars, fleshes, snorks and "
                     "burers are not. Like 'AnomaliesHitAllMutants'. Not "
                     "play-tested yet.")
-        self._slider(f, "phantom_dog", "Pseudodog phantom damage", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "phantom_dog", "Pseudodog phantom damage", 0, 300, 5, 100, fmt_pct,
                      "Bite and bleeding of the pseudodog's illusions (vanilla "
                      "5 + bleeding). 0 % = phantoms are harmless, like "
                      "'NoPseudoDogCloneDamage'. Not play-tested yet.")
-        self._slider(f, "mut_loot", "Mutant trophy drop chance", 0, 1000, 25, 100, fmt_pct,
+        self._slider(f, "mut_loot", "Mutant trophy drop chance", 0, 1000, 10, 100, fmt_pct,
                      "Chance that a dead mutant leaves a body part (vanilla: "
                      "blind dog 15 %, tushkan 10 %, boar/flesh/snork 20 %, "
                      "bloodsucker 50 %, poltergeist 65 %, the rest 100 %). "
@@ -4597,15 +5104,15 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Bloodsucker cloaking")
-        self._slider(f, "bs_cloak", "Bloodsucker cloaking speed", 0.25, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "bs_cloak", "Bloodsucker cloaking speed", 0.25, 4, 0.1, 1, fmt_factor,
                      "× 4 = bloodsuckers vanish almost instantly.")
-        self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 1, 1, fmt_factor,
+        self._slider(f, "bs_uncloak", "Bloodsucker uncloak from damage", 0, 20, 0.1, 1, fmt_factor,
                      "Higher = hitting them breaks the cloak much harder. "
                      "× 0 = damage never reveals them.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Sense of smell")
-        self._slider(f, "mut_smell", "Mutant sense of smell", 25, 200, 25, 100, fmt_pct,
+        self._slider(f, "mut_smell", "Mutant sense of smell", 25, 200, 5, 100, fmt_pct,
                      "Range and speed of the mutants' scent sense. One "
                      "sensor serves 38 species incl. blind dogs (40 m); "
                      "chimeras (70 m), fleshes (20 m) and poltergeists "
@@ -4620,7 +5127,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Burer telekinesis")
-        self._slider(f, "burer_fire", "Burer weapon fire interval", 50, 400, 25, 100, fmt_pct,
+        self._slider(f, "burer_fire", "Burer weapon fire interval", 50, 400, 5, 100, fmt_pct,
                      "Seconds between shots of a weapon a burer levitates "
                      "and fires (vanilla 0.5 to 4 s depending on the ammo "
                      "type). 200 % = half as many shots. Not play-tested "
@@ -4637,17 +5144,17 @@ class App(ctk.CTk):
                     "nothing to scale there (Poltergeist & rat swarms deal "
                     "damage indirectly).",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(
             fill="x", padx=12)
         ctk.CTkLabel(
             f, text="   Expand a size group, then a species, to edit its "
                     "factors.",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+            anchor="w", font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12, pady=(0, 2))
         self.im_info = ctk.CTkLabel(
             f, text="No per-species overrides set.", anchor="w",
             justify="left", wraplength=780, font=self._iw_font_hint,
-            text_color="gray60")
+            text_color=MUTED)
         self.im_info.pack(fill="x", padx=12, pady=(2, 2))
         self.im_clear_btn = ctk.CTkButton(
             f, text="Clear all species overrides", width=200,
@@ -4662,14 +5169,15 @@ class App(ctk.CTk):
         body = self._tab("Factions")
         f = self._section(body, "Faction relations (living world)")
         self._warning(
-            f, "Experimental & not play-tested on existing saves yet: the "
+            f, "The "
                "game copies relations into your save when a playthrough "
                "starts. This tool also raises the game's internal "
                "RelationVersion so existing saves should pick the new "
                "values up – unverified until in-game testing. Quests and "
                "scripted story characters can still override relations at "
                "any time (that is by design), and local hostility slowly "
-               "rolls back on its own. Keep a backup save.")
+               "rolls back on its own. Keep a backup save.",
+            title="Experimental — existing saves")
         ctk.CTkLabel(
             f, text="   Baseline stance between factions, on the game's own "
                     "scale: −800 or lower = enemy (kill on sight), −799 to "
@@ -4679,7 +5187,7 @@ class App(ctk.CTk):
                     "just past a threshold. Story, boss and arena factions "
                     "are deliberately not listed.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(
             fill="x", padx=12)
         # Mod-Scan-Hinweis (Pseudo-Schluessel "tree:factions"): der Baum hat
         # keine Regler-Punkte, dafuer diese eine ehrliche Zeile.
@@ -4688,7 +5196,7 @@ class App(ctk.CTk):
             font=self._iw_font_hint, text_color=MARK_INFO)
         self.if_info = ctk.CTkLabel(
             f, text="No relations changed.", anchor="w", justify="left",
-            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+            wraplength=780, font=self._iw_font_hint, text_color=MUTED)
         self.if_info.pack(fill="x", padx=12, pady=(2, 2))
         self.if_clear_btn = ctk.CTkButton(
             f, text="Reset all relations to vanilla", width=220,
@@ -4701,13 +5209,13 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Reputation mechanics")
-        self._slider(f, "rel_rollback", "Reputation rollback time", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "rel_rollback", "Reputation rollback time", 25, 400, 5, 100, fmt_pct,
                      "How long the game remembers LOCAL hostility before "
                      "forgiving it (vanilla 60 min in the field, faster in "
                      "hubs). 400 % = grudges last four times longer; "
                      "25 % = quick forgiveness. Permanent faction-wide "
                      "reputation is a separate system and is not affected.")
-        self._slider(f, "rel_reaction", "Reputation reaction strength", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "rel_reaction", "Reputation reaction strength", 25, 400, 5, 100, fmt_pct,
                      "How hard kills, heals and assaults move reputation - "
                      "scales both the local squad reaction and the "
                      "permanent faction-wide part. 400 % = every action "
@@ -4737,23 +5245,23 @@ class App(ctk.CTk):
         self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
                      "Scales effective fire distance and damage drop-off "
                      "start/length together.")
-        self._slider(f, "wbleed", "Weapon bleeding", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "wbleed", "Weapon bleeding", 0, 300, 5, 100, fmt_pct,
                      "Bleeding chance and intensity your shots inflict. "
                      "0 % = your bullets never cause bleeding.")
         self._slider(f, "adsmove", "ADS movement speed", 50, 200, 10, 100, fmt_pct,
                      "How fast you move while aiming down sights "
                      "(vanilla varies 58–150 % of run speed per weapon).")
-        self._slider(f, "aimspeed", "ADS aim-in speed", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "aimspeed", "ADS aim-in speed", 25, 400, 5, 100, fmt_pct,
                      "How fast the weapon comes up into the sights, incl. "
                      "offset and lean aiming (vanilla ~0.5 s). 200 % = "
                      "twice as snappy. Not play-tested yet – watch for "
                      "aim animation glitches and report back.")
-        self._slider(f, "magazine", "Magazine size", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "magazine", "Magazine size", 50, 300, 5, 100, fmt_pct,
                      "Scales weapon base capacity AND all magazine "
                      "attachments (launchers never drop below 1 round). "
                      "Per category or per weapon: 'Magazine size' is the "
                      "tenth factor in the trees below.")
-        self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 5, 100, fmt_pct)
         self._slider(f, "shoot_shake", "Shooting camera shake", 0, 200, 10, 100, fmt_pct,
                      "How much the camera shakes when YOU fire (every "
                      "weapon's own shake entry, vanilla scale 1.0). 0 % = "
@@ -4766,21 +5274,21 @@ class App(ctk.CTk):
                      "some). 0 % = no zoom at all, 200 % = twice the vanilla "
                      "zoom. Scopes keep their own magnification. Not "
                      "play-tested yet.")
-        self._slider(f, "bullet_drop", "Bullet drop", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "bullet_drop", "Bullet drop", 0, 300, 5, 100, fmt_pct,
                      "How far bullets fall over distance (vanilla drop height "
                      "170 on every weapon class). 0 % = flat trajectory, like "
                      "'Fully Unlocked Ballistics'. NPC bullets are unchanged. "
                      "Not play-tested yet.")
-        self._slider(f, "bullet_speed", "Bullet speed", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "bullet_speed", "Bullet speed", 50, 300, 5, 100, fmt_pct,
                      "Flight speed of the 11 bullet types (vanilla 20000 to "
                      "42000). Gauss, RPG and grenade launcher rounds are "
                      "untouched. Faster = less lead on moving targets. Not "
                      "play-tested yet.")
-        self._slider(f, "melee_range", "Melee range (knife & butt strike)", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "melee_range", "Melee range (knife & butt strike)", 50, 300, 5, 100, fmt_pct,
                      "How far the knife and the butt strike reach (vanilla "
                      "1.6 m for both). The 'Increased Melee Range' idea from "
                      "Nexus. Not play-tested yet.")
-        self._slider(f, "reload", "Reload speed", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "reload", "Reload speed", 50, 300, 5, 100, fmt_pct,
                      "Scales every reload-time multiplier the game keeps per "
                      "weapon and magazine (vanilla 1.0 everywhere, the fields "
                      "the official Zone Kit guide points at). 200 % = half the "
@@ -4796,7 +5304,7 @@ class App(ctk.CTk):
                      "(skip every other animation) or 2. The animation gets "
                      "choppier, but it stops trailing the shots. Read from the "
                      "key name only, never play-tested - tell us what you see.")
-        self._slider(f, "equip_speed", "Weapon draw & holster speed", 50, 400, 25, 100, fmt_pct,
+        self._slider(f, "equip_speed", "Weapon draw & holster speed", 50, 400, 5, 100, fmt_pct,
                      "How fast a weapon is raised and put away (the game's "
                      "ShowEquipmentTime and HideEquipmentTime, vanilla 1.0 on "
                      "every weapon). 200 % = half the time. Unlike the reload "
@@ -4804,10 +5312,10 @@ class App(ctk.CTk):
                      "weapons. The same animation caveat applies: the timing "
                      "value changes, the animation may not follow. Not "
                      "play-tested yet.")
-        self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 25, 100, fmt_pct,
+        self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 5, 100, fmt_pct,
                      "How fast a jam is cleared (vanilla 4 to 5.5 s per "
                      "weapon). 200 % = half the time. Not play-tested yet.")
-        self._slider(f, "butt_wear", "Weapon wear per butt strike", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "butt_wear", "Weapon wear per butt strike", 0, 300, 5, 100, fmt_pct,
                      "Every butt strike costs the weapon 5 durability in "
                      "vanilla. 0 % = bash crates for free, like 'The weapon "
                      "doesn't break when used to strike with the butt'. Not "
@@ -4829,7 +5337,7 @@ class App(ctk.CTk):
                     "the sidearm-slot weapon, and long guns are still held "
                     "two-handed.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="#E0A040").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color="#E0A040").pack(fill="x", padx=12)
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Aim assist (controls)")
@@ -4840,7 +5348,7 @@ class App(ctk.CTk):
                     "patched, so these switches turn it off completely by "
                     "unhooking the cones. Not play-tested yet.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         self._check(f, "no_aim_mouse", "Turn aim assist off for the mouse")
         self._check(f, "no_aim_gamepad", "Turn aim assist off for gamepads")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -4854,12 +5362,13 @@ class App(ctk.CTk):
                     "fire rate live in shared game data – NPCs using these "
                     "weapons are affected too.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._warning(f, "Known issue since game patch 2.0 (20 Aug 2026): a Nexus "
-                         "user reports the fire-rate factor desyncs the firing "
-                         "animation and sound from the actual shots \u2013 same "
-                         "engine limitation as movement speed. Test in-game "
-                         "before settling on values. (Status: 01 Sep 2026)")
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._warning(f, "A Nexus user reports the fire-rate factor desyncs the "
+                         "firing animation and sound from the actual shots "
+                         "\u2013 same engine limitation as movement speed. Test "
+                         "in-game before settling on values. "
+                         "(Status: 01 Sep 2026)",
+                      title="Known issue \u2014 game patch 2.0")
         for cat, cat_label in WEAPON_CATEGORY_LABELS.items():
             self._collapsible_category(f, cat, cat_label)
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -4868,17 +5377,17 @@ class App(ctk.CTk):
         ctk.CTkLabel(
             f, text="   ×1 (vanilla) = no override – the category/global "
                     "factors still apply to this weapon.",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12)
+            anchor="w", font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12)
         ctk.CTkLabel(
             f, text="   Expand a category, then a weapon, to edit its factors.",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+            anchor="w", font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12, pady=(0, 2))
         # Uebersicht und "alles loeschen" stehen UEBER dem Baum: der kann auf
         # 79 Zeilen anwachsen, darunter waeren beide nur mit Scrollen erreichbar.
         self.iw_info = ctk.CTkLabel(
             f, text="No per-weapon overrides set.", anchor="w", justify="left",
-            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+            wraplength=780, font=self._iw_font_hint, text_color=MUTED)
         self.iw_info.pack(fill="x", padx=12, pady=(2, 2))
         self.iw_clear_btn = ctk.CTkButton(
             f, text="Clear all weapon overrides", width=200,
@@ -4901,11 +5410,11 @@ class App(ctk.CTk):
                     "ammo keeps its character: AP stays the armor king, "
                     "buckshot stays bad at it – just more or less extreme.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "ammo_dmg", "Ammo damage", 25, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_ap", "Ammo armor piercing", 0, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 25, 100, fmt_pct)
-        self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 25, 100, fmt_pct,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "ammo_dmg", "Ammo damage", 25, 300, 5, 100, fmt_pct)
+        self._slider(f, "ammo_ap", "Ammo armor piercing", 0, 300, 5, 100, fmt_pct)
+        self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 5, 100, fmt_pct)
+        self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 5, 100, fmt_pct,
                      "How well bullets punch through wooden walls, fences etc.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
@@ -4916,15 +5425,15 @@ class App(ctk.CTk):
                     "the global slider for that factor on this round – the "
                     "two do not stack.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12)
         ctk.CTkLabel(
             f, text="   Expand a caliber, then a round, to edit its factors.",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+            anchor="w", font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12, pady=(0, 2))
         self.ia_info = ctk.CTkLabel(
             f, text="No per-ammo overrides set.", anchor="w", justify="left",
-            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+            wraplength=780, font=self._iw_font_hint, text_color=MUTED)
         self.ia_info.pack(fill="x", padx=12, pady=(2, 2))
         self.ia_clear_btn = ctk.CTkButton(
             f, text="Clear all ammo overrides", width=200,
@@ -4948,14 +5457,14 @@ class App(ctk.CTk):
                     "type. NPC armor is untouched (use 'NPC health' for "
                     "that). Upgrade bonuses stay vanilla.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "ap_strike", "Physical (bullets & melee)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_burn", "Burn (fire)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_shock", "Shock (electric)", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_chem", "Chemical", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_rad", "Radiation", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "ap_psy", "PSY", 25, 400, 25, 100, fmt_pct)
-        self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.5, 1, fmt_factor,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "ap_strike", "Physical (bullets & melee)", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "ap_burn", "Burn (fire)", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "ap_shock", "Shock (electric)", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "ap_chem", "Chemical", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "ap_rad", "Radiation", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "ap_psy", "PSY", 25, 400, 5, 100, fmt_pct)
+        self._slider(f, "dur_armor", "Armor durability", 0.5, 10, 0.1, 1, fmt_factor,
                      "Armor takes more punishment before breaking.")
         self._slider(f, "armor_wear", "Armor wear coefficient (experimental)", 0, 1, 0.05, 0.7, fmt_dec,
                      "The game's ArmorDurabilityParamsCoef and "
@@ -4964,7 +5473,7 @@ class App(ctk.CTk):
                      "is unknown: either 'protection left at zero durability' "
                      "or the opposite. Try 0.3 against 1.0 in-game and tell "
                      "us. Not play-tested yet.")
-        self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 5, 100, fmt_pct,
                      "Exoskeleton & armor/upgrade carry bonuses. "
                      "0 % = armor grants no extra carry weight.")
         self._slider(f, "art_slots", "Extra artifact slots on every body armor", 0, 4, 1, 0, fmt_plus,
@@ -4981,7 +5490,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Grenades vs armor")
-        self._slider(f, "grenade_resist", "Armor grenade resistance", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "grenade_resist", "Armor grenade resistance", 0, 300, 5, 100, fmt_pct,
                      "How much grenade and explosion damage each armor class "
                      "absorbs (vanilla 0 / 10 / 20 / 40 / 60 % for physical "
                      "protection classes 0-4, capped at 100 %). 0 % = "
@@ -4996,15 +5505,15 @@ class App(ctk.CTk):
                     "\u2013 the two do not stack. Durability and carry bonuses "
                     "stay global: they work through different game systems.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         ctk.CTkLabel(
             f, text="   Expand a group, then an armor piece, to edit its "
                     "protection factors.",
-            anchor="w", font=ctk.CTkFont(size=11),
-            text_color="gray60").pack(fill="x", padx=12, pady=(0, 2))
+            anchor="w", font=ctk.CTkFont(size=12),
+            text_color=MUTED).pack(fill="x", padx=12, pady=(0, 2))
         self.ir_info = ctk.CTkLabel(
             f, text="No per-armor overrides set.", anchor="w", justify="left",
-            wraplength=780, font=self._iw_font_hint, text_color="gray60")
+            wraplength=780, font=self._iw_font_hint, text_color=MUTED)
         self.ir_info.pack(fill="x", padx=12, pady=(2, 2))
         self.ir_clear_btn = ctk.CTkButton(
             f, text="Clear all armor overrides", width=200,
@@ -5024,22 +5533,22 @@ class App(ctk.CTk):
                     "penalty parts of an upgrade stay vanilla. Percent bonuses "
                     "cap at 100 %. Not play-tested yet.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "upg_accuracy", "Accuracy upgrades (spread)", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "recoil_upgrades", "Recoil reduction from upgrades", 100, 2000, 100, 100, fmt_pct,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "upg_accuracy", "Accuracy upgrades (spread)", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "recoil_upgrades", "Recoil reduction from upgrades", 100, 2000, 10, 100, fmt_pct,
                      "Multiplies the recoil reduction of weapon upgrades and "
                      "attachments (vanilla -5 % to -30 %), capped at -100 %. "
                      "2000 % = any recoil upgrade removes the kick entirely. "
                      "Community-proven on patch 2.0 (same route as the "
                      "'Dead Steady' mod).")
-        self._slider(f, "upg_handling", "Handling upgrades (aim time, ADS move, sway, draw, recovery, capacity)", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_durability", "Durability upgrades (weapons & armor)", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_range", "Range & ballistics upgrades", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_damage", "Damage & penetration upgrades", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_weight", "Weight reduction upgrades", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_breath", "Breath-hold upgrades", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_armor_prot", "Armor protection upgrades", 0, 500, 25, 100, fmt_pct)
-        self._slider(f, "upg_armor_misc", "Armor stamina-regen upgrades", 0, 500, 25, 100, fmt_pct)
+        self._slider(f, "upg_handling", "Handling upgrades (aim time, ADS move, sway, draw, recovery, capacity)", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_durability", "Durability upgrades (weapons & armor)", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_range", "Range & ballistics upgrades", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_damage", "Damage & penetration upgrades", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_weight", "Weight reduction upgrades", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_breath", "Breath-hold upgrades", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_armor_prot", "Armor protection upgrades", 0, 500, 10, 100, fmt_pct)
+        self._slider(f, "upg_armor_misc", "Armor stamina-regen upgrades", 0, 500, 10, 100, fmt_pct)
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Technician upgrade rules")
@@ -5059,7 +5568,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Scopes")
-        self._slider(f, "scope_zoom", "Scope magnification", 25, 200, 25, 100, fmt_pct,
+        self._slider(f, "scope_zoom", "Scope magnification", 25, 200, 5, 100, fmt_pct,
                      "Scales the zoom of every scope class (vanilla 2x -43 %, "
                      "3x -51 %, 4x -60 %, 8x -70 % of the FOV; capped at -90 %). "
                      "Not play-tested yet.")
@@ -5078,7 +5587,7 @@ class App(ctk.CTk):
                     "are listed. The list fills after the game data is loaded. "
                     "Not play-tested yet.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         self._scope_box = ctk.CTkFrame(f, fg_color="transparent")
         self._scope_box.pack(fill="x")
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -5094,13 +5603,13 @@ class App(ctk.CTk):
         self._slider(f, "anom_grav", "Anomaly damage: gravity", 0.1, 5, 0.1, 1, fmt_factor,
                      "Carousel, Razor, Expulsion, Diamond … "
                      "(PSY anomalies drain psy, not health – no slider).")
-        self._slider(f, "exp_containers", "Explosive containers durability (experimental)", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "exp_containers", "Explosive containers durability (experimental)", 25, 300, 5, 100, fmt_pct,
                      "How much damage gas cylinders, canisters and fuel barrels "
                      "take before they blow (vanilla threshold 20 to 50). 25 % "
                      "= they pop from almost any hit - which also means "
                      "scripted set pieces can go off earlier than intended. "
                      "Not play-tested yet.")
-        self._slider(f, "push_force", "Push and kick force (experimental)", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "push_force", "Push and kick force (experimental)", 25, 300, 5, 100, fmt_pct,
                      "How hard you shove physics props and bodies out of the "
                      "way (vanilla 20 for a lab jar up to 27000 for an ammo "
                      "crate, 3500 for a corpse). High values can throw objects "
@@ -5110,9 +5619,9 @@ class App(ctk.CTk):
                      "(vanilla 20) and burn per hit (vanilla 70). 0 % = one "
                      "harmless flash, like 'FlashbangAnomalyNerf'. Not "
                      "play-tested yet.")
-        self._slider(f, "radiation", "Radiation accumulation", 0, 5, 0.25, 1, fmt_factor,
+        self._slider(f, "radiation", "Radiation accumulation", 0, 5, 0.1, 1, fmt_factor,
                      "× 0 = no radiation buildup.")
-        self._slider(f, "rad_dose", "Radiation dose per second", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "rad_dose", "Radiation dose per second", 25, 300, 5, 100, fmt_pct,
                      "How fast radiation fields fill your bar (vanilla 1 / 3 / "
                      "6 points per second for light, medium and strong fields; "
                      "the strong ones fill it in about 17 s). Stacks with "
@@ -5126,42 +5635,42 @@ class App(ctk.CTk):
         self._slider(f, "geiger", "Geiger counter volume", 0, 200, 10, 100, fmt_pct,
                      "How loud the geiger crackle gets in a field (vanilla 0.2 "
                      "to 0.8, capped at 1). Not play-tested yet.")
-        self._slider(f, "barbed_wire", "Barbed wire damage", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "barbed_wire", "Barbed wire damage", 0, 300, 5, 100, fmt_pct,
                      "Damage, bleeding and armor wear from barbed wire "
                      "(vanilla 10 damage, 25 bleeding points, 5 armor damage, "
                      "10 % bleeding chance; both fence types). 0 % = wire is "
                      "harmless. Not play-tested yet.")
-        self._slider(f, "bleeding", "Bleeding intensity", 0, 5, 0.25, 1, fmt_factor)
+        self._slider(f, "bleeding", "Bleeding intensity", 0, 5, 0.1, 1, fmt_factor)
         self._slider(f, "hunger", "Hunger rate", 0, 300, 10, 100, fmt_pct,
                      "0 % = never get hungry.")
         self._slider(f, "sleep", "Sleepiness rate", 0, 300, 10, 100, fmt_pct,
                      "0 % = never get sleepy.")
-        self._slider(f, "consumable", "Consumable strength", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "consumable", "Consumable strength", 25, 300, 5, 100, fmt_pct,
                      "Medkits, bandages, food, drinks: healing, bleeding/"
                      "radiation removal, stamina etc. Penalties (drunkness, "
                      "spoiled food) stay vanilla.")
-        self._slider(f, "healing", "Medkit & bandage healing", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "healing", "Medkit & bandage healing", 25, 400, 5, 100, fmt_pct,
                      "Health restored by medical items only (medkits and "
                      "bandages, vanilla 20\u2013100 HP) \u2013 food and drink healing "
                      "is not affected. Stacks with Consumable strength: "
                      "both at 200 % = 4\u00d7 healing.")
-        self._slider(f, "cons_duration", "Consumable effect duration", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "cons_duration", "Consumable effect duration", 25, 400, 5, 100, fmt_pct,
                      "How long running consumable effects last (energy "
                      "drink 45 s, Hercules 5 min, cinnamon, vodka/psy-block "
                      "...). Instant effects (healing, bleeding stop, "
                      "anti-rad, 1-2 s) are untouched on purpose.")
-        self._slider(f, "rain", "Rain & storm frequency", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "rain", "Rain & storm frequency", 0, 300, 5, 100, fmt_pct,
                      "Weight of rainy/stormy/thunder weather in the rotation. "
                      "0 % = practically always dry.")
-        self._slider(f, "emission", "Emission frequency", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "emission", "Emission frequency", 25, 400, 5, 100, fmt_pct,
                      "How often emissions build up (quest-controlled "
                      "no-emission zones stay untouched).")
-        self._slider(f, "emission_dur", "Emission duration", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "emission_dur", "Emission duration", 25, 400, 5, 100, fmt_pct,
                      "Stretches the whole emission timeline together - "
                      "warning siren, shockwave, deadly phase and aftermath "
                      "(vanilla ~1 min warning + ~1 min active). Story "
                      "emissions keep their scripted timing.")
-        self._slider(f, "day_length", "Day length", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "day_length", "Day length", 25, 400, 5, 100, fmt_pct,
                      "How long a full day-night cycle takes in real time "
                      "(vanilla: one game day per real hour). 200 % = two "
                      "hours per day, the day/night ratio stays vanilla.")
@@ -5173,25 +5682,26 @@ class App(ctk.CTk):
                          "game executable - the engine may read them from a "
                          "blueprint instead, or ignore them entirely. Nothing "
                          "here is verified in-game. Try them, and tell us what "
-                         "you see.")
-        self._slider(f, "moon", "Moon brightness", 0, 300, 25, 100, fmt_pct,
+                         "you see.",
+                      title="Untested file — sky & night")
+        self._slider(f, "moon", "Moon brightness", 0, 300, 5, 100, fmt_pct,
                      "Vanilla 1.046. 0 % = pitch-black nights. Not play-tested yet.")
         self._slider(f, "sun", "Sun brightness", 50, 200, 10, 100, fmt_pct,
                      "Vanilla 3.14. Not play-tested yet.")
-        self._slider(f, "stars", "Stars", 0, 500, 25, 100, fmt_pct,
+        self._slider(f, "stars", "Stars", 0, 500, 10, 100, fmt_pct,
                      "Vanilla 0.1 - the stars are barely visible. Not "
                      "play-tested yet.")
         self._slider(f, "cloud_opacity", "Cloud opacity", 30, 140, 10, 100, fmt_pct,
                      "Vanilla 0.7, capped at 1. Not play-tested yet.")
-        self._slider(f, "cloud_speed", "Cloud speed", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "cloud_speed", "Cloud speed", 25, 400, 5, 100, fmt_pct,
                      "Vanilla 1. Not play-tested yet.")
-        self._slider(f, "dusk_length", "Dusk & dawn length", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "dusk_length", "Dusk & dawn length", 25, 300, 5, 100, fmt_pct,
                      "How long the light takes to fade between day and night "
                      "(vanilla 2 game hours). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Bodies & weather")
-        self._slider(f, "corpse_time", "Bodies stay", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "corpse_time", "Bodies stay", 25, 500, 10, 100, fmt_pct,
                      "How long dead bodies remain (vanilla 30 min near you, "
                      "15 min once seen, 5 min once looted). Since 1.28.0 also "
                      "the 3 s grace after you look away and the offline "
@@ -5201,7 +5711,7 @@ class App(ctk.CTk):
                      "How many bodies the game keeps around you before it "
                      "starts removing the oldest (vanilla 10). Higher costs "
                      "performance. Not play-tested yet.")
-        self._slider(f, "corpse_distance", "Corpse distance", 50, 300, 25, 100, fmt_pct,
+        self._slider(f, "corpse_distance", "Corpse distance", 50, 300, 5, 100, fmt_pct,
                      "The radii the corpse system works with: bodies go "
                      "offline beyond 100 m, the time and count rules apply "
                      "within 50 / 30 m, overpopulated bodies are destroyed "
@@ -5211,15 +5721,15 @@ class App(ctk.CTk):
         self._slider(f, "corpse_hardcap", "A-Life corpse hard cap", 500, 5000, 100, 1500, fmt_int,
                      "Global ceiling of bodies the A-Life keeps at all "
                      "(vanilla 1500). Not play-tested yet.")
-        self._slider(f, "weather_dur", "Weather duration", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "weather_dur", "Weather duration", 25, 400, 5, 100, fmt_pct,
                      "How long each weather lasts before the next roll "
                      "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
-        self._slider(f, "weather_transition", "Weather transition speed (experimental)", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "weather_transition", "Weather transition speed (experimental)", 25, 400, 5, 100, fmt_pct,
                      "How fast one weather morphs into the next (vanilla "
                      "multiplier 1 on all 22 transition steps). 200 % = twice "
                      "as fast. The exact meaning of the multiplier is not "
                      "verified. Not play-tested yet.")
-        self._slider(f, "item_despawn", "Dropped items stay", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "item_despawn", "Dropped items stay", 25, 500, 10, 100, fmt_pct,
                      "How long items lying in the world remain (vanilla 1 h "
                      "untouched, 3 h otherwise). Not play-tested yet.")
         self._slider(f, "day_start", "Day starts at", 3, 10, 1, 6, fmt_hours,
@@ -5236,7 +5746,7 @@ class App(ctk.CTk):
                      "Vanilla guides refuse to travel while you are overweight "
                      "('Full' lock). 'Partial' and 'No lock' are the two other "
                      "values the game engine knows. Not play-tested yet.")
-        self._slider(f, "guide_delay", "Guide delay", 0, 300, 25, 100, fmt_pct,
+        self._slider(f, "guide_delay", "Guide delay", 0, 300, 5, 100, fmt_pct,
                      "The GuideDelay value every guide carries (vanilla 120). "
                      "Its exact meaning in-game is not verified; 0 % = no delay. "
                      "The cost is on the Economy tab. Not play-tested yet.")
@@ -5255,19 +5765,19 @@ class App(ctk.CTk):
                     "Medium difficulty – on Hard and Stalker there is nothing "
                     "to scale on bodies, only in stashes.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "stash_loot", "Stash & body loot amount", 25, 400, 25, 100, fmt_pct,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "stash_loot", "Stash & body loot amount", 25, 400, 5, 100, fmt_pct,
                      "How many items a stash or body yields (whole numbers, "
                      "never below 1).")
-        self._slider(f, "stash_chance", "Stash & body find chance", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "stash_chance", "Stash & body find chance", 25, 400, 5, 100, fmt_pct,
                      "Chance that a slot yields anything at all. Capped at "
                      "100 %, so raising it helps less than the number suggests "
                      "– many slots already sit close to the cap. Lowering it "
                      "works in full.")
-        self._slider(f, "stash_ammo", "Stash & body ammo bonus", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "stash_ammo", "Stash & body ammo bonus", 25, 400, 5, 100, fmt_pct,
                      "Extra rounds handed out to match the weapon caliber, on "
                      "top of the item list above.")
-        self._slider(f, "stash_clue", "Stash clues on bodies", 0, 1000, 50, 100, fmt_pct,
+        self._slider(f, "stash_clue", "Stash clues on bodies", 0, 1000, 10, 100, fmt_pct,
                      "Chance that a dead NPC carries a stash clue (vanilla 2 % "
                      "plus 1 % per clue already found, per region; capped at "
                      "100 %). 0 % = never, like 'More Stash Clues' in reverse. "
@@ -5294,16 +5804,16 @@ class App(ctk.CTk):
                     "otherwise normal loot – so scripted items are left alone, "
                     "and a named trader's stock stays vanilla.",
             anchor="w", justify="left", wraplength=780,
-            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
-        self._slider(f, "loot_reroll", "Loot re-roll radius on rank-up", 25, 500, 25, 100, fmt_pct,
+            font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
+        self._slider(f, "loot_reroll", "Loot re-roll radius on rank-up", 25, 500, 10, 100, fmt_pct,
                      "When your rank goes up, the game re-rolls the loot in "
                      "containers and stashes within 400 m (vanilla). Larger = "
                      "more of the world refreshes at once. Not play-tested yet.")
-        self._slider(f, "loot_reroll_time", "Loot re-roll delay on rank-up", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "loot_reroll_time", "Loot re-roll delay on rank-up", 25, 500, 10, 100, fmt_pct,
                      "How long the game waits after the rank-up before it "
                      "re-rolls (vanilla 10 s). Not play-tested yet.")
         self._slider(f, "loot_amount", "Loot amount (NPCs, containers, world)",
-                     25, 400, 25, 100, fmt_pct,
+                     25, 400, 5, 100, fmt_pct,
                      "Only ammo and part of the food & medicine lists come as "
                      "real stacks and scale smoothly. Almost everything else "
                      "(detectors, grenades, artifacts, weapons, armor, mutant "
@@ -5323,36 +5833,37 @@ class App(ctk.CTk):
         self._warning(
             f, "This is by far the largest patch this tool can build "
                "(around 25,000 lines). If the game starts noticeably slower "
-               "afterwards, put this slider back to 100 %.")
+               "afterwards, put this slider back to 100 %.",
+            title="Large patch")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Artifacts")
-        self._slider(f, "art_effect", "Artifact effect strength", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "art_effect", "Artifact effect strength", 25, 300, 5, 100, fmt_pct,
                      "Scales what artifacts do on your belt – positive effects "
                      "AND side effects alike (radiation has its own slider below).")
         self._slider(f, "art_radiation", "Artifact radiation side-effect", 0, 200, 10, 100, fmt_pct,
                      "0 % = artifacts emit no radiation at all.")
-        self._slider(f, "art_spawn", "Artifact spawn chance", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "art_spawn", "Artifact spawn chance", 25, 400, 5, 100, fmt_pct,
                      "Chance that anomaly fields spawn an artifact "
                      "(vanilla 25–40 %, capped at 100 %).")
-        self._slider(f, "art_rarity", "Rare artifact bias", 25, 500, 25, 100, fmt_pct,
+        self._slider(f, "art_rarity", "Rare artifact bias", 25, 500, 10, 100, fmt_pct,
                      "Shifts the rarity roll toward Uncommon/Rare/Epic at "
                      "Common's expense. Ranks that can't roll Rare/Epic in "
                      "vanilla (e.g. Newbie) still won't.")
-        self._slider(f, "art_count", "Artifacts per anomaly field", 1, 5, 1, 1, fmt_factor,
+        self._slider(f, "art_count", "Artifacts per anomaly field", 1, 5, 0.1, 1, fmt_factor,
                      "How many artifacts a field hands out per spawn "
                      "(vanilla 1). Which artifacts a field CAN spawn stays "
                      "its vanilla list.")
-        self._slider(f, "art_respawn", "Artifact respawn speed", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "art_respawn", "Artifact respawn speed", 25, 400, 5, 100, fmt_pct,
                      "How fast fields cool down before the next artifact "
                      "(vanilla mostly 3-15, some 60-120). Fields with no "
                      "cooldown stay as they are.")
-        self._slider(f, "weird_art", "Weird artifacts (DLC): charge & duration", 25, 1000, 25, 100, fmt_pct,
+        self._slider(f, "weird_art", "Weird artifacts (DLC): charge & duration", 25, 1000, 10, 100, fmt_pct,
                      "The Cost of Hope 'weird' artifacts run on a charge "
                      "(bolt 300) or a timer (flower 2 h). 1000 % = practically "
                      "no recharge, like 'NoWeirdArtifactRecharge'. Not "
                      "play-tested yet.")
-        self._slider(f, "art_radius", "Artifact visibility radius", 1, 20, 0.5, 1, fmt_factor,
+        self._slider(f, "art_radius", "Artifact visibility radius", 1, 20, 0.1, 1, fmt_factor,
                      "How close you must be before an artifact becomes visible "
                      "(vanilla 40 cm - practically standing on it). \u00d7 19 is "
                      "about 7.5 m, the range the Nexus mod 'Less Shy Artifacts' "
@@ -5365,12 +5876,12 @@ class App(ctk.CTk):
                     "this switches that off. The eight that already stay put "
                     "(the weird DLC ones and two quest artifacts) are left "
                     "alone. Not play-tested yet.")
-        self._slider(f, "art_keepaway", "Artifact keep-away distance (experimental)", 25, 300, 25, 100, fmt_pct,
+        self._slider(f, "art_keepaway", "Artifact keep-away distance (experimental)", 25, 300, 5, 100, fmt_pct,
                      "How far a hopping artifact tries to stay away from you "
                      "(vanilla 10 m, plus the 6 m at which hopping starts at "
                      "all). Whether lower really means easier to catch is "
                      "untested. Not play-tested yet.")
-        self._slider(f, "art_hop_pause", "Artifact hop pause (experimental)", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "art_hop_pause", "Artifact hop pause (experimental)", 25, 400, 5, 100, fmt_pct,
                      "Pause between two hop series (vanilla 15 to 45 s "
                      "depending on the artifact). Higher = they sit still "
                      "longer. Not play-tested yet.")
@@ -5387,11 +5898,11 @@ class App(ctk.CTk):
 
         body = self._tab("Economy")
         f = self._section(body, "Economy & traders")
-        self._slider(f, "buyprice", "Trader buy prices (what you get)", 0.25, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "buyprice", "Trader buy prices (what you get)", 0.25, 4, 0.1, 1, fmt_factor,
                      "Since 1.28.0 this also patches the nine traders that "
                      "carry their own buy coefficient on the NPC itself "
                      "(precedence between the two is unverified).")
-        self._slider(f, "sellprice", "Trader sell prices (what you pay)", 0.25, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "sellprice", "Trader sell prices (what you pay)", 0.25, 4, 0.1, 1, fmt_factor,
                      "Since 1.28.0 this also patches the nine traders that "
                      "carry their own sell coefficient on the NPC itself "
                      "(precedence between the two is unverified).")
@@ -5407,22 +5918,22 @@ class App(ctk.CTk):
                      "(vanilla 24). Lower = fresh rumours and hints sooner. "
                      "Not play-tested yet.")
         self._slider(f, "upgrade", "Upgrade cost", 0, 200, 5, 100, fmt_pct)
-        self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.25, 1, fmt_factor)
-        self._slider(f, "rq_cooldown", "Repeatable quest cooldown", 0, 400, 25, 100, fmt_pct,
+        self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.1, 1, fmt_factor)
+        self._slider(f, "rq_cooldown", "Repeatable quest cooldown", 0, 400, 5, 100, fmt_pct,
                      "Wait time until task givers offer new repeatable "
                      "jobs (vanilla 24 in-game hours). 0 % = new jobs "
                      "right away. A cooldown already ticking in your "
                      "save finishes at its old pace first.")
-        self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 25, 100, fmt_pct,
+        self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
-        self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,
                      "Per-category price multipliers – these stack with the "
                      "trader buy/sell sliders above.")
-        self._slider(f, "price_armor", "Armor prices", 0.25, 4, 0.25, 1, fmt_factor)
-        self._slider(f, "price_ammo", "Ammo prices", 0.25, 4, 0.25, 1, fmt_factor)
-        self._slider(f, "price_artifact", "Artifact prices", 0.25, 4, 0.25, 1, fmt_factor)
-        self._slider(f, "price_consumable", "Consumable prices", 0.25, 4, 0.25, 1, fmt_factor)
-        self._slider(f, "device_price", "Device prices (binoculars, night vision)", 0.25, 4, 0.25, 1, fmt_factor,
+        self._slider(f, "price_armor", "Armor prices", 0.25, 4, 0.1, 1, fmt_factor)
+        self._slider(f, "price_ammo", "Ammo prices", 0.25, 4, 0.1, 1, fmt_factor)
+        self._slider(f, "price_artifact", "Artifact prices", 0.25, 4, 0.1, 1, fmt_factor)
+        self._slider(f, "price_consumable", "Consumable prices", 0.25, 4, 0.1, 1, fmt_factor)
+        self._slider(f, "device_price", "Device prices (binoculars, night vision)", 0.25, 4, 0.1, 1, fmt_factor,
                      "The two remaining per-category price factors. Not "
                      "play-tested yet.")
         self._slider(f, "min_resale", "Minimum resale value", 0, 100, 5, 10, fmt_pct,
@@ -5432,24 +5943,24 @@ class App(ctk.CTk):
 
         body = self._tab("Traders")
         f = self._section(body, "Stock (what traders have on the shelf)")
-        self._slider(f, "trader_stock", "Trader stock amount", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "trader_stock", "Trader stock amount", 25, 400, 5, 100, fmt_pct,
                      "Scales the quantities on offer (ammo boxes, medkit "
                      "stacks ...). Weapons and armor are single items – "
                      "they only multiply from 150 % up, like loot.")
-        self._slider(f, "trader_variety", "Trader stock variety", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "trader_variety", "Trader stock variety", 25, 400, 5, 100, fmt_pct,
                      "Each catalog item has a chance to be in stock after a "
                      "restock. Higher = fuller shelves (chance is capped at "
                      "100 %), lower = patchier stock. What a trader CAN "
                      "carry stays their vanilla catalog – honest limit: "
                      "this tool does not add new items to traders.")
-        self._slider(f, "restock", "Trader restock time", 25, 400, 25, 100, fmt_pct,
+        self._slider(f, "restock", "Trader restock time", 25, 400, 5, 100, fmt_pct,
                      "How long traders take to refresh their stock "
                      "(vanilla: 8 h to 7 days depending on the trader; "
                      "day-based traders can't go below 1 day).")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Wallet & buying")
-        self._slider(f, "trader_money", "Trader money", 0.25, 10, 0.25, 1, fmt_factor,
+        self._slider(f, "trader_money", "Trader money", 0.25, 10, 0.1, 1, fmt_factor,
                      "Scales the coupon wallet traders pay you from. "
                      "Honest note: most traders (59 of 73) already have "
                      "unlimited money in vanilla – this affects the "
@@ -5491,7 +6002,7 @@ class App(ctk.CTk):
         row2.pack(fill="x", padx=8, pady=(2, 4))
         self.btn_build = ctk.CTkButton(
             row2, text="Build pak  →  output folder", height=36,
-            font=ctk.CTkFont(size=14, weight="bold"), command=self._generate_output)
+            font=ctk.CTkFont(size=15, weight="bold"), command=self._generate_output)
         self.btn_build.pack(side="left", fill="x", expand=True, padx=4)
         self.btn_install = ctk.CTkButton(row2, text="Install to ~mods", width=130,
                                          command=self._generate_install)
@@ -5508,18 +6019,30 @@ class App(ctk.CTk):
                                       command=self._start_modscan)
         self.btn_scan.pack(side="left", padx=4)
         self.btn_remove = ctk.CTkButton(row2, text="Remove from ~mods", width=150,
-                                        fg_color="#7a2d2d", hover_color="#8f3838",
+                                        fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
+                                        border_width=SYS_BORDER,
+                                        border_color=BAD_BORDER,
                                         command=self._remove_mod)
         self.btn_remove.pack(side="left", padx=4)
 
-        self.status = ctk.CTkLabel(foot, text="Starting ...", anchor="w",
+        # Statuszeile links, rechts daneben das Zeichen des aktiven Designs
+        # (Besitzer 06.09.: "unter remove from mods ist Platz fuer jeweils
+        # ein Logo"). Bewusst KEIN Fraktionslogo aus dem Spiel — das ist
+        # GSC-Grafik; hier steht das Tab-Symbol plus der Name des Designs.
+        status_row = ctk.CTkFrame(foot, fg_color="transparent")
+        status_row.pack(fill="x", padx=12, pady=(0, 2))
+        self.theme_mark = ctk.CTkLabel(
+            status_row, text="", anchor="e", width=150,
+            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"))
+        self.theme_mark.pack(side="right")
+        self.status = ctk.CTkLabel(status_row, text="Starting ...", anchor="w",
                                    text_color="gray70")
-        self.status.pack(fill="x", padx=12, pady=(0, 2))
+        self.status.pack(side="left", fill="x", expand=True)
         ctk.CTkLabel(
             foot,
             text="ℹ Only values you change are written to the pak. Sliders at "
                  "(vanilla) are left untouched, so other mods keep working.",
-            anchor="w", font=ctk.CTkFont(size=11), text_color="gray55",
+            anchor="w", font=ctk.CTkFont(size=12), text_color="gray55",
         ).pack(fill="x", padx=12, pady=(0, 8))
         self._set_busy(True)
 
@@ -6163,6 +6686,131 @@ class App(ctk.CTk):
             self._clear_changed_only_view()
 
     # -------------------------------------------------------- Changed only
+    # ------------------------------------------------------- Farbdesigns
+    def _set_theme(self, name: str) -> None:
+        """Design umschalten — sofort sichtbar, ohne Neustart.
+
+        `ACCENT` ist ein Modul-Global und wird von Suchtreffern, Warnboxen
+        und Override-Markern beim AUFRUF gelesen; darum reicht es, ihn hier
+        neu zu binden, damit alles Kuenftige die neue Farbe nimmt. Alles
+        Vorhandene faerbt theme.apply() um."""
+        global ACCENT, PANEL, PANEL2, PANEL2_HOVER, MUTED
+        if name not in theme.THEMES:
+            name = theme.DEFAULT_NAME
+        previous = self.theme_name
+        self.theme_name = name
+        pal = theme.get(name)
+        theme.apply(self, name, previous)
+        self.tabs.restyle(pal)          # nach dem allgemeinen Umfaerben
+        theme.apply_button_text(self)   # und danach die Knopfschrift
+        ACCENT = pal["accent"]
+        PANEL, PANEL2 = pal["panel"], pal["panel2"]
+        PANEL2_HOVER, MUTED = pal["panel2_hover"], pal["secondary"]
+        # Zeichen des Designs in der Fusszeile
+        mark = getattr(self, "theme_mark", None)
+        if mark is not None:
+            glyph = THEME_MARKS.get(name, "◐")
+            mark.configure(text=f"{glyph}  {name.upper()}", text_color=ACCENT)
+        # Der Design-Knopf traegt den neuen Akzent (Default: neutral grau)
+        if name == theme.DEFAULT_NAME:
+            self.btn_theme.configure(fg_color=PANEL2, hover_color=PANEL2_HOVER,
+                                     text_color=self.btn_faq.cget("text_color"))
+        else:
+            self.btn_theme.configure(fg_color=ACCENT,
+                                     hover_color=pal["bright"],
+                                     text_color="gray10")
+        # "Changed only" ist im aktiven Zustand bernsteinfarben — mitziehen
+        if self.changed_only:
+            self.btn_changed.configure(fg_color=ACCENT, text_color="gray10")
+        for row in self.sliders.values():
+            if row.conflict_mods:
+                row._update_dot()
+
+    def _show_theme_window(self):
+        """Kleines Fenster mit den Paletten. Klick faerbt sofort um, damit
+        man sieht, was man waehlt, statt einen Namen zu raten."""
+        existing = getattr(self, "_theme_win", None)
+        if existing is not None and existing.winfo_exists():
+            existing.deiconify()
+            existing.lift()
+            existing.focus_set()
+            return
+        win = ctk.CTkToplevel(self)
+        self._theme_win = win
+        win.title("S2Tweaker — colour themes")
+        win.geometry("460x520")
+        win.minsize(420, 360)
+        win.transient(self)
+        ctk.CTkLabel(
+            win, text="Colour themes", anchor="w",
+            font=ctk.CTkFont(size=17, weight="bold")).pack(
+                fill="x", padx=16, pady=(14, 0))
+        ctk.CTkLabel(
+            win, anchor="w", justify="left", wraplength=410,
+            font=ctk.CTkFont(size=12), text_color=MUTED,
+            text="Cosmetic only — nothing about the mod you build changes. "
+                 "The colours are my own take on how the factions look "
+                 "in-game; the game files carry no faction palette. Green "
+                 "and red stay green and red: they mean ready, missing and "
+                 "off.").pack(fill="x", padx=16, pady=(2, 8))
+        body = ctk.CTkScrollableFrame(win, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        marks: dict[str, ctk.CTkLabel] = {}
+
+        def choose(name: str):
+            self._set_theme(name)
+            for key, mark in marks.items():
+                mark.configure(text="✓" if key == name else "")
+
+        for name in theme.names():
+            pal = theme.get(name)
+            row = ctk.CTkFrame(body, fg_color=PANEL,
+                               corner_radius=8)
+            row.pack(fill="x", padx=4, pady=3)
+            swatch = ctk.CTkFrame(row, width=34, height=34, corner_radius=6,
+                                  fg_color=pal["accent"])
+            swatch.pack(side="left", padx=(10, 4), pady=8)
+            swatch.pack_propagate(False)
+            bar = ctk.CTkFrame(row, width=12, height=34, corner_radius=4,
+                               fg_color=pal["button"])
+            bar.pack(side="left", padx=(0, 10), pady=8)
+            bar.pack_propagate(False)
+            text = ctk.CTkFrame(row, fg_color="transparent")
+            text.pack(side="left", fill="both", expand=True, pady=6)
+            ctk.CTkLabel(text, text=name, anchor="w",
+                         font=ctk.CTkFont(size=14, weight="bold")).pack(
+                             fill="x")
+            ctk.CTkLabel(text, text=pal.get("note", ""), anchor="w",
+                         justify="left", wraplength=250,
+                         font=ctk.CTkFont(size=12),
+                         text_color=MUTED).pack(fill="x")
+            mark = ctk.CTkLabel(row, width=26,
+                                text="✓" if name == self.theme_name else "",
+                                font=ctk.CTkFont(size=16, weight="bold"))
+            mark.pack(side="left", padx=(0, 6))
+            marks[name] = mark
+            ctk.CTkButton(row, text="Use", width=62,
+                          command=lambda n=name: choose(n)).pack(
+                              side="left", padx=(0, 10))
+        ctk.CTkButton(win, text="Close", width=100,
+                      command=win.destroy).pack(pady=(0, 12))
+
+    def _toggle_wheel(self):
+        """Mausrad am Regler ein- und ausschalten.
+
+        AUS (rot, Startzustand) = das Rad blaettert nur die Seite, kein
+        Regler bewegt sich beim Scrollen. AN (gruen) = beides, wie in
+        customtkinter vorgesehen. Bewusst NICHT gespeichert: der Schalter
+        steht bei jedem Start wieder auf aus (Besitzer: "beim ersten start
+        automatisch keine slider verschieben und rot")."""
+        SliderRow.set_wheel_enabled(not SliderRow._wheel_enabled)
+        on = SliderRow._wheel_enabled
+        self.btn_scroll.configure(
+            text="● Wheel moves sliders" if on else "● Wheel scrolls only",
+            fg_color=OK_GREEN if on else BAD_RED,
+            hover_color=OK_GREEN_HOVER if on else BAD_RED_HOVER,
+            border_color=OK_BORDER if on else BAD_BORDER)
+
     def _toggle_changed_only(self):
         """Alles dimmen, was auf Vanilla steht — S2Tweaker wird zur
         Editor-Ansicht des aktuell gebauten Mods. Rein visuell (dimmen statt
@@ -6264,13 +6912,13 @@ class App(ctk.CTk):
                                   "animation, antivirus)")
         search.pack(side="left", fill="x", expand=True)
         count = ctk.CTkLabel(top, text="", width=150, anchor="e",
-                             text_color="gray60")
+                             text_color=MUTED)
         count.pack(side="left", padx=(8, 0))
 
         body = ctk.CTkScrollableFrame(win)
         body.pack(fill="both", expand=True, padx=10, pady=(2, 10))
-        font_q = ctk.CTkFont(size=13)
-        font_a = ctk.CTkFont(size=12)
+        font_q = ctk.CTkFont(size=14)
+        font_a = ctk.CTkFont(size=13)
         rows = [FaqRow(body, entry, font_q, font_a)
                 for entry in faq.FAQ_ENTRIES]
 
@@ -6354,10 +7002,10 @@ class App(ctk.CTk):
         ctk.CTkButton(row, text="Scan now", width=110,
                       command=lambda: answer("scan")).pack(side="left", padx=6)
         ctk.CTkButton(row, text="Not now", width=100, fg_color="gray35",
-                      hover_color="gray25",
+                      hover_color=PANEL2_HOVER,
                       command=lambda: answer("later")).pack(side="left", padx=6)
         ctk.CTkButton(row, text="Don't ask again", width=120, fg_color="gray35",
-                      hover_color="gray25",
+                      hover_color=PANEL2_HOVER,
                       command=lambda: answer("never")).pack(side="left", padx=6)
 
     def _start_modscan(self):
@@ -6806,7 +7454,7 @@ class App(ctk.CTk):
         win.transient(self)
         frame = ctk.CTkScrollableFrame(win)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
-        bold = ctk.CTkFont(size=13, weight="bold")
+        bold = ctk.CTkFont(size=14, weight="bold")
 
         def line(text, **kw):
             ctk.CTkLabel(frame, text=text, anchor="w", justify="left",
@@ -6822,13 +7470,13 @@ class App(ctk.CTk):
                      + ", ".join(labels), text_color="gray80")
             elif info.n_cfg:
                 line("Changes game configs, but none that overlap with "
-                     "this tool's settings.", text_color="gray60")
+                     "this tool's settings.", text_color=MUTED)
             if info.note:
-                line(info.note, text_color="gray60")
+                line(info.note, text_color=MUTED)
         if broken:
             line("These mods contain data I can't read:", font=bold)
             for info in broken:
-                line(f"{info.name} \u2014 {info.note}", text_color="gray60")
+                line(f"{info.name} \u2014 {info.note}", text_color=MUTED)
         after = sorted(self._mods_after
                        & {i.name for i in self.modscan_results})
         if after:
@@ -6844,12 +7492,12 @@ class App(ctk.CTk):
                  "ACTIVE is decided in the game's own mods menu, and its "
                  "load order versus this tool's pak is managed by the "
                  "game (not verified) \u2014 shared values may go either way.",
-                 text_color="gray60")
+                 text_color=MUTED)
         line("Affected settings are marked with a dot: blue = a mod changes "
              "it while you are at (vanilla), violet = you changed it too. "
              "Your pak usually wins shared values because its zzz_ name "
              "loads last. The dots stay until you scan again.",
-             text_color="gray60")
+             text_color=MUTED)
 
         foot = ctk.CTkFrame(win, fg_color="transparent")
         foot.pack(fill="x", padx=12, pady=(0, 10))
@@ -6860,7 +7508,7 @@ class App(ctk.CTk):
             avoid_box.select()
         avoid_hint = ctk.CTkLabel(
             foot, text="", anchor="w", justify="left", wraplength=580,
-            font=ctk.CTkFont(size=11), text_color="gray60")
+            font=ctk.CTkFont(size=12), text_color=MUTED)
 
         def refresh_hint():
             if self.avoid_conflicts:
@@ -6942,6 +7590,7 @@ class App(ctk.CTk):
                 "modscan_pref": self.modscan_pref,
                 "modscan_avoid": self.avoid_conflicts,
                 "changed_only": self.changed_only,
+                "theme": self.theme_name,
                 "modscan_unlocked": sorted(self.avoid_unlocked),
                 **self._ui_state(),
             }
@@ -7018,6 +7667,10 @@ class App(ctk.CTk):
         if data.get("modscan_pref") in ("ask", "never"):
             self.modscan_pref = data["modscan_pref"]
         self.avoid_conflicts = bool(data.get("modscan_avoid"))
+        # Design VOR "changed only" setzen: der Toggle faerbt seinen Knopf
+        # mit dem dann gueltigen Akzent.
+        if data.get("theme"):
+            self._set_theme(theme.resolve(data["theme"]))
         if data.get("changed_only"):
             # Ueber den Toggle, damit Knopf-Farbe und Tick-Loop stimmen
             self.after(200, self._toggle_changed_only)

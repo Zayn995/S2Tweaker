@@ -7,7 +7,7 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-Around 400 tweaks in 14 tabs: Player, Vault, Weight & items, Combat,
+Around 400 tweaks in 14 tabs: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 

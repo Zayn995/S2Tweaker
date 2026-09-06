@@ -22,7 +22,7 @@ Those numbers are for 1.26.0 (S2Tweaker.exe is byte-identical to the one in 1.21
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]400 tweaks[/b], sorted into 14 tabs (Player, Vault, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]400 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
 
 [b]Player[/b]
 [list]

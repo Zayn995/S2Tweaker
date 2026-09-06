@@ -21,6 +21,8 @@ ORDER = [
     "test_gui_collect.py",
     "test_slider_sweep.py",
     "test_log_slider.py",
+    "test_slider_entry.py",
+    "test_theme.py",
     "test_gui_armor.py",
     "test_gui_avoid.py",
     "test_gui_qol.py",
