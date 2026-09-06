@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.25.0
-File version:  1.25.0
+Name:          S2Tweaker 1.26.0
+File version:  1.26.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,29 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.26.0 - 26 tweaks from the wider modding scene
+
+- Body & movement (Player): can't be knocked down, no slowdown in
+  water, free look on ladders, look straight down.
+- Camera & map (Player): hands-free zoom strength, crouch vignette,
+  map reveal distance, all region names from the start, skip intro.
+- Weapons: reload speed (per weapon and magazine multipliers, vanilla
+  1.0), jam clearing speed (4-5.5 s), weapon wear per butt strike.
+- Combat: explosion radius, explosion damage to NPCs, base guards
+  without instant death (500-damage guard weapons, invisible sniper).
+- NPCs & AI: NPCs don't loot bodies, psy fields spawn phantoms,
+  NPC visibility distance of the A-Life grid (vanilla 85 m).
+- Mutants: all mutants trigger anomalies, pseudodog phantom damage,
+  mutant trophy drop chance (vanilla 10-100 % by species).
+- World: Clicker anomaly strength, fast travel when overweight, guide
+  delay, instant teleports, stash clues on bodies, weird artifact
+  charge and duration.
+- Armor & traders: protection caps (the hidden 90 % ceiling), traders
+  don't buy weapons or armor.
+- Five more game files are read; the first start re-extracts the game
+  data once (10-20 s).
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.25.0 - field of view, HUD switches, bodies, weather, ballistics,
 pistol slot, mutant armor, sleep
 

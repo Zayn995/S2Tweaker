@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~265 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~290 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -22,7 +22,7 @@ Those numbers are for 1.25.0 (S2Tweaker.exe is byte-identical to the one in 1.21
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]265 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]290 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -30,10 +30,12 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Walk/crouch and run/sprint speed as separate sliders
 [*]Max carry weight, overweight penalty start, item weights per category, 'quest items weigh nothing'
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
+[*]Explosion radius and explosion damage to NPCs; base guards without instant death (their 500-damage weapons and the invisible sniper of restricted areas)
 [*]Hit camera shake / aim punch 0-300%
 [*]Interaction reach (pick up, loot, containers) and talk distance for NPC dialogs; saving: manual, quick and autosave slot limits plus the autosave interval
 [*]Ladder climb speed; starting money for a new game
 [*]Dialog, cutscene and default field of view; compass, crosshair, dead body and stash markers forced on or off; sleep rules (sleep whenever you like, minimum hours, sleep during emissions)
+[*]Body & movement: can't be knocked down, no slowdown in water, free look on ladders, look straight down; hands-free zoom strength and crouch vignette; PDA map reveal distance and all region names from the start; skip the intro video
 [/list]
 
 [b]Vaulting - its own tab[/b]
@@ -55,6 +57,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Shooting camera shake 0-200% and ADS zoom from none to double; aim assist switched off for mouse and/or gamepad
 [*]Bullet drop 0-300% and bullet speed 50-300%; which weapon classes fit the pistol slot (SMGs, SMGs and shotguns, any weapon - not compatible with OXA)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
+[*]Reload speed, jam clearing speed and weapon wear per butt strike
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
 
@@ -71,6 +74,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Per-armor overrides for all 57 armors and helmets[/b] incl. the edition pieces, listed under their real in-game names: open Body armor or Helmets, open the piece ("Cuirass Exoskeleton", "SEVA Suit" ...), set its protection factors - a piece's own factor beats the global slider, everything left at (vanilla) falls through. Only protection types the piece actually has get a slider
 [*]Armor durability (separate from weapon durability)
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
+[*]Protection caps: the game's hidden 90 % ceiling on total protection (85 % radiation, physical 4.5), liftable to the maximum the game accepts
 [/list]
 
 [b]NPCs & AI[/b]
@@ -79,6 +83,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Vision and hearing range down to 10% - combine both for ghost-mode stealth
 [*]Grenade usage (0% = no more grenade spam) and reaction delay (how long NPCs take to alert their squad)
 [*]"NPCs don't self-heal" - vanilla NPCs passively regenerate health while you regenerate none
+[*]NPCs don't loot bodies; psy fields spawn phantoms instead of real stalkers; NPC visibility distance of the A-Life grid (vanilla 85 m)
 [*][b]NPC gear quality[/b]: tilts the random loadout pools toward the expensive end (or the cheap end, below 100 %) - the game's own price data is the quality rank. Honest limit: it only re-weights what a pool already contains, it never adds or removes items
 [*][b]NPC combat behaviour[/b] (experimental): the hidden per-weapon AI profiles behind 'aimbot' complaints - guaranteed-hit shots per burst (0 % = every NPC shot uses normal spread), burst length, fire pauses, engagement range, NPC weapon range and NPC health regen as a factor
 [*][b]Stealth[/b] (experimental): crouch stealth, movement noise, bad-weather stealth (how much fog, rain and thunder blind and deafen NPCs) and how strongly your own flashlight gives you away
@@ -105,6 +110,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Per-species tree[/b] in four size groups: open a species, set health / speed / damage / regen - each species shows its vanilla numbers (prototype count, HP range, attacks, regen). Damage scales each attack individually. Species only get sliders for things that really work: Poltergeist and rat swarms deal damage indirectly, so no damage slider there - and mutant sight is engine logic, so there is honestly no vision slider at all
 [*]Bloodsucker cloaking: cloaking speed, and how hard damage breaks the cloak (x0 = hits never reveal them)
 [*][b]Mutant attack cooldown[/b]: the pause between mutant attacks (200 % = half as many attacks)
+[*]All mutants trigger anomalies, pseudodog phantom damage, mutant trophy drop chance (vanilla 10 to 100 % depending on the species)
 [/list]
 
 [b]Artifacts & detectors[/b]
@@ -124,6 +130,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Emission duration[/b]: stretch or shorten how long the regular emission takes (25-400 %) - all phases scale together so warning, wave and aftermath keep their vanilla rhythm. Story emissions are deliberately untouched
 [*][b]Loot[/b] - two separate systems, four sliders: the smart-loot lists in stashes and on bodies (amount, find chance, ammo bonus), and the item generators behind dead stalkers, mutants and the Zone's stashes (amount). Money, quest items, story rewards, unique weapons and trader stock are excluded by design
 [*][b]Dropped weapon condition[/b]: sets the AVERAGE condition of weapons found on bodies and in the world (vanilla ~37.5 %) - the game keeps rolling randomly around it exactly like vanilla, so 80 % gives drops between roughly 67 and 93 %. Tick 'Exact condition' for a fixed value. Armor, helmets, artifacts and trader stock stay vanilla
+[*]Clicker anomaly strength; stash clues on bodies; weird artifacts (DLC) charge and duration; travel: fast travel when overweight, guide delay, instant teleports
 [/list]
 
 [b]Economy[/b]
@@ -141,6 +148,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Stock variety[/b]: each catalog item's chance to be in stock after a restock, capped at 100 % - fuller or patchier shelves. Honest limit: the tool never ADDS items to a trader's catalog
 [*][b]Restock time[/b] (moved here from Economy) and the minimum durability traders accept when buying your gear
 [*][b]Wallets[/b]: a money factor plus an 'unlimited money' checkbox - fun fact from the game data: 59 of 73 traders already have unlimited money in vanilla, so both only touch the 14 finite wallets (bartenders etc.)
+[*]'Traders don't buy weapons or armor' for hardcore runs
 [/list]
 
 [b]Tool features[/b]
@@ -148,7 +156,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions (their config part is read; only packed assets stay invisible, and the result says so) - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
 [*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
-[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 65 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
+[*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 69 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]No internet, at all[/b]: since 1.19.2 the tool contains no networking code - no update check, no downloads, nothing in the background. An indicator next to the FAQ button shows whether the one file you have to supply yourself (the Oodle library) is in place, and a setup window walks you through it
 [*][b]Save & load presets[/b] (JSON files in a presets folder next to the exe)
@@ -200,6 +208,21 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.26.0 - 26 tweaks from the wider modding scene[/b] (~290 tweaks + ammo swap, 13 tabs)
+[list]
+[*]A sweep through the Steam Workshop, mod.io, ap-pro.ru, stalker-world.ru and the open sources of sdwvit's mod collection for things that are plain config values and were not in the tool yet. Nothing is added to the game - only existing numbers and flags change
+[*][b]Body & movement[/b] (Player, new section): Skif can't be knocked down (mutant charges, blasts); no slowdown in water; free look on ladders (vanilla 30/40 degrees, now 90); look straight down (vanilla stops at 80 degrees)
+[*][b]Camera & map[/b] (Player): hands-free zoom strength (right mouse without a weapon, vanilla FOV factor 0.8); crouch vignette 0-150 %; PDA map location reveal distance (vanilla mostly 100 m); all 23 region names shown from the start; skip the intro video (new game)
+[*][b]Weapons[/b]: reload speed (every reload-time multiplier per weapon and magazine, vanilla 1.0 - the fields the official Zone Kit weapon guide points at; edition weapons stay vanilla), jam clearing speed (vanilla 4 to 5.5 s), weapon wear per butt strike (vanilla 5 durability per hit, 0 % = bash crates for free)
+[*][b]Combat[/b]: explosion radius (grenades, launcher rounds, barrels, gas cylinders; vanilla RGD-5 7 m, F1 10 m) and explosion damage to NPCs (vanilla RGD-5 260, RPG 2700); 'Base guards use normal weapon damage' - vanilla guard weapons deal 500 per hit and restricted areas kill you with an invisible sniper shot; the switch gives the 32 guard profiles their weapon's normal NPC damage and removes the sniper effect. Guards are meant to be deadly, use at your own risk
+[*][b]NPCs & AI[/b]: NPCs don't loot bodies (231 human NPC prototypes); psy fields spawn phantoms instead of real hostile stalkers; NPC visibility distance of the A-Life grid (vanilla 85 m, the 'Distant Horizons' idea - costs performance)
+[*][b]Mutants[/b]: all mutants trigger anomalies (bloodsuckers, chimeras, controllers, poltergeists, pseudodogs, pseudogiants, deer and rats are immune in vanilla); pseudodog phantom damage (0 % = harmless illusions); mutant trophy drop chance (vanilla blind dog 15 %, tushkan 10 %, boar/flesh/snork 20 %, bloodsucker 50 %, poltergeist 65 %, the rest 100 %; capped at 100 %)
+[*][b]World[/b]: Clicker anomaly strength (flashes and burn per hit); new section 'Travel & teleports' with fast travel when overweight (vanilla 'Full' lock; 'Partial' and 'No lock' are the other values the engine knows), guide delay (vanilla 120, exact in-game meaning not verified) and instant teleports without the fade to black; stash clues on bodies (vanilla 2 % plus 1 % per clue found, per region); weird artifacts (Cost of Hope) charge and duration
+[*][b]Armor & traders[/b]: protection caps - the game limits your total protection per type to 90 % (radiation 85 %, physical 4.5) no matter what armor and artifacts add up to; 111 % lifts the percent caps to 100, physical scales freely. 'Traders don't buy weapons or armor' for hardcore runs
+[*]The tool reads five more game files (post effects, explosions, stash clues, map markers, anomalies). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
+[*]Not play-tested in-game, like the rest of the tool - every tooltip says so; least certain are reload speed (does the animation follow?), the guide delay and the guard switch. Existing paks stay valid
+[/list]
+
 [b]v1.25.0 - Field of view, HUD switches, bodies, weather, ballistics, pistol slot, mutant armor, sleep[/b] (~265 tweaks + ammo swap, 13 tabs)
 [list]
 [*][b]Field of view[/b] (Player): dialog FOV (vanilla 70, the zoom-in during conversations), cutscene FOV (90) and the default gameplay FOV (90). The idea behind the FOV / dialogue / cutscene mods. If you use the FOV setting in the game's own options, that one most likely wins for gameplay
@@ -215,6 +238,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.24.0 - Artifact slots, shooting camera shake, ADS zoom, ladder speed, starting money, aim assist switches[/b] (~250 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]Extra artifact slots[/b] (Armor): +1 to +4 slots on every body armor, capped at 5, the game's maximum (vanilla: most armors have 2, three have 5). Helmets are untouched. Like the 'Armor Artifact Slots' mod
 [*][b]Shooting camera shake[/b] (Weapons): how much the camera shakes when you fire, 0-200 %, every weapon's own shake entry (vanilla 1.0). 0 % is the 'No Screenshake' mod. Being hit stays on the separate 'Hit camera shake' slider
@@ -224,6 +248,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The tool reads one more game file (aim assist presets). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
 [*]Not play-tested in-game, like the rest of the tool. Existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.23.0 - No more repak.exe: the pak files are handled by plain Python now[/b] (~240 tweaks + ammo swap, 13 tabs)
 [spoiler]
