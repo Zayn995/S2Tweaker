@@ -494,4 +494,166 @@ for needle in ("squad expansion", "refill cooldown", "refill distance", "corpse 
 assert not any(k in "\n".join(summarize(S())) for k in ("squad expansion", "refill", "corpse budget", "hard cap"))
 print("P5.5 Zusammenfassung: 8 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P6 - Welt und Atmosphaere
+# =========================================================================
+from s2tweaker.tweaks import RADIATION_PRESETS_OK, CAMP_LIFE_NEEDS, SKY_KEYS   # noqa: E402
+BW = "BarbedWirePrototypes/BarbedWirePrototypes_patch_S2Tweaker.cfg"
+DES = "DestructibleObjectPrototypes/DestructibleObjectPrototypes_patch_S2Tweaker.cfg"
+PHY = "PhysicsInteractionPrototypes/PhysicsInteractionPrototypes_patch_S2Tweaker.cfg"
+WCH = "WeatherChainPrototypes/WeatherChainPrototypes_patch_S2Tweaker.cfg"
+SKY = "SingletonConstants.cfg_patch_S2Tweaker.cfg"
+NEEDS = "NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_S2Tweaker.cfg"
+
+# --- P6.0) Dateien, Schema 22, Mod-Scan, Neutral leer ------------------------------
+for name in ("BarbedWirePrototypes.cfg.bin", "DestructibleObjectPrototypes.cfg.bin",
+             "PhysicsInteractionPrototypes.cfg.bin", "WeatherChainPrototypes.cfg.bin",
+             "SingletonConstants.cfg"):
+    assert name in NEEDED_FILES, name
+assert CACHE_SCHEMA == 22
+for tree in ("barbedwire", "destructibles", "physicsinteractions", "weatherchains", "singletonconstants"):
+    assert tree in _GD_TREES, tree
+assert not build_patches(gd, S(radiation_dose_factor=1.0, barbed_wire_factor=1.0, explosive_container_factor=1.0,
+                               push_force_factor=1.0, weather_transition_factor=1.0, moon_brightness_factor=1.0,
+                               music_combat_threshold=20, music_combat_lifetime=25, camp_life_factor=1.0))
+print("P6.0 Dateien: fuenf neue, Schema 22, Mod-Scan kennt alle, Neutral leer  OK")
+
+# --- P6.1) Strahlungsfelder: nur 4 Presets, Deadly/RadBlock/Custom fehlen -----------
+p = build_patches(gd, S(radiation_dose_factor=2.0, radiation_filter_factor=2.0, geiger_volume_factor=0.5))
+rad = parsed(p, CORE).children["DefaultConfig"].children["RadiationPresetValues"].children
+assert sorted(rad) == ["[0]", "[1]", "[2]", "[6]"], sorted(rad)
+assert len(RADIATION_PRESETS_OK) == 4
+assert rad["[0]"].values == {"Preset": "ERadiationPreset::Light", "RadioactivityValue": "15.f",
+                             "RadiationPerSecondValue": "2.0f", "GeigerRadiationIntensity": "0.2f",
+                             "PostProcessRadiationIntensity": "1.0f"}, rad["[0]"].values
+assert rad["[2]"].values["RadiationPerSecondValue"] == "12.0f" and rad["[2]"].values["PostProcessRadiationIntensity"] == "1.0f"
+assert rad["[6]"].values["GeigerRadiationIntensity"] == "0.1f" and rad["[6]"].values["RadioactivityValue"] == "15.f"
+for tabu in ("Deadly", "RadBlock", "Custom", "RadBlockFieldDamage", "EffectPrototypeSIDs"):
+    assert tabu not in p[CORE], tabu
+assert CORE not in build_patches(gd, S(radiation_dose_factor=1.0))
+print("P6.1 Strahlung: [0]/[1]/[2]/[6] komplett, Dosis x2, Filter gedeckelt 1.0f, Geiger x0.5, Todeszonen fehlen  OK")
+
+# --- P6.2) Kampfmusik: Absolutwerte live verglichen, Suffix f ------------------------
+assert core_values(music_combat_threshold=50, music_combat_lifetime=10) == {
+    "MusicManagerCombatScoreThreshold": "50.0f", "MusicManagerCombatEnemyAttackActionLifetimeSeconds": "10.0f"}
+assert CORE not in build_patches(gd, S(music_combat_threshold=20, music_combat_lifetime=25))
+print("P6.2 Kampfmusik: Schwelle 50.0f, Nachlauf 10.0f, Vanilla erzeugt nichts  OK")
+
+# --- P6.3) Stacheldraht: beide Prototypen, Basis [0] bleibt -------------------------
+bw = parsed(build_patches(gd, S(barbed_wire_factor=2.0)), BW)
+assert sorted(bw.children) == ["LimitingBarbedWire", "OverlappableBarbedWire"], sorted(bw.children)
+assert bw.children["LimitingBarbedWire"].values == {"Damage": "20.0", "BleedingValue": "50.0",
+                                                    "ArmorDamage": "10.0", "BleedingChance": "0.2"}
+assert bw.children["OverlappableBarbedWire"].values["Damage"] == "20.0"
+bw = parsed(build_patches(gd, S(barbed_wire_factor=0.0)), BW)
+assert bw.children["LimitingBarbedWire"].values == {"Damage": "0.0", "BleedingValue": "0.0",
+                                                    "ArmorDamage": "0.0", "BleedingChance": "0.0"}
+assert parsed(build_patches(gd, S(barbed_wire_factor=20.0)), BW).children["LimitingBarbedWire"] \
+    .values["BleedingChance"] == "1.0"                                      # Deckel
+assert "ArmorPiercing" not in build_patches(gd, S(barbed_wire_factor=2.0))[BW]
+print("P6.3 Stacheldraht: beide Prototypen x2 / x0, Chance gedeckelt 1.0, Basis [0] unberuehrt  OK")
+
+# --- P6.4) Explodierende Behaelter: 22 Exp-Structs, Phase komplett -------------------
+live_exp = [k for k, n in gd.destructibles.children.items()
+            if (n.values.get("SID") or "").startswith("Exp_") or "_Exp_" in (n.values.get("SID") or "")]
+assert len(live_exp) == 22, len(live_exp)
+p = build_patches(gd, S(explosive_container_factor=0.5))
+des = parsed(p, DES)
+assert len(des.children) == 22 and all(k.startswith("[") for k in des.children), sorted(des.children)[:3]
+first = des.children[live_exp[0]].children["ObjectPhaseSettings"].children["[0]"].values
+assert first == {"DamageIgnoranceThreshold": "3.0", "DamageDestroyThreshold": "20.0"}, first
+assert "DestructibleActions" not in p[DES] and "AssetPath" not in p[DES] and "OriginalMesh" not in p[DES]
+assert "ObjectPhaseSettings : struct.begin {bpatch}" in p[DES]
+assert DES not in build_patches(gd, S(explosive_container_factor=1.0))
+print(f"P6.4 Behaelter: {len(des.children)} Exp-Prototypen, Schwelle 40 -> 20, Phase mit beiden Skalaren, Assets draussen  OK")
+
+# --- P6.5) Schubkraft: alle 88 Prototypen -------------------------------------------
+phy = parsed(build_patches(gd, S(push_force_factor=2.0)), PHY)
+assert len(phy.children) == 88 and len(gd.physicsinteractions.children) == 88, len(phy.children)
+assert phy.children["Empty"].values == {"PlayerPushImpulse": "2000.0"}
+assert all(list(n.values) == ["PlayerPushImpulse"] for n in phy.children.values())
+assert PHY not in build_patches(gd, S(push_force_factor=1.0))
+print("P6.5 Schubkraft: alle 88 Prototypen x2, nur der eine Schluessel  OK")
+
+# --- P6.6) Wetteruebergaenge: 22 Multiplikatoren, beide Ebenen komplett, invers -----
+p = build_patches(gd, S(weather_transition_factor=2.0))
+wch = parsed(p, WCH)
+total = 0
+for n in wch.children.values():
+    for st in n.children["TransitionSteps"].children.values():
+        assert "WeatherChainWeight" in st.values, st.values          # Ebene 1 komplett
+        for ch in st.children["WeatherChains"].children.values():
+            assert "WeatherType" in ch.values, ch.values             # Ebene 2 komplett
+            assert ch.values["WeatherTransitionTimeMultiplier"] == "0.5"
+            total += 1
+assert total == 22, total
+assert wch.children["ClearlyToRainy"].children["TransitionSteps"].children["[0]"].values["WeatherChainWeight"] == "100"
+assert parsed(build_patches(gd, S(weather_transition_factor=0.5)), WCH).children["ClearlyToRainy"] \
+    .children["TransitionSteps"].children["[0]"].children["WeatherChains"].children["[0]"] \
+    .values["WeatherTransitionTimeMultiplier"] == "2.0"
+assert WCH not in build_patches(gd, S(weather_transition_factor=1.0))
+print(f"P6.6 Wetter: {total} Multiplikatoren invers (x2 -> 0.5), Gewichte mitgeschrieben und unveraendert  OK")
+
+# --- P6.7) Nacht und Himmel: eigene Patchdatei in GameData/, Tabus fehlen -----------
+assert len(SKY_KEYS) == 6
+p = build_patches(gd, S(moon_brightness_factor=2.0, sun_brightness_factor=0.5, stars_brightness_factor=5.0,
+                        cloud_opacity_factor=2.0, cloud_speed_factor=3.0, dusk_length_factor=0.5))
+assert SKY in p and "/" not in SKY                                    # direkt in GameData/
+sky = parsed(p, SKY).children["TimeManager"].values
+assert sky == {"MoonLightMaxBrightness": "2.092f", "SunLightMaxBrightness": "1.57f",
+               "StarsBrightness": "0.5f", "CloudOpacity": "1.0f", "CloudSpeed": "3.0f",
+               "LightSourceFadingDurationHoursOnDayNightChange": "1.0f"}, sky
+assert "TimeManager : struct.begin {bpatch}" in p[SKY]
+for tabu in ("Latitude", "Longitude", "TimeZone", "NorthOffsetAngle", "StartYear", "StartHour", "InputManager"):
+    assert tabu not in p[SKY], tabu
+assert SKY not in build_patches(gd, S(moon_brightness_factor=1.0))
+print("P6.7 Himmel: SingletonConstants.cfg_patch_* in GameData/, 6 Schluessel mit Suffix f, Wolken gedeckelt, Tabus fehlen  OK")
+
+# --- P6.8) Lagerleben: nur die acht Beduerfnisse, Eintrag komplett ------------------
+assert len(CAMP_LIFE_NEEDS) == 8
+p = build_patches(gd, S(camp_life_factor=2.0))
+nd = parsed(p, NEEDS)
+# 25 echte Presets - die Recherche zaehlte 26 inklusive der Basis [0],
+# die der Builder wie ueberall ueberspringt.
+assert len(nd.children) == 25 == len(gd.needspresets.children) - 1, len(nd.children)
+assert "[0]" not in nd.children
+seen = set()
+for node in nd.children.values():
+    assert "GoalNeeds" not in node.children                       # ohne Expansion-Regler
+    for e in node.children["Needs"].children.values():
+        t = e.values["NeedType"]
+        seen.add(t)
+        assert t in CAMP_LIFE_NEEDS, t
+        assert {"NeedType", "IncreaseRateMin", "IncreaseRateMax", "Radius", "MaxCount"} <= set(e.values), e.values
+assert seen == set(CAMP_LIFE_NEEDS), sorted(seen)
+guitar = next(e.values for e in nd.children["NeutralsNeedsPreset"].children["Needs"].children.values()
+              if e.values["NeedType"] == "EContextualActionNeeds::Guitar")
+# Neutrals: Gitarre 5/15 (die Ausreisser aus par. 2.6) -> x2, Suffix f bleibt
+assert guitar["IncreaseRateMin"] == "10.0f" and guitar["IncreaseRateMax"] == "30.0f", guitar
+assert guitar["Radius"] == "5500.f" and guitar["MaxCount"] == "1", guitar
+# Tabu-Beduerfnisse als VOLLE Enum-Namen pruefen: "Guard" allein steckt auch
+# in Preset-Namen wie DutyNeedsPreset_Guard.
+for tabu in ("Patrolling", "Emission", "Work", "Guard", "Monolog", "RunOnTalking",
+             "WeaponCleaning", "PDA", "Idle", "Detector"):
+    assert "EContextualActionNeeds::" + tabu not in p[NEEDS], tabu
+both = parsed(build_patches(gd, S(camp_life_factor=2.0, squad_expansion_factor=2.0)), NEEDS)
+assert "GoalNeeds" in both.children["HumanGenericNeedsPreset"].children
+assert "Needs" in both.children["HumanGenericNeedsPreset"].children
+print("P6.8 Lagerleben: 25 Presets, nur die 8 Beduerfnisse, Eintraege komplett, mit Expansion zusammen  OK")
+
+# --- P6.9) Zusammenfassung -----------------------------------------------------------
+joined = "\n".join(summarize(S(radiation_dose_factor=2.0, radiation_filter_factor=0.0, geiger_volume_factor=2.0,
+                               barbed_wire_factor=0.0, explosive_container_factor=0.5, push_force_factor=2.0,
+                               weather_transition_factor=2.0, moon_brightness_factor=2.0, sun_brightness_factor=2.0,
+                               stars_brightness_factor=2.0, cloud_opacity_factor=0.5, cloud_speed_factor=2.0,
+                               dusk_length_factor=2.0, music_combat_threshold=50, music_combat_lifetime=10,
+                               camp_life_factor=2.0)))
+for needle in ("Radiation dose", "Radiation screen filter", "Geiger", "Barbed wire", "Explosive containers",
+               "Push and kick", "Weather transition", "Moon brightness", "Sun brightness", "Stars",
+               "Cloud opacity", "Cloud speed", "Dusk & dawn", "music threshold 50", "music lingers 10",
+               "Camp life"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("Radiation dose", "Barbed", "Moon", "Camp life", "music"))
+print("P6.9 Zusammenfassung: 16 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

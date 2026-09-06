@@ -930,6 +930,32 @@ FAQ_ENTRIES = [
              "downed bleed out cover distance",
     },
     {
+        "q": "Can I make radiation fields weaker - or turn off the green screen filter?",
+        "a": "World tab, next to 'Radiation accumulation': 'Radiation dose "
+             "per second' scales how fast fields fill your bar (vanilla 1 / "
+             "3 / 6 points per second for light, medium and strong), "
+             "'Radiation screen filter' the green overlay and 'Geiger "
+             "counter volume' the crackle. The deadly map-border zones are "
+             "never touched, so the world edge still kills you. All three "
+             "stack with the difficulty-based accumulation slider. Not "
+             "play-tested yet.",
+        "k": "radiation rads field green filter screen geiger counter "
+             "sound anomaly zone dose per second protection",
+    },
+    {
+        "q": "Can I make nights darker, or brighter?",
+        "a": "World tab, 'Sky & night' - but read the warning there first: "
+             "moon, sun, stars, cloud opacity, cloud speed and the dusk "
+             "fade live in a game file no mod has patched before, and "
+             "their names are missing from the game executable, so they "
+             "may be read from a blueprint or ignored. Try it and report "
+             "back. For how well NPCs SEE at night, use 'Night darkness "
+             "for NPC eyes' in the NPCs & AI tab - that one is a different "
+             "system.",
+        "k": "night dark darker brighter moon sun stars sky clouds "
+             "weather visibility flashlight dusk dawn sunset",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "

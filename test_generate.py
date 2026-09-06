@@ -144,6 +144,12 @@ s = Settings(
     squad_expansion_factor=2.0, refill_cooldown_factor=0.5, refill_distance_factor=2.0,   # 1.28.0 P5
     corpse_budget=60, faction_battle_chance=80, faction_expansion_pace_factor=2.0,
     corpse_distance_factor=2.0, alife_corpse_hardcap=3000,
+    radiation_dose_factor=0.5, radiation_filter_factor=0.0, geiger_volume_factor=2.0,   # 1.28.0 P6
+    barbed_wire_factor=0.0, explosive_container_factor=0.5, push_force_factor=2.0,
+    weather_transition_factor=2.0, moon_brightness_factor=2.0, sun_brightness_factor=1.5,
+    stars_brightness_factor=5.0, cloud_opacity_factor=1.4, cloud_speed_factor=3.0,
+    dusk_length_factor=2.0, music_combat_threshold=50, music_combat_lifetime=10,
+    camp_life_factor=2.0,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

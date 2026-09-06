@@ -77,6 +77,11 @@ NEEDED_FILES = [
     "NPCNeedsPresetPrototypes.cfg.bin",      # A-Life-Trupp-Ausbreitung (1.28.0 P5)
     "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",   # A-Life-Nachfuellen (1.28.0 P5)
     "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin",   # Fraktions-Ausbreitung (1.28.0 P5)
+    "BarbedWirePrototypes.cfg.bin",          # Stacheldraht (1.28.0 P6)
+    "DestructibleObjectPrototypes.cfg.bin",  # explodierende Behaelter (1.28.0 P6, 536 KB - lazy geparst)
+    "PhysicsInteractionPrototypes.cfg.bin",  # Schubkraft (1.28.0 P6)
+    "WeatherChainPrototypes.cfg.bin",        # Wetteruebergaenge (1.28.0 P6)
+    "SingletonConstants.cfg",                # Nacht/Himmel (1.28.0 P6, unbinarisiert)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -560,6 +565,39 @@ class GameData:
         """ALifePopulationManagerFactionPrototypes (par. 2.7): ein Struct
         ALifePopulationManagerPreset mit 29 Fraktionen; Lagerbaender tabu."""
         return self._parse("ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P6) ---
+    @cached_property
+    def barbedwire(self) -> CfgStruct:
+        """BarbedWirePrototypes (par. 2.2): [0] Empty plus zwei Kinder
+        (Limiting/Overlappable), die alle Werte selbst deklarieren."""
+        return self._parse("BarbedWirePrototypes.cfg")
+
+    @cached_property
+    def destructibles(self) -> CfgStruct:
+        """DestructibleObjectPrototypes (par. 2.10): 436 Prototypen, Schluessel
+        sind Indizes [N], die SID steht im Struct. 536 KB - dieser Accessor
+        wird nur beruehrt, wenn der Behaelter-Regler nicht auf Vanilla steht."""
+        return self._parse("DestructibleObjectPrototypes.cfg")
+
+    @cached_property
+    def physicsinteractions(self) -> CfgStruct:
+        """PhysicsInteractionPrototypes (par. 2.11): 88 Prototypen, jeder mit
+        eigenem PlayerPushImpulse (20.0 bis 27000.0)."""
+        return self._parse("PhysicsInteractionPrototypes.cfg")
+
+    @cached_property
+    def weatherchains(self) -> CfgStruct:
+        """WeatherChainPrototypes (par. 2.11): 18 Ketten, 21 Uebergangsschritte,
+        22 WeatherTransitionTimeMultiplier in zwei Array-Ebenen."""
+        return self._parse("WeatherChainPrototypes.cfg")
+
+    @cached_property
+    def singletonconstants(self) -> CfgStruct:
+        """SingletonConstants (par. 2.8, unbinarisiert wie CoreVariables):
+        TimeManager mit Mond/Sonne/Sternen/Wolken. Latitude, Longitude,
+        TimeZone, NorthOffsetAngle und die Start*-Schluessel sind tabu."""
+        return self._parse("SingletonConstants.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

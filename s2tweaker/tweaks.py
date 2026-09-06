@@ -93,6 +93,26 @@ FLAIR_SENSOR_SKIP = {"BossFlairSensor", "PsyNPCFlairSensor",
                      "PoltergeistFlairSensorYanivToxicRozliv"}
 FLAIR_SENSOR_KEYS = ("SensingRadius", "FrontSensingRadius",
                      "DetectionSpeed", "FrontDetectionSpeed")
+# 1.28.0 P6: Strahlungsfelder (CoreVariables RadiationPresetValues, par. 1.2).
+# NUR diese vier Presets - Deadly und RadBlock sind die Karten-Todeszonen
+# (9000 Schaden, Tabu-Liste), Custom hat genau ein Weltvorkommen.
+RADIATION_PRESETS_OK = ("ERadiationPreset::Light", "ERadiationPreset::Medium",
+                        "ERadiationPreset::Strong", "ERadiationPreset::Topaz")
+# 1.28.0 P6: Lagerleben (NPCNeedsPresetPrototypes Needs, par. 2.6). Emission
+# (auf 100 festgenagelt), Patrolling, Work, Guard, Monolog, RunOnTalking,
+# Idle, PDA, Detector und WeaponCleaning bleiben vanilla.
+CAMP_LIFE_NEEDS = ("EContextualActionNeeds::Guitar", "EContextualActionNeeds::Anecdote",
+                   "EContextualActionNeeds::Dialog", "EContextualActionNeeds::Smoke",
+                   "EContextualActionNeeds::Sleep", "EContextualActionNeeds::Eat",
+                   "EContextualActionNeeds::Rest", "EContextualActionNeeds::Drink")
+# 1.28.0 P6: Himmel (SingletonConstants TimeManager, par. 2.8) - (Feld, Schluessel,
+# Deckel). Latitude/Longitude/TimeZone/NorthOffsetAngle/Start* sind tabu.
+SKY_KEYS = (("moon_brightness_factor", "MoonLightMaxBrightness", None),
+            ("sun_brightness_factor", "SunLightMaxBrightness", None),
+            ("stars_brightness_factor", "StarsBrightness", None),
+            ("cloud_opacity_factor", "CloudOpacity", 1.0),
+            ("cloud_speed_factor", "CloudSpeed", None),
+            ("dusk_length_factor", "LightSourceFadingDurationHoursOnDayNightChange", None))
 
 # --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
@@ -676,6 +696,23 @@ class Settings:
     faction_expansion_pace_factor: float = 1.0  # ALifePopulationManager ALifeLairExpansionTime (50.f), INVERS
     corpse_distance_factor: float = 1.0      # CoreVariables CorpseOffline*SquaredDistance (x f^2) + DistanceToDestroyCorpsesIfOverpopulated (x f)
     alife_corpse_hardcap: int = 1500         # CoreVariables AlifeCorpsesHardcap (absolut)
+    # --- 1.28.0 P6 (Welt und Atmosphaere; par. 1.2 / 1.3 / 2.2 / 2.6 / 2.8 / 2.10 / 2.11) ---
+    radiation_dose_factor: float = 1.0       # CoreVariables RadiationPresetValues RadiationPerSecondValue (1/3/6/1)
+    radiation_filter_factor: float = 1.0     # dito PostProcessRadiationIntensity (Deckel 1.0)
+    geiger_volume_factor: float = 1.0        # dito GeigerRadiationIntensity (Deckel 1.0)
+    barbed_wire_factor: float = 1.0          # BarbedWire Damage/BleedingValue/ArmorDamage + BleedingChance (Deckel 1)
+    explosive_container_factor: float = 1.0  # Destructible Exp_* DamageDestroyThreshold (20-50)
+    push_force_factor: float = 1.0           # PhysicsInteraction PlayerPushImpulse (88 Prototypen)
+    weather_transition_factor: float = 1.0   # WeatherChain WeatherTransitionTimeMultiplier (22x 1), INVERS
+    moon_brightness_factor: float = 1.0      # SingletonConstants MoonLightMaxBrightness (1.046f)
+    sun_brightness_factor: float = 1.0       # dito SunLightMaxBrightness (3.14f)
+    stars_brightness_factor: float = 1.0     # dito StarsBrightness (0.1f)
+    cloud_opacity_factor: float = 1.0        # dito CloudOpacity (0.7f, Deckel 1.0)
+    cloud_speed_factor: float = 1.0          # dito CloudSpeed (1.f)
+    dusk_length_factor: float = 1.0          # dito LightSourceFadingDurationHoursOnDayNightChange (2.f)
+    music_combat_threshold: float = 20.0     # CoreVariables MusicManagerCombatScoreThreshold (absolut)
+    music_combat_lifetime: float = 25.0      # CoreVariables MusicManagerCombatEnemyAttackActionLifetimeSeconds (absolut)
+    camp_life_factor: float = 1.0            # NPCNeedsPreset Needs IncreaseRateMin/Max der Lagerleben-Beduerfnisse
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2341,33 +2378,62 @@ def _needs_patch(gd: GameData, s: Settings) -> dict:
     NeedTag, NICHT den Index - MutantGeneric hat ihn unter [1]):
     Min/MaxIncreasePerMinute x Faktor, Array-Eintrag KOMPLETT ausgegeben.
     AI.Need.ReuniteWithLair (inert) bleibt unangetastet."""
-    if not (_neq(s.squad_expansion_factor, 1.0) and s.squad_expansion_factor > 0):
+    expansion_on = _neq(s.squad_expansion_factor, 1.0) and s.squad_expansion_factor > 0
+    camp_on = _neq(s.camp_life_factor, 1.0) and s.camp_life_factor > 0
+    if not (expansion_on or camp_on):
         return {}
     patches: dict = {}
     for sid, node in gd.needspresets.children.items():
         if sid == "[0]" or "#" in sid:
             continue
+        cfg: dict = {}
         goals = node.children.get("GoalNeeds")
-        if goals is None:
-            continue
-        entries: dict = {}
-        for idx, entry in goals.children.items():
-            if entry.values.get("NeedTag", "").strip() != "AI.Need.Expansion":
-                continue
-            full = {k: v.strip() for k, v in entry.values.items()}
-            changed = False
-            for key in ("MinIncreasePerMinute", "MaxIncreasePerMinute"):
-                raw = entry.values.get(key)
-                if raw is None or parse_number(raw) <= 0:
+        if expansion_on and goals is not None:
+            entries: dict = {}
+            for idx, entry in goals.children.items():
+                if entry.values.get("NeedTag", "").strip() != "AI.Need.Expansion":
                     continue
-                scaled = _scale_literal(raw, s.squad_expansion_factor)
-                if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
-                    full[key] = scaled
-                    changed = True
-            if changed:
-                entries[idx] = full
-        if entries:
-            patches[sid] = {"GoalNeeds": entries}
+                full = {k: v.strip() for k, v in entry.values.items()}
+                changed = False
+                for key in ("MinIncreasePerMinute", "MaxIncreasePerMinute"):
+                    raw = entry.values.get(key)
+                    if raw is None or parse_number(raw) <= 0:
+                        continue
+                    scaled = _scale_literal(raw, s.squad_expansion_factor)
+                    if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                        full[key] = scaled
+                        changed = True
+                if changed:
+                    entries[idx] = full
+            if entries:
+                cfg["GoalNeeds"] = entries
+        # 1.28.0 P6 (Lagerleben, par. 2.6, 25 echte Presets - das Dokument
+    # zaehlt 26 inklusive der Basis [0], die hier uebersprungen wird):
+    # Gitarre, Witze, Gespraeche,
+        # Rauchen, Schlafen, Essen, Rasten, Trinken - Auswahl ueber den
+        # NeedType, Eintrag komplett (NeedType, Min, Max, Radius, MaxCount).
+        needs = node.children.get("Needs")
+        if camp_on and needs is not None:
+            entries = {}
+            for idx, entry in needs.children.items():
+                if (entry.values.get("NeedType") or "").strip() not in CAMP_LIFE_NEEDS:
+                    continue
+                full = {k: v.strip() for k, v in entry.values.items()}
+                changed = False
+                for key in ("IncreaseRateMin", "IncreaseRateMax"):
+                    raw = entry.values.get(key)
+                    if raw is None or parse_number(raw) <= 0:
+                        continue
+                    scaled = _scale_literal(raw, s.camp_life_factor)
+                    if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                        full[key] = scaled
+                        changed = True
+                if changed:
+                    entries[idx] = full
+            if entries:
+                cfg["Needs"] = entries
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -2438,6 +2504,155 @@ def _alife_faction_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg["ALifeLairExpansionTime"] = scaled
     return {"ALifePopulationManagerPreset": cfg} if cfg else {}
+
+
+def _barbedwire_patch(gd: GameData, s: Settings) -> dict:
+    """BarbedWirePrototypes (1.28.0 P6, par. 2.2): beide echten Prototypen
+    (Limiting/Overlappable) deklarieren alle Werte selbst; welcher Zaun
+    welchen nutzt, steht in den Levels -> beide patchen. [0] Empty bleibt
+    die unbenutzte Basis. BleedingChance ist eine Wahrscheinlichkeit
+    (Deckel 1.0), die drei anderen sind Schadenswerte."""
+    if not (_neq(s.barbed_wire_factor, 1.0) and s.barbed_wire_factor >= 0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.barbedwire.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        cfg: dict = {}
+        for key, cap in (("Damage", None), ("BleedingValue", None),
+                         ("ArmorDamage", None), ("BleedingChance", 1.0)):
+            raw = node.values.get(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, s.barbed_wire_factor, cap=cap)
+            if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _destructible_patch(gd: GameData, s: Settings) -> dict:
+    """DestructibleObjectPrototypes (1.28.0 P6, par. 2.10): explodierende
+    Behaelter. Die Struct-Schluessel sind Indizes [N], erkannt wird ueber die
+    SID (Exp_* / *_Exp_*: Gasflaschen, Kanister, Fass, dazu die Quest- und
+    Static-Varianten - live 22 Stueck). Gepatcht wird nur
+    ObjectPhaseSettings.[0].DamageDestroyThreshold; der Phasen-Eintrag wird
+    mit allen seinen Skalaren ausgegeben (die Unter-Arrays IgnoredDamageTypes
+    und DestructibleActions bleiben ausdruecklich draussen - sie tragen
+    Mesh-, VFX- und Sound-Pfade, die zu duplizieren mehr Risiko als Nutzen
+    braechte). Die 536-KB-Datei wird nur bei aktivem Regler geparst."""
+    if not (_neq(s.explosive_container_factor, 1.0) and s.explosive_container_factor > 0):
+        return {}
+    patches: dict = {}
+    for key, node in gd.destructibles.children.items():
+        if "#" in key:
+            continue
+        sid = (node.values.get("SID") or "").strip()
+        if not (sid.startswith("Exp_") or "_Exp_" in sid):
+            continue
+        phases = node.children.get("ObjectPhaseSettings")
+        if phases is None:
+            continue
+        entries: dict = {}
+        for idx, phase in phases.children.items():
+            raw = phase.values.get("DamageDestroyThreshold")
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, s.explosive_container_factor)
+            if scaled is None or not _neq(parse_number(scaled), parse_number(raw)):
+                continue
+            full = {k: v.strip() for k, v in phase.values.items()}
+            full["DamageDestroyThreshold"] = scaled
+            entries[idx] = full
+        if entries:
+            patches[key] = {"ObjectPhaseSettings": entries}
+    return patches
+
+
+def _physics_patch(gd: GameData, s: Settings) -> dict:
+    """PhysicsInteractionPrototypes (1.28.0 P6, par. 2.11): wie hart der
+    Spieler Gegenstaende und Leichen anschiebt. Alle 88 Prototypen tragen
+    ihren eigenen PlayerPushImpulse (20.0 Laborglas bis 27000.0 Munitionskiste,
+    Leiche 3500.0)."""
+    if not (_neq(s.push_force_factor, 1.0) and s.push_force_factor >= 0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.physicsinteractions.children.items():
+        if "#" in sid:
+            continue
+        raw = node.values.get("PlayerPushImpulse")
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        scaled = _scale_literal(raw, s.push_force_factor)
+        if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+            patches[sid] = {"PlayerPushImpulse": scaled}
+    return patches
+
+
+def _weatherchain_patch(gd: GameData, s: Settings) -> dict:
+    """WeatherChainPrototypes (1.28.0 P6, par. 2.11): wie lange ein
+    Wetterwechsel dauert. Zwei Array-Ebenen (TransitionSteps.[i] ->
+    WeatherChains.[j]), beide werden komplett ausgegeben; der Regler wirkt
+    INVERS (200 % = halber Multiplikator = schnellerer Wechsel).
+    WeatherChainWeight wird nur mitgeschrieben, nie veraendert."""
+    if not (_neq(s.weather_transition_factor, 1.0) and s.weather_transition_factor > 0):
+        return {}
+    factor = 1.0 / s.weather_transition_factor
+    patches: dict = {}
+    for sid, node in gd.weatherchains.children.items():
+        if "#" in sid:
+            continue
+        steps = node.children.get("TransitionSteps")
+        if steps is None:
+            continue
+        step_entries: dict = {}
+        for si, step in steps.children.items():
+            chains = step.children.get("WeatherChains")
+            if chains is None:
+                continue
+            chain_entries: dict = {}
+            for ci, chain in chains.children.items():
+                raw = chain.values.get("WeatherTransitionTimeMultiplier")
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, factor)
+                if scaled is None or not _neq(parse_number(scaled), parse_number(raw)):
+                    continue
+                full = {k: v.strip() for k, v in chain.values.items()}
+                full["WeatherTransitionTimeMultiplier"] = scaled
+                chain_entries[ci] = full
+            if chain_entries:
+                full_step = {k: v.strip() for k, v in step.values.items()}
+                full_step["WeatherChains"] = chain_entries
+                step_entries[si] = full_step
+        if step_entries:
+            patches[sid] = {"TransitionSteps": step_entries}
+    return patches
+
+
+def _singleton_patch(gd: GameData, s: Settings) -> dict:
+    """SingletonConstants (1.28.0 P6, par. 2.8, unbinarisiert wie CoreVariables):
+    Mond, Sonne, Sterne, Wolken und die Daemmerungsdauer im TimeManager.
+    Latitude/Longitude/TimeZone/NorthOffsetAngle (Sonnenbahn) und die
+    Start*-Schluessel (neues Spiel) sind tabu. Die Datei wurde nie zuvor
+    gepatcht und die Schluessel stehen nicht in der Namenstabelle der EXE -
+    Wirkung voellig ungetestet, der Tooltip sagt es."""
+    node = gd.singletonconstants.children.get("TimeManager")
+    if node is None:
+        return {}
+    cfg: dict = {}
+    for field_name, key, cap in SKY_KEYS:
+        factor = getattr(s, field_name)
+        if not (_neq(factor, 1.0) and factor >= 0):
+            continue
+        raw = node.values.get(key)
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        scaled = _scale_literal(raw, factor, cap=cap)
+        if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+            cfg[key] = scaled
+    return {"TimeManager": cfg} if cfg else {}
 
 
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
@@ -3621,6 +3836,48 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     live = gd.corevar("AlifeCorpsesHardcap", -1.0)
     if live >= 0 and int(s.alife_corpse_hardcap) != int(round(live)):
         cfg["AlifeCorpsesHardcap"] = str(max(1, int(s.alife_corpse_hardcap)))
+
+    # 1.28.0 P6 (Strahlungsfelder, par. 1.2): die vier harmlosen Presets
+    # (Light/Medium/Strong/Topaz) - ueber den PRESET-NAMEN gefiltert, nicht
+    # ueber den Index, damit Deadly und RadBlock (Karten-Todeszonen mit 9000
+    # Schaden) und Custom garantiert draussen bleiben. Array-Eintraege
+    # komplett; RadioactivityValue bleibt unangetastet.
+    rad_on = [(f, key, cap) for f, key, cap in
+              ((s.radiation_dose_factor, "RadiationPerSecondValue", None),
+               (s.radiation_filter_factor, "PostProcessRadiationIntensity", 1.0),
+               (s.geiger_volume_factor, "GeigerRadiationIntensity", 1.0))
+              if _neq(f, 1.0) and f >= 0]
+    if rad_on:
+        arr = node.children.get("RadiationPresetValues") if node is not None else None
+        entries: dict = {}
+        for idx, entry in (arr.children.items() if arr is not None else ()):
+            preset = (entry.values.get("Preset") or "").strip()
+            if preset not in RADIATION_PRESETS_OK:
+                continue
+            full = {k: v.strip() for k, v in entry.values.items()}
+            changed = False
+            for factor, key, cap in rad_on:
+                raw = entry.values.get(key)
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, factor, cap=cap)
+                if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                    full[key] = scaled
+                    changed = True
+            if changed:
+                entries[idx] = full
+        if entries:
+            cfg["RadiationPresetValues"] = entries
+    # Kampfmusik (par. 1.3): Schwelle (ein normaler NPC zaehlt 10) und
+    # Nachlauf, beide absolut und live verglichen (Suffix f bleibt).
+    for key, wanted in (("MusicManagerCombatScoreThreshold", s.music_combat_threshold),
+                        ("MusicManagerCombatEnemyAttackActionLifetimeSeconds", s.music_combat_lifetime)):
+        raw = raw_of(key)
+        if raw is None:
+            continue
+        live = parse_number(raw, -1.0)
+        if live >= 0 and _neq(float(wanted), live):
+            cfg[key] = _num(max(0.0, float(wanted))) + ("f" if raw.strip().endswith(("f", "F")) else "")
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -4914,6 +5171,15 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _upgrades_patch(gd, s))
     add(f"LairPrototypes/LairPrototypes_patch_{n}.cfg", _lairs_patch(gd, s))
     add(f"NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_{n}.cfg", _needs_patch(gd, s))
+    add(f"BarbedWirePrototypes/BarbedWirePrototypes_patch_{n}.cfg", _barbedwire_patch(gd, s))
+    add(f"DestructibleObjectPrototypes/DestructibleObjectPrototypes_patch_{n}.cfg",
+        _destructible_patch(gd, s))
+    add(f"PhysicsInteractionPrototypes/PhysicsInteractionPrototypes_patch_{n}.cfg",
+        _physics_patch(gd, s))
+    add(f"WeatherChainPrototypes/WeatherChainPrototypes_patch_{n}.cfg", _weatherchain_patch(gd, s))
+    # SingletonConstants ist unbinarisiert -> Patchdatei direkt in GameData/
+    # (gleiche Konvention wie CoreVariables/AIGlobals, docs/SPEC.md par. 0)
+    add(f"SingletonConstants.cfg_patch_{n}.cfg", _singleton_patch(gd, s))
     add(f"ALifePrototypes/ALifePolicyPrototypes/ALifePolicyPrototypes_patch_{n}.cfg",
         _alife_policy_patch(gd, s))
     add(f"ALifePrototypes/ALifePopulationManagerFactionPrototypes/"
@@ -5257,6 +5523,25 @@ def summarize(s: Settings) -> list[str]:
     f("Corpse distance", s.corpse_distance_factor)
     if int(s.alife_corpse_hardcap) != 1500:
         lines.append(f"A-Life corpse hard cap {int(s.alife_corpse_hardcap)} (vanilla 1500)")
+    # 1.28.0 P6
+    f("Radiation dose per second", s.radiation_dose_factor)
+    f("Radiation screen filter", s.radiation_filter_factor)
+    f("Geiger counter volume", s.geiger_volume_factor)
+    f("Barbed wire damage", s.barbed_wire_factor)
+    f("Explosive containers durability (experimental)", s.explosive_container_factor)
+    f("Push and kick force (experimental)", s.push_force_factor)
+    f("Weather transition speed (experimental)", s.weather_transition_factor)
+    f("Moon brightness (experimental)", s.moon_brightness_factor)
+    f("Sun brightness (experimental)", s.sun_brightness_factor)
+    f("Stars (experimental)", s.stars_brightness_factor)
+    f("Cloud opacity (experimental)", s.cloud_opacity_factor)
+    f("Cloud speed (experimental)", s.cloud_speed_factor)
+    f("Dusk & dawn length (experimental)", s.dusk_length_factor)
+    if _neq(s.music_combat_threshold, 20.0):
+        lines.append(f"Combat music threshold {s.music_combat_threshold:g} (vanilla 20)")
+    if _neq(s.music_combat_lifetime, 25.0):
+        lines.append(f"Combat music lingers {s.music_combat_lifetime:g} s (vanilla 25)")
+    f("Camp life", s.camp_life_factor)
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

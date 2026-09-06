@@ -643,6 +643,16 @@ SLIDER_FIELDS: dict[str, str] = {
     "refill_dist": "refill_distance_factor", "corpse_budget": "corpse_budget",
     "faction_battle": "faction_battle_chance", "faction_pace": "faction_expansion_pace_factor",
     "corpse_distance": "corpse_distance_factor", "corpse_hardcap": "alife_corpse_hardcap",
+    # 1.28.0 (Kern-Sweep P6)
+    "rad_dose": "radiation_dose_factor", "rad_filter": "radiation_filter_factor",
+    "geiger": "geiger_volume_factor", "barbed_wire": "barbed_wire_factor",
+    "exp_containers": "explosive_container_factor", "push_force": "push_force_factor",
+    "weather_transition": "weather_transition_factor",
+    "moon": "moon_brightness_factor", "sun": "sun_brightness_factor",
+    "stars": "stars_brightness_factor", "cloud_opacity": "cloud_opacity_factor",
+    "cloud_speed": "cloud_speed_factor", "dusk_length": "dusk_length_factor",
+    "music_threshold": "music_combat_threshold", "music_lifetime": "music_combat_lifetime",
+    "camp_life": "camp_life_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -3956,6 +3966,16 @@ class App(ctk.CTk):
                      "The game slows to 30 % while the item selector is open "
                      "(vanilla). 100 % = real time, 5 % = almost paused. Not "
                      "play-tested yet.")
+        self._slider(f, "music_threshold", "Combat music threshold", 5, 100, 5, 20, fmt_int,
+                     "How much nearby danger it takes before combat music "
+                     "starts (vanilla 20 points; one ordinary stalker counts "
+                     "10, a heavy one 20, a dog 7 - so two normal enemies "
+                     "trigger it). Higher = music only in big fights. Not "
+                     "play-tested yet.")
+        self._slider(f, "music_lifetime", "Combat music lingers", 5, 60, 5, 25, fmt_sec,
+                     "How long an attack keeps counting as combat, i.e. how "
+                     "long the music keeps playing after the shooting stops "
+                     "(vanilla 25 s). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Sleep")
@@ -4502,6 +4522,18 @@ class App(ctk.CTk):
                      "yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Camp life (atmosphere)")
+        self._slider(f, "camp_life", "Camp life", 50, 300, 25, 100, fmt_pct,
+                     "How often stalkers in camps feel like playing the "
+                     "guitar, telling a joke, chatting, smoking, sleeping, "
+                     "resting, eating or drinking (vanilla e.g. guitar 4-6, "
+                     "jokes 3-6, talk 5-8 points per minute, across 25 NPC "
+                     "presets). Work, patrols, guard duty and emission "
+                     "behaviour stay vanilla. This writes a lot of small "
+                     "changes, so the mod scan may report overlaps with other "
+                     "A-Life mods. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         body = self._tab("Mutants")
         f = self._section(body, "All mutants (global)")
         self._slider(f, "mhp", "Mutant health (all species)", 0.1, 5, 0.1, 1, fmt_factor)
@@ -5033,6 +5065,17 @@ class App(ctk.CTk):
         self._slider(f, "anom_grav", "Anomaly damage: gravity", 0.1, 5, 0.1, 1, fmt_factor,
                      "Carousel, Razor, Expulsion, Diamond … "
                      "(PSY anomalies drain psy, not health – no slider).")
+        self._slider(f, "exp_containers", "Explosive containers durability (experimental)", 25, 300, 25, 100, fmt_pct,
+                     "How much damage gas cylinders, canisters and fuel barrels "
+                     "take before they blow (vanilla threshold 20 to 50). 25 % "
+                     "= they pop from almost any hit - which also means "
+                     "scripted set pieces can go off earlier than intended. "
+                     "Not play-tested yet.")
+        self._slider(f, "push_force", "Push and kick force (experimental)", 25, 300, 25, 100, fmt_pct,
+                     "How hard you shove physics props and bodies out of the "
+                     "way (vanilla 20 for a lab jar up to 27000 for an ammo "
+                     "crate, 3500 for a corpse). High values can throw objects "
+                     "around wildly. Not play-tested yet.")
         self._slider(f, "clicker", "Clicker anomaly strength", 0, 200, 10, 100, fmt_pct,
                      "The flashbang-like Clicker anomaly: number of flashes "
                      "(vanilla 20) and burn per hit (vanilla 70). 0 % = one "
@@ -5040,6 +5083,25 @@ class App(ctk.CTk):
                      "play-tested yet.")
         self._slider(f, "radiation", "Radiation accumulation", 0, 5, 0.25, 1, fmt_factor,
                      "× 0 = no radiation buildup.")
+        self._slider(f, "rad_dose", "Radiation dose per second", 25, 300, 25, 100, fmt_pct,
+                     "How fast radiation fields fill your bar (vanilla 1 / 3 / "
+                     "6 points per second for light, medium and strong fields; "
+                     "the strong ones fill it in about 17 s). Stacks with "
+                     "'Radiation accumulation' above. The deadly map-border "
+                     "zones are never touched. Not play-tested yet.")
+        self._slider(f, "rad_filter", "Radiation screen filter", 0, 150, 10, 100, fmt_pct,
+                     "Strength of the green screen filter inside radiation "
+                     "fields (vanilla 0.45 to 0.75, capped at 1). 0 % = no "
+                     "filter - watch the geiger counter instead. Not "
+                     "play-tested yet.")
+        self._slider(f, "geiger", "Geiger counter volume", 0, 200, 10, 100, fmt_pct,
+                     "How loud the geiger crackle gets in a field (vanilla 0.2 "
+                     "to 0.8, capped at 1). Not play-tested yet.")
+        self._slider(f, "barbed_wire", "Barbed wire damage", 0, 300, 25, 100, fmt_pct,
+                     "Damage, bleeding and armor wear from barbed wire "
+                     "(vanilla 10 damage, 25 bleeding points, 5 armor damage, "
+                     "10 % bleeding chance; both fence types). 0 % = wire is "
+                     "harmless. Not play-tested yet.")
         self._slider(f, "bleeding", "Bleeding intensity", 0, 5, 0.25, 1, fmt_factor)
         self._slider(f, "hunger", "Hunger rate", 0, 300, 10, 100, fmt_pct,
                      "0 % = never get hungry.")
@@ -5076,6 +5138,29 @@ class App(ctk.CTk):
                      "hours per day, the day/night ratio stays vanilla.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Sky & night (experimental — untested file)")
+        self._warning(f, "These six values live in a game file no mod has "
+                         "patched before, and their names do not appear in the "
+                         "game executable - the engine may read them from a "
+                         "blueprint instead, or ignore them entirely. Nothing "
+                         "here is verified in-game. Try them, and tell us what "
+                         "you see.")
+        self._slider(f, "moon", "Moon brightness", 0, 300, 25, 100, fmt_pct,
+                     "Vanilla 1.046. 0 % = pitch-black nights. Not play-tested yet.")
+        self._slider(f, "sun", "Sun brightness", 50, 200, 10, 100, fmt_pct,
+                     "Vanilla 3.14. Not play-tested yet.")
+        self._slider(f, "stars", "Stars", 0, 500, 25, 100, fmt_pct,
+                     "Vanilla 0.1 - the stars are barely visible. Not "
+                     "play-tested yet.")
+        self._slider(f, "cloud_opacity", "Cloud opacity", 30, 140, 10, 100, fmt_pct,
+                     "Vanilla 0.7, capped at 1. Not play-tested yet.")
+        self._slider(f, "cloud_speed", "Cloud speed", 25, 400, 25, 100, fmt_pct,
+                     "Vanilla 1. Not play-tested yet.")
+        self._slider(f, "dusk_length", "Dusk & dawn length", 25, 300, 25, 100, fmt_pct,
+                     "How long the light takes to fade between day and night "
+                     "(vanilla 2 game hours). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Bodies & weather")
         self._slider(f, "corpse_time", "Bodies stay", 25, 500, 25, 100, fmt_pct,
                      "How long dead bodies remain (vanilla 30 min near you, "
@@ -5100,6 +5185,11 @@ class App(ctk.CTk):
         self._slider(f, "weather_dur", "Weather duration", 25, 400, 25, 100, fmt_pct,
                      "How long each weather lasts before the next roll "
                      "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
+        self._slider(f, "weather_transition", "Weather transition speed (experimental)", 25, 400, 25, 100, fmt_pct,
+                     "How fast one weather morphs into the next (vanilla "
+                     "multiplier 1 on all 22 transition steps). 200 % = twice "
+                     "as fast. The exact meaning of the multiplier is not "
+                     "verified. Not play-tested yet.")
         self._slider(f, "item_despawn", "Dropped items stay", 25, 500, 25, 100, fmt_pct,
                      "How long items lying in the world remain (vanilla 1 h "
                      "untouched, 3 h otherwise). Not play-tested yet.")
@@ -5816,6 +5906,23 @@ class App(ctk.CTk):
             faction_expansion_pace_factor=s["faction_pace"].get() / 100.0,
             corpse_distance_factor=s["corpse_distance"].get() / 100.0,
             alife_corpse_hardcap=int(s["corpse_hardcap"].get()),
+            # 1.28.0 P6
+            radiation_dose_factor=s["rad_dose"].get() / 100.0,
+            radiation_filter_factor=s["rad_filter"].get() / 100.0,
+            geiger_volume_factor=s["geiger"].get() / 100.0,
+            barbed_wire_factor=s["barbed_wire"].get() / 100.0,
+            explosive_container_factor=s["exp_containers"].get() / 100.0,
+            push_force_factor=s["push_force"].get() / 100.0,
+            weather_transition_factor=s["weather_transition"].get() / 100.0,
+            moon_brightness_factor=s["moon"].get() / 100.0,
+            sun_brightness_factor=s["sun"].get() / 100.0,
+            stars_brightness_factor=s["stars"].get() / 100.0,
+            cloud_opacity_factor=s["cloud_opacity"].get() / 100.0,
+            cloud_speed_factor=s["cloud_speed"].get() / 100.0,
+            dusk_length_factor=s["dusk_length"].get() / 100.0,
+            music_combat_threshold=float(s["music_threshold"].get()),
+            music_combat_lifetime=float(s["music_lifetime"].get()),
+            camp_life_factor=s["camp_life"].get() / 100.0,
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

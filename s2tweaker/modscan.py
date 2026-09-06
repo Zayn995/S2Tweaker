@@ -83,6 +83,10 @@ _GD_TREES = (
     "flairsensors",
     # 1.28.0 P5: Trupp-Ausbreitung, A-Life-Policy, Fraktions-Ausbreitung
     "needspresets", "alifepolicy", "alifefactions",
+    # 1.28.0 P6: Stacheldraht, Behaelter, Physik, Wetterketten, Himmel
+    # (SingletonConstants wird wie CoreVariables als Textdatei gefuehrt)
+    "barbedwire", "destructibles", "physicsinteractions", "weatherchains",
+    "singletonconstants",
 )
 
 
