@@ -74,6 +74,9 @@ NEEDED_FILES = [
     "EnemyEvaluatorPrototypes.cfg.bin",      # NPC-Zielwahl (1.28.0 P3)
     "CoverEvaluatorPrototypes.cfg.bin",      # NPC-Deckungsprofile (1.28.0 P3)
     "AIPrototypes/FlairSensorPrototypes.cfg.bin",   # Mutanten-Witterung (1.28.0 P4)
+    "NPCNeedsPresetPrototypes.cfg.bin",      # A-Life-Trupp-Ausbreitung (1.28.0 P5)
+    "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",   # A-Life-Nachfuellen (1.28.0 P5)
+    "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin",   # Fraktions-Ausbreitung (1.28.0 P5)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -538,6 +541,25 @@ class GameData:
         von DefaultFlairSensor, die alle Schluessel selbst deklarieren;
         BlindDogFlairSensor haengt an 38 Mutanten-Prototypen."""
         return self._parse("AIPrototypes/FlairSensorPrototypes.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P5) ---
+    @cached_property
+    def needspresets(self) -> CfgStruct:
+        """NPCNeedsPresetPrototypes (par. 2.6): 26 Presets; 16 tragen einen
+        eigenen GoalNeeds-Eintrag AI.Need.Expansion (MutantGeneric unter [1])."""
+        return self._parse("NPCNeedsPresetPrototypes.cfg")
+
+    @cached_property
+    def alifepolicy(self) -> CfgStruct:
+        """ALifePolicyPrototypes (par. 2.7): ein Struct Default - Refill-Cooldowns,
+        Refill-Distanzband, Leichenbudget; TriggerExtinction/StopExtinction tabu."""
+        return self._parse("ALifePrototypes/ALifePolicyPrototypes.cfg")
+
+    @cached_property
+    def alifefactions(self) -> CfgStruct:
+        """ALifePopulationManagerFactionPrototypes (par. 2.7): ein Struct
+        ALifePopulationManagerPreset mit 29 Fraktionen; Lagerbaender tabu."""
+        return self._parse("ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

@@ -141,6 +141,9 @@ s = Settings(
     npc_damage_memory_factor=2.0, cover_distance_factor=0.5, cover_path_factor=2.0,
     mutant_smell_factor=0.5, mutants_no_smell=True, burer_fire_interval_factor=2.0,   # 1.28.0 P4
     mutant_loot_widget=True,
+    squad_expansion_factor=2.0, refill_cooldown_factor=0.5, refill_distance_factor=2.0,   # 1.28.0 P5
+    corpse_budget=60, faction_battle_chance=80, faction_expansion_pace_factor=2.0,
+    corpse_distance_factor=2.0, alife_corpse_hardcap=3000,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

@@ -81,6 +81,8 @@ _GD_TREES = (
     "enemyevaluators", "coverevaluators",
     # 1.28.0 P4: Witterung
     "flairsensors",
+    # 1.28.0 P5: Trupp-Ausbreitung, A-Life-Policy, Fraktions-Ausbreitung
+    "needspresets", "alifepolicy", "alifefactions",
 )
 
 

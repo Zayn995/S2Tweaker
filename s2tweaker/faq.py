@@ -253,9 +253,11 @@ FAQ_ENTRIES = [
              "mutants and humans (how many live in each place, per player "
              "rank), lair respawn speed, and the DIRECTOR's random "
              "encounters: frequency, mutant share, pack size and per-"
-             "species weights. Raise the cap together with them. Existing "
-             "saves re-roll lairs slowly (sleep or change region). Not "
-             "play-tested yet - small steps and a backup save.",
+             "species weights; since 1.28.0 also squad expansion, lair "
+             "refill cooldown/distance and faction expansion. Raise the "
+             "cap together with them. Existing saves re-roll lairs slowly "
+             "(sleep or change region). Not play-tested yet - small steps "
+             "and a backup save.",
         "k": "alife a-life spawn population busier more npcs encounters "
              "distance empty world performance fps lair director respawn "
              "more mutants spawn rate",

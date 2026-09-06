@@ -387,4 +387,111 @@ for needle in ("sense of smell", "cannot smell", "Burer weapon fire", "loot wind
 assert not any(k in "\n".join(summarize(S())) for k in ("smell", "Burer", "loot window"))
 print("P4.5 Zusammenfassung: 4 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P5 - A-Life und Leichen
+# =========================================================================
+NEEDS = "NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_S2Tweaker.cfg"
+POL = "ALifePrototypes/ALifePolicyPrototypes/ALifePolicyPrototypes_patch_S2Tweaker.cfg"
+FAC = ("ALifePrototypes/ALifePopulationManagerFactionPrototypes/"
+       "ALifePopulationManagerFactionPrototypes_patch_S2Tweaker.cfg")
+
+# --- P5.0) Dateien, Schema 22, Mod-Scan, Live == Default, Neutral leer -------------
+for name in ("NPCNeedsPresetPrototypes.cfg.bin", "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",
+             "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin"):
+    assert name in NEEDED_FILES, name
+assert CACHE_SCHEMA == 22 and all(t in _GD_TREES for t in ("needspresets", "alifepolicy", "alifefactions"))
+pol_live = gd.alifepolicy.children["Default"].values
+assert pol_live["FullWipeRefillCooldown"] == "360.f" and pol_live["MinRefillDistance"] == "20000"
+assert int(pol_live["MaxCorpsePerRadius"]) == Settings().corpse_budget
+fac_live = gd.alifefactions.children["ALifePopulationManagerPreset"].children["Factions"].children
+assert len(fac_live) == 29 and {int(n.values["ALifeLairExpansionBattleChance"]) for n in fac_live.values()} == {Settings().faction_battle_chance}
+assert int(gd.corevar("AlifeCorpsesHardcap")) == Settings().alife_corpse_hardcap
+exp_live = [(sid, idx) for sid, n in gd.needspresets.children.items()
+            for idx, e in (n.children["GoalNeeds"].children.items() if "GoalNeeds" in n.children else [])
+            if e.values.get("NeedTag", "").strip() == "AI.Need.Expansion"]
+assert len(exp_live) == 16 and ("MutantGenericNeedsPreset", "[1]") in exp_live, exp_live
+assert not build_patches(gd, S(squad_expansion_factor=1.0, refill_cooldown_factor=1.0, refill_distance_factor=1.0,
+                               corpse_budget=30, faction_battle_chance=50, faction_expansion_pace_factor=1.0,
+                               corpse_distance_factor=1.0, alife_corpse_hardcap=1500))
+print("P5.0 Dateien: drei neue, Schema 22, 16 Expansion-Eintraege live (MutantGeneric unter [1]), 29 Fraktionen, Neutral leer  OK")
+
+# --- P5.1) Trupp-Ausbreitung: 16 Presets, Eintrag komplett, Sonderwerte ------------
+p = build_patches(gd, S(squad_expansion_factor=2.0))
+nd = parsed(p, NEEDS)
+assert len(nd.children) == 16, sorted(nd.children)
+human = nd.children["HumanGenericNeedsPreset"].children["GoalNeeds"].children
+assert list(human) == ["[0]"] and human["[0]"].values == {
+    "NeedTag": "AI.Need.Expansion", "InitialNeedValue": "65.0", "MinIncreasePerMinute": "12.0",
+    "MaxIncreasePerMinute": "20.0", "NeedSatisfactionThreshold": "100.0"}, human["[0]"].values
+zombie = nd.children["ZombieNeedsPreset"].children["GoalNeeds"].children["[0]"].values
+assert zombie["MinIncreasePerMinute"] == "2.0" and zombie["MaxIncreasePerMinute"] == "6.0" and zombie["InitialNeedValue"] == "0.0"
+mut = nd.children["MutantGenericNeedsPreset"].children["GoalNeeds"].children
+assert list(mut) == ["[1]"] and mut["[1]"].values["MinIncreasePerMinute"] == "14.0" and mut["[1]"].values["MaxIncreasePerMinute"] == "22.0"
+assert mut["[1]"].values["InitialNeedValue"] == "80.0" and len(mut["[1]"].values) == 5
+for absent in ("ReuniteWithLair", "MilitariesNeedsPreset", "NoonNeedsPreset", "SparkNeedsPreset", "CorpusNeedsPreset",
+               "MutantGenericNeedsNoExpansionPreset", "ScientistsNeedsPreset", "QuestNPCNeedsPreset",
+               "   Needs : struct.begin"):
+    assert absent not in p[NEEDS], absent
+assert "GoalNeeds : struct.begin {bpatch}" in p[NEEDS] and "[1] : struct.begin {bpatch}" in p[NEEDS]
+assert NEEDS not in build_patches(gd, S(squad_expansion_factor=1.0))
+quarter = parsed(build_patches(gd, S(squad_expansion_factor=0.25)), NEEDS).children["DutyNeedsPreset_Guard"] \
+    .children["GoalNeeds"].children["[0]"].values
+assert quarter["MinIncreasePerMinute"] == "1.5" and quarter["MaxIncreasePerMinute"] == "2.5"
+print("P5.1 Ausbreitung: 16 Presets x2 (6/10 -> 12/20, Zombie 2/6, MutantGeneric [1] 14/22), Eintraege komplett  OK")
+
+# --- P5.2) A-Life-Policy: Cooldowns, Distanzband (Min <= Max, ganzzahlig), Budget --
+p = build_patches(gd, S(refill_cooldown_factor=0.5, refill_distance_factor=2.0, corpse_budget=60))
+pol = parsed(p, POL)
+assert list(pol.children) == ["Default"] and pol.children["Default"].values == {
+    "FullWipeRefillCooldown": "180.0f", "PartialWipeRefillCooldown": "60.0f",
+    "MinRefillDistance": "40000", "MaxRefillDistance": "50000", "MaxCorpsePerRadius": "60"}, pol.children["Default"].values
+assert "Default : struct.begin {bpatch}" in p[POL] and "Extinction" not in p[POL] and "CorpseRadius" not in p[POL]
+d = parsed(build_patches(gd, S(refill_distance_factor=0.5)), POL).children["Default"].values
+assert d == {"MinRefillDistance": "10000", "MaxRefillDistance": "12500"} and int(d["MinRefillDistance"]) <= int(d["MaxRefillDistance"])
+assert POL not in build_patches(gd, S(corpse_budget=30, refill_cooldown_factor=1.0))
+assert parsed(build_patches(gd, S(corpse_budget=5)), POL).children["Default"].values == {"MaxCorpsePerRadius": "5"}
+print("P5.2 Policy: Cooldowns x0.5 = 180/60f, Distanz x2 = 40000/50000, x0.5 = 10000/12500, Budget 60/5, Extinction tabu  OK")
+
+# --- P5.3) Fraktions-Ausbreitung: 29 Kinder, Lagerbaender tabu, Tempo invers ------
+p = build_patches(gd, S(faction_battle_chance=80, faction_expansion_pace_factor=2.0))
+fac = parsed(p, FAC)
+assert p[FAC].startswith("ALifePopulationManagerPreset : struct.begin {bpatch}")
+pre = fac.children["ALifePopulationManagerPreset"]
+assert pre.values == {"ALifeLairExpansionTime": "25.0f"}, pre.values
+fs = pre.children["Factions"].children
+assert len(fs) == 29 and all(n.values == {"ALifeLairExpansionBattleChance": "80"} for n in fs.values())
+assert "MinLairs" not in p[FAC] and "MaxLairs" not in p[FAC] and "ALifeLairExpansionRadius" not in p[FAC]
+assert parsed(build_patches(gd, S(faction_expansion_pace_factor=0.5)), FAC).children["ALifePopulationManagerPreset"] \
+    .values["ALifeLairExpansionTime"] == "100.0f"
+assert FAC not in build_patches(gd, S(faction_battle_chance=50, faction_expansion_pace_factor=1.0))
+assert parsed(build_patches(gd, S(faction_battle_chance=0)), FAC).children["ALifePopulationManagerPreset"] \
+    .children["Factions"].children["Bandits"].values == {"ALifeLairExpansionBattleChance": "0"}
+print("P5.3 Fraktionen: 29 x Kampfchance 80 / 0, Tempo x2 -> 25.0f (invers), Lagerbaender fehlen  OK")
+
+# --- P5.4) Leichen-Distanzen (Quadrat-Regel), eingefaltete Zeiten, Hardcap --------
+core = core_values(corpse_distance_factor=2.0)
+assert core == {"CorpseOfflineSquaredDistance": "400000000.0",
+                "CorpseOfflineTimeConditionSquaredDistance": "100000000.0",
+                "CorpseOfflineCountConditionSquaredDistance": "36000000.0",
+                "DistanceToDestroyCorpsesIfOverpopulated": "60000"}, core
+core = core_values(corpse_distance_factor=0.5)
+assert core["CorpseOfflineSquaredDistance"] == "25000000.0" and core["DistanceToDestroyCorpsesIfOverpopulated"] == "15000"
+core = core_values(corpse_time_factor=2.0)
+assert core["CorpseOffscreenLifetime"] == "6.0" and core["CorpseDespawnToOfflineTimeCoef"] == "1.0" and core["CorpseOnlineTime"] == "3600.0"
+assert core_values(alife_corpse_hardcap=3000) == {"AlifeCorpsesHardcap": "3000"}
+text = build_patches(gd, S(corpse_distance_factor=2.0, corpse_time_factor=2.0, alife_corpse_hardcap=500))[CORE]
+assert "LowMemoryProfile" not in text and "CorpseRagdollQuestProtection" not in text
+assert text.count("struct.begin") == 1                                            # nur DefaultConfig
+print("P5.4 Leichen: Distanz x2 -> x4 auf die Quadrate + 60000, x0.5 -> x0.25, Zeiten falten 6.0/1.0, Hardcap 3000  OK")
+
+# --- P5.5) Zusammenfassung ---------------------------------------------------------
+joined = "\n".join(summarize(S(squad_expansion_factor=2.0, refill_cooldown_factor=0.5, refill_distance_factor=2.0,
+                               corpse_budget=60, faction_battle_chance=80, faction_expansion_pace_factor=2.0,
+                               corpse_distance_factor=2.0, alife_corpse_hardcap=3000)))
+for needle in ("squad expansion", "refill cooldown", "refill distance", "corpse budget 60", "battle chance 80",
+               "expansion pace", "Corpse distance", "hard cap 3000"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("squad expansion", "refill", "corpse budget", "hard cap"))
+print("P5.5 Zusammenfassung: 8 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

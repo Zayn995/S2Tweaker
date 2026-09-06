@@ -638,6 +638,11 @@ SLIDER_FIELDS: dict[str, str] = {
     "cover_distance": "cover_distance_factor", "cover_path": "cover_path_factor",
     # 1.28.0 (Kern-Sweep P4)
     "mut_smell": "mutant_smell_factor", "burer_fire": "burer_fire_interval_factor",
+    # 1.28.0 (Kern-Sweep P5)
+    "squad_expansion": "squad_expansion_factor", "refill_cd": "refill_cooldown_factor",
+    "refill_dist": "refill_distance_factor", "corpse_budget": "corpse_budget",
+    "faction_battle": "faction_battle_chance", "faction_pace": "faction_expansion_pace_factor",
+    "corpse_distance": "corpse_distance_factor", "corpse_hardcap": "alife_corpse_hardcap",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -718,6 +723,8 @@ FOOTPRINT_PROBES: dict[str, float] = {
     "armor_wear_coef": 0.5,          # Absolutwert 0..1 (Vanilla 0.7): x2 waere nur der Deckel
     "wounded_heal_chance": 50.0, "wounded_cooldown_s": 600.0,   # Absolutwerte (P3)
     "wounded_heal_threshold": 50.0,
+    "corpse_budget": 60.0, "faction_battle_chance": 80.0,          # Absolutwerte (P5)
+    "alife_corpse_hardcap": 3000.0,
 }
 
 # Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
@@ -4437,6 +4444,18 @@ class App(ctk.CTk):
                      "How fast fallen lair members are replaced (vanilla 3 / 8 "
                      "min, wipe 8 min). Story lairs with instant refill stay as "
                      "they are.")
+        self._slider(f, "refill_cd", "Lair refill cooldown", 25, 400, 25, 100, fmt_pct,
+                     "The A-Life policy's pause before a wiped-out lair is "
+                     "refilled (vanilla 360 s after a full wipe, 120 s after a "
+                     "partial one). 25 % = lairs come back four times as fast. "
+                     "Not play-tested yet.")
+        self._slider(f, "refill_dist", "Lair refill distance", 50, 300, 25, 100, fmt_pct,
+                     "How far from you a lair must be before it refills "
+                     "(vanilla 200-250 m band). Not play-tested yet.")
+        self._slider(f, "corpse_budget", "Offline corpse budget", 5, 120, 5, 30, fmt_int,
+                     "How many A-Life bodies may pile up within a lair radius "
+                     "(100 m) before offline decomposition kicks in (vanilla "
+                     "30). Not play-tested yet.")
         self._slider(f, "enc_freq", "Random encounters: frequency", 25, 400, 25, 100, fmt_pct,
                      "How often the director rolls a new encounter around you "
                      "(vanilla 60–90 s in the open world, plus a timeout after "
@@ -4464,6 +4483,23 @@ class App(ctk.CTk):
             self._slider(f, key, label, 0, 400, 25, 100, fmt_pct,
                          tip + " Stacks with the mutant-share slider. Bloodsuckers "
                          "have no slider: the open world never rolls them (weight 0).")
+        self._slider(f, "squad_expansion", "A-Life squad expansion (experimental)", 25, 300, 25, 100, fmt_pct,
+                     "How quickly the urge to send out expansion squads grows "
+                     "in 16 NPC need presets (vanilla 6-10 points per minute "
+                     "for humans, zombies 1-3, mutants 7-11; a squad leaves at "
+                     "100). More squads roaming = more CPU load. Not "
+                     "play-tested yet.")
+        self._slider(f, "faction_battle", "Faction expansion battle chance (experimental)", 0, 100, 5, 50, fmt_pct,
+                     "Chance that a faction's offline expansion into a foreign "
+                     "lair turns into a battle (vanilla 50 % for all 29 "
+                     "factions). Offline simulation, rarely visible. Not "
+                     "play-tested yet.")
+        self._slider(f, "faction_pace", "Faction expansion pace (experimental)", 25, 400, 25, 100, fmt_pct,
+                     "Scales the population manager's ALifeLairExpansionTime "
+                     "(vanilla 50) inversely: 200 % = factions expand twice as "
+                     "often, if the value is a time at all - its unit is not "
+                     "proven. Lair-count bands stay vanilla. Not play-tested "
+                     "yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Mutants")
@@ -5043,12 +5079,24 @@ class App(ctk.CTk):
         f = self._section(body, "Bodies & weather")
         self._slider(f, "corpse_time", "Bodies stay", 25, 500, 25, 100, fmt_pct,
                      "How long dead bodies remain (vanilla 30 min near you, "
-                     "15 min once seen, 5 min once looted). Like 'Corpse "
-                     "Despawn Time Increased'. Not play-tested yet.")
+                     "15 min once seen, 5 min once looted). Since 1.28.0 also "
+                     "the 3 s grace after you look away and the offline "
+                     "coefficient. Like 'Corpse Despawn Time Increased'. Not "
+                     "play-tested yet.")
         self._slider(f, "corpse_max", "Max bodies near you", 4, 40, 1, 10, fmt_int,
                      "How many bodies the game keeps around you before it "
                      "starts removing the oldest (vanilla 10). Higher costs "
                      "performance. Not play-tested yet.")
+        self._slider(f, "corpse_distance", "Corpse distance", 50, 300, 25, 100, fmt_pct,
+                     "The radii the corpse system works with: bodies go "
+                     "offline beyond 100 m, the time and count rules apply "
+                     "within 50 / 30 m, overpopulated bodies are destroyed "
+                     "beyond 300 m - all scaled together (the game stores "
+                     "the first three squared, the tool squares the factor). "
+                     "Not play-tested yet.")
+        self._slider(f, "corpse_hardcap", "A-Life corpse hard cap", 500, 5000, 100, 1500, fmt_int,
+                     "Global ceiling of bodies the A-Life keeps at all "
+                     "(vanilla 1500). Not play-tested yet.")
         self._slider(f, "weather_dur", "Weather duration", 25, 400, 25, 100, fmt_pct,
                      "How long each weather lasts before the next roll "
                      "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
@@ -5759,6 +5807,15 @@ class App(ctk.CTk):
             mutants_no_smell=bool(self.checks["mut_no_smell"].get()),
             burer_fire_interval_factor=s["burer_fire"].get() / 100.0,
             mutant_loot_widget=bool(self.checks["mut_loot_widget"].get()),
+            # 1.28.0 P5
+            squad_expansion_factor=s["squad_expansion"].get() / 100.0,
+            refill_cooldown_factor=s["refill_cd"].get() / 100.0,
+            refill_distance_factor=s["refill_dist"].get() / 100.0,
+            corpse_budget=int(s["corpse_budget"].get()),
+            faction_battle_chance=int(s["faction_battle"].get()),
+            faction_expansion_pace_factor=s["faction_pace"].get() / 100.0,
+            corpse_distance_factor=s["corpse_distance"].get() / 100.0,
+            alife_corpse_hardcap=int(s["corpse_hardcap"].get()),
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

@@ -667,6 +667,15 @@ class Settings:
     mutants_no_smell: bool = False           # FlairSensor IsActive -> false auf denselben Sensoren
     burer_fire_interval_factor: float = 1.0  # CoreVariables PossessedWeaponFireIntervals.<Ammo>.FireInterval (0.5-4 s) x Faktor
     mutant_loot_widget: bool = False         # CoreVariables UseMutantLootWithoutWidget true -> false (Loot-Fenster statt Animation)
+    # --- 1.28.0 P5 (A-Life und Leichen; par. 2.6 / 2.7 / 1.4) ---
+    squad_expansion_factor: float = 1.0      # NPCNeedsPreset GoalNeeds[Expansion] Min/MaxIncreasePerMinute (16 Presets)
+    refill_cooldown_factor: float = 1.0      # ALifePolicy Full/PartialWipeRefillCooldown (360.f/120.f)
+    refill_distance_factor: float = 1.0      # ALifePolicy Min/MaxRefillDistance (20000/25000), ganzzahlig
+    corpse_budget: int = 30                  # ALifePolicy MaxCorpsePerRadius (absolut)
+    faction_battle_chance: int = 50          # ALifePopulationManager Factions.<F>.ALifeLairExpansionBattleChance (29x, absolut)
+    faction_expansion_pace_factor: float = 1.0  # ALifePopulationManager ALifeLairExpansionTime (50.f), INVERS
+    corpse_distance_factor: float = 1.0      # CoreVariables CorpseOffline*SquaredDistance (x f^2) + DistanceToDestroyCorpsesIfOverpopulated (x f)
+    alife_corpse_hardcap: int = 1500         # CoreVariables AlifeCorpsesHardcap (absolut)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2325,6 +2334,112 @@ def _flair_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _needs_patch(gd: GameData, s: Settings) -> dict:
+    """NPCNeedsPresetPrototypes (1.28.0 P5, docs/CORE_SWEEP_RESEARCH.md par. 2.6):
+    A-Life-Trupp-Ausbreitung. GoalNeeds-Eintraege mit NeedTag AI.Need.Expansion
+    (16 Presets, jeder deklariert seinen Eintrag selbst; Auswahl ueber den
+    NeedTag, NICHT den Index - MutantGeneric hat ihn unter [1]):
+    Min/MaxIncreasePerMinute x Faktor, Array-Eintrag KOMPLETT ausgegeben.
+    AI.Need.ReuniteWithLair (inert) bleibt unangetastet."""
+    if not (_neq(s.squad_expansion_factor, 1.0) and s.squad_expansion_factor > 0):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.needspresets.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        goals = node.children.get("GoalNeeds")
+        if goals is None:
+            continue
+        entries: dict = {}
+        for idx, entry in goals.children.items():
+            if entry.values.get("NeedTag", "").strip() != "AI.Need.Expansion":
+                continue
+            full = {k: v.strip() for k, v in entry.values.items()}
+            changed = False
+            for key in ("MinIncreasePerMinute", "MaxIncreasePerMinute"):
+                raw = entry.values.get(key)
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, s.squad_expansion_factor)
+                if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                    full[key] = scaled
+                    changed = True
+            if changed:
+                entries[idx] = full
+        if entries:
+            patches[sid] = {"GoalNeeds": entries}
+    return patches
+
+
+def _alife_policy_patch(gd: GameData, s: Settings) -> dict:
+    """ALifePolicyPrototypes (1.28.0 P5, par. 2.7): das eine Struct Default.
+    Refill-Cooldowns (360.f/120.f) x Faktor, Refill-Distanzband (20000/25000,
+    ganzzahlig, Min <= Max) x Faktor, MaxCorpsePerRadius (30) absolut.
+    TriggerExtinction/StopExtinction (globaler Agenten-Deckel) sind tabu."""
+    node = gd.alifepolicy.children.get("Default")
+    if node is None:
+        return {}
+    cfg: dict = {}
+    if _neq(s.refill_cooldown_factor, 1.0) and s.refill_cooldown_factor > 0:
+        for key in ("FullWipeRefillCooldown", "PartialWipeRefillCooldown"):
+            raw = node.values.get(key)
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.refill_cooldown_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+    if _neq(s.refill_distance_factor, 1.0) and s.refill_distance_factor > 0:
+        raw_min = node.values.get("MinRefillDistance")
+        raw_max = node.values.get("MaxRefillDistance")
+        if (raw_min is not None and raw_max is not None
+                and parse_number(raw_min) > 0 and parse_number(raw_max) > 0):
+            new_max = max(1, int(round(parse_number(raw_max) * s.refill_distance_factor)))
+            new_min = min(max(1, int(round(parse_number(raw_min) * s.refill_distance_factor))), new_max)
+            for key, raw, new in (("MinRefillDistance", raw_min, new_min),
+                                  ("MaxRefillDistance", raw_max, new_max)):
+                if new != int(round(parse_number(raw))):
+                    cfg[key] = str(new)
+    raw = node.values.get("MaxCorpsePerRadius")
+    if raw is not None and parse_number(raw, -1.0) >= 0:
+        wanted = max(1, int(s.corpse_budget))
+        if wanted != int(round(parse_number(raw))):
+            cfg["MaxCorpsePerRadius"] = str(wanted)
+    return {"Default": cfg} if cfg else {}
+
+
+def _alife_faction_patch(gd: GameData, s: Settings) -> dict:
+    """ALifePopulationManagerFactionPrototypes (1.28.0 P5, par. 2.7): das eine
+    Struct ALifePopulationManagerPreset. ALifeLairExpansionBattleChance (50)
+    absolut auf alle 29 benannten Fraktions-Kinder (bpatch je Fraktion, nur bei
+    Abweichung), ALifeLairExpansionTime (50.f) INVERS x Faktor - Einheit
+    unbewiesen, darum experimentell. Die Lagerbaender MinLairs/MaxLairs sind
+    tabu."""
+    node = gd.alifefactions.children.get("ALifePopulationManagerPreset")
+    if node is None:
+        return {}
+    cfg: dict = {}
+    factions = node.children.get("Factions")
+    wanted = max(0, min(100, int(s.faction_battle_chance)))
+    if factions is not None:
+        sub: dict = {}
+        for name, fac in factions.children.items():
+            if "#" in name:
+                continue
+            raw = fac.values.get("ALifeLairExpansionBattleChance")
+            if raw is None:
+                continue
+            if wanted != int(round(parse_number(raw))):
+                sub[name] = {"ALifeLairExpansionBattleChance": str(wanted)}
+        if sub:
+            cfg["Factions"] = sub
+    if _neq(s.faction_expansion_pace_factor, 1.0) and s.faction_expansion_pace_factor > 0:
+        raw = node.values.get("ALifeLairExpansionTime")
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, 1.0 / s.faction_expansion_pace_factor)
+            if scaled is not None:
+                cfg["ALifeLairExpansionTime"] = scaled
+    return {"ALifePopulationManagerPreset": cfg} if cfg else {}
+
+
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
 
@@ -3207,8 +3322,11 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     # Hoechstzahl Leichen um den Spieler als Absolutwert.
     if _neq(s.corpse_time_factor, 1.0) and s.corpse_time_factor > 0:
         node = gd.corevars.children.get("DefaultConfig")
+        # 1.28.0 P5 (par. 1.4): CorpseOffscreenLifetime (3.0 s nach dem Blick
+        # weg) und CorpseDespawnToOfflineTimeCoef (0.5) skalieren mit
         for key in ("CorpseOnlineTime", "CorpseSeenOnlineTime", "CorpseLootedOnlineTime",
-                    "CorpseALifeOnlineTime", "CorpseTimeout"):
+                    "CorpseALifeOnlineTime", "CorpseTimeout",
+                    "CorpseOffscreenLifetime", "CorpseDespawnToOfflineTimeCoef"):
             raw = node.values.get(key) if node is not None else None
             if raw is None or parse_number(raw) <= 0:
                 continue
@@ -3481,6 +3599,28 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             cfg["PossessedWeaponFireIntervals"] = entries
     if s.mutant_loot_widget and _bool_literal(raw_of("UseMutantLootWithoutWidget")) is True:
         cfg["UseMutantLootWithoutWidget"] = "false"
+
+    # 1.28.0 P5 (Leichen, par. 1.4): die drei Offline-Distanzen sind QUADRIERTE
+    # Zentimeter (100 m -> 1e8), ein Distanz-Faktor f wirkt dort als f^2;
+    # DistanceToDestroyCorpsesIfOverpopulated (30000 = 300 m) linear und
+    # ganzzahlig. Nur DefaultConfig (LowMemoryProfileXSS ist Konsolen-Kram).
+    # CorpseRagdollQuestProtection* bleiben tabu.
+    if _neq(s.corpse_distance_factor, 1.0) and s.corpse_distance_factor > 0:
+        sq = s.corpse_distance_factor * s.corpse_distance_factor
+        for key in ("CorpseOfflineSquaredDistance", "CorpseOfflineTimeConditionSquaredDistance",
+                    "CorpseOfflineCountConditionSquaredDistance"):
+            raw = raw_of(key)
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, sq)
+                if scaled is not None:
+                    cfg[key] = scaled
+        raw = raw_of("DistanceToDestroyCorpsesIfOverpopulated")
+        if raw is not None and parse_number(raw) > 0:
+            cfg["DistanceToDestroyCorpsesIfOverpopulated"] = str(
+                max(1, int(round(parse_number(raw) * s.corpse_distance_factor))))
+    live = gd.corevar("AlifeCorpsesHardcap", -1.0)
+    if live >= 0 and int(s.alife_corpse_hardcap) != int(round(live)):
+        cfg["AlifeCorpsesHardcap"] = str(max(1, int(s.alife_corpse_hardcap)))
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -4773,6 +4913,11 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
         _upgrades_patch(gd, s))
     add(f"LairPrototypes/LairPrototypes_patch_{n}.cfg", _lairs_patch(gd, s))
+    add(f"NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_{n}.cfg", _needs_patch(gd, s))
+    add(f"ALifePrototypes/ALifePolicyPrototypes/ALifePolicyPrototypes_patch_{n}.cfg",
+        _alife_policy_patch(gd, s))
+    add(f"ALifePrototypes/ALifePopulationManagerFactionPrototypes/"
+        f"ALifePopulationManagerFactionPrototypes_patch_{n}.cfg", _alife_faction_patch(gd, s))
     add(f"ALifePrototypes/ALifeDirectorScenarioPrototypes/"
         f"ALifeDirectorScenarioPrototypes_patch_{n}.cfg", _director_patch(gd, s))
 
@@ -5100,6 +5245,18 @@ def summarize(s: Settings) -> list[str]:
     f("Burer weapon fire interval", s.burer_fire_interval_factor)
     if s.mutant_loot_widget:
         lines.append("Mutant harvest opens the loot window (experimental)")
+    # 1.28.0 P5
+    f("A-Life squad expansion (experimental)", s.squad_expansion_factor)
+    f("Lair refill cooldown", s.refill_cooldown_factor)
+    f("Lair refill distance", s.refill_distance_factor)
+    if int(s.corpse_budget) != 30:
+        lines.append(f"Offline corpse budget {int(s.corpse_budget)} per lair radius (vanilla 30)")
+    if int(s.faction_battle_chance) != 50:
+        lines.append(f"Faction expansion battle chance {int(s.faction_battle_chance)} % (vanilla 50, experimental)")
+    f("Faction expansion pace (experimental)", s.faction_expansion_pace_factor)
+    f("Corpse distance", s.corpse_distance_factor)
+    if int(s.alife_corpse_hardcap) != 1500:
+        lines.append(f"A-Life corpse hard cap {int(s.alife_corpse_hardcap)} (vanilla 1500)")
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")
