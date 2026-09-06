@@ -286,6 +286,17 @@ scroll_top(app.tabs.tab("Traders"))
 shot("17_traders.png")
 app.checks["trader_inf_money"].deselect()
 
+# ---------------------------------------------- 18-20 Farbdesigns (1.29.0)
+# Das Aushaengeschild des Releases: dieselbe Seite in drei Fraktionsfarben.
+# Bewusst der Player-Tab, damit man Regler, Zahlenfelder und Warnbox in
+# jeder Farbe sieht - und nicht drei leere Fenster.
+app.tabs.set("Player")
+scroll_top(app.tabs.tab("Player"))
+for nr, design in (("18", "Duty"), ("19", "Spark"), ("20", "Monolith")):
+    app._set_theme(design)
+    shot(f"{nr}_theme_{design.lower()}.png")
+app._set_theme("Standard")
+
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)
 app.destroy()

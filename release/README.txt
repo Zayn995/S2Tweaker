@@ -11,6 +11,11 @@ Around 400 tweaks in 14 tabs: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
+Every slider has a number box for exact values (dot and comma both work),
+the mouse wheel only scrolls the page unless you switch it over, and the
+Theme button offers 12 colour themes in the style of the game's factions -
+all purely cosmetic, the .pak you build is identical.
+
 WHAT YOU CAN TWEAK (short tour)
 -------------------------------
 - Player: health, stamina (incl. per-action costs), walk/crouch and

@@ -41,7 +41,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Limp thresholds after hard landings, bleeding per hit and from non-penetrating hits, damage screen effects, flashlight stays bright in dialogue, quicksave overwrite window, combat music threshold and lingering time
 [/list]
 
-[b]Vault - its own tab[/b]
+[b]Vaulting - its own tab[/b]
 [list]
 [*]Seven sliders for how Skif climbs and vaults: max vault height, trigger distance, approach angle, min obstacle height, landing tolerance, vault-over thickness and vault-over landing distance
 [*]'Improved vaulting' preset restores the tuned set of the vault mod that broke with game patch 2.0 - the sliders stack on top of it
@@ -220,6 +220,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.29.0 - Interface: exact number boxes, faction colour themes, and a slider fix[/b] (~400 tweaks + ammo swap, 14 tabs)
+[list]
+[*][b]Fix worth updating for:[/b] sliders could not always reach their vanilla value. The UI library takes a number of notches, not a step size; where a slider's range was not a whole multiple of its step, vanilla fell between two notches. Measured on 1.28.0: [b]74 of 376 sliders[/b], among them player damage, every trader and category price, quest rewards and five factors in all eight weapon categories. A freshly started tool could write those values into a pak although nobody had touched anything. Now every slider lands exactly on vanilla, and the test suite checks all 376 on every run
+[*][b]A number box behind every slider[/b] - type an exact value, dot and comma both work as the decimal mark. It accepts values the slider itself cannot stop on, and the slider follows
+[*][b]The mouse wheel no longer moves sliders[/b], so scrolling the page can't nudge a value by accident. A toolbar switch hands it back if you prefer the old behaviour; it starts off every time
+[*][b]12 colour themes[/b] in the style of the game's factions - Loners, Bandits, Duty, Freedom, Military, Ward, Spark, Monolith, Ecologists, Mercenaries, Clear Sky, next to the tool's own blue on black. Each sets background, cards, buttons, sliders and text; one click, no restart, remembered. Purely cosmetic - the pak you build is identical. Green and red never change with the theme (ready, missing, destructive) and those buttons carry an outline so they stay apart from a red theme. Honest note: the game files carry no faction palette and no game artwork is used - these colours are our own reading of the factions
+[*][b]New tweaks[/b]: weapon draw & holster speed (includes the edition guns, unlike the reload slider) and skipped shooting animations - the one config value that touches shot timing, for when a raised fire rate leaves the animation behind
+[*]Tabs sit in two rows now with a small mark each, so the full names fit again - and the vaulting tab is called [b]Vaulting[/b] again (1.27.0 had shortened it to 'Vault' for exactly the space this fixes). 'Confirm & load game data' is amber and pulses until you press it. Warning notices are proper boxes, the text is a step larger, and the explanations under sliders no longer get cut off
+[*]No new game files are read: [b]no re-extraction[/b], your cache stays valid, and so do existing paks and presets
+[/list]
+
 [b]v1.28.0 - 38 tweaks from a sweep through the game's core files[/b] (~400 tweaks + ammo swap, 14 tabs)
 [list]
 [*]A systematic pass through the config keys and whole game files the tool had never read - among them the A-Life policy, the NPC needs presets, the mutant scent sensors, the cover and target-choice profiles, the sky constants and the world loot groups. Nothing is added to the game; only existing numbers and flags change
@@ -236,10 +247,12 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.27.1 - Fix: scope-class buttons in the Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
+[spoiler]
 [list]
 [*]In 1.27.0 the five class buttons under 'Single scope overrides' (2x scopes, 3x scopes ...) stayed greyed out after the first load of the game data, so the per-scope list could not be opened until a preset was loaded. Fixed; a new test replays that first load
 [*]No tweak changes. Existing paks and presets stay valid
 [/list]
+[/spoiler]
 
 [b]v1.27.0 - 30 tweaks from a sweep through the game's own config keys, and an Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
 [spoiler]
