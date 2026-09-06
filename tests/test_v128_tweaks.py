@@ -656,4 +656,93 @@ for needle in ("Radiation dose", "Radiation screen filter", "Geiger", "Barbed wi
 assert not any(k in "\n".join(summarize(S())) for k in ("Radiation dose", "Barbed", "Moon", "Camp life", "music"))
 print("P6.9 Zusammenfassung: 16 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# P7 - Artefakte und Loot
+# =========================================================================
+ITEMS = "ItemPrototypes/ItemPrototypes_patch_S2Tweaker.cfg"
+POI = "PackOfItemsGroupPrototypes/PackOfItemsGroupPrototypes_patch_S2Tweaker.cfg"
+
+# --- P7.0) Live-Bestand der Artefakt-Schluessel ------------------------------------
+assert "PackOfItemsGroupPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+assert "packofitems" in _GD_TREES
+arts = {sid: n for sid, n in gd.items.children.items() if "#" not in sid and "Strafe" in n.values}
+assert len(arts) == 154, len(arts)
+for key in ("Radius", "PlayerDistance", "JumpSeriesDelay"):
+    assert all(key in n.values for n in arts.values()), key      # jedes deklariert selbst
+strafe_true = [s for s, n in arts.items() if n.values["Strafe"].strip() == "true"]
+assert len(strafe_true) == 146 and len(arts) - len(strafe_true) == 8
+radii = sorted({n.values["Radius"].strip() for n in arts.values()})
+assert radii == ["10", "10.0", "40.0"], radii
+far = [s for s, n in arts.items() if n.values["PlayerDistance"].strip() == "100000.0"]
+assert far == ["QuestArtifactCrystalThorn"], far
+assert gd.corevars.children["DefaultConfig"].values["ArtifactStrafeMinDistance"] == "600.0"
+assert not build_patches(gd, S(artifact_radius_factor=1.0, artifact_keepaway_factor=1.0,
+                               artifact_hop_pause_factor=1.0, loot_reroll_radius_factor=1.0,
+                               loot_reroll_timer_factor=1.0))
+print(f"P7.0 Artefakte: {len(arts)} Structs, alle selbstdeklarierend, 146 huepfen, Radien {radii}, Neutral leer  OK")
+
+# --- P7.1) Sichtbarkeits-Radius ----------------------------------------------------
+it = parsed(build_patches(gd, S(artifact_radius_factor=19.0)), ITEMS)
+assert len(it.children) == 154, len(it.children)
+assert it.children["TemplateArtifact"].values == {"Radius": "760.0"}
+assert it.children["AArtifactWeirdBall"].values == {"Radius": "190.0"}      # Vanilla 10
+assert all(list(n.values) == ["Radius"] for n in it.children.values())
+assert ITEMS not in build_patches(gd, S(artifact_radius_factor=1.0))
+print("P7.1 Radius: 154 Artefakte x19 (40 -> 760, 10 -> 190), nur der eine Schluessel  OK")
+
+# --- P7.2) Huepfen: Schalter trifft nur die 146 true-Structs ------------------------
+it = parsed(build_patches(gd, S(artifacts_no_hop=True)), ITEMS)
+assert len(it.children) == 146, len(it.children)
+assert all(n.values == {"Strafe": "false"} for n in it.children.values())
+for keeper in ("AArtifactWeirdBall", "AArtifactWeirdFlower", "CPrologArtifactSlug",
+               "QuestArtifactHeartofChornobyl"):
+    assert keeper not in it.children, keeper
+assert "TemplateArtifact" in it.children
+print("P7.2 Huepfen: Schalter trifft genau die 146 true-Artefakte, die 8 false bleiben  OK")
+
+# --- P7.3) Keep-away und Huepf-Pause, inkl. Ausreisser und Null-Werte ---------------
+p = build_patches(gd, S(artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0))
+it = parsed(p, ITEMS)
+assert it.children["TemplateArtifact"].values == {"PlayerDistance": "500.0", "JumpSeriesDelay": "90.0"}
+assert it.children["QuestArtifactCrystalThorn"].values["PlayerDistance"] == "50000.0"   # Ausreisser mitskaliert
+zero = [s for s, n in arts.items() if parse_number(n.values["JumpSeriesDelay"]) == 0]
+assert zero and all("JumpSeriesDelay" not in it.children[s].values for s in zero if s in it.children)
+core = parsed(p, CORE).children["DefaultConfig"].values
+assert core == {"ArtifactStrafeMinDistance": "300.0"}, core
+print(f"P7.3 Huepf-Werte: Distanz x0.5 (auch der 100000-Ausreisser), Pause x2, {len(zero)} Null-Werte uebersprungen  OK")
+
+# --- P7.4) Seltene Artefakt-Verstecke ----------------------------------------------
+live = gd.packofitems.children["ArtifactUncommon"].children["PackOfItemsSettings"]
+live_items = live.children["[0]"].children["Items"].children
+assert len(live_items) == 20 and {e.values["Weight"] for e in live_items.values()} == {"0"}
+p = build_patches(gd, S(artifact_caches_drop=True))
+poi = parsed(p, POI)
+assert list(poi.children) == ["ArtifactUncommon"], list(poi.children)
+entries = poi.children["ArtifactUncommon"].children["PackOfItemsSettings"].children["[0]"] \
+    .children["Items"].children
+assert len(entries) == 20, len(entries)
+assert all(e.values["Weight"] == "1" and e.values.get("ItemPrototypeSID") for e in entries.values())
+assert entries["[0]"].values["ItemPrototypeSID"] == "EArtifactMoonlight", entries["[0]"].values
+assert "ArtifactUncommon : struct.begin {bpatch}" in p[POI]
+for other in ("Medkits", "Stimulator", "Drink", "Food", "empty"):
+    assert other not in p[POI], other
+assert POI not in build_patches(gd, S())
+print("P7.4 Verstecke: nur ArtifactUncommon, 20 Eintraege komplett auf Weight 1, andere Gruppen unberuehrt  OK")
+
+# --- P7.5) Loot-Neuauslosung beim Rangaufstieg --------------------------------------
+assert core_values(loot_reroll_radius_factor=2.0, loot_reroll_timer_factor=0.5) == {
+    "RegenerateItemsOnRankUpdateRadius": "80000.0f", "RegenerateItemsOnRankUpdateTimer": "5.0f"}
+print("P7.5 Neuauslosung: Radius 80000.0f, Verzoegerung 5.0f  OK")
+
+# --- P7.6) Zusammenfassung -----------------------------------------------------------
+joined = "\n".join(summarize(S(artifact_radius_factor=19.0, artifacts_no_hop=True,
+                               artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0,
+                               artifact_caches_drop=True, loot_reroll_radius_factor=2.0,
+                               loot_reroll_timer_factor=0.5)))
+for needle in ("visibility radius", "don't hop away", "keep-away", "hop pause",
+               "caches actually drop", "re-roll radius", "re-roll delay"):
+    assert needle in joined, (needle, joined)
+assert not any(k in "\n".join(summarize(S())) for k in ("visibility radius", "hop", "caches", "re-roll"))
+print("P7.6 Zusammenfassung: 7 Zeilen vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")

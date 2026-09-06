@@ -653,6 +653,10 @@ SLIDER_FIELDS: dict[str, str] = {
     "cloud_speed": "cloud_speed_factor", "dusk_length": "dusk_length_factor",
     "music_threshold": "music_combat_threshold", "music_lifetime": "music_combat_lifetime",
     "camp_life": "camp_life_factor",
+    # 1.28.0 (Kern-Sweep P7)
+    "art_radius": "artifact_radius_factor", "art_keepaway": "artifact_keepaway_factor",
+    "art_hop_pause": "artifact_hop_pause_factor",
+    "loot_reroll": "loot_reroll_radius_factor", "loot_reroll_time": "loot_reroll_timer_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -716,6 +720,8 @@ CHECK_FIELDS: dict[str, str] = {
     "no_limp": "no_landing_limp", "flashlight_dialog": "flashlight_dialog_bright",
     # 1.28.0 (Kern-Sweep P4)
     "mut_no_smell": "mutants_no_smell", "mut_loot_widget": "mutant_loot_widget",
+    # 1.28.0 (Kern-Sweep P7)
+    "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -5266,6 +5272,13 @@ class App(ctk.CTk):
                     "and a named trader's stock stays vanilla.",
             anchor="w", justify="left", wraplength=780,
             font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "loot_reroll", "Loot re-roll radius on rank-up", 25, 500, 25, 100, fmt_pct,
+                     "When your rank goes up, the game re-rolls the loot in "
+                     "containers and stashes within 400 m (vanilla). Larger = "
+                     "more of the world refreshes at once. Not play-tested yet.")
+        self._slider(f, "loot_reroll_time", "Loot re-roll delay on rank-up", 25, 500, 25, 100, fmt_pct,
+                     "How long the game waits after the rank-up before it "
+                     "re-rolls (vanilla 10 s). Not play-tested yet.")
         self._slider(f, "loot_amount", "Loot amount (NPCs, containers, world)",
                      25, 400, 25, 100, fmt_pct,
                      "Only ammo and part of the food & medicine lists come as "
@@ -5316,6 +5329,34 @@ class App(ctk.CTk):
                      "(bolt 300) or a timer (flower 2 h). 1000 % = practically "
                      "no recharge, like 'NoWeirdArtifactRecharge'. Not "
                      "play-tested yet.")
+        self._slider(f, "art_radius", "Artifact visibility radius", 1, 20, 0.5, 1, fmt_factor,
+                     "How close you must be before an artifact becomes visible "
+                     "(vanilla 40 cm - practically standing on it). \u00d7 19 is "
+                     "about 7.5 m, the range the Nexus mod 'Less Shy Artifacts' "
+                     "uses. Honest note: this is the only key that fits that "
+                     "mod's description, but we could not read the mod's own "
+                     "files - the reading is very likely, not proven. Not "
+                     "play-tested yet.")
+        self._check(f, "art_no_hop", "Artifacts don't hop away",
+                    "146 of the 154 artifacts jump away when you get close; "
+                    "this switches that off. The eight that already stay put "
+                    "(the weird DLC ones and two quest artifacts) are left "
+                    "alone. Not play-tested yet.")
+        self._slider(f, "art_keepaway", "Artifact keep-away distance (experimental)", 25, 300, 25, 100, fmt_pct,
+                     "How far a hopping artifact tries to stay away from you "
+                     "(vanilla 10 m, plus the 6 m at which hopping starts at "
+                     "all). Whether lower really means easier to catch is "
+                     "untested. Not play-tested yet.")
+        self._slider(f, "art_hop_pause", "Artifact hop pause (experimental)", 25, 400, 25, 100, fmt_pct,
+                     "Pause between two hop series (vanilla 15 to 45 s "
+                     "depending on the artifact). Higher = they sit still "
+                     "longer. Not play-tested yet.")
+        self._check(f, "art_caches", "Uncommon artifact caches actually drop (experimental)",
+                    "One world loot group, 'ArtifactUncommon', has nine places "
+                    "on the map but all 20 of its entries carry weight 0 - so "
+                    "those caches come up empty. This gives each entry weight 1. "
+                    "Whether the game rolls such a group at all is unproven. "
+                    "Not play-tested yet.")
         self._slider(f, "detector", "Detector & scanner range", 50, 300, 10, 100, fmt_pct,
                      "Artifact detectors (Echo, Bear, Veles, Gilka), the "
                      "anomaly beeper and the searchpoint scanner.")
@@ -5923,6 +5964,14 @@ class App(ctk.CTk):
             music_combat_threshold=float(s["music_threshold"].get()),
             music_combat_lifetime=float(s["music_lifetime"].get()),
             camp_life_factor=s["camp_life"].get() / 100.0,
+            # 1.28.0 P7
+            artifact_radius_factor=s["art_radius"].get(),
+            artifacts_no_hop=bool(self.checks["art_no_hop"].get()),
+            artifact_keepaway_factor=s["art_keepaway"].get() / 100.0,
+            artifact_hop_pause_factor=s["art_hop_pause"].get() / 100.0,
+            artifact_caches_drop=bool(self.checks["art_caches"].get()),
+            loot_reroll_radius_factor=s["loot_reroll"].get() / 100.0,
+            loot_reroll_timer_factor=s["loot_reroll_time"].get() / 100.0,
             scope_overrides={sid: dict(v) for sid, v in self.scope_overrides.items()},
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,

@@ -713,6 +713,14 @@ class Settings:
     music_combat_threshold: float = 20.0     # CoreVariables MusicManagerCombatScoreThreshold (absolut)
     music_combat_lifetime: float = 25.0      # CoreVariables MusicManagerCombatEnemyAttackActionLifetimeSeconds (absolut)
     camp_life_factor: float = 1.0            # NPCNeedsPreset Needs IncreaseRateMin/Max der Lagerleben-Beduerfnisse
+    # --- 1.28.0 P7 (Artefakte und Loot; par. 3b / 2.12 / 1.3) ---
+    artifact_radius_factor: float = 1.0      # ItemPrototypes je Artefakt Radius (40 cm / 10), Sichtbarkeit
+    artifacts_no_hop: bool = False           # dito Strafe true -> false (146 von 154)
+    artifact_keepaway_factor: float = 1.0    # dito PlayerDistance (1000) + CoreVariables ArtifactStrafeMinDistance (600)
+    artifact_hop_pause_factor: float = 1.0   # dito JumpSeriesDelay (45/35/25/15)
+    artifact_caches_drop: bool = False       # PackOfItems ArtifactUncommon: 20 Weight 0 -> 1
+    loot_reroll_radius_factor: float = 1.0   # CoreVariables RegenerateItemsOnRankUpdateRadius (40000.f)
+    loot_reroll_timer_factor: float = 1.0    # CoreVariables RegenerateItemsOnRankUpdateTimer (10.f)
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -2655,6 +2663,88 @@ def _singleton_patch(gd: GameData, s: Settings) -> dict:
     return {"TimeManager": cfg} if cfg else {}
 
 
+def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
+    """Artefakt-Verhalten in ItemPrototypes (1.28.0 P7, docs/CORE_SWEEP_RESEARCH.md
+    par. 3b). Live gemessen: 154 Artefakt-Structs, und JEDES deklariert Radius,
+    Strafe, PlayerDistance und JumpSeriesDelay selbst (auch TemplateArtifact) -
+    also wird jedes einzeln gepatcht, nie nur die Vorlage.
+
+    - Radius (147x 40.0, 7x 10): wie nah man ran muss, damit ein Artefakt
+      sichtbar wird. Deutung aus dem Recherche-Dokument ("sehr wahrscheinlich",
+      Vorbild Nexus "Less Shy Artifacts") - der Tooltip sagt es.
+    - Strafe (146 true / 8 false): der Schalter setzt NUR die true-Artefakte auf
+      false, die acht Weird-/Quest-Artefakte bleiben, wie sie sind.
+    - PlayerDistance (153x 1000.0, 1x 100000.0 bei QuestArtifactCrystalThorn) und
+      JumpSeriesDelay (45/35/25/15, dazu 2x 0.0 und 1x 0.5): Faktoren; 0 bleibt 0.
+
+    Der Editions-Zweig (DLCGameData) enthaelt KEINE Artefakte - gemessen: null
+    Radius- und null Strafe-Schluessel in allen drei Editions-Dateien -, darum
+    gibt es hier anders als beim Artefakt-Slot-Regler keinen DLC-Pfad."""
+    radius_on = _neq(s.artifact_radius_factor, 1.0) and s.artifact_radius_factor > 0
+    keep_on = _neq(s.artifact_keepaway_factor, 1.0) and s.artifact_keepaway_factor > 0
+    pause_on = _neq(s.artifact_hop_pause_factor, 1.0) and s.artifact_hop_pause_factor > 0
+    if not (radius_on or keep_on or pause_on or s.artifacts_no_hop):
+        return {}
+    patches: dict = {}
+    for sid, node in gd.items.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        # Artefakt = eigener Strafe-Schluessel; das ist zugleich der Beleg,
+        # dass der Struct die Huepf-Familie selbst deklariert.
+        if "Strafe" not in node.values:
+            continue
+        cfg: dict = {}
+        if s.artifacts_no_hop and _bool_literal(node.values.get("Strafe")) is True:
+            cfg["Strafe"] = "false"
+        for on, key, factor in ((radius_on, "Radius", s.artifact_radius_factor),
+                                (keep_on, "PlayerDistance", s.artifact_keepaway_factor),
+                                (pause_on, "JumpSeriesDelay", s.artifact_hop_pause_factor)):
+            if not on:
+                continue
+            raw = node.values.get(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _packofitems_patch(gd: GameData, s: Settings) -> dict:
+    """PackOfItemsGroupPrototypes (1.28.0 P7, par. 2.12): die handplatzierten
+    Welt-Loot-Haufen. Die Gruppe ArtifactUncommon hat neun Weltvorkommen, aber
+    alle 20 Eintraege stehen auf Weight 0 - im Spiel also leere Verstecke.
+    Der Schalter hebt genau diese 20 auf 1 und laesst alles andere in der Datei
+    unangetastet (die Rang-Sperren der uebrigen 46 Gruppen sind tabu).
+    Array-Eintraege werden komplett ausgegeben (ItemPrototypeSID + Weight).
+    Ob eine Gruppe mit Gewicht 0 ueberhaupt je gezogen wird, ist unbewiesen -
+    darum experimentell."""
+    if not s.artifact_caches_drop:
+        return {}
+    group = gd.packofitems.children.get("ArtifactUncommon")
+    if group is None:
+        return {}
+    settings: dict = {}
+    for si, setting in (group.children.get("PackOfItemsSettings").children.items()
+                        if group.children.get("PackOfItemsSettings") else ()):
+        items = setting.children.get("Items")
+        if items is None:
+            continue
+        entries: dict = {}
+        for ii, entry in items.children.items():
+            raw = entry.values.get("Weight")
+            if raw is None or parse_number(raw) != 0:
+                continue                      # nur die abgeschalteten Eintraege
+            full = {k: v.strip() for k, v in entry.values.items()}
+            full["Weight"] = "1"
+            entries[ii] = full
+        if entries:
+            settings[si] = {"Items": entries}
+    return {"ArtifactUncommon": {"PackOfItemsSettings": settings}} if settings else {}
+
+
 def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
 
@@ -3878,6 +3968,22 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         live = parse_number(raw, -1.0)
         if live >= 0 and _neq(float(wanted), live):
             cfg[key] = _num(max(0.0, float(wanted))) + ("f" if raw.strip().endswith(("f", "F")) else "")
+
+    # 1.28.0 P7 (Artefakte und Loot, par. 3b / 1.3): der Mindestabstand, ab dem
+    # ein Artefakt ueberhaupt wegzuhuepfen beginnt, gehoert zum Keep-away-Regler
+    # (die eigentliche Distanz steht je Artefakt in ItemPrototypes); dazu die
+    # Loot-Neuauslosung beim Rangaufstieg (Radius 400 m, Verzoegerung 10 s).
+    for key, factor in (("ArtifactStrafeMinDistance", s.artifact_keepaway_factor),
+                        ("RegenerateItemsOnRankUpdateRadius", s.loot_reroll_radius_factor),
+                        ("RegenerateItemsOnRankUpdateTimer", s.loot_reroll_timer_factor)):
+        if not (_neq(factor, 1.0) and factor > 0):
+            continue
+        raw = raw_of(key)
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        scaled = _scale_literal(raw, factor)
+        if scaled is not None:
+            cfg[key] = scaled
 
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
@@ -5151,6 +5257,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         f"FlairSensorPrototypes_patch_{n}.cfg", _flair_patch(gd, s))
     items_patches, items_dlc = _items_patch(gd, s)
     _merge_nested(items_patches, _weird_artifact_patch(gd, s))
+    _merge_nested(items_patches, _artifact_behaviour_patch(gd, s))
     _merge_nested(items_patches, scope_items)
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", items_patches)
     for edition, ed_patches in sorted(items_dlc.items()):
@@ -5170,6 +5277,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
         _upgrades_patch(gd, s))
     add(f"LairPrototypes/LairPrototypes_patch_{n}.cfg", _lairs_patch(gd, s))
+    add(f"PackOfItemsGroupPrototypes/PackOfItemsGroupPrototypes_patch_{n}.cfg",
+        _packofitems_patch(gd, s))
     add(f"NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_{n}.cfg", _needs_patch(gd, s))
     add(f"BarbedWirePrototypes/BarbedWirePrototypes_patch_{n}.cfg", _barbedwire_patch(gd, s))
     add(f"DestructibleObjectPrototypes/DestructibleObjectPrototypes_patch_{n}.cfg",
@@ -5542,6 +5651,16 @@ def summarize(s: Settings) -> list[str]:
     if _neq(s.music_combat_lifetime, 25.0):
         lines.append(f"Combat music lingers {s.music_combat_lifetime:g} s (vanilla 25)")
     f("Camp life", s.camp_life_factor)
+    # 1.28.0 P7
+    f("Artifact visibility radius", s.artifact_radius_factor)
+    if s.artifacts_no_hop:
+        lines.append("Artifacts don't hop away")
+    f("Artifact keep-away distance (experimental)", s.artifact_keepaway_factor)
+    f("Artifact hop pause (experimental)", s.artifact_hop_pause_factor)
+    if s.artifact_caches_drop:
+        lines.append("Uncommon artifact caches actually drop (experimental)")
+    f("Loot re-roll radius on rank-up", s.loot_reroll_radius_factor)
+    f("Loot re-roll delay on rank-up", s.loot_reroll_timer_factor)
     if s.scope_overrides:
         n_sc = len(s.scope_overrides)
         lines.append(f"Scope overrides: {n_sc} scope{'s' if n_sc != 1 else ''} tuned")

@@ -150,6 +150,9 @@ s = Settings(
     stars_brightness_factor=5.0, cloud_opacity_factor=1.4, cloud_speed_factor=3.0,
     dusk_length_factor=2.0, music_combat_threshold=50, music_combat_lifetime=10,
     camp_life_factor=2.0,
+    artifact_radius_factor=10.0, artifacts_no_hop=True, artifact_keepaway_factor=0.5,   # 1.28.0 P7
+    artifact_hop_pause_factor=2.0, artifact_caches_drop=True,
+    loot_reroll_radius_factor=2.0, loot_reroll_timer_factor=0.5,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

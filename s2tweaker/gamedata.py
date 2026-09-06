@@ -82,6 +82,7 @@ NEEDED_FILES = [
     "PhysicsInteractionPrototypes.cfg.bin",  # Schubkraft (1.28.0 P6)
     "WeatherChainPrototypes.cfg.bin",        # Wetteruebergaenge (1.28.0 P6)
     "SingletonConstants.cfg",                # Nacht/Himmel (1.28.0 P6, unbinarisiert)
+    "PackOfItemsGroupPrototypes.cfg.bin",    # Welt-Loot-Haufen (1.28.0 P7)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
@@ -598,6 +599,14 @@ class GameData:
         TimeManager mit Mond/Sonne/Sternen/Wolken. Latitude, Longitude,
         TimeZone, NorthOffsetAngle und die Start*-Schluessel sind tabu."""
         return self._parse("SingletonConstants.cfg")
+
+    # --- 1.28.0 (Kern-Sweep P7) ---
+    @cached_property
+    def packofitems(self) -> CfgStruct:
+        """PackOfItemsGroupPrototypes (par. 2.12): 47 Gruppen handplatzierter
+        Welt-Loot-Haufen. Nur ArtifactUncommon wird angefasst (20 Eintraege,
+        alle mit Weight 0); die Rang-Sperren der anderen Gruppen sind tabu."""
+        return self._parse("PackOfItemsGroupPrototypes.cfg")
 
     @cached_property
     def weatherselection(self) -> CfgStruct:

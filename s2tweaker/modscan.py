@@ -87,6 +87,8 @@ _GD_TREES = (
     # (SingletonConstants wird wie CoreVariables als Textdatei gefuehrt)
     "barbedwire", "destructibles", "physicsinteractions", "weatherchains",
     "singletonconstants",
+    # 1.28.0 P7: Welt-Loot-Haufen
+    "packofitems",
 )
 
 

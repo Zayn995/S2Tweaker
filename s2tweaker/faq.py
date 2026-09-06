@@ -956,6 +956,20 @@ FAQ_ENTRIES = [
              "weather visibility flashlight dusk dawn sunset",
     },
     {
+        "q": "Why can't I see artifacts until I stand on them?",
+        "a": "Vanilla gives every artifact a visibility radius of 40 cm, so "
+             "you practically have to stand on one. World tab, 'Artifacts': "
+             "'Artifact visibility radius' scales it - about 19x is the "
+             "7.5 m the mod 'Less Shy Artifacts' uses. Next to it, "
+             "'Artifacts don't hop away' stops the 146 artifacts that jump "
+             "off when you approach, and two experimental sliders change "
+             "how far they keep away and how long they pause between hops. "
+             "Detectors have their own slider further down. Not play-tested "
+             "yet.",
+        "k": "artifact artifacts invisible see visible radius hidden find "
+             "shy hop jump away run escape catch detector distance",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "
