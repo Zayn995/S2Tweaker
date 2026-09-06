@@ -391,6 +391,44 @@ strings + need enums); `TeleportPrototypes.cfg`, `TeleportGroupPrototypes.cfg`,
   `DoorPrototypes.cfg` locks, quest teleports, `DailySchedule` need lists,
   PackOfItems rank locks.
 
+## 3b. Corrections after re-reading the project notes (HANDOVER, ROADMAP, SPEC)
+
+- Ladder play-rates (§1.1 `Climb*Speed`) overlap the existing `climb_speed_factor`
+  (1.24.0, `Player.MovementParams.ClimbSpeedCoef` 0.6) — fold them into that
+  slider, no new control.
+- `MarkerShowingDistance/RevealingDistance/ExploringDistance` overlap the 1.26.0
+  `map_reveal_factor` (MarkerPrototypes: base `[0]` defines 10000/2000 itself,
+  359 markers, 334 at 10000) — fold into that slider if at all; meaning of the
+  three globals unproven.
+- Damage screen effects: the better route is the already-cached
+  `GameData/PostEffectProcessorPrototypes.cfg` (same pattern as the 1.26.0
+  crouch-vignette slider): `Intensity = 1.0` on `Top/Right/Bottom/Left/
+  TopRight/TopLeft/BottomRight/BottomLeft DamageEffectProcessor` (lines 35–122,
+  every child redeclares Intensity), `BurnDamageEffectProcessor` (207),
+  `SteamDamageEffectProcessor` (218), `ElectroIntensityEffectProcessor` (326),
+  `ChemicalDamageEffectProcessor` (337), `DarknessDamageIntensity/Radius…` (919/930),
+  `QuicksilverDamageIntensityEffectProcessor` (961). No schema bump; §2.1 is the
+  fallback.
+- `InventorySPDrainCoef` and the four interaction ranges fold into the existing
+  overweight-penalty and `interaction_range_factor` sliders.
+- Hopping artifacts: the lever is per artifact in the cached
+  `GameData/ItemPrototypes.cfg` — `TemplateArtifact` and every artifact struct
+  define `Strafe` (`true` ×146, `false` ×8), `PlayerDistance = 1000.0` (×153, one
+  `100000.0`), `JumpDistance = 1500.0` (×151), `JumpHeight = 100.0` (×151),
+  `JumpSeriesDelay` (45.0 ×76, 35.0 ×41, 25.0 ×26, 15.0 ×8), `JumpAmount` 3/5/7/9,
+  `JumpDelay` 6.0/3.0. Tweak: switch "artifacts don't hop away" (`Strafe = false`)
+  and/or factors on `PlayerDistance` / `JumpSeriesDelay`; `ArtifactStrafeMinDistance`
+  600 (CoreVariables) alongside. Direction unverified in game.
+- Artifact appearance range: the Nexus mod "Less Shy Artifacts" (mod 822, 446
+  endorsements, 2.0 version via bpatch) makes artifacts visible from ~7.5 m
+  instead of "standing right on top"; the 05.09. Nexus research had found no key.
+  The only matching key is `Radius = 40.0` (40 cm; ×147, `10`/`10.0` ×7, next to
+  `DetectorRequired = true` ×147) in the same artifact structs — 7.5 m = 750.
+  The mod's own files were not read (download needs a login), so this is a
+  strong reading, not proof. Tweak: factor 1×–20× on `Radius`, cached file.
+- The 1.27.0 "darkness for NPC eyes" (`AIGlobals` luminance) is AI perception,
+  not the picture — the `SingletonConstants` sky keys (§2.8) are a different thing.
+
 ## 4. Build notes for the implementation round
 
 - Arrays (`LimpEffectSIDToThresholdMap`, `StrikeGrenadeResistCoefs`,
