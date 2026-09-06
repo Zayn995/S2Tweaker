@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.27.1
-File version:  1.27.1
+Name:          S2Tweaker 1.28.0
+File version:  1.28.0
 File category: Main Files
 ==================================================================
 

@@ -1,5 +1,9 @@
 # Core sweep (sixth data research, 2026-09-06): unused CoreVariables keys and never-read core files
 
+**Status: implemented in 1.28.0 (packages P1-P8).** All 38 candidates from the
+table in `docs/ROADMAP.md` are built; the warnings in section 3 were honoured and
+are pinned by the test suite `tests/test_v128_tweaks.py`.
+
 Research only — no code. Prepared for the next feature round after 1.27.1.
 Everything below was read from the extracted vanilla text configs under
 `vanilla/Stalker2/Content/GameLite/GameData/` (`GameData/` from here on), never
