@@ -29,6 +29,7 @@ ORDER = [
     "test_modscan_e2e.py",
     "test_gui_factions.py",
     "test_gui_mutants.py",
+    "test_gui_scopes.py",
     "test_quest_ads.py",
     "test_zero_factors.py",
     "test_recoil_upgrades.py",

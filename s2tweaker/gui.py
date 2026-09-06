@@ -2222,6 +2222,7 @@ class App(ctk.CTk):
         self.ammo_overrides: dict[str, dict[str, float]] = {}
         self.scope_overrides: dict[str, dict[str, float]] = {}   # 1.27.0
         self._isc_rows: dict[str, dict] = {}
+        self._isc_btns: list = []                 # Klassen-Knoepfe (fuer den Sperrzustand)
         self._isc_loading = False
         self._scope_box = None
         # Einzelruestungs-Overrides: {Item-SID: {param: faktor}} (nur != 1.0)
@@ -2911,6 +2912,7 @@ class App(ctk.CTk):
         for child in box.winfo_children():
             child.destroy()
         self._isc_rows = {}
+        self._isc_btns = []
         if self.gd is None:
             return
         table = self.gd.scope_effects()
@@ -2928,6 +2930,7 @@ class App(ctk.CTk):
                             fg_color="transparent", hover_color="gray25",
                             font=ctk.CTkFont(size=13), state=self._ia_state)
         btn.pack(fill="x", padx=8, pady=1)
+        self._isc_btns.append(btn)
         content = ctk.CTkFrame(parent, fg_color="transparent")
         prev = self._isc_loading
         self._isc_loading = True
@@ -5147,6 +5150,8 @@ class App(ctk.CTk):
         for rows in self._isc_rows.values():
             for row in rows.values():
                 row.set_state(state)
+        for btn in self._isc_btns:     # Klassen-Knoepfe des Fernrohr-Baums: beim ersten
+            btn.configure(state=state)  # Laden entstehen sie noch im Sperrzustand
         for key, box in self.checks.items():
             locked = key in self._locked_checks
             box.configure(state="disabled" if locked else state)

@@ -1,6 +1,6 @@
 """Erzeugt die Screenshot-Serie fuer die Nexus-Mod-Seite.
 
-    python tools\make_screenshots.py
+    python tools/make_screenshots.py
 
 Braucht Pillow (pip install pillow) und den vanilla/-Ordner (also einmal
 "Confirm & load game data" im Tool gelaufen, oder ein GameData-Dump).
@@ -36,6 +36,7 @@ app.update()
 app.gd = GameData(VANILLA)
 app._iw_populate()
 app._ia_populate()
+app._isc_populate()
 app._ir_populate()
 app._if_populate()
 app._im_populate()
@@ -188,6 +189,29 @@ app.update()
 scroll_to(exo.btn, margin=48)
 shot("08_armor_tree.png")
 
+# ------------------------------------------- 8b Upgrades: upgrade strength
+app.tabs.set("Upgrades")
+S["upg_damage"].set(150)
+S["upg_durability"].set(200)
+S["recoil_upgrades"].set(300)
+S["upg_weight"].set(175)
+scroll_top(app.tabs.tab("Upgrades"))
+shot("09_upgrades.png")
+
+# ------------------------------------ 8c Upgrades: scopes + per-scope tree
+S["scope_zoom"].set(125)
+S["scope_penalty"].set(50)
+for _b in app._scope_box.winfo_children():          # Block "4x scopes" aufklappen
+    if isinstance(_b, guimod.ctk.CTkButton) and "4x scopes" in _b.cget("text"):
+        _b.invoke()
+        break
+app._isc_rows["EN_X4Scope_1"]["zoom"].set(1.5)      # erste Zeile im Block: sichtbar
+app._isc_rows["EN_X4Scope_1"]["penalty"].set(0.5)
+app._isc_rows["Gvintar_Scope"]["zoom"].set(2.0)
+app.update()
+scroll_to(app.sliders["scope_zoom"].row, margin=62)     # Abschnitts-Titel "Scopes" mit drauf
+shot("10_scopes.png")
+
 # ------------------------------------------------------------- 8 NPCs & AI
 app.tabs.set("NPCs & AI")
 S["npc_acc"].set(0.75)
@@ -195,7 +219,7 @@ S["npc_vision"].set(40)
 S["npc_hearing"].set(30)
 S["npc_grenades"].set(0)
 scroll_top(app.tabs.tab("NPCs & AI"))
-shot("09_npcs_ai.png")
+shot("11_npcs_ai.png")
 
 # ------------------------------------------------------------ 9 Mutants
 app.tabs.set("Mutants")
@@ -209,7 +233,7 @@ mrow.sliders["hp"].set(2.0)
 mrow.sliders["damage"].set(0.5)
 app.update()
 scroll_top(app.tabs.tab("Mutants"))
-shot("10_mutants.png")
+shot("12_mutants.png")
 
 # ------------------------------------------------------------ 10 Factions
 app.tabs.set("Factions")
@@ -220,7 +244,7 @@ dblk.expand()
 dblk.rows[app.gd.relation_pair_key("Duty", "Freedom")].set(-800)
 app.update()
 scroll_top(app.tabs.tab("Factions"))
-shot("11_factions.png")
+shot("13_factions.png")
 
 # -------------------------------------------------------------- 11 Search
 app.tabs.set("Weapons")
@@ -232,7 +256,7 @@ while time.perf_counter() < end:
     app.update()
     time.sleep(0.01)
 scroll_to(app._iw_blocks["rifle"].btn, margin=20)
-shot("12_search.png")
+shot("14_search.png")
 app.search_entry.delete(0, "end")
 app._apply_filter()
 
@@ -242,7 +266,7 @@ S["anomaly"].set(1.5)
 S["radiation"].set(0.5)
 S["hunger"].set(50)
 scroll_top(app.tabs.tab("World"))
-shot("13_world.png")
+shot("15_world.png")
 
 # ------------------------------------------------------------ 13 Economy
 app.tabs.set("Economy")
@@ -250,7 +274,7 @@ S["buyprice"].set(1.5)
 S["sellprice"].set(0.75)
 S["repair"].set(0.5)
 scroll_top(app.tabs.tab("Economy"))
-shot("14_economy.png")
+shot("16_economy.png")
 
 # ------------------------------------------------------------ 14 Traders
 app.tabs.set("Traders")
@@ -259,7 +283,7 @@ S["trader_variety"].set(150)
 S["restock"].set(50)
 app.checks["trader_inf_money"].select()
 scroll_top(app.tabs.tab("Traders"))
-shot("15_traders.png")
+shot("17_traders.png")
 app.checks["trader_inf_money"].deselect()
 
 print("\nweapon_overrides:", app.weapon_overrides)
