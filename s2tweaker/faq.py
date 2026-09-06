@@ -814,6 +814,28 @@ FAQ_ENTRIES = [
              "github check latest newer patch tool bat updater",
     },
     {
+        "q": "Can I reload faster or clear jams quicker?",
+        "a": "Weapons tab: 'Reload speed' scales the reload-time multipliers "
+             "the game keeps for every weapon and every magazine attachment "
+             "(vanilla 1.0 everywhere - the fields the official Zone Kit "
+             "weapon guide points at), 'Jam clearing speed' the 4 to 5.5 s it "
+             "takes to clear a jam. Honest note: neither has been "
+             "play-tested; the reload animation may or may not follow the "
+             "multiplier, so try 150 % first and report back. Edition "
+             "weapons (Deluxe, Pre-order) keep vanilla reload times.",
+        "k": "reload faster magazine animation jam clear unjam speed",
+    },
+    {
+        "q": "Why does my protection stop rising above 90 %?",
+        "a": "The game caps your total protection per type at 90 % (radiation "
+             "85 %, physical 4.5 points) no matter what armor and artifacts "
+             "add up to. Armor tab, 'Protection caps': 111 % lifts every "
+             "percent cap to 100 (the maximum the game accepts), physical "
+             "scales freely. Same route as the 'Max Stats Patch' mod. Not "
+             "play-tested yet.",
+        "k": "protection cap 90 maximum armor artifacts stack limit max stats",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "

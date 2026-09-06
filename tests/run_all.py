@@ -44,6 +44,7 @@ ORDER = [
     "test_pakfile.py",
     "test_v124_tweaks.py",
     "test_v125_tweaks.py",
+    "test_v126_tweaks.py",
     "test_index_entries.py",
     "test_trader_condition.py",
     "test_emission_relext.py",

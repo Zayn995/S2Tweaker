@@ -522,6 +522,37 @@ class Settings:
     sleep_anytime: bool = False              # AllowSleepThreshold 50 -> 0
     min_sleep_hours: int = 7                 # MinSleepHours
     sleep_in_emission: bool = False          # bAllowEmissionSleep
+    # --- 1.26.0 (06.09.2026, Recherche auf Steam Workshop / mod.io / ap-pro /
+    # stalker-world / sdwvit-S2Mods; docs/ROADMAP.md "Vierte Datenrecherche") ---
+    no_knockdown: bool = False               # Player.CanBeKnockedDown -> false
+    no_water_slowdown: bool = False          # Player.WaterContactInfo Kurven-Effekte -> empty
+    ladder_free_look: bool = False           # CoreVariables ClimbViewYaw/PitchLimit 30/40 -> 90
+    look_straight_down: bool = False         # CoreVariables ViewPitchDownLimit -80 -> -90
+    handless_zoom_factor: float = 1.0        # HandlessFOVAimModifier (0.8; kleiner = mehr Zoom)
+    crouch_vignette_factor: float = 1.0      # PostEffectProcessor CrouchEffectProcessor.Intensity (0.6)
+    butt_wear_factor: float = 1.0            # EffectPrototypes ButtStroke_Corrosion (5 je Schlag)
+    mutants_trigger_anomalies: bool = False  # ShouldTriggerAnomalies der immunen Arten -> true
+    guards_no_instakill: bool = False        # KillVolumeEffect leeren + GuardGun* BaseDamage normal
+    explosion_radius_factor: float = 1.0     # ExplosionPrototypes Radius/ImpulseRadius/ConcussionRadius
+    explosion_npc_damage_factor: float = 1.0 # ExplosionPrototypes DamageNPC
+    phantom_dog_damage_factor: float = 1.0   # AbilityPrototypes PseudoDogSummon_* Damage/Bleeding
+    psy_phantoms_only: bool = False          # ConditionalSpawnPSYNPC.FalseEffectSID -> SpawnPSYPhantoms
+    reload_speed_factor: float = 1.0         # WeaponGeneralSetup *ReloadTimeMultiplier (Zeit / Faktor)
+    jam_clear_factor: float = 1.0            # WeaponGeneralSetup WeaponJamParams.FullJamTime (Zeit / Faktor)
+    mutant_loot_chance_factor: float = 1.0   # ItemGenerator <Art>LootGenerator Chance (Deckel 1)
+    stash_clue_factor: float = 1.0           # CorpseClueStash Base/AddSpawnChance je Region (Deckel 1)
+    npcs_no_corpse_loot: bool = False        # CanProcessCorpses der menschlichen NPCs -> false
+    alife_vision_factor: float = 1.0         # CoreVariables ALifeGridVisionRadius/GenericModelGridVisionRadius
+    map_reveal_factor: float = 1.0           # MarkerPrototypes MarkerRevealDistance/MarkerExploreDistance
+    map_all_regions: bool = False            # MarkerPrototypes RegionMarker Hidden -> Explored
+    fast_travel_lock: int = 2                # FastTravel OverweightLock: 0 NoLock, 1 Partial, 2 Full (Vanilla)
+    guide_delay_factor: float = 1.0          # FastTravel GuideDelay (120)
+    instant_teleports: bool = False          # EffectPrototypes *Teleport* TeleportType -> Instant
+    protection_cap_factor: float = 1.0       # ObjEffectMaxParams Protection*-Deckel (%-Werte max 100)
+    weird_artifact_factor: float = 1.0       # ItemPrototypes AArtifactWeird* EffectsDuration/MaxCharge
+    skip_intro: bool = False                 # QuestNode E01_MQ01_PlayVideo Launcher-Verbindung leeren
+    traders_no_gear_buy: bool = False        # TradePrototypes BuyLimitations + Weapon/Armor
+    clicker_factor: float = 1.0              # AnomalyPrototypes ClickerAnomaly.ParticleMaxCount + Hit-Schaden
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -689,6 +720,37 @@ def _scale_chance(raw: str | None, factor: float) -> str | None:
     return _num(scaled) + suffix
 
 
+def _bool_literal(raw: str | None) -> bool | None:
+    """'true'/'false' (auch mit ';') -> bool, sonst None."""
+    if raw is None:
+        return None
+    core = raw.strip().rstrip(";").strip().lower()
+    if core == "true":
+        return True
+    if core == "false":
+        return False
+    return None
+
+
+def _is_empty_sid(raw: str | None) -> bool:
+    return (raw or "").strip().rstrip(";").strip().lower() in ("", "empty")
+
+
+# 1.26.0: alle *ReloadTimeMultiplier einer Waffe (direkt am Struct und je
+# Magazin-Aufsatz in WeaponReloadTimePerAttachment)
+RELOAD_KEYS = ("TacticalReloadTimeMultiplier", "FullReloadTimeMultiplier",
+               "SingleBulletReloadTimeMultiplier", "TwinReloadTimeMultiplier",
+               "TwinTacticalReloadTimeMultiplier")
+EXPLOSION_RADIUS_KEYS = ("Radius", "ImpulseRadius", "ConcussionRadius")
+# Schutz-Deckel in ObjEffectMaxParams: True = Prozentwert (Deckel 100),
+# Strike ist eine Punkteskala (Vanilla 4.5) ohne Deckel
+PROTECTION_CAP_TYPES = {"ProtectionStrike": False, "ProtectionBurn": True,
+                        "ProtectionShock": True, "ProtectionChemical": True,
+                        "ProtectionPSY": True, "ProtectionRadiation": True}
+FAST_TRAVEL_LOCKS = {0: "EOverweightLock::NoLock", 1: "EOverweightLock::Partial",
+                     2: "EOverweightLock::Full"}
+
+
 # ------------------------------------------------------------------ features
 
 def _player_patch(gd: GameData, s: Settings) -> dict:
@@ -847,6 +909,28 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 player["ProcessCorpseObjectFeatureData"] = {
                     "CorpseInteractionDistance": scaled}
+
+    # 1.26.0: nicht umwerfbar (sdwvit CantBeKnockedDown) und kein
+    # Schleichgang im Wasser (sdwvit NoSluggishWater: die Kurven-Effekte der
+    # Wasserberuehrung - Drehrate und Bewegungstempo - auf 'empty').
+    if s.no_knockdown and _bool_literal(
+            gd.resolve(gd.obj, "Player", "CanBeKnockedDown")) is not False:
+        player["CanBeKnockedDown"] = "false"
+    if s.no_water_slowdown and player_node is not None:
+        water_node = player_node.children.get("WaterContactInfo")
+        water: dict = {}
+        if water_node is not None:
+            for group in ("SingleCurveEffects", "DualCurveEffects"):
+                arr = water_node.children.get(group)
+                if arr is None:
+                    continue
+                entries = {idx: {"EffectSID": "empty"}
+                           for idx, entry in arr.children.items()
+                           if not _is_empty_sid(entry.values.get("EffectSID"))}
+                if entries:
+                    water[group] = entries
+        if water:
+            player["WaterContactInfo"] = water
 
     return {"Player": player} if player else {}
 
@@ -2285,6 +2369,47 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for key, value in node.items():
             existing = bucket.setdefault(sid, {})
             existing[key] = value
+    # 1.26.0: Nachladegeschwindigkeit (stalker-world 'schnelleres Nachladen',
+    # die Felder aus dem offiziellen Weapon-Animation-Guide) - alle
+    # *ReloadTimeMultiplier direkt am Struct und je Magazin-Aufsatz, Zeit /
+    # Faktor - und Klemmer-Beseitigung (WeaponJamParams.FullJamTime, Zeit /
+    # Faktor). Nur selbst definierte Werte der Basisdatei; die Editions-
+    # Waffen im DLC-Zweig behalten Vanilla. Wirkung im Spiel offen.
+    reload_on = _neq(s.reload_speed_factor, 1.0) and s.reload_speed_factor > 0
+    jam_on = _neq(s.jam_clear_factor, 1.0) and s.jam_clear_factor > 0
+    if reload_on or jam_on:
+        for sid, node in sorted(gd.weapongeneral.children.items()):
+            if sid.startswith("[") or "#" in sid:
+                continue
+            cfg: dict = {}
+            if reload_on:
+                for key in RELOAD_KEYS:
+                    raw = node.values.get(key)
+                    if raw is not None and parse_number(raw) > 0:
+                        cfg[key] = _num(parse_number(raw) / s.reload_speed_factor)
+                table = node.children.get("WeaponReloadTimePerAttachment")
+                if table is not None:
+                    rows: dict = {}
+                    for idx, entry in table.children.items():
+                        row = {key: _num(parse_number(entry.values[key]) / s.reload_speed_factor)
+                               for key in RELOAD_KEYS
+                               if key in entry.values and parse_number(entry.values[key]) > 0}
+                        if row:
+                            rows[idx] = row
+                    if rows:
+                        cfg["WeaponReloadTimePerAttachment"] = rows
+            if jam_on:
+                table = node.children.get("WeaponJamParams")
+                if table is not None:
+                    rows = {}
+                    for idx, entry in table.children.items():
+                        raw = entry.values.get("FullJamTime")
+                        if raw is not None and parse_number(raw) > 0:
+                            rows[idx] = {"FullJamTime": _num(parse_number(raw) / s.jam_clear_factor)}
+                    if rows:
+                        cfg["WeaponJamParams"] = rows
+            if cfg:
+                _merge_nested(patches.setdefault(sid, {}), cfg)
     return patches, dlc_patches
 
 
@@ -2338,27 +2463,90 @@ def _weight_params_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _effect_max_patch(gd: GameData, s: Settings) -> dict:
-    if not _neq(s.max_carry_weight, VANILLA_MAX_CARRY):
+    """ObjEffectMaxParams: Tragegewicht-Deckel (seit je) und seit 1.26.0 die
+    Schutz-Deckel (ap-pro 'Max Stats Patch'): alles, was Ruestung und
+    Artefakte ueber 90 % (Strike 4.5) geben, verpufft in Vanilla."""
+    entries: dict = {}
+    if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):
+        scale = s.max_carry_weight / VANILLA_MAX_CARRY
+        entries["[1]"] = {"EffectSID": "EEffectType::PenaltyLessWeight",
+                          "MaxValue": _num(90 * scale)}
+        entries["[9]"] = {"EffectSID": "EEffectType::AdditionalInventoryWeight",
+                          "MaxValue": _num(140 * scale)}
+    if _neq(s.protection_cap_factor, 1.0) and s.protection_cap_factor > 0:
+        root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
+        values = root.children.get("MaxEffectValues") if root is not None else None
+        for idx, entry in (values.children.items() if values is not None else ()):
+            sid = (entry.values.get("EffectSID") or "").strip()
+            kind = sid.replace("EEffectType::", "")
+            raw = entry.values.get("MaxValue")
+            value = parse_number(raw)
+            if kind not in PROTECTION_CAP_TYPES or raw is None or value <= 0:
+                continue
+            new = value * s.protection_cap_factor
+            if PROTECTION_CAP_TYPES[kind]:
+                new = min(100.0, new)
+            if not _neq(new, value):
+                continue
+            suffix = "f" if raw.strip().endswith(("f", "F")) else ""
+            entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
+    if not entries:
         return {}
-    scale = s.max_carry_weight / VANILLA_MAX_CARRY
-    return {
-        "DefaultEffectMaxParamsSID": {
-            "MaxEffectValues": {
-                "[1]": {
-                    "EffectSID": "EEffectType::PenaltyLessWeight",
-                    "MaxValue": _num(90 * scale),
-                },
-                "[9]": {
-                    "EffectSID": "EEffectType::AdditionalInventoryWeight",
-                    "MaxValue": _num(140 * scale),
-                },
-            }
-        }
-    }
+    return {"DefaultEffectMaxParamsSID": {"MaxEffectValues": entries}}
 
 
 def _effects_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
+    # 1.26.0: Kolbenschlag-Abnutzung (ButtStroke_Corrosion, 5 Haltbarkeit je
+    # Schlag x Faktor), Wachen-Insta-Kill (KillVolumeEffect: die drei Zusatz-
+    # Effekte leeren, sdwvit NoInstaGibByGuards), Psy-Phantome statt echter
+    # Stalker (sdwvit NoPsyStalkerSpawns), Teleports ohne Blende (sdwvit
+    # InstaTeleports), Klicker-Blendschaden (sdwvit FlashbangAnomalyNerf).
+    if _neq(s.butt_wear_factor, 1.0) and s.butt_wear_factor >= 0:
+        node = gd.effects.children.get("ButtStroke_Corrosion")
+        if node is not None:
+            cfg: dict = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is not None and parse_number(raw) > 0:
+                    scaled = _scale_literal(raw, s.butt_wear_factor)
+                    if scaled is not None:
+                        cfg[key] = scaled
+            if cfg:
+                patches["ButtStroke_Corrosion"] = cfg
+    if s.guards_no_instakill:
+        node = gd.effects.children.get("KillVolumeEffect")
+        extra = (node.children.get("ApplyExtraEffectPrototypeSIDs")
+                 if node is not None else None)
+        if extra is not None:
+            entries = {idx: "empty" for idx, raw in extra.values.items()
+                       if not _is_empty_sid(raw)}
+            if entries:
+                patches["KillVolumeEffect"] = {"ApplyExtraEffectPrototypeSIDs": entries}
+    if s.psy_phantoms_only:
+        node = gd.effects.children.get("ConditionalSpawnPSYNPC")
+        if node is not None and "SpawnPSYPhantoms" in gd.effects.children:
+            if (node.values.get("FalseEffectSID") or "").strip() != "SpawnPSYPhantoms":
+                patches["ConditionalSpawnPSYNPC"] = {"FalseEffectSID": "SpawnPSYPhantoms"}
+    if s.instant_teleports:
+        for sid, node in gd.effects.children.items():
+            if "#" in sid:
+                continue
+            raw = node.values.get("TeleportType")
+            if raw is not None and raw.strip() != "EGSCTeleportType::Instant":
+                patches.setdefault(sid, {})["TeleportType"] = "EGSCTeleportType::Instant"
+    if _neq(s.clicker_factor, 1.0) and s.clicker_factor >= 0:
+        node = gd.effects.children.get("ClickerAnomalyHit")
+        if node is not None:
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is not None and parse_number(raw) > 0:
+                    scaled = _scale_literal(raw, s.clicker_factor)
+                    if scaled is not None:
+                        cfg[key] = scaled
+            if cfg:
+                patches["ClickerAnomalyHit"] = cfg
     if s.no_overweight_penalty:
         for sid in (
             "OverweightMovementVelocityChange_1",
@@ -2649,6 +2837,32 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if ranks:
                 cfg["FlashlightCombatUseChance"] = ranks
 
+    # 1.26.0 (Ace's CoreVariables-Liste, Shay's Distant Horizons): auf
+    # Leitern umschauen (ClimbViewYaw/PitchLimit 30/40 -> 90), gerade nach
+    # unten (ViewPitchDownLimit -80 -> -90), Zoom mit leeren Haenden
+    # (HandlessFOVAimModifier 0.8, kleiner = mehr Zoom, Deckel 0.2..1.0) und
+    # die Sichtweite des A-Life-Rasters (8500 / 7500 cm).
+    if s.ladder_free_look:
+        for key in ("ClimbViewYawLimit", "ClimbViewPitchLimit"):
+            live = gd.corevar(key, 0.0)
+            if live > 0 and _neq(live, 90.0):
+                cfg[key] = "90.0"
+    if s.look_straight_down:
+        live = gd.corevar("ViewPitchDownLimit", 0.0)
+        if live != 0 and _neq(live, -90.0):
+            cfg["ViewPitchDownLimit"] = "-90.0"
+    if _neq(s.handless_zoom_factor, 1.0) and s.handless_zoom_factor > 0:
+        live = gd.corevar("HandlessFOVAimModifier", 0.0)
+        if live > 0:
+            new = max(0.2, min(1.0, live * s.handless_zoom_factor))
+            if _neq(new, live):
+                cfg["HandlessFOVAimModifier"] = _num(new)
+    if _neq(s.alife_vision_factor, 1.0) and s.alife_vision_factor > 0:
+        for key in ("ALifeGridVisionRadius", "GenericModelGridVisionRadius"):
+            live = gd.corevar(key, 0.0)
+            if live > 0:
+                cfg[key] = _num(live * s.alife_vision_factor)
+
     if _neq(s.stamina_sprint, 1.0):
         # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
         node = gd.corevars.children.get("DefaultConfig")
@@ -2857,24 +3071,43 @@ def _passive_detector_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _fasttravel_patch(gd: GameData, s: Settings) -> dict:
-    """RequiredMoney je Reiseziel skalieren (0 = Schnellreise gratis)."""
-    if not _neq(s.fast_travel_cost_factor, 1.0):
+    """RequiredMoney je Reiseziel skalieren (0 = Schnellreise gratis); seit
+    1.26.0 dazu die Uebergewichts-Sperre (OverweightLock Full/Partial/NoLock,
+    die drei Werte stehen so in der Spiel-EXE) und GuideDelay (Vanilla 120,
+    Bedeutung im Spiel offen) je Guide."""
+    cost_on = _neq(s.fast_travel_cost_factor, 1.0)
+    wanted_lock = FAST_TRAVEL_LOCKS.get(int(s.fast_travel_lock), FAST_TRAVEL_LOCKS[2])
+    lock_on = wanted_lock != FAST_TRAVEL_LOCKS[2]
+    delay_on = _neq(s.guide_delay_factor, 1.0) and s.guide_delay_factor >= 0
+    if not (cost_on or lock_on or delay_on):
         return {}
     patches: dict = {}
     for sid, node in gd.fasttravel.children.items():
         if sid == "[0]" or "#" in sid:
             continue
+        cfg: dict = {}
         locations = node.children.get("Locations")
-        if locations is None:
-            continue
-        entries: dict = {}
-        for idx, entry in locations.children.items():
-            money = parse_number(entry.values.get("RequiredMoney"))
-            if money > 0:
-                entries[idx] = {"RequiredMoney": _num(
-                    money * s.fast_travel_cost_factor)}
-        if entries:
-            patches[sid] = {"Locations": entries}
+        if cost_on and locations is not None:
+            entries: dict = {}
+            for idx, entry in locations.children.items():
+                money = parse_number(entry.values.get("RequiredMoney"))
+                if money > 0:
+                    entries[idx] = {"RequiredMoney": _num(
+                        money * s.fast_travel_cost_factor)}
+            if entries:
+                cfg["Locations"] = entries
+        if lock_on:
+            live = (gd.resolve(gd.fasttravel, sid, "OverweightLock") or "").strip()
+            if live and live != wanted_lock:
+                cfg["OverweightLock"] = wanted_lock
+        if delay_on:
+            raw = gd.resolve(gd.fasttravel, sid, "GuideDelay")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.guide_delay_factor)
+                if scaled is not None:
+                    cfg["GuideDelay"] = scaled
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -3245,6 +3478,300 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+# ------------------------------------------------------------ 1.26.0
+
+def _obj_flags_patch(gd: GameData, s: Settings) -> dict:
+    """ObjPrototypes-Schalter je Prototyp: Mutanten loesen Anomalien aus
+    (sdwvit AnomaliesHitAllMutants - Vanilla sind Bloodsucker, Chimaere,
+    Controller, Poltergeist, Pseudohund, Riese, Hirsch und Ratten immun)
+    und menschliche NPCs pluendern keine Leichen (sdwvit NPCsDontLootCorpses).
+    Jeder Struct, der den Wert aufgeloest 'falsch herum' hat, bekommt eine
+    eigene Zeile - Erben eingeschlossen, das ist harmlos und deckt Structs
+    ab, die den Wert selbst ueberschreiben."""
+    patches: dict = {}
+    if s.mutants_trigger_anomalies:
+        for sid in sorted(gd.mutants()):
+            if _bool_literal(gd.resolve(gd.obj, sid, "ShouldTriggerAnomalies")) is False:
+                patches.setdefault(sid, {})["ShouldTriggerAnomalies"] = "true"
+    if s.npcs_no_corpse_loot:
+        for sid in sorted(gd.human_npcs()):
+            if _bool_literal(gd.resolve(gd.obj, sid, "CanProcessCorpses")) is True:
+                patches.setdefault(sid, {})["CanProcessCorpses"] = "false"
+    return patches
+
+
+def _guard_patch(gd: GameData, s: Settings) -> dict:
+    """Basis-Wachen: GuardGun*_NPC (BaseDamage 500) auf den Schaden ihrer
+    normalen NPC-Waffe (refkey-Elternteil, z.B. AK 9.5) setzen - zusammen
+    mit dem geleerten KillVolumeEffect ist das sdwvit NoInstaGibByGuards."""
+    if not s.guards_no_instakill:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.weaponsettings.children.items()):
+        if not sid.startswith("GuardGun") or "#" in sid:
+            continue
+        own = node.values.get("BaseDamage")
+        parent = node.attr_dict().get("refkey")
+        if own is None or not parent:
+            continue
+        normal = parse_number(gd.resolve(gd.weaponsettings, parent, "BaseDamage"))
+        if normal > 0 and _neq(normal, parse_number(own)):
+            patches[sid] = {"BaseDamage": _num(normal)}
+    return patches
+
+
+def _explosion_patch(gd: GameData, s: Settings) -> dict:
+    """ExplosionPrototypes (Granaten, Werfer, Faesser, Gasflaschen):
+    Radius/ImpulseRadius/ConcussionRadius x Faktor (sdwvit
+    IncreaseGrenadeRadius) und DamageNPC x Faktor - der Spieler-Schaden
+    laeuft weiter ueber den Schwierigkeits-Multiplikator."""
+    radius_on = _neq(s.explosion_radius_factor, 1.0) and s.explosion_radius_factor > 0
+    npc_on = _neq(s.explosion_npc_damage_factor, 1.0) and s.explosion_npc_damage_factor >= 0
+    if not (radius_on or npc_on):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.explosions.children.items()):
+        if sid in ("[0]", "Empty") or "#" in sid:
+            continue
+        cfg: dict = {}
+        if radius_on:
+            for key in EXPLOSION_RADIUS_KEYS:
+                raw = node.values.get(key)
+                if raw is not None and parse_number(raw) > 0:
+                    scaled = _scale_literal(raw, s.explosion_radius_factor)
+                    if scaled is not None:
+                        cfg[key] = scaled
+        if npc_on:
+            raw = node.values.get("DamageNPC")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.explosion_npc_damage_factor)
+                if scaled is not None:
+                    cfg["DamageNPC"] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _phantom_dog_patch(gd: GameData, s: Settings) -> dict:
+    """Pseudohund-Trugbilder (AbilityPrototypes PseudoDogSummon_*): Damage
+    und Bleeding x Faktor, 0 = harmlos (sdwvit NoPseudoDogCloneDamage)."""
+    if not (_neq(s.phantom_dog_damage_factor, 1.0) and s.phantom_dog_damage_factor >= 0):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.abilities.children.items()):
+        if not sid.startswith("PseudoDogSummon_") or "#" in sid:
+            continue
+        cfg: dict = {}
+        for key in ("Damage", "Bleeding"):
+            raw = node.values.get(key)
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.phantom_dog_damage_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _mutant_loot_patch(gd: GameData, s: Settings) -> dict:
+    """Trophaeen-Chance je Mutantenart (<Art>LootGenerator, Vanilla 0.1 bis
+    1.0) x Faktor, Deckel 1 ('100% Chance Mutant Loot', sdwvit
+    AlternativeMutantsAlwaysDropLoot). Die grosse Generator-Datei wird nur
+    bei aktivem Regler geparst."""
+    if not (_neq(s.mutant_loot_chance_factor, 1.0) and s.mutant_loot_chance_factor >= 0):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.itemgenerators.children.items()):
+        if not sid.endswith("LootGenerator") or "#" in sid:
+            continue
+        gen = node.children.get("ItemGenerator")
+        if gen is None:
+            continue
+        slots: dict = {}
+        for slot_key, slot in gen.children.items():
+            items = slot.children.get("PossibleItems")
+            if items is None:
+                continue
+            rows: dict = {}
+            for item_key, item in items.children.items():
+                new = _scale_chance(item.values.get("Chance"), s.mutant_loot_chance_factor)
+                if new is not None:
+                    rows[item_key] = {"Chance": new}
+            if rows:
+                slots[slot_key] = {"PossibleItems": rows}
+        if slots:
+            patches[sid] = {"ItemGenerator": slots}
+    return patches
+
+
+def _corpse_clue_patch(gd: GameData, s: Settings) -> dict:
+    """Versteck-Hinweise auf Leichen (CorpseClueStashPrototypes, je Region
+    BaseSpawnChance 0.02 / AddSpawnChance 0.01) x Faktor, Deckel 1
+    ('More Stash Clues', sdwvit StashClueRework)."""
+    if not (_neq(s.stash_clue_factor, 1.0) and s.stash_clue_factor >= 0):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.corpseclues.children.items()):
+        if "#" in sid:
+            continue
+        cfg: dict = {}
+        for key in ("BaseSpawnChance", "AddSpawnChance"):
+            new = _scale_chance(node.values.get(key), s.stash_clue_factor)
+            if new is not None:
+                cfg[key] = new
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _marker_patch(gd: GameData, s: Settings) -> dict:
+    """PDA-Karte (MarkerPrototypes): Aufdeck-/Erkundungsdistanz der Orte
+    (Vanilla meist 100 m / 20 m) x Faktor und Regionsnamen von Anfang an
+    (RegionMarker Hidden -> Explored, stalker-world 'alle Ortsnamen')."""
+    reveal_on = _neq(s.map_reveal_factor, 1.0) and s.map_reveal_factor > 0
+    if not (reveal_on or s.map_all_regions):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.markers.children.items()):
+        if sid == "[0]" or "#" in sid:
+            continue
+        # ~320 der 359 Marker sind index-adressierte Top-Level-Eintraege
+        # ([1] ...): die werden wie beim Wetter KOMPLETT (aufgeloest)
+        # ausgegeben, weil unklar ist, ob {bpatch} solche Eintraege
+        # zusammenfuehrt oder ersetzt (docs/SPEC.md); benannte Marker nur
+        # mit den geaenderten Schluesseln.
+        indexed = sid.startswith("[")
+        values = _resolved_struct(gd.markers, node) if indexed else node.values
+        cfg: dict = {}
+        if reveal_on:
+            for key in ("MarkerRevealDistance", "MarkerExploreDistance"):
+                raw = values.get(key)
+                if isinstance(raw, str) and parse_number(raw) > 0:
+                    scaled = _scale_literal(raw, s.map_reveal_factor)
+                    if scaled is not None:
+                        cfg[key] = scaled
+        if s.map_all_regions:
+            kind = str(values.get("MarkType") or "").strip()
+            state = str(values.get("InitDiscoverState") or "").strip()
+            if kind == "EMarkerType::RegionMarker" and state.endswith("Hidden"):
+                cfg["InitDiscoverState"] = "EMarkerState::Explored"
+        if not cfg:
+            continue
+        if indexed:
+            full = _resolved_struct(gd.markers, node)
+            full.update(cfg)
+            patches[sid] = full
+        else:
+            patches[sid] = cfg
+    return patches
+
+
+def _weird_artifact_patch(gd: GameData, s: Settings) -> dict:
+    """Weird-Artefakte (Cost of Hope): EffectsDuration / MaxCharge x Faktor
+    (sdwvit NoWeirdArtifactRecharge)."""
+    if not (_neq(s.weird_artifact_factor, 1.0) and s.weird_artifact_factor > 0):
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.items.children.items()):
+        if not sid.startswith("AArtifactWeird") or "#" in sid:
+            continue
+        cfg: dict = {}
+        for key in ("EffectsDuration", "MaxCharge"):
+            raw = node.values.get(key)
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.weird_artifact_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
+def _skip_intro_patch(gd: GameData, s: Settings) -> dict:
+    """Intro-Video (QuestNode E01_MQ01_PlayVideo): die Startverbindung des
+    Knotens leeren, das Spiel laeuft direkt weiter (sdwvit SkipIntroCutscene).
+    Parst die 75-MB-Datei nur bei aktivem Schalter."""
+    if not s.skip_intro:
+        return {}
+    node = gd.questnodes.children.get("E01_MQ01_PlayVideo")
+    launchers = node.children.get("Launchers") if node is not None else None
+    if launchers is None:
+        return {}
+    out: dict = {}
+    for lidx, launcher in launchers.children.items():
+        conns = launcher.children.get("Connections")
+        if conns is None:
+            continue
+        rows = {cidx: {"SID": "empty"} for cidx, conn in conns.children.items()
+                if not _is_empty_sid(conn.values.get("SID"))}
+        if rows:
+            out[lidx] = {"Connections": rows}
+    return {"E01_MQ01_PlayVideo": {"Launchers": out}} if out else {}
+
+
+def _buy_limits_patch(gd: GameData, s: Settings) -> dict:
+    """Haendler kaufen keine Waffen/Ruestungen: BuyLimitations jedes
+    Handelsgenerators um Weapon und Armor ergaenzen (vorhandene Sperren
+    bleiben; sdwvit TradersDontBuyWeaponsArmor)."""
+    if not s.traders_no_gear_buy:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.trade.children.items()):
+        if sid == "[0]" or "#" in sid:
+            continue
+        gens = node.children.get("TradeGenerators")
+        if gens is None:
+            continue
+        rows: dict = {}
+        for idx, gen in gens.children.items():
+            limits = gen.children.get("BuyLimitations")
+            existing = ([v.strip() for v in limits.values.values()]
+                        if limits is not None else [])
+            wanted = list(existing)
+            for kind in ("EItemType::Weapon", "EItemType::Armor"):
+                if kind not in wanted:
+                    wanted.append(kind)
+            if wanted == existing:
+                continue
+            rows[idx] = {"BuyLimitations": {f"[{i}]": kind for i, kind in enumerate(wanted)}}
+        if rows:
+            patches[sid] = {"TradeGenerators": rows}
+    return patches
+
+
+def _posteffect_patch(gd: GameData, s: Settings) -> dict:
+    """Duck-Vignette (PostEffectProcessorPrototypes CrouchEffectProcessor.
+    Intensity 0.6) x Faktor, Deckel 1 ('Remove Crouch Vignette')."""
+    if not (_neq(s.crouch_vignette_factor, 1.0) and s.crouch_vignette_factor >= 0):
+        return {}
+    node = gd.posteffects.children.get("CrouchEffectProcessor")
+    raw = node.values.get("Intensity") if node is not None else None
+    value = parse_number(raw)
+    if raw is None or value <= 0:
+        return {}
+    new = min(1.0, value * s.crouch_vignette_factor)
+    if not _neq(new, value):
+        return {}
+    return {"CrouchEffectProcessor": {"Intensity": _num(new)}}
+
+
+def _anomaly_patch(gd: GameData, s: Settings) -> dict:
+    """Klicker-Anomalie (AnomalyPrototypes ClickerAnomaly.ParticleMaxCount,
+    Vanilla 20) x Faktor, mindestens 1; der Blendschaden sitzt in
+    _effects_patch (ClickerAnomalyHit)."""
+    if not (_neq(s.clicker_factor, 1.0) and s.clicker_factor >= 0):
+        return {}
+    node = gd.anomalies.children.get("ClickerAnomaly")
+    raw = node.values.get("ParticleMaxCount") if node is not None else None
+    value = parse_number(raw)
+    if raw is None or value <= 0:
+        return {}
+    new = max(1, int(round(value * s.clicker_factor)))
+    if new == int(value):
+        return {}
+    return {"ClickerAnomaly": {"ParticleMaxCount": str(new)}}
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -3261,10 +3788,13 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         obj_patches.setdefault(sid, {}).update(cfg)
     for sid, cfg in _npc_stagger_patch(gd, s).items():
         obj_patches.setdefault(sid, {}).update(cfg)
+    for sid, cfg in _obj_flags_patch(gd, s).items():
+        obj_patches.setdefault(sid, {}).update(cfg)
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
 
-    add(f"AbilityPrototypes/AbilityPrototypes_patch_{n}.cfg",
-        _mutant_abilities_patch(gd, s))
+    ability_patches = _mutant_abilities_patch(gd, s)
+    _merge_nested(ability_patches, _phantom_dog_patch(gd, s))
+    add(f"AbilityPrototypes/AbilityPrototypes_patch_{n}.cfg", ability_patches)
     add(f"MeleeWeaponPrototypes/MeleeWeaponPrototypes_patch_{n}.cfg",
         _melee_patch(gd, s))
     add(f"FlashlightPrototypes/FlashlightPrototypes_patch_{n}.cfg",
@@ -3278,6 +3808,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     for sid, cfg in _bullet_drop_patch(gd, s).items():
         cws_patches.setdefault(sid, {}).update(cfg)
     cws_patches.update(_npc_weapon_patch(gd, s))
+    for sid, cfg in _guard_patch(gd, s).items():
+        cws_patches.setdefault(sid, {}).update(cfg)
     add("WeaponData/WeaponAttributesPrototypes/"
         f"WeaponAttributesPrototypes_patch_{n}.cfg", _npc_ai_patch(gd, s))
     add(
@@ -3305,6 +3837,14 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ObjEffectMaxParamsPrototypes/ObjEffectMaxParamsPrototypes_patch_{n}.cfg",
         _effect_max_patch(gd, s))
     add(f"EffectPrototypes/EffectPrototypes_patch_{n}.cfg", _effects_patch(gd, s))
+    add(f"ExplosionPrototypes/ExplosionPrototypes_patch_{n}.cfg",
+        _explosion_patch(gd, s))
+    add(f"PostEffectProcessorPrototypes/PostEffectProcessorPrototypes_patch_{n}.cfg",
+        _posteffect_patch(gd, s))
+    add(f"CorpseClueStashPrototypes/CorpseClueStashPrototypes_patch_{n}.cfg",
+        _corpse_clue_patch(gd, s))
+    add(f"MarkerPrototypes/MarkerPrototypes_patch_{n}.cfg", _marker_patch(gd, s))
+    add(f"AnomalyPrototypes/AnomalyPrototypes_patch_{n}.cfg", _anomaly_patch(gd, s))
     add(f"FloatProviderPrototypes/FloatProviderPrototypes_patch_{n}.cfg",
         _floatprovider_patch(gd, s))
     add(f"ObjHoldBreathParamsPrototypes/ObjHoldBreathParamsPrototypes_patch_{n}.cfg",
@@ -3319,6 +3859,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(gen_patches, _loot_condition_patch(gd, s))
     _merge_nested(gen_patches, _gear_quality_patch(gd, s))
     _merge_nested(gen_patches, _trader_stock_patch(gd, s))
+    _merge_nested(gen_patches, _mutant_loot_patch(gd, s))
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
@@ -3347,17 +3888,20 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add("AIPrototypes/HearingSensorPrototypes/"
         f"HearingSensorPrototypes_patch_{n}.cfg", hearing)
     items_patches, items_dlc = _items_patch(gd, s)
+    _merge_nested(items_patches, _weird_artifact_patch(gd, s))
     add(f"ItemPrototypes/ItemPrototypes_patch_{n}.cfg", items_patches)
     for edition, ed_patches in sorted(items_dlc.items()):
         add(f"//GameLite/DLCGameData/{edition}/ItemPrototypes/"
             f"ItemPrototypes_patch_{n}.cfg", ed_patches)
     trade_patches = _trade_patch(gd, s)
     _merge_nested(trade_patches, _trader_wallet_patch(gd, s))
+    _merge_nested(trade_patches, _buy_limits_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", trade_patches)
     add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
         _relations_patch(gd, s))
-    add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg",
-        _quest_timer_patch(gd, s))
+    quest_patches = _quest_timer_patch(gd, s)
+    quest_patches.update(_skip_intro_patch(gd, s))
+    add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
         _emission_patch(gd, s))
     add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
@@ -3548,6 +4092,50 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Minimum sleep {int(s.min_sleep_hours)} h")
     if s.sleep_in_emission:
         lines.append("Sleeping during emissions allowed")
+    # 1.26.0
+    if s.no_knockdown:
+        lines.append("Skif can't be knocked down")
+    if s.no_water_slowdown:
+        lines.append("No slowdown in water")
+    if s.ladder_free_look:
+        lines.append("Free look on ladders")
+    if s.look_straight_down:
+        lines.append("Look straight down")
+    f("Hands-free zoom", s.handless_zoom_factor)
+    f("Crouch vignette", s.crouch_vignette_factor)
+    f("Butt-strike weapon wear", s.butt_wear_factor)
+    if s.mutants_trigger_anomalies:
+        lines.append("All mutants trigger anomalies")
+    if s.guards_no_instakill:
+        lines.append("Base guards use normal weapon damage (no instant death)")
+    f("Explosion radius", s.explosion_radius_factor)
+    f("Explosion damage to NPCs", s.explosion_npc_damage_factor)
+    f("Pseudodog phantom damage", s.phantom_dog_damage_factor)
+    if s.psy_phantoms_only:
+        lines.append("Psy fields spawn phantoms instead of real stalkers")
+    f("Reload speed", s.reload_speed_factor)
+    f("Jam clearing speed", s.jam_clear_factor)
+    f("Mutant trophy drop chance", s.mutant_loot_chance_factor)
+    f("Stash clues on bodies", s.stash_clue_factor)
+    if s.npcs_no_corpse_loot:
+        lines.append("NPCs don't loot bodies")
+    f("NPC visibility distance (A-Life grid)", s.alife_vision_factor)
+    f("Map location reveal distance", s.map_reveal_factor)
+    if s.map_all_regions:
+        lines.append("All region names shown on the map")
+    if int(s.fast_travel_lock) != 2:
+        lines.append("Fast travel when overweight: "
+                     + ("allowed" if int(s.fast_travel_lock) == 0 else "partial lock"))
+    f("Guide delay", s.guide_delay_factor)
+    if s.instant_teleports:
+        lines.append("Instant teleports (no fade)")
+    f("Protection caps", s.protection_cap_factor)
+    f("Weird artifact charge/duration", s.weird_artifact_factor)
+    if s.skip_intro:
+        lines.append("Intro video skipped")
+    if s.traders_no_gear_buy:
+        lines.append("Traders don't buy weapons or armor")
+    f("Clicker anomaly strength", s.clicker_factor)
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)

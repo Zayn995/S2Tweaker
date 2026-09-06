@@ -62,10 +62,15 @@ NEEDED_FILES = [
     "AimAssistPresetPrototypes.cfg.bin",     # Aim-Assist Maus/Gamepad (06.09.2026)
     "ProjectilePrototypes.cfg.bin",          # Geschoss-Geschwindigkeit (06.09.2026)
     "ObjSleepParamsPrototypes.cfg.bin",      # Schlaf (06.09.2026)
+    "PostEffectProcessorPrototypes.cfg.bin", # Duck-Vignette (1.26.0)
+    "ExplosionPrototypes.cfg.bin",           # Granaten-Radius (1.26.0)
+    "CorpseClueStashPrototypes.cfg.bin",     # Versteck-Hinweise (1.26.0)
+    "MarkerPrototypes.cfg.bin",              # PDA-Karte (1.26.0)
+    "AnomalyPrototypes.cfg.bin",             # Klicker-Anomalie (1.26.0)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 19
+CACHE_SCHEMA = 20
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -483,6 +488,45 @@ class GameData:
     @cached_property
     def weatherselection(self) -> CfgStruct:
         return self._parse("WeatherSelectionPrototypes.cfg")
+
+    # --- 1.26.0 ---
+    @cached_property
+    def posteffects(self) -> CfgStruct:
+        """PostEffectProcessorPrototypes: CrouchEffectProcessor.Intensity 0.6."""
+        return self._parse("PostEffectProcessorPrototypes.cfg")
+
+    @cached_property
+    def explosions(self) -> CfgStruct:
+        """ExplosionPrototypes: RGD5/F1/VOG25/M203/PG7V, Faesser, Gasflaschen."""
+        return self._parse("ExplosionPrototypes.cfg")
+
+    @cached_property
+    def corpseclues(self) -> CfgStruct:
+        """CorpseClueStashPrototypes: Default + 23 Regionen, Base/AddSpawnChance."""
+        return self._parse("CorpseClueStashPrototypes.cfg")
+
+    @cached_property
+    def markers(self) -> CfgStruct:
+        """MarkerPrototypes: 359 PDA-Marker (Orte, Regionen, Haendler ...)."""
+        return self._parse("MarkerPrototypes.cfg")
+
+    @cached_property
+    def anomalies(self) -> CfgStruct:
+        """AnomalyPrototypes (nur ClickerAnomaly wird angefasst)."""
+        return self._parse("AnomalyPrototypes.cfg")
+
+    def human_npcs(self) -> list[str]:
+        """SIDs aller menschlichen NPC-Prototypen: Faction gesetzt und keine
+        Mutanten-Fraktion; Player und Basis [0] ausgenommen."""
+        out: list[str] = []
+        for sid in self.obj.children:
+            if sid in ("[0]", "Player") or "#" in sid:
+                continue
+            faction = self._chain_get(self._resolve_chain(self.obj, sid), "Faction")
+            if faction is None or faction in MUTANT_FACTIONS:
+                continue
+            out.append(sid)
+        return out
 
     @cached_property
     def trade_text(self) -> str:

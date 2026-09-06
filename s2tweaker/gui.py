@@ -466,6 +466,10 @@ def fmt_slot(v: float) -> str:
     return {0: "vanilla (pistols only)", 1: "+ SMGs", 2: "+ SMGs & shotguns"}.get(int(round(v)), "any weapon")
 
 
+def fmt_lock(v: float) -> str:
+    return {0: "no lock (travel overweight)", 1: "partial lock"}.get(int(round(v)), "vanilla (full lock)")
+
+
 def fmt_fov(v: float) -> str:
     return f"{v:.0f}\u00b0"
 
@@ -579,6 +583,16 @@ SLIDER_FIELDS: dict[str, str] = {
     "weather_dur": "weather_duration_factor", "bullet_drop": "bullet_drop_factor",
     "bullet_speed": "bullet_speed_factor", "pistol_slot": "pistol_slot_level",
     "mprot": "mutant_protection_factor", "sleep_min": "min_sleep_hours",
+    # 1.26.0
+    "hands_zoom": "handless_zoom_factor", "crouch_vignette": "crouch_vignette_factor",
+    "butt_wear": "butt_wear_factor", "expl_radius": "explosion_radius_factor",
+    "expl_npc": "explosion_npc_damage_factor", "phantom_dog": "phantom_dog_damage_factor",
+    "reload": "reload_speed_factor", "jam_clear": "jam_clear_factor",
+    "mut_loot": "mutant_loot_chance_factor", "stash_clue": "stash_clue_factor",
+    "alife_vision": "alife_vision_factor", "map_reveal": "map_reveal_factor",
+    "ft_lock": "fast_travel_lock", "guide_delay": "guide_delay_factor",
+    "prot_cap": "protection_cap_factor", "weird_art": "weird_artifact_factor",
+    "clicker": "clicker_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -630,11 +644,19 @@ CHECK_FIELDS: dict[str, str] = {
     "no_aim_gamepad": "no_aim_assist_gamepad",
     "sleep_anytime": "sleep_anytime",
     "sleep_emission": "sleep_in_emission",
+    # 1.26.0
+    "no_knockdown": "no_knockdown", "no_water_slow": "no_water_slowdown",
+    "ladder_look": "ladder_free_look", "look_down": "look_straight_down",
+    "mut_anomalies": "mutants_trigger_anomalies", "guards_normal": "guards_no_instakill",
+    "psy_phantoms": "psy_phantoms_only", "npc_no_loot": "npcs_no_corpse_loot",
+    "map_regions": "map_all_regions", "teleports_instant": "instant_teleports",
+    "skip_intro": "skip_intro", "traders_no_gear": "traders_no_gear_buy",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
 FOOTPRINT_PROBES: dict[str, float] = {
     "fall_damage_pct": 50.0,
+    "fast_travel_lock": 0.0,
     "npc_weapon_rank_add": 2.0,
     "scope_sway_pct": 50.0,
     "trader_min_durability_pct": 0.0,
@@ -3569,8 +3591,11 @@ class App(ctk.CTk):
                  lambda _e, k=key: (k in self._locked_checks
                                     and self._avoid_unlock("check:" + k)))
         if tooltip:
-            ctk.CTkLabel(parent, text="      " + tooltip, anchor="w",
-                         font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+            # wraplength seit 1.26.0: laengere Erklaerungen (Wachen, Karte)
+            # wurden am Fensterrand abgeschnitten
+            ctk.CTkLabel(parent, text="      " + tooltip, anchor="w", justify="left",
+                         wraplength=780, font=ctk.CTkFont(size=11),
+                         text_color="gray60").pack(fill="x", padx=12)
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
@@ -3693,6 +3718,10 @@ class App(ctk.CTk):
         self._slider(f, "start_money", "Starting money (new game only)", 0, 100000, 1000, 0, fmt_int,
                      "Coupons Skif starts a NEW game with (vanilla 0). Has "
                      "no effect on an existing save. Not play-tested yet.")
+        self._check(f, "skip_intro", "Skip the intro video",
+                    "Cuts the opening video's start link in the quest graph "
+                    "(same route as 'SkipIntroCutscene'). Only matters for a new "
+                    "game. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Camera & HUD")
@@ -3717,6 +3746,22 @@ class App(ctk.CTk):
         self._slider(f, "hud_crosshair", "Crosshair", 0, 2, 1, 0, fmt_hud)
         self._slider(f, "hud_bodies", "Dead body markers", 0, 2, 1, 0, fmt_hud)
         self._slider(f, "hud_stashes", "Stash markers", 0, 2, 1, 0, fmt_hud)
+        self._slider(f, "hands_zoom", "Hands-free zoom (right mouse, no weapon)", 40, 125, 5, 100, fmt_pct,
+                     "How far the view zooms when you hold aim with empty "
+                     "hands (vanilla FOV factor 0.8; lower = stronger zoom, "
+                     "Ace's CoreVariables list suggests 0.55 = 70 %). Capped "
+                     "between 0.2 and 1.0. Not play-tested yet.")
+        self._slider(f, "crouch_vignette", "Crouch vignette", 0, 150, 10, 100, fmt_pct,
+                     "The dark screen edges while crouching (vanilla intensity "
+                     "0.6). 0 % = none, like 'Remove Crouch Vignette'. Not "
+                     "play-tested yet.")
+        self._slider(f, "map_reveal", "Map: location reveal distance", 50, 500, 25, 100, fmt_pct,
+                     "How close you must come before a place appears on the "
+                     "PDA map and counts as explored (vanilla mostly 100 m / "
+                     "20 m, scaled together). Not play-tested yet.")
+        self._check(f, "map_regions", "Map: show all region names from the start",
+                    "The 23 region names start hidden in vanilla. Like the "
+                    "'all location names on the map' mod. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Sleep")
@@ -3728,6 +3773,23 @@ class App(ctk.CTk):
                      "play-tested yet.")
         self._check(f, "sleep_emission", "Allow sleeping during emissions",
                     "Vanilla forbids it. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Body & movement")
+        self._check(f, "no_knockdown", "Skif can't be knocked down",
+                    "Mutant charges and blasts no longer throw you to the "
+                    "ground (vanilla: they can). Like 'CantBeKnockedDown'. Not "
+                    "play-tested yet.")
+        self._check(f, "no_water_slow", "No slowdown in water",
+                    "Removes the turn-rate and movement penalties while wading "
+                    "(like 'NoSluggishWater'). Stamina drain in deep water "
+                    "stays. Not play-tested yet.")
+        self._check(f, "ladder_look", "Free look on ladders",
+                    "Look around while climbing (vanilla 30° sideways, 40° "
+                    "up/down; this sets 90°). Not play-tested yet.")
+        self._check(f, "look_down", "Look straight down",
+                    "Vanilla stops the camera at 80° below the horizon; this "
+                    "allows 90°. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Saving (quality of life)")
@@ -3784,6 +3846,22 @@ class App(ctk.CTk):
                      "Weapons wear less per shot fired.")
         self._slider(f, "jam", "Weapon jamming", 0, 2, 0.1, 1, fmt_factor,
                      "× 0 = weapons never jam.")
+        self._slider(f, "expl_radius", "Explosion radius", 50, 300, 25, 100, fmt_pct,
+                     "Blast, impulse and concussion radius of grenades, "
+                     "launcher rounds, barrels and gas cylinders (vanilla "
+                     "RGD-5 7 m, F1 10 m). Like 'IncreaseGrenadeRadius'. Not "
+                     "play-tested yet.")
+        self._slider(f, "expl_npc", "Explosion damage to NPCs", 0.25, 5, 0.25, 1, fmt_factor,
+                     "The DamageNPC value of every explosion type (vanilla "
+                     "RGD-5 260, RPG 2700). Damage to YOU is the slider above. "
+                     "Not play-tested yet.")
+        self._check(f, "guards_normal", "Base guards use normal weapon damage (no instant death)",
+                    "Vanilla guard weapons deal 500 damage per hit and restricted "
+                    "areas kill you with an invisible sniper shot; this gives "
+                    "guards their weapon's normal NPC damage and removes the "
+                    "sniper effect (like 'NoInstaGibByGuards'). Guards are "
+                    "meant to be deadly - use at your own risk. Not play-tested "
+                    "yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("NPCs & AI")
@@ -3815,6 +3893,14 @@ class App(ctk.CTk):
                      "everywhere). Never adds gear a faction or rank "
                      "wouldn't carry in vanilla - and their dropped loot "
                      "changes accordingly.")
+        self._check(f, "npc_no_loot", "NPCs don't loot bodies",
+                    "Human NPCs stop searching corpses (vanilla: they take "
+                    "gear before you arrive). Like 'NPCsDontLootCorpses'. Not "
+                    "play-tested yet.")
+        self._check(f, "psy_phantoms", "Psy fields spawn phantoms instead of real stalkers",
+                    "The psy-field effect normally spawns real hostile NPCs; "
+                    "this switches it to the harmless phantom variant (like "
+                    "'NoPsyStalkerSpawns'). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "NPC combat behaviour (experimental)")
@@ -3939,6 +4025,10 @@ class App(ctk.CTk):
         self._slider(f, "alife_distance", "A-Life spawn distance", 50, 200, 10, 100, fmt_pct,
                      "Vanilla: squads spawn ≥ 2500 m away. Lower = encounters "
                      "pop up closer to you; higher = quieter surroundings.")
+        self._slider(f, "alife_vision", "NPC visibility distance (A-Life grid)", 50, 300, 10, 100, fmt_pct,
+                     "How far away NPC models are shown and simulated (vanilla "
+                     "85 m; 'Distant Horizons' uses 150 to 250 m). Higher costs "
+                     "performance. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "A-Life spawns: lairs & random encounters (experimental)")
@@ -4013,6 +4103,22 @@ class App(ctk.CTk):
                      "Difficulty multiplier on the pause between mutant "
                      "attacks (vanilla 1.0 on every difficulty). 200 % = "
                      "mutants attack half as often. Not play-tested yet.")
+        self._check(f, "mut_anomalies", "All mutants trigger anomalies",
+                    "Bloodsuckers, chimeras, controllers, poltergeists, "
+                    "pseudodogs, pseudogiants, deer and rats are immune to "
+                    "anomalies in vanilla; dogs, boars, fleshes, snorks and "
+                    "burers are not. Like 'AnomaliesHitAllMutants'. Not "
+                    "play-tested yet.")
+        self._slider(f, "phantom_dog", "Pseudodog phantom damage", 0, 300, 25, 100, fmt_pct,
+                     "Bite and bleeding of the pseudodog's illusions (vanilla "
+                     "5 + bleeding). 0 % = phantoms are harmless, like "
+                     "'NoPseudoDogCloneDamage'. Not play-tested yet.")
+        self._slider(f, "mut_loot", "Mutant trophy drop chance", 0, 1000, 25, 100, fmt_pct,
+                     "Chance that a dead mutant leaves a body part (vanilla: "
+                     "blind dog 15 %, tushkan 10 %, boar/flesh/snork 20 %, "
+                     "bloodsucker 50 %, poltergeist 65 %, the rest 100 %). "
+                     "Capped at 100 %; 1000 % = every mutant drops, like "
+                     "'100% Chance Mutant Loot'. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Bloodsucker cloaking")
@@ -4183,6 +4289,21 @@ class App(ctk.CTk):
                      "How far the knife and the butt strike reach (vanilla "
                      "1.6 m for both). The 'Increased Melee Range' idea from "
                      "Nexus. Not play-tested yet.")
+        self._slider(f, "reload", "Reload speed", 50, 300, 25, 100, fmt_pct,
+                     "Scales every reload-time multiplier the game keeps per "
+                     "weapon and magazine (vanilla 1.0 everywhere, the fields "
+                     "the official Zone Kit guide points at). 200 % = half the "
+                     "time. Edition weapons (Deluxe/Pre-order) stay vanilla. "
+                     "NOT play-tested yet - the animation may or may not "
+                     "follow, report back.")
+        self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 25, 100, fmt_pct,
+                     "How fast a jam is cleared (vanilla 4 to 5.5 s per "
+                     "weapon). 200 % = half the time. Not play-tested yet.")
+        self._slider(f, "butt_wear", "Weapon wear per butt strike", 0, 300, 25, 100, fmt_pct,
+                     "Every butt strike costs the weapon 5 durability in "
+                     "vanilla. 0 % = bash crates for free, like 'The weapon "
+                     "doesn't break when used to strike with the butt'. Not "
+                     "play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Pistol slot")
@@ -4336,6 +4457,12 @@ class App(ctk.CTk):
                      "most have 2, a few 0, 1, 3 or 4, three have 5). Capped "
                      "at 5, the game's maximum. Helmets are untouched. "
                      "Like the 'Armor Artifact Slots' mod. Not play-tested yet.")
+        self._slider(f, "prot_cap", "Protection caps", 50, 200, 5, 100, fmt_pct,
+                     "The game caps your total protection at 90 % (85 % "
+                     "radiation, physical 4.5) - anything armor and artifacts "
+                     "give beyond that is lost. 111 % lifts the percent caps to "
+                     "100 (the maximum), physical scales freely. Like the 'Max "
+                     "Stats Patch'. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single armor overrides (advanced)")
@@ -4377,6 +4504,11 @@ class App(ctk.CTk):
         self._slider(f, "anom_grav", "Anomaly damage: gravity", 0.1, 5, 0.1, 1, fmt_factor,
                      "Carousel, Razor, Expulsion, Diamond … "
                      "(PSY anomalies drain psy, not health – no slider).")
+        self._slider(f, "clicker", "Clicker anomaly strength", 0, 200, 10, 100, fmt_pct,
+                     "The flashbang-like Clicker anomaly: number of flashes "
+                     "(vanilla 20) and burn per hit (vanilla 70). 0 % = one "
+                     "harmless flash, like 'FlashbangAnomalyNerf'. Not "
+                     "play-tested yet.")
         self._slider(f, "radiation", "Radiation accumulation", 0, 5, 0.25, 1, fmt_factor,
                      "× 0 = no radiation buildup.")
         self._slider(f, "bleeding", "Bleeding intensity", 0, 5, 0.25, 1, fmt_factor)
@@ -4429,6 +4561,20 @@ class App(ctk.CTk):
                      "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Travel & teleports")
+        self._slider(f, "ft_lock", "Fast travel when overweight", 0, 2, 1, 2, fmt_lock,
+                     "Vanilla guides refuse to travel while you are overweight "
+                     "('Full' lock). 'Partial' and 'No lock' are the two other "
+                     "values the game engine knows. Not play-tested yet.")
+        self._slider(f, "guide_delay", "Guide delay", 0, 300, 25, 100, fmt_pct,
+                     "The GuideDelay value every guide carries (vanilla 120). "
+                     "Its exact meaning in-game is not verified; 0 % = no delay. "
+                     "The cost is on the Economy tab. Not play-tested yet.")
+        self._check(f, "teleports_instant", "Instant teleports (no fade to black)",
+                    "Every teleport effect (guides, quests) becomes instant "
+                    "(like 'InstaTeleports'). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Loot in stashes & on bodies")
         ctk.CTkLabel(
             f, text="   Covers the game's smart-loot lists: ammo, medicine, "
@@ -4451,6 +4597,11 @@ class App(ctk.CTk):
         self._slider(f, "stash_ammo", "Stash & body ammo bonus", 25, 400, 25, 100, fmt_pct,
                      "Extra rounds handed out to match the weapon caliber, on "
                      "top of the item list above.")
+        self._slider(f, "stash_clue", "Stash clues on bodies", 0, 1000, 50, 100, fmt_pct,
+                     "Chance that a dead NPC carries a stash clue (vanilla 2 % "
+                     "plus 1 % per clue already found, per region; capped at "
+                     "100 %). 0 % = never, like 'More Stash Clues' in reverse. "
+                     "Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Loot amount (NPCs, containers, world)")
@@ -4515,6 +4666,11 @@ class App(ctk.CTk):
                      "How fast fields cool down before the next artifact "
                      "(vanilla mostly 3-15, some 60-120). Fields with no "
                      "cooldown stay as they are.")
+        self._slider(f, "weird_art", "Weird artifacts (DLC): charge & duration", 25, 1000, 25, 100, fmt_pct,
+                     "The Cost of Hope 'weird' artifacts run on a charge "
+                     "(bolt 300) or a timer (flower 2 h). 1000 % = practically "
+                     "no recharge, like 'NoWeirdArtifactRecharge'. Not "
+                     "play-tested yet.")
         self._slider(f, "detector", "Detector & scanner range", 50, 300, 10, 100, fmt_pct,
                      "Artifact detectors (Echo, Bear, Veles, Gilka), the "
                      "anomaly beeper and the searchpoint scanner.")
@@ -4589,6 +4745,10 @@ class App(ctk.CTk):
                     "(most are already unlimited in vanilla).")
         self._slider(f, "trader_dur", "Traders buy gear from durability", 0, 100, 5, 40, fmt_pct,
                      "0 % = traders buy weapons/armor in any condition (vanilla: 40 %).")
+        self._check(f, "traders_no_gear", "Traders don't buy weapons or armor (hardcore)",
+                    "Adds Weapon and Armor to every trader's buy restrictions "
+                    "(existing restrictions stay). Like 'TradersDontBuy"
+                    "WeaponsArmor'. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
     def _build_footer(self):
@@ -4989,6 +5149,36 @@ class App(ctk.CTk):
             sleep_anytime=bool(self.checks["sleep_anytime"].get()),
             min_sleep_hours=int(s["sleep_min"].get()),
             sleep_in_emission=bool(self.checks["sleep_emission"].get()),
+            # 1.26.0
+            no_knockdown=bool(self.checks["no_knockdown"].get()),
+            no_water_slowdown=bool(self.checks["no_water_slow"].get()),
+            ladder_free_look=bool(self.checks["ladder_look"].get()),
+            look_straight_down=bool(self.checks["look_down"].get()),
+            handless_zoom_factor=s["hands_zoom"].get() / 100.0,
+            crouch_vignette_factor=s["crouch_vignette"].get() / 100.0,
+            butt_wear_factor=s["butt_wear"].get() / 100.0,
+            mutants_trigger_anomalies=bool(self.checks["mut_anomalies"].get()),
+            guards_no_instakill=bool(self.checks["guards_normal"].get()),
+            explosion_radius_factor=s["expl_radius"].get() / 100.0,
+            explosion_npc_damage_factor=s["expl_npc"].get(),
+            phantom_dog_damage_factor=s["phantom_dog"].get() / 100.0,
+            psy_phantoms_only=bool(self.checks["psy_phantoms"].get()),
+            reload_speed_factor=s["reload"].get() / 100.0,
+            jam_clear_factor=s["jam_clear"].get() / 100.0,
+            mutant_loot_chance_factor=s["mut_loot"].get() / 100.0,
+            stash_clue_factor=s["stash_clue"].get() / 100.0,
+            npcs_no_corpse_loot=bool(self.checks["npc_no_loot"].get()),
+            alife_vision_factor=s["alife_vision"].get() / 100.0,
+            map_reveal_factor=s["map_reveal"].get() / 100.0,
+            map_all_regions=bool(self.checks["map_regions"].get()),
+            fast_travel_lock=int(s["ft_lock"].get()),
+            guide_delay_factor=s["guide_delay"].get() / 100.0,
+            instant_teleports=bool(self.checks["teleports_instant"].get()),
+            protection_cap_factor=s["prot_cap"].get() / 100.0,
+            weird_artifact_factor=s["weird_art"].get() / 100.0,
+            skip_intro=bool(self.checks["skip_intro"].get()),
+            traders_no_gear_buy=bool(self.checks["traders_no_gear"].get()),
+            clicker_factor=s["clicker"].get() / 100.0,
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
