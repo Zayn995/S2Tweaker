@@ -18,6 +18,9 @@ from s2tweaker import cfgparse
 gd = GameData(VANILLA)
 GEN_KEY = "ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_S2Tweaker.cfg"
 TRADE_KEY = "TradePrototypes/TradePrototypes_patch_S2Tweaker.cfg"
+# seit 1.28.0 P8: der Geld-Regler patcht auch die Geldbeutel, die NPCs
+# in NPCPrototypes selbst tragen (Rangfolge zwischen beiden unbewiesen)
+NPC_KEY = "NPCPrototypes/NPCPrototypes_patch_S2Tweaker.cfg"
 
 # --- 1) Inventar: Zustands-Eintraege nur in Waffen-Slots ----------------
 dur = gd.loot_durability_entries()
@@ -97,13 +100,18 @@ text = p[TRADE_KEY]
 n_money = text.count("Money =") - text.count("bInfiniteMoney =")
 n_expected = sum(1 for sid in finite if wallets[sid][0] > 0)
 assert n_money == n_expected, (n_money, n_expected)
-# Merge mit trader_dur im selben TradePrototypes-Patch
+# Merge mit trader_dur im selben TradePrototypes-Patch; seit 1.28.0 P8 kommt
+# genau eine weitere Datei dazu (NPCPrototypes), weil der Geld-Regler auch
+# die 22 NPC-eigenen Geldbeutel skaliert.
 p = build_patches(gd, Settings(trader_money_factor=2.0,
                                trader_min_durability_pct=0))
-assert list(p) == [TRADE_KEY]
+assert sorted(p) == sorted([TRADE_KEY, NPC_KEY]), sorted(p)
 assert "Money" in p[TRADE_KEY] and "MinDurability" in p[TRADE_KEY]
+assert "Money" in p[NPC_KEY] and "MinDurability" not in p[NPC_KEY]
+# ohne den Geld-Regler bleibt die NPC-Datei weg
+assert list(build_patches(gd, Settings(trader_min_durability_pct=0))) == [TRADE_KEY]
 print(f"Geldbeutel: {len(finite)} auf unendlich; {n_expected} skaliert; "
-      "Merge mit trader_dur  OK")
+      "Merge mit trader_dur, NPC-Geldbeutel als eigene Datei  OK")
 
 # --- 6b) NPC-Gear-Quality: Kipp zur teureren Ware -----------------------
 pools = gd.gear_weight_pools()
