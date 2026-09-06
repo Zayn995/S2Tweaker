@@ -496,6 +496,14 @@ class Settings:
     quick_save_slots: int = 3                # SavesLimit.Quick
     auto_save_slots: int = 10                # SavesLimit.Auto
     autosave_interval_min: float = 10.0      # AutoSaveIntervalTime (Vanilla 600 s)
+    # --- 1.24.0 (06.09.2026) ---
+    artifact_slots_bonus: int = 0            # +N ArtifactSlots je Koerperruestung, Deckel 5
+    shooting_shake_factor: float = 1.0       # CameraShakePrototypes *ShootCameraShake.Scale
+    ads_zoom_factor: float = 1.0             # AimingFOVModifier: 0 = kein Zoom, 2 = doppelt
+    climb_speed_factor: float = 1.0          # Player MovementParams.ClimbSpeedCoef (0.6)
+    starting_money: int = 0                  # CoreVariables PlayerStartingMoney (neues Spiel)
+    no_aim_assist_mouse: bool = False        # AimAssist-Presets *Mouse*: Kegel auf Empty
+    no_aim_assist_gamepad: bool = False      # AimAssist-Presets *Gamepad*: Kegel auf Empty
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -710,6 +718,11 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if _neq(s.jump_height_factor, 1.0):
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.JumpSpeedCoef"), 1.0)
         movement["JumpSpeedCoef"] = _num(vanilla * s.jump_height_factor)
+    # Leitern (06.09.2026): ClimbSpeedCoef, Vanilla 0.6.
+    if _neq(s.climb_speed_factor, 1.0) and s.climb_speed_factor > 0:
+        vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.ClimbSpeedCoef"), 0.0)
+        if vanilla > 0:
+            movement["ClimbSpeedCoef"] = _num(vanilla * s.climb_speed_factor)
 
     # Vaulting: Preset (nur vom Vanilla abweichende Werte) + Hoehen-Faktor.
     # Der Faktor skaliert auf der jeweils aktiven Basis (Preset an: 200).
@@ -1501,12 +1514,68 @@ def _npc_stagger_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _camerashake_patch(gd: GameData, s: Settings) -> dict:
-    """Aim Punch: Kamera-Wackeln beim Getroffenwerden (Nexus-Wunsch)."""
-    if not _neq(s.aim_punch_factor, 1.0):
+    """Aim Punch (Wackeln beim Getroffenwerden, Nexus-Wunsch) und seit
+    1.24.0 das Wackeln beim SCHIESSEN: ShootingCameraShake plus die 39
+    *ShootCameraShake-Eintraege je Waffe, alle mit eigenem Scale = 1.0
+    (Nexus 'No Screenshake'). Explosionen/Mutanten bleiben unberuehrt."""
+    patches: dict = {}
+    if _neq(s.aim_punch_factor, 1.0):
+        vanilla = parse_number(
+            gd.resolve(gd.camerashake, "ProjectileHitCameraShake", "Scale"), 1.0)
+        patches["ProjectileHitCameraShake"] = {"Scale": _num(vanilla * s.aim_punch_factor)}
+    if _neq(s.shooting_shake_factor, 1.0) and s.shooting_shake_factor >= 0:
+        for name, node in gd.camerashake.children.items():
+            if "#" in name:
+                continue
+            if name != "ShootingCameraShake" and not name.endswith("ShootCameraShake"):
+                continue
+            raw = node.get("Scale")
+            if raw is None:
+                continue
+            patches.setdefault(name, {})["Scale"] = _num(
+                parse_number(raw, 1.0) * s.shooting_shake_factor)
+    return patches
+
+
+def _aimassist_patch(gd: GameData, s: Settings) -> dict:
+    """Aim Assist aus (06.09.2026): die Staerke steckt in CurveFloat-Assets,
+    per cfg laesst sich nur der Kegel abhaengen. Jedes Preset traegt vier
+    Kegel-SIDs plus die Magnetismus-Liste; alles wird auf den Empty-Kegel
+    gesetzt, dessen Name live aus dem Empty-Preset gelesen wird. Maus- und
+    Gamepad-Presets getrennt (Wunsch des Besitzers). Die Waffen verweisen
+    per AimAssistPresetSID auf die Gamepad-Presets je Klasse; die Maus-
+    Presets haengen nicht in den Waffendaten, sondern werden vom Spiel
+    direkt angesprochen (nicht play-getestet)."""
+    if not (s.no_aim_assist_mouse or s.no_aim_assist_gamepad):
         return {}
-    vanilla = parse_number(
-        gd.resolve(gd.camerashake, "ProjectileHitCameraShake", "Scale"), 1.0)
-    return {"ProjectileHitCameraShake": {"Scale": _num(vanilla * s.aim_punch_factor)}}
+    root = gd.aimassist
+    empty_node = root.children.get("Empty")
+    if empty_node is None:
+        return {}
+    empty = (empty_node.values.get("StickinessAimAssistConeSID") or "Empty").strip()
+    cone_keys = ("StickinessAimAssistConeSID", "SnappingAimAssistConeSID",
+                 "MovingTrackingAimAssistConeSID", "StationaryTrackingAimAssistConeSID")
+    patches: dict = {}
+    for name, node in root.children.items():
+        if "#" in name or name == "Empty":
+            continue
+        is_mouse, is_pad = "Mouse" in name, "Gamepad" in name
+        if not ((is_mouse and s.no_aim_assist_mouse) or (is_pad and s.no_aim_assist_gamepad)):
+            continue
+        cfg: dict = {}
+        for key in cone_keys:
+            current = (gd.resolve(root, name, key) or "").strip()
+            if current and current != empty:
+                cfg[key] = empty
+        magnet = node.children.get("MagnetismAimAssistConeSIDs")
+        if magnet is not None:
+            entries = {idx: empty for idx, value in magnet.values.items()
+                       if (value or "").strip() != empty}
+            if entries:
+                cfg["MagnetismAimAssistConeSIDs"] = entries
+        if cfg:
+            patches[name] = cfg
+    return patches
 
 
 def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
@@ -2000,6 +2069,21 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     for key in WEAPON_AIMTIME_KEYS:
         scale(key, "aimtime", s.aim_time_factor, invert=True)
 
+    # ADS-Zoom (06.09.2026, Nexus 'No zoom while aiming' / 'Zoom in when
+    # aiming'): AimingFOVModifier < 1 = Zoom beim Zielen (0.92/0.88/0.83).
+    # Faktor auf den ABSTAND zu 1.0: 0 = kein Zoom, 2 = doppelter Zoom;
+    # Deckel 0.2, damit das Bild nie kippt. OffsetAiming genauso.
+    if _neq(s.ads_zoom_factor, 1.0) and s.ads_zoom_factor >= 0:
+        for key in ("AimingFOVModifier", "OffsetAimingFOVModifier"):
+            for sid, value in sorted(gd.weapon_general_values(key).items()):
+                new = max(0.2, min(1.0, 1.0 - (1.0 - value) * s.ads_zoom_factor))
+                if _neq(new, value):
+                    patches.setdefault(sid, {})[key] = _num(new)
+            for (ed, sid), value in sorted(gd.dlc_weapon_general_values(key).items()):
+                new = max(0.2, min(1.0, 1.0 - (1.0 - value) * s.ads_zoom_factor))
+                if _neq(new, value):
+                    dlc_patches.setdefault(ed, {}).setdefault(sid, {})[key] = _num(new)
+
     # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig,
     # seit 03.09. der 10. Kaskaden-Parameter (Nexus-Wunsch Qfander): Einzel-
     # waffe > Kategorie > globaler Regler, wie scale() - nur mit Ganzzahl-
@@ -2398,6 +2482,10 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if vanilla > 0:
                 cfg[key] = _num(vanilla * s.interaction_range_factor)
 
+    # Startgeld (06.09.2026): PlayerStartingMoney, Vanilla 0, nur neues Spiel.
+    if int(s.starting_money) != int(gd.corevar("PlayerStartingMoney", 0.0)):
+        cfg["PlayerStartingMoney"] = str(max(0, int(s.starting_money)))
+
     # NPC-Taschenlampen im Kampf (Recherche 05.09.2026): Nutzungschance je
     # Rang, Vanilla Newbie 1 / Experienced 0.75 / Veteran 0.5 / Master 0.25,
     # Deckel 1.0; Faktor 0 = nie.
@@ -2448,6 +2536,17 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     if s.quest_items_weightless:
         for sid in sorted(gd.quest_items_with_weight()):
             patches.setdefault(sid, {})["Weight"] = "0.0"
+    # Artefakt-Slots (06.09.2026, Nexus 'Armor Artifact Slots'): +N je
+    # Koerperruestung, Deckel 5 = Vanilla-Maximum (3 Ruestungen haben 5).
+    # Helme bleiben draussen. Editions-Ruestungen in den DLC-Zweig.
+    dlc_slot_patches: dict = {}
+    if int(s.artifact_slots_bonus) > 0:
+        for sid, (vanilla, edition) in sorted(gd.armor_artifact_slots().items()):
+            target = min(5, vanilla + int(s.artifact_slots_bonus))
+            if target == vanilla:
+                continue
+            bucket = patches if edition is None else dlc_slot_patches.setdefault(edition, {})
+            bucket.setdefault(sid, {})["ArtifactSlots"] = str(target)
 
     # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte).
     # Kaskade: Einzelsorte > globaler Regler -- der Override ERSETZT den
@@ -2574,6 +2673,9 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if cfg:
                 dlc_patches.setdefault(ed, {}).setdefault(sid, {}).setdefault(
                     "Protection", {}).update(cfg)
+    for edition, extra in dlc_slot_patches.items():
+        for sid, cfg in extra.items():
+            dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
     return patches, dlc_patches
 
 
@@ -3058,6 +3160,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
     add(f"AIPrototypes/ThreatPrototypes/ThreatPrototypes_patch_{n}.cfg",
         _threats_patch(gd, s))
+    add(f"AimAssistPresetPrototypes/AimAssistPresetPrototypes_patch_{n}.cfg",
+        _aimassist_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
     add(f"ArtifactSpawnerPrototypes/ArtifactSpawnerPrototypes_patch_{n}.cfg",
@@ -3237,6 +3341,17 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Autosave slots {int(s.auto_save_slots)}")
     if _neq(s.autosave_interval_min, 10.0):
         lines.append(f"Autosave every {s.autosave_interval_min:g} min")
+    if int(s.artifact_slots_bonus) > 0:
+        lines.append(f"Artifact slots +{int(s.artifact_slots_bonus)} on every armor (max 5)")
+    f("Shooting camera shake", s.shooting_shake_factor)
+    f("ADS zoom", s.ads_zoom_factor)
+    f("Ladder climb speed", s.climb_speed_factor)
+    if int(s.starting_money) > 0:
+        lines.append(f"Starting money {int(s.starting_money)} (new game only)")
+    if s.no_aim_assist_mouse:
+        lines.append("Aim assist off (mouse)")
+    if s.no_aim_assist_gamepad:
+        lines.append("Aim assist off (gamepad)")
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)

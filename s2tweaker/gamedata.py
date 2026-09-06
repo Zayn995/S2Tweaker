@@ -59,10 +59,11 @@ NEEDED_FILES = [
     "FlashlightPrototypes.cfg.bin",          # NPC-Taschenlampen (05.09.2026)
     "SaveLoadVariables.cfg",                 # Speicherstaende-Limit (unbinarisiert)
     "AutoSaveVariables.cfg",                 # Autosave-Intervall (unbinarisiert)
+    "AimAssistPresetPrototypes.cfg.bin",     # Aim-Assist Maus/Gamepad (06.09.2026)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 17
+CACHE_SCHEMA = 18
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -371,6 +372,34 @@ class GameData:
         NPCFlashlight, WeaponFlashlightTest). Nur die NPC-Lampe traegt
         Lichtwerte; die Spieler-Lampe sitzt in Blueprint-Kurven."""
         return self._parse("FlashlightPrototypes.cfg")
+
+    @cached_property
+    def aimassist(self) -> CfgStruct:
+        """AimAssistPresetPrototypes: 15 Presets (Empty, Hip/AimMouse, Hip/
+        AimGamepad + je Waffenklasse _AR/_PT/_SG/_SMG/_MG). Die Staerke
+        steckt in CurveFloat-Assets, per cfg geht nur an/aus: Kegel-SIDs
+        auf den Empty-Kegel setzen."""
+        return self._parse("AimAssistPresetPrototypes.cfg")
+
+    def armor_artifact_slots(self) -> dict[str, tuple[int, str | None]]:
+        """{SID: (Vanilla-ArtifactSlots, Edition|None)} aller Spieler-
+        Koerperruestungen (Slot Body; Helme haben 0 und bleiben draussen)."""
+        result: dict[str, tuple[int, str | None]] = {}
+        for sid, (slot, _values) in self.player_armors().items():
+            if slot != "Body":
+                continue
+            dlc = self.dlc_player_armors().get(sid)
+            if dlc is not None:
+                chain = self.dlc_item_chain(dlc[2], sid)
+                raw = self._chain_get(chain, "ArtifactSlots")
+                edition: str | None = dlc[2]
+            else:
+                raw = self.resolve(self.items, sid, "ArtifactSlots")
+                edition = None
+            if raw is None:
+                continue
+            result[sid] = (int(parse_number(raw, 0.0)), edition)
+        return result
 
     @cached_property
     def saveload(self) -> CfgStruct:

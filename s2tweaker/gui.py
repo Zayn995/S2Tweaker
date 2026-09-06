@@ -457,6 +457,10 @@ def fmt_min(v: float) -> str:
     return f"{int(round(v))} min"
 
 
+def fmt_plus(v: float) -> str:
+    return "vanilla" if int(round(v)) == 0 else f"+{int(round(v))}"
+
+
 def fmt_int(v: float) -> str:
     return f"{v:.0f}"
 
@@ -548,6 +552,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "magazine": "magazine_factor",
     "melee": "melee_damage_factor", "melee_range": "melee_range_factor",
     "interact": "interaction_range_factor", "dialog_range": "dialog_range_factor",
+    "climb": "climb_speed_factor", "start_money": "starting_money",
+    "art_slots": "artifact_slots_bonus", "shoot_shake": "shooting_shake_factor",
+    "ads_zoom": "ads_zoom_factor",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -595,6 +602,8 @@ CHECK_FIELDS: dict[str, str] = {
     "upgrades_take_both": "upgrades_take_both",
     "upgrades_no_blueprint": "upgrades_no_blueprint",
     "upgrades_no_tiers": "upgrades_no_tiers",
+    "no_aim_mouse": "no_aim_assist_mouse",
+    "no_aim_gamepad": "no_aim_assist_gamepad",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -3640,6 +3649,15 @@ class App(ctk.CTk):
                      "How close you have to be to start a conversation "
                      "(vanilla 1.3 m). The 'Social Distancing' idea from "
                      "Nexus. Not play-tested yet.")
+        self._slider(f, "climb", "Ladder climb speed", 50, 300, 10, 100, fmt_pct,
+                     "How fast Skif climbs ladders (vanilla coefficient "
+                     "0.6). Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "New game")
+        self._slider(f, "start_money", "Starting money (new game only)", 0, 100000, 1000, 0, fmt_int,
+                     "Coupons Skif starts a NEW game with (vanilla 0). Has "
+                     "no effect on an existing save. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Saving (quality of life)")
@@ -4063,10 +4081,35 @@ class App(ctk.CTk):
                      "Per category or per weapon: 'Magazine size' is the "
                      "tenth factor in the trees below.")
         self._slider(f, "melee", "Melee damage (knife & butt strike)", 25, 400, 25, 100, fmt_pct)
+        self._slider(f, "shoot_shake", "Shooting camera shake", 0, 200, 10, 100, fmt_pct,
+                     "How much the camera shakes when YOU fire (every "
+                     "weapon's own shake entry, vanilla scale 1.0). 0 % = "
+                     "none, like the 'No Screenshake' mod. Being hit is "
+                     "the separate 'Hit camera shake' slider on the Combat "
+                     "tab. Not play-tested yet.")
+        self._slider(f, "ads_zoom", "ADS zoom", 0, 200, 10, 100, fmt_pct,
+                     "How much the view zooms in when aiming down sights "
+                     "(vanilla FOV factor 0.92 for most weapons, 0.83 for "
+                     "some). 0 % = no zoom at all, 200 % = twice the vanilla "
+                     "zoom. Scopes keep their own magnification. Not "
+                     "play-tested yet.")
         self._slider(f, "melee_range", "Melee range (knife & butt strike)", 50, 300, 25, 100, fmt_pct,
                      "How far the knife and the butt strike reach (vanilla "
                      "1.6 m for both). The 'Increased Melee Range' idea from "
                      "Nexus. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Aim assist (controls)")
+        ctk.CTkLabel(
+            f, text="   The game applies aim assist to gamepads AND, more "
+                    "lightly, to the mouse (stickiness and magnetism cones). "
+                    "Its strength lives in curve assets that cannot be "
+                    "patched, so these switches turn it off completely by "
+                    "unhooking the cones. Not play-tested yet.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._check(f, "no_aim_mouse", "Turn aim assist off for the mouse")
+        self._check(f, "no_aim_gamepad", "Turn aim assist off for gamepads")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Weapon categories")
@@ -4184,6 +4227,11 @@ class App(ctk.CTk):
         self._slider(f, "ap_carry", "Armor carry-weight bonuses", 0, 300, 25, 100, fmt_pct,
                      "Exoskeleton & armor/upgrade carry bonuses. "
                      "0 % = armor grants no extra carry weight.")
+        self._slider(f, "art_slots", "Extra artifact slots on every body armor", 0, 4, 1, 0, fmt_plus,
+                     "Adds slots to each body armor's own count (vanilla: "
+                     "most have 2, a few 0, 1, 3 or 4, three have 5). Capped "
+                     "at 5, the game's maximum. Helmets are untouched. "
+                     "Like the 'Armor Artifact Slots' mod. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single armor overrides (advanced)")
@@ -4799,6 +4847,13 @@ class App(ctk.CTk):
             quick_save_slots=int(s["save_quick"].get()),
             auto_save_slots=int(s["save_auto"].get()),
             autosave_interval_min=float(s["autosave_min"].get()),
+            climb_speed_factor=s["climb"].get() / 100.0,
+            starting_money=int(s["start_money"].get()),
+            artifact_slots_bonus=int(s["art_slots"].get()),
+            shooting_shake_factor=s["shoot_shake"].get() / 100.0,
+            ads_zoom_factor=s["ads_zoom"].get() / 100.0,
+            no_aim_assist_mouse=bool(self.checks["no_aim_mouse"].get()),
+            no_aim_assist_gamepad=bool(self.checks["no_aim_gamepad"].get()),
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,

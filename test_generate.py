@@ -99,6 +99,9 @@ s = Settings(
     npc_flashlight_off_hour=6,
     manual_save_slots=200, quick_save_slots=10, auto_save_slots=20,
     autosave_interval_min=5,
+    artifact_slots_bonus=2, shooting_shake_factor=0.0, ads_zoom_factor=2.0,   # 1.24.0
+    climb_speed_factor=2.0, starting_money=5000,
+    no_aim_assist_mouse=True, no_aim_assist_gamepad=True,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,

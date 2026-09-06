@@ -7,14 +7,15 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-Around 240 tweaks in 13 tabs: Player, Vaulting, Weight & items, Combat,
+Around 250 tweaks in 13 tabs: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders.
 
 WHAT YOU CAN TWEAK (short tour)
 -------------------------------
 - Player: health, stamina (incl. per-action costs), walk/crouch and
   run/sprint speed, jump height, fall damage, breath hold, interaction
-  reach and talk distance, save slots and autosave interval, max carry
+  reach and talk distance, ladder climb speed, save slots and autosave
+  interval, starting money for a new game, max carry
   weight + where the overweight penalty starts, item weights per category,
   radiation, bleeding, hunger & sleepiness, headshot multiplier,
   explosions, hit camera shake / aim punch
@@ -25,12 +26,14 @@ WHAT YOU CAN TWEAK (short tour)
   Deluxe/Ultimate/Pre-order edition guns included. 9 factors each (damage,
   spread, recoil, durability, fire rate, effective range, bleeding, ADS
   move speed, ADS aim-in speed), plus magazine size, melee damage and
-  range, jamming and scoped sway. Weapons are listed with their real in-game names
+  range, jamming, scoped sway, shooting camera shake, ADS zoom and two
+  switches that turn aim assist off for mouse or gamepad. Weapons are listed with their real in-game names
   ("GunAK74_ST - AKM-74S") and the search box finds both spellings
 - Ammo on TWO levels: global sliders (damage, armor piercing, armor
   damage, cover penetration) and per-round overrides for all 34 rounds in
   14 calibers - a round's own factor beats the global one
-- Armor: global protection sliders per damage type, per-armor overrides
+- Armor: global protection sliders per damage type, extra artifact slots
+  on every body armor (capped at the game's 5), per-armor overrides
   for all 57 armors and helmets (edition pieces included, real in-game
   names), armor durability, armor carry-weight bonuses
 - NPCs & AI: damage, health, accuracy, vision & hearing range, grenade

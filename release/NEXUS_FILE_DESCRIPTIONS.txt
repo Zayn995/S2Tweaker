@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.23.0
-File version:  1.23.0
+Name:          S2Tweaker 1.24.0
+File version:  1.24.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,23 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.24.0 - artifact slots, shooting camera shake, ADS zoom, ladder
+speed, starting money, aim assist switches
+
+- Extra artifact slots (Armor): +1 to +4 on every body armor, capped
+  at 5 (the game's maximum). Helmets untouched.
+- Shooting camera shake (Weapons): 0-200 % of every weapon's own
+  shake; 0 % = no screen shake when firing. Being hit is separate.
+- ADS zoom (Weapons): from no zoom to twice the vanilla zoom when
+  aiming down sights (vanilla FOV factor 0.92 / 0.83). Scopes keep
+  their magnification.
+- Aim assist off (Weapons): one switch for the mouse, one for gamepads.
+- Ladder climb speed (Player, vanilla 0.6) and starting money for a
+  new game (Player, vanilla 0; existing saves unaffected).
+- One more game file is read (aim assist presets); the first start
+  re-extracts the game data once (10-20 s).
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.23.0 - no more repak.exe: pak files are handled by plain Python
 
 - The folder no longer contains repak.exe (the open-source pak tool

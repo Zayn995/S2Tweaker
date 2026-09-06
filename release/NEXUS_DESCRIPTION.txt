@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~240 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~250 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -13,16 +13,16 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=https://www.virustotal.com/gui/file/05bc7bae990193f8a63f04f850496cf4cea05947d83e84d58a658dacb479f878]VirusTotal - 0 of 66[/url]
+[*]The mod itself: [url=[ZIP-LINK-1.24.0]]VirusTotal - [ZIP-RESULT-1.24.0][/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-Those numbers are for 1.23.0 (S2Tweaker.exe is byte-identical to 1.21.0's and 1.22.0's, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+Those numbers are for 1.24.0 (S2Tweaker.exe is byte-identical to the one in 1.21.0 to 1.23.0, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]240 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]250 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -32,6 +32,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Radiation, bleeding, hunger & sleepiness, headshot multiplier, explosion damage
 [*]Hit camera shake / aim punch 0-300%
 [*]Interaction reach (pick up, loot, containers) and talk distance for NPC dialogs; saving: manual, quick and autosave slot limits plus the autosave interval
+[*]Ladder climb speed; starting money for a new game
 [/list]
 
 [b]Vaulting - its own tab[/b]
@@ -50,6 +51,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Magazine size on all three levels - scales a weapon's base capacity and the magazines that weapon really uses (read from its own reload table); the global slider covers all 80 magazine attachments
 [*][b]Recoil reduction from upgrades[/b]: boosts the recoil-reduction upgrades and attachments (vanilla -5 % to -30 %, capped at -100 %) - at 2000 % any recoil upgrade removes the kick entirely. Only weapons with such an upgrade installed change; community-proven on patch 2.0
 [*]Melee damage and melee range (knife & rifle butt strike)
+[*]Shooting camera shake 0-200% and ADS zoom from none to double; aim assist switched off for mouse and/or gamepad
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
@@ -195,6 +197,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.24.0 - Artifact slots, shooting camera shake, ADS zoom, ladder speed, starting money, aim assist switches[/b] (~250 tweaks + ammo swap, 13 tabs)
+[list]
+[*][b]Extra artifact slots[/b] (Armor): +1 to +4 slots on every body armor, capped at 5, the game's maximum (vanilla: most armors have 2, three have 5). Helmets are untouched. Like the 'Armor Artifact Slots' mod
+[*][b]Shooting camera shake[/b] (Weapons): how much the camera shakes when you fire, 0-200 %, every weapon's own shake entry (vanilla 1.0). 0 % is the 'No Screenshake' mod. Being hit stays on the separate 'Hit camera shake' slider
+[*][b]ADS zoom[/b] (Weapons): how far the view zooms in when aiming down sights, from no zoom at all to twice the vanilla zoom (vanilla FOV factor 0.92, 0.83 for some weapons). Scopes keep their magnification. The 'No zoom while aiming' and 'Zoom in when aiming' mods in one slider
+[*][b]Aim assist off[/b] (Weapons): two switches, one for the mouse and one for gamepads. The game applies stickiness and magnetism cones to both; their strength lives in curve assets that cannot be patched, so the switches unhook the cones completely
+[*][b]Ladder climb speed[/b] (Player, vanilla coefficient 0.6) and [b]starting money[/b] for a new game (Player, vanilla 0; no effect on existing saves)
+[*]The tool reads one more game file (aim assist presets). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
+[*]Not play-tested in-game, like the rest of the tool. Existing paks stay valid
+[/list]
+
 [b]v1.23.0 - No more repak.exe: the pak files are handled by plain Python now[/b] (~240 tweaks + ammo swap, 13 tabs)
 [list]
 [*][b]What changes for you:[/b] nothing in the tool. The folder no longer contains repak.exe, the open-source pak tool that earlier versions bundled for reading your game files and writing the mod pak. That job is done by the tool's own Python code now (_internal\s2tweaker\pakfile.py), which needs nothing but Python's standard library
@@ -206,6 +219,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.22.0 - Twelve sliders from the community wish list, and a TL;DR for the Oodle setup[/b] (~240 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]Melee range[/b] (Weapons): how far the knife and the butt strike reach (vanilla 1.6 m)
 [*][b]Interaction reach and talk distance[/b] (Player): pick up items, open stashes and containers and loot bodies from farther away (vanilla 2 m, bodies 0.65 m), and start conversations from farther away (vanilla 1.3 m) - the 'Social Distancing' idea
@@ -215,6 +229,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The tool now reads three more game files (flashlights, save limits, autosave). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
 [*]Not play-tested, like the rest of the tool. Your existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.21.0 - No more PyInstaller: the launcher is the signed python.org interpreter[/b] (~230 tweaks + ammo swap, 13 tabs)
 [spoiler]
@@ -501,6 +516,7 @@ If the ~mods folder doesn't exist, create it.
 [list]
 [*]Armor protection per damage type: physical (bullets/melee), burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
+[*]Extra artifact slots on every body armor, +1 to +4, capped at the game's maximum of 5
 [*]Rare artifact bias 25-500%: shifts the rarity roll toward Uncommon/Rare/Epic at Common's expense (total spawn chance unchanged; ranks that can't roll Rare/Epic in vanilla still won't)
 [/list]
 [/spoiler]
