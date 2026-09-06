@@ -593,7 +593,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "expl_npc": "explosion_npc_damage_factor", "phantom_dog": "phantom_dog_damage_factor",
     "reload": "reload_speed_factor", "jam_clear": "jam_clear_factor",
     # 1.29.0
-    "equip_speed": "equip_speed_factor",
+    "equip_speed": "equip_speed_factor", "anim_skip": "shooting_anim_skip",
     "mut_loot": "mutant_loot_chance_factor", "stash_clue": "stash_clue_factor",
     "alife_vision": "alife_vision_factor", "map_reveal": "map_reveal_factor",
     "ft_lock": "fast_travel_lock", "guide_delay": "guide_delay_factor",
@@ -4787,6 +4787,15 @@ class App(ctk.CTk):
                      "time. Edition weapons (Deluxe/Pre-order) stay vanilla. "
                      "NOT play-tested yet - the animation may or may not "
                      "follow, report back.")
+        self._slider(f, "anim_skip", "Skipped shooting animations (experimental)", 0, 3, 1, 0, fmt_int,
+                     "The game's own ShootingAnimationNumberToSkip, vanilla 0 "
+                     "on every weapon. It is the only config key that touches "
+                     "the shooting animation at all - speed and sound live in "
+                     "baked assets no config patch can reach. If you raise a "
+                     "weapon's fire rate and the animation lags behind, try 1 "
+                     "(skip every other animation) or 2. The animation gets "
+                     "choppier, but it stops trailing the shots. Read from the "
+                     "key name only, never play-tested - tell us what you see.")
         self._slider(f, "equip_speed", "Weapon draw & holster speed", 50, 400, 25, 100, fmt_pct,
                      "How fast a weapon is raised and put away (the game's "
                      "ShowEquipmentTime and HideEquipmentTime, vanilla 1.0 on "
@@ -5878,6 +5887,7 @@ class App(ctk.CTk):
             psy_phantoms_only=bool(self.checks["psy_phantoms"].get()),
             reload_speed_factor=s["reload"].get() / 100.0,
             equip_speed_factor=s["equip_speed"].get() / 100.0,
+            shooting_anim_skip=int(s["anim_skip"].get()),
             jam_clear_factor=s["jam_clear"].get() / 100.0,
             mutant_loot_chance_factor=s["mut_loot"].get() / 100.0,
             stash_clue_factor=s["stash_clue"].get() / 100.0,

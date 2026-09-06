@@ -846,9 +846,27 @@ assert next(iter(half.children.values())).values["ShowEquipmentTime"] == "2.0"
 assert "FireInterval" not in p[WGS] and "ReloadTimeMultiplier" not in p[WGS]
 print(f"1.29.0 Regler: 92 Basis- + {n_dlc} Editions-Waffen, x2 -> 0.5 s, x0.5 -> 2.0 s  OK")
 
-# --- 3) Zusammenfassung ------------------------------------------------------------
+# --- 3) Uebersprungene Schuss-Animationen -------------------------------------------
+live_skip = {sid: n.values["ShootingAnimationNumberToSkip"]
+             for sid, n in gd.weapongeneral.children.items()
+             if "#" not in sid and "ShootingAnimationNumberToSkip" in n.values}
+assert len(live_skip) == 92 and set(live_skip.values()) == {"0"}, len(live_skip)
+p = build_patches(gd, S(shooting_anim_skip=1))
+wgs = parsed(p, WGS)
+assert len(wgs.children) == 92, len(wgs.children)
+assert all(n.values == {"ShootingAnimationNumberToSkip": "1"} for n in wgs.children.values())
+dlc = [k for k in p if k.startswith("//GameLite/DLCGameData/") and "WeaponGeneralSetup" in k]
+assert sum(len(parsed(p, k).children) for k in dlc) == 11, dlc
+assert parsed(build_patches(gd, S(shooting_anim_skip=3)), WGS).children["Default"] \
+    .values["ShootingAnimationNumberToSkip"] == "3"
+assert WGS not in build_patches(gd, S(shooting_anim_skip=0))          # Vanilla = kein Patch
+print("1.29.0 Anim-Skip: 92 Basis- + 11 Editions-Waffen auf 1 bzw. 3, ganzzahlig, Vanilla leer  OK")
+
+# --- 4) Zusammenfassung ------------------------------------------------------------
 assert "Weapon draw & holster speed × 2" in "\n".join(summarize(S(equip_speed_factor=2.0)))
+assert "Skip 1 shooting animation" in "\n".join(summarize(S(shooting_anim_skip=1)))
 assert "draw & holster" not in "\n".join(summarize(S()))
-print("1.29.0 Zusammenfassung: Zeile vorhanden, neutral leer  OK")
+assert "Skip" not in "\n".join(summarize(S()))
+print("1.29.0 Zusammenfassung: zwei Zeilen vorhanden, neutral leer  OK")
 
 print("\n1.28.0-TEST OK")

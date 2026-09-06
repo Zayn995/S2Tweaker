@@ -983,6 +983,21 @@ FAQ_ENTRIES = [
              "technician expensive discount trader coefficient",
     },
     {
+        "q": "I raised the fire rate and the animation lags behind - can I fix that?",
+        "a": "Only partly, and only with one honest lever. Animation speed "
+             "and the shot sound live in baked game assets; no config patch "
+             "reaches them, which is why the fire-rate slider carries a "
+             "warning. The one config key that touches this is "
+             "ShootingAnimationNumberToSkip (vanilla 0 on every weapon): "
+             "Weapons tab, 'Skipped shooting animations'. Set 1 and the "
+             "game plays every other shooting animation, so it stops "
+             "trailing the shots - choppier, but in step. Read from the key "
+             "name, not play-tested. Real animation retiming needs the "
+             "official Zone Kit and new assets.",
+        "k": "fire rate animation desync lag behind sound shooting skip "
+             "animations stutter out of sync weapon speed",
+    },
+    {
         "q": "Which values are 'vanilla'? Where do the numbers come from?",
         "a": "From YOUR installation: the tool extracts the game's real "
              "config files and reads every base value live, so sliders "

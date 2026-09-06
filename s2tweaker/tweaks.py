@@ -726,6 +726,7 @@ class Settings:
     infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolut, Spielstunden)
     # --- 1.29.0 ---
     equip_speed_factor: float = 1.0          # WeaponGeneralSetup Show/HideEquipmentTime (je 1.0), Zeit / Faktor
+    shooting_anim_skip: int = 0              # WeaponGeneralSetup ShootingAnimationNumberToSkip (Vanilla 0), absolut
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -3057,6 +3058,35 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     # _weapon_factor faellt damit immer auf den globalen Regler zurueck.
     for key in ("ShowEquipmentTime", "HideEquipmentTime"):
         scale(key, "equiptime", s.equip_speed_factor, invert=True)
+
+    # 1.29.0: uebersprungene Schuss-Animationen. Der Schluessel steht an
+    # allen 92 Basis- und 11 Editions-Waffen auf 0 und ist der einzige
+    # cfg-Hebel, der ueberhaupt etwas mit dem Anim-Timing beim Schiessen zu
+    # tun hat (eine Suche ueber ALLE cfg nach PlayRate/RateScale/Anim*Speed
+    # ergab fuer Waffen nichts - Tempo und Ton liegen in gekochten Assets).
+    # Absolutwert und ganzzahlig; weil Vanilla 0 ist, liefert
+    # weapon_general_values() hier nichts und die Structs werden direkt
+    # durchlaufen. Wirkung im Spiel voellig offen - Deutung nur aus dem
+    # Schluesselnamen.
+    if int(s.shooting_anim_skip) != 0:
+        wanted = str(max(0, int(s.shooting_anim_skip)))
+        key = "ShootingAnimationNumberToSkip"
+        for sid, node in sorted(gd.weapongeneral.children.items()):
+            if sid.startswith("[") or "#" in sid:
+                continue
+            raw = node.values.get(key)
+            if raw is None or raw.strip() == wanted:
+                continue
+            patches.setdefault(sid, {})[key] = wanted
+        for ed, trees in sorted(gd.dlc_editions.items()):
+            tree = trees.get("weapongeneral")
+            for sid, node in sorted(tree.children.items() if tree else ()):
+                if sid.startswith("[") or "#" in sid:
+                    continue
+                raw = node.values.get(key)
+                if raw is None or raw.strip() == wanted:
+                    continue
+                dlc_patches.setdefault(ed, {}).setdefault(sid, {})[key] = wanted
 
     # ADS-Zoom (06.09.2026, Nexus 'No zoom while aiming' / 'Zoom in when
     # aiming'): AimingFOVModifier < 1 = Zoom beim Zielen (0.92/0.88/0.83).
@@ -5581,6 +5611,8 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Psy fields spawn phantoms instead of real stalkers")
     f("Reload speed", s.reload_speed_factor)
     f("Weapon draw & holster speed", s.equip_speed_factor)
+    if int(s.shooting_anim_skip) != 0:
+        lines.append(f"Skip {int(s.shooting_anim_skip)} shooting animation(s) per shot (vanilla 0, experimental)")
     f("Jam clearing speed", s.jam_clear_factor)
     f("Mutant trophy drop chance", s.mutant_loot_chance_factor)
     f("Stash clues on bodies", s.stash_clue_factor)
