@@ -17,8 +17,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-STRUCK_NUMBERS = ["41", "124", "160", "180", "195", "200", "210", "230", "240"]
-CURRENT_NUMBER = "250"
+STRUCK_NUMBERS = ["41", "124", "160", "180", "195", "200", "210", "230", "240", "250"]
+CURRENT_NUMBER = "265"
 
 W, H = 1300, 372
 OUT = Path(__file__).resolve().parent.parent / "release" / "NEXUS_HEADER.png"

@@ -60,10 +60,12 @@ NEEDED_FILES = [
     "SaveLoadVariables.cfg",                 # Speicherstaende-Limit (unbinarisiert)
     "AutoSaveVariables.cfg",                 # Autosave-Intervall (unbinarisiert)
     "AimAssistPresetPrototypes.cfg.bin",     # Aim-Assist Maus/Gamepad (06.09.2026)
+    "ProjectilePrototypes.cfg.bin",          # Geschoss-Geschwindigkeit (06.09.2026)
+    "ObjSleepParamsPrototypes.cfg.bin",      # Schlaf (06.09.2026)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 18
+CACHE_SCHEMA = 19
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -372,6 +374,71 @@ class GameData:
         NPCFlashlight, WeaponFlashlightTest). Nur die NPC-Lampe traegt
         Lichtwerte; die Spieler-Lampe sitzt in Blueprint-Kurven."""
         return self._parse("FlashlightPrototypes.cfg")
+
+    @cached_property
+    def projectiles(self) -> CfgStruct:
+        """ProjectilePrototypes: 16 Structs - 11 Kugeln (Speed 20000-42000),
+        Gauss (1e7), RPG (6000) und zwei Granaten (3500)."""
+        return self._parse("ProjectilePrototypes.cfg")
+
+    @cached_property
+    def sleepparams(self) -> CfgStruct:
+        """ObjSleepParamsPrototypes: DefaultSleepParams (AllowSleepThreshold 50,
+        SleepHoursMultiplier 0.08, MinSleepHours 7, bAllowEmissionSleep)."""
+        return self._parse("ObjSleepParamsPrototypes.cfg")
+
+    MUTANT_PROTECTION_KEYS = ("Strike", "Shot", "Burn", "Shock", "ChemicalBurn",
+                              "Radiation", "PSY")
+
+    def mutant_protections(self) -> dict[str, dict[str, float]]:
+        """{SID: {Schutzart: Wert}} aller Mutanten-Prototypen mit Schutz > 0
+        (2.0.x: 46 von 47; praktisch nur Strike, Shot ist ueberall 0)."""
+        result: dict[str, dict[str, float]] = {}
+        for sid in self.mutants():
+            values: dict[str, float] = {}
+            for key in self.MUTANT_PROTECTION_KEYS:
+                value = parse_number(self.resolve(self.obj, sid, f"Protection.{key}"))
+                if value > 0:
+                    values[key] = value
+            if values:
+                result[sid] = values
+        return result
+
+    def slot_weapon_items(self) -> dict[str, tuple[str | None, str, str | None]]:
+        """{Item-SID: (Kategorie, Slot, Edition|None)} aller Waffen-Items ohne
+        Templates - Basis (119, davon 99 PrimaryWeapon / 20 Pistol) plus die
+        Editions-Waffen mit eigenem Item-Struct."""
+        result: dict[str, tuple[str | None, str, str | None]] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "weapon":
+                continue
+            slot = (self.resolve(self.items, sid, "ItemSlotType") or "").split("::")[-1].strip()
+            if slot:
+                result[sid] = (self.weapon_category(sid), slot, None)
+        for edition, trees in self.dlc_editions.items():
+            items = trees.get("items")
+            for sid in (items.children if items else ()):
+                if sid in result or "#" in sid or sid.startswith("Template"):
+                    continue
+                chain = self.dlc_item_chain(edition, sid)
+                if not any(n.name == "TemplateWeapon" or n.name in WEAPON_CATEGORY_TEMPLATES
+                           for n in chain):
+                    continue
+                slot = (self._chain_get(chain, "ItemSlotType") or "").split("::")[-1].strip()
+                if slot:
+                    result[sid] = (self.dlc_weapon_category(edition, sid), slot, edition)
+        return result
+
+    def pistol_slot_literal(self) -> str | None:
+        """Der Enum-Text des Pistolenslots, live aus einem Pistolen-Item."""
+        for sid, (_cat, slot, edition) in self.slot_weapon_items().items():
+            if slot == "Pistol" and edition is None:
+                raw = self.resolve(self.items, sid, "ItemSlotType")
+                if raw:
+                    return raw.strip()
+        return None
 
     @cached_property
     def aimassist(self) -> CfgStruct:

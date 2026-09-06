@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~250 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
+[i]~265 tweaks in 13 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -13,16 +13,16 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself: [url=[ZIP-LINK-1.24.0]]VirusTotal - [ZIP-RESULT-1.24.0][/url]
+[*]The mod itself: [url=[ZIP-LINK-1.25.0]]VirusTotal - [ZIP-RESULT-1.25.0][/url]
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-Those numbers are for 1.24.0 (S2Tweaker.exe is byte-identical to the one in 1.21.0 to 1.23.0, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+Those numbers are for 1.25.0 (S2Tweaker.exe is byte-identical to the one in 1.21.0 to 1.24.0, so its report is the same). There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]250 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]265 tweaks[/b], sorted into 13 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -33,6 +33,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Hit camera shake / aim punch 0-300%
 [*]Interaction reach (pick up, loot, containers) and talk distance for NPC dialogs; saving: manual, quick and autosave slot limits plus the autosave interval
 [*]Ladder climb speed; starting money for a new game
+[*]Dialog, cutscene and default field of view; compass, crosshair, dead body and stash markers forced on or off; sleep rules (sleep whenever you like, minimum hours, sleep during emissions)
 [/list]
 
 [b]Vaulting - its own tab[/b]
@@ -52,6 +53,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Recoil reduction from upgrades[/b]: boosts the recoil-reduction upgrades and attachments (vanilla -5 % to -30 %, capped at -100 %) - at 2000 % any recoil upgrade removes the kick entirely. Only weapons with such an upgrade installed change; community-proven on patch 2.0
 [*]Melee damage and melee range (knife & rifle butt strike)
 [*]Shooting camera shake 0-200% and ADS zoom from none to double; aim assist switched off for mouse and/or gamepad
+[*]Bullet drop 0-300% and bullet speed 50-300%; which weapon classes fit the pistol slot (SMGs, SMGs and shotguns, any weapon - not compatible with OXA)
 [*]Jamming, scoped aim sway (without breaking the offset/lean aiming)
 [*]The tool resolves the game's real weapon links and tells you when a weapon shares stats with its variants
 [/list]
@@ -83,6 +85,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]NPC awareness & nerve[/b] (experimental): alertness thresholds, search time, courage (attack / fall-back confidence), stagger threshold, attack cooldown and a weapon-rank bonus for deadlier enemies without health sponges
 [*][b]NPC flashlights[/b] (experimental): brightness & reach and beam width of the flashlight all 1,600 human NPCs carry, how often they keep it on in combat (by rank) and the hours they switch it on and off. Honest limit: your own flashlight cannot be changed from config files - its light values live in the game's Blueprint assets
 [*]Experimental A-Life sliders: max simultaneous NPCs & mutants, spawn distance
+[*]How long dead bodies stay and how many the game keeps around you; weather duration
 [*][b]A-Life spawns (experimental)[/b] - the real spawn controls, found by digging through the lair and director data: LAIR population for mutants and for humans separately (how many live in each place, per player rank), lair respawn speed, and the director's random encounters: frequency, mutant share, pack size, plus a weight per species (blind dogs, boars, fleshes, tushkans, chimeras, mixed mutant packs). Honest limits: story lairs and base guards stay vanilla, bloodsuckers and exotic mutants are never rolled as random encounters in vanilla and the tool does not invent that, and existing saves re-roll lairs slowly (sleep or change region)
 [/list]
 
@@ -197,6 +200,20 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.25.0 - Field of view, HUD switches, bodies, weather, ballistics, pistol slot, mutant armor, sleep[/b] (~265 tweaks + ammo swap, 13 tabs)
+[list]
+[*][b]Field of view[/b] (Player): dialog FOV (vanilla 70, the zoom-in during conversations), cutscene FOV (90) and the default gameplay FOV (90). The idea behind the FOV / dialogue / cutscene mods. If you use the FOV setting in the game's own options, that one most likely wins for gameplay
+[*][b]HUD elements[/b] (Player): compass, crosshair, dead body markers and stash markers each forced 'always shown' or 'always hidden' on every difficulty. Master hides all four in vanilla, the other difficulties show them - now you decide, like 'Enable Compass and Crosshair on Master Difficulty', or the other way round
+[*][b]Bodies stay[/b] (World): how long dead bodies remain (vanilla 30 min near you, 15 min once seen, 5 min once looted) and how many the game keeps around you (vanilla 10). Like 'Corpse Despawn Time Increased'
+[*][b]Weather duration[/b] (World): how long each weather lasts before the next roll (vanilla mostly 8 to 20 minutes)
+[*][b]Bullet drop and bullet speed[/b] (Weapons): drop height per weapon class (vanilla 170; 0 % = flat trajectory like 'Fully Unlocked Ballistics') and the flight speed of the 11 bullet types (vanilla 20000 to 42000; Gauss, RPG and grenade rounds untouched)
+[*][b]Pistol slot[/b] (Weapons): let SMGs, SMGs and shotguns, or any weapon sit in the sidearm slot; the two main slots keep taking every weapon. The 'SMG in pistol slot' and 'Any weapon as sidearm' mods. [b]Not compatible with OXA[/b], and it conflicts with any mod that patches the same weapon entries (the mod scan tells you). Known quirks: the stat comparison then compares against the sidearm-slot weapon, long guns stay two-handed
+[*][b]Mutant physical protection[/b] (Mutants): the Protection values of every mutant, global and per species in the tree (vanilla: melee protection 1 to 4, bullet protection is 0 everywhere and stays 0). Like 'No More Tanky Mutants'
+[*][b]Sleep[/b] (Player): sleep whenever you like (vanilla needs 50 % tiredness), minimum sleep hours (vanilla 7), sleeping during emissions
+[*]The tool reads two more game files (projectiles, sleep). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
+[*]Not play-tested in-game, like the rest of the tool. Existing paks stay valid
+[/list]
+
 [b]v1.24.0 - Artifact slots, shooting camera shake, ADS zoom, ladder speed, starting money, aim assist switches[/b] (~250 tweaks + ammo swap, 13 tabs)
 [list]
 [*][b]Extra artifact slots[/b] (Armor): +1 to +4 slots on every body armor, capped at 5, the game's maximum (vanilla: most armors have 2, three have 5). Helmets are untouched. Like the 'Armor Artifact Slots' mod
@@ -209,6 +226,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.23.0 - No more repak.exe: the pak files are handled by plain Python now[/b] (~240 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*][b]What changes for you:[/b] nothing in the tool. The folder no longer contains repak.exe, the open-source pak tool that earlier versions bundled for reading your game files and writing the mod pak. That job is done by the tool's own Python code now (_internal\s2tweaker\pakfile.py), which needs nothing but Python's standard library
 [*][b]Why:[/b] repak.exe was the only unsigned executable in the package. On 5 September Microsoft's machine-learning engine flagged two builds of it as a trojan although they were compiled from the same source and differed in 27 bytes of linker timestamp only - the file was fine, the classifier just dislikes the shape of an unsigned program that loads a DLL. Instead of arguing with a classifier, the reason for it is gone: [b]there is no unsigned executable left at all[/b]. S2Tweaker.exe is the signed python.org interpreter, every DLL is signed by the PSF or Microsoft, everything else is readable text
@@ -217,6 +235,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]To update:[/b] extract the ZIP over your S2Tweaker folder. Settings, presets, cache and output stay. A leftover _internal\repak.exe from an earlier version is removed on the first start; it is not used any more
 [*]Not play-tested in-game, like the rest of the tool. No new game files, no re-extraction. Your existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.22.0 - Twelve sliders from the community wish list, and a TL;DR for the Oodle setup[/b] (~240 tweaks + ammo swap, 13 tabs)
 [spoiler]

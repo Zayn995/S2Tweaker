@@ -504,6 +504,24 @@ class Settings:
     starting_money: int = 0                  # CoreVariables PlayerStartingMoney (neues Spiel)
     no_aim_assist_mouse: bool = False        # AimAssist-Presets *Mouse*: Kegel auf Empty
     no_aim_assist_gamepad: bool = False      # AimAssist-Presets *Gamepad*: Kegel auf Empty
+    # --- 1.25.0 (06.09.2026) ---
+    dialog_fov: float = 70.0                 # CoreVariables DialogFOVDefault
+    cutscene_fov: float = 90.0               # CoreVariables CutsceneFOVDefault
+    default_fov: float = 90.0                # CoreVariables FOVDefault
+    hud_compass: int = 0                     # 0 vanilla, 1 immer an, 2 immer aus
+    hud_crosshair: int = 0
+    hud_body_markers: int = 0
+    hud_stash_markers: int = 0
+    corpse_time_factor: float = 1.0          # CoreVariables Corpse*Time (1800/900/300/1800/6000)
+    corpse_max_count: int = 10               # CoreVariables CorpseConditionOnlineCount
+    weather_duration_factor: float = 1.0     # WeatherSelection WeatherDurationMin/Max
+    bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
+    bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
+    pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 alle
+    mutant_protection_factor: float = 1.0    # Protection.* der Mutanten (fast nur Strike)
+    sleep_anytime: bool = False              # AllowSleepThreshold 50 -> 0
+    min_sleep_hours: int = 7                 # MinSleepHours
+    sleep_in_emission: bool = False          # bAllowEmissionSleep
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -1657,6 +1675,8 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
         "speed" in p for p in s.mutant_overrides.values())
     regen_on = _neq(s.mutant_regen_factor, 1.0) or any(
         "regen" in p for p in s.mutant_overrides.values())
+    protection_on = _neq(s.mutant_protection_factor, 1.0) or any(
+        "protection" in p for p in s.mutant_overrides.values())
     patches: dict = {}
     if hp_on:
         for sid, hp in sorted(gd.mutants().items()):
@@ -1683,6 +1703,15 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
             if _neq(factor, 1.0) and factor > 0:
                 patches.setdefault(sid, {})["MovementParams"] = {
                     key: _num(value * factor) for key, value in speeds.items()}
+    if protection_on:
+        # Schutz je Art (06.09.2026, Nexus 'No More Tanky Mutants'): fast nur
+        # Strike (Nahkampf), Shot ist ueberall 0 - Faktor auf 0 bleibt 0.
+        for sid, values in sorted(gd.mutant_protections().items()):
+            factor = _mutant_factor(s, gd.mutant_faction(sid), "protection",
+                                    s.mutant_protection_factor)
+            if _neq(factor, 1.0) and factor >= 0:
+                patches.setdefault(sid, {})["Protection"] = {
+                    key: _num(value * factor) for key, value in values.items()}
     return patches
 
 
@@ -1811,10 +1840,13 @@ def _flashlight_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weather_patch(gd: GameData, s: Settings) -> dict:
-    """Regen-/Sturm-Gewichte und Emissions-Haeufigkeit je Auswahl-Prototyp."""
+    """Regen-/Sturm-Gewichte, Emissions-Haeufigkeit und (seit 1.25.0) die
+    Wetterdauer je Auswahl-Prototyp: WeatherDurationMin/Max jeder Wetterlage
+    (500-1200 s) werden skaliert, Literalform bleibt (500.f -> 1000.f)."""
     rain_on = _neq(s.rain_factor, 1.0)
     emission_on = _neq(s.emission_factor, 1.0)
-    if not (rain_on or emission_on):
+    duration_on = _neq(s.weather_duration_factor, 1.0) and s.weather_duration_factor > 0
+    if not (rain_on or emission_on or duration_on):
         return {}
     patches: dict = {}
     root = gd.weatherselection
@@ -1837,6 +1869,15 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                 if increase > 0:
                     cfg.setdefault("Emission", {})["BlendWeightIncrease"] = _num(
                         increase * s.emission_factor)
+        if duration_on:
+            for wtype, sub in node.children.items():
+                for key in ("WeatherDurationMin", "WeatherDurationMax"):
+                    raw = sub.values.get(key)
+                    if raw is None or parse_number(raw) <= 0:
+                        continue
+                    scaled = _scale_literal(raw, s.weather_duration_factor)
+                    if scaled is not None:
+                        cfg.setdefault(wtype, {})[key] = scaled
         if cfg:
             if sid.startswith("["):
                 # Index-Vorlagen [0]/[1]/[2]/[3]/[35] (Regionen erben per
@@ -1844,6 +1885,65 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                 cfg = _merge_nested(_resolved_struct(root, node), cfg)
             patches[sid] = cfg
     return patches
+
+
+def _bullet_drop_patch(gd: GameData, s: Settings) -> dict:
+    """Geschossabfall (06.09.2026, Nexus 'Better Ballistics' & Co.):
+    BulletDropHeight steht an den Waffen-Templates (170) und wird von den
+    *_Player-Settings geerbt; NPC-Settings setzen 0 und bleiben 0.
+    Faktor 0 = flache Flugbahn."""
+    if not _neq(s.bullet_drop_factor, 1.0) or s.bullet_drop_factor < 0:
+        return {}
+    patches: dict = {}
+    for sid, node in gd.weaponsettings.children.items():
+        if "#" in sid:
+            continue
+        raw = node.values.get("BulletDropHeight")
+        if raw is None:
+            continue
+        value = parse_number(raw)
+        if value > 0:
+            patches[sid] = {"BulletDropHeight": _num(value * s.bullet_drop_factor)}
+    return patches
+
+
+def _projectile_patch(gd: GameData, s: Settings) -> dict:
+    """Geschoss-Geschwindigkeit (06.09.2026): Speed der Kugel-Projektile
+    (20000-42000). Gauss (1e7), RPG (6000) und Granaten (3500) bleiben."""
+    if not _neq(s.bullet_speed_factor, 1.0) or s.bullet_speed_factor <= 0:
+        return {}
+    patches: dict = {}
+    for sid, node in gd.projectiles.children.items():
+        if "#" in sid:
+            continue
+        raw = node.values.get("Speed")
+        if raw is None:
+            continue
+        value = parse_number(raw)
+        if 10000 <= value < 1_000_000:
+            patches[sid] = {"Speed": _num(value * s.bullet_speed_factor)}
+    return patches
+
+
+def _sleep_patch(gd: GameData, s: Settings) -> dict:
+    """Schlaf (06.09.2026): DefaultSleepParams - AllowSleepThreshold 50 (die
+    Muedigkeit, ab der man schlafen darf; 0 = jederzeit), MinSleepHours 7,
+    bAllowEmissionSleep."""
+    root = gd.sleepparams
+    if root.children.get("DefaultSleepParams") is None:
+        return {}
+    cfg: dict = {}
+    if s.sleep_anytime:
+        if parse_number(gd.resolve(root, "DefaultSleepParams", "AllowSleepThreshold")) > 0:
+            cfg["AllowSleepThreshold"] = "0"
+    live_min = parse_number(gd.resolve(root, "DefaultSleepParams", "MinSleepHours"), 0.0)
+    if live_min > 0 and int(s.min_sleep_hours) != int(live_min):
+        cfg["MinSleepHours"] = str(max(1, int(s.min_sleep_hours)))
+    if s.sleep_in_emission:
+        raw = (gd.resolve(root, "DefaultSleepParams", "bAllowEmissionSleep") or "")
+        if raw.strip().rstrip(";").strip().lower() != "true":
+            cfg["bAllowEmissionSleep"] = "true"
+    return {"DefaultSleepParams": cfg} if cfg else {}
 
 
 def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
@@ -1903,6 +2003,24 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("EconomyDifficulty", "Reward_SideLine_Money", s.quest_reward_factor)
     apply("EconomyDifficulty", "Weapon_Cost", s.weapon_price_factor)
     apply("EconomyDifficulty", "Armor_Cost", s.armor_price_factor)
+    # HUD-Elemente (06.09.2026): die vier bShouldDisable*-Schalter je
+    # Schwierigkeitsgrad (Master: alle true). 1 = immer an (false), 2 = immer
+    # aus (true), 0 = wie der Grad es vorgibt. Nur Abweichungen.
+    for level, key in ((s.hud_compass, "bShouldDisableCompass"),
+                       (s.hud_crosshair, "bShouldDisableCrosshair"),
+                       (s.hud_body_markers, "bShouldDisableDeadBodyMarkers"),
+                       (s.hud_stash_markers, "bShouldDisableStashMarkers")):
+        if int(level) not in (1, 2):
+            continue
+        wanted = "false" if int(level) == 1 else "true"
+        for sid in gd.difficulty.children:
+            if sid == "[0]" or "#" in sid:
+                continue
+            raw = gd.resolve(gd.difficulty, sid, f"EnvironmentDifficulty.{key}")
+            if raw is None:
+                continue
+            if raw.strip().rstrip(";").strip().lower() != wanted:
+                patches.setdefault(sid, {}).setdefault("EnvironmentDifficulty", {})[key] = wanted
     apply("EconomyDifficulty", "Ammo_Cost", s.ammo_price_factor)
     apply("EconomyDifficulty", "Artifact_Cost", s.artifact_price_factor)
     apply("EconomyDifficulty", "Consumable_Cost", s.consumable_price_factor)
@@ -2482,6 +2600,36 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if vanilla > 0:
                 cfg[key] = _num(vanilla * s.interaction_range_factor)
 
+    # Sichtfeld (06.09.2026): DialogFOVDefault 70 (Zoom im Gespraech),
+    # CutsceneFOVDefault 90, FOVDefault 90 - Absolutwerte, live verglichen.
+    for key, wanted in (("DialogFOVDefault", s.dialog_fov),
+                        ("CutsceneFOVDefault", s.cutscene_fov),
+                        ("FOVDefault", s.default_fov)):
+        live = gd.corevar(key, 0.0)
+        if live > 0 and _neq(wanted, live):
+            cfg[key] = _num(wanted)
+
+    # Leichen (06.09.2026, Nexus 'Corpse Despawn Time Increased'): die fuenf
+    # Zeiten skalieren (Literalform bleibt: 6000 -> 12000, 1800.0 -> 3600.0),
+    # Hoechstzahl Leichen um den Spieler als Absolutwert.
+    if _neq(s.corpse_time_factor, 1.0) and s.corpse_time_factor > 0:
+        node = gd.corevars.children.get("DefaultConfig")
+        for key in ("CorpseOnlineTime", "CorpseSeenOnlineTime", "CorpseLootedOnlineTime",
+                    "CorpseALifeOnlineTime", "CorpseTimeout"):
+            raw = node.values.get(key) if node is not None else None
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            core = raw.strip().rstrip(";").strip()
+            if core.lstrip("-").isdigit():          # 6000 bleibt ganzzahlig
+                cfg[key] = str(int(round(int(core) * s.corpse_time_factor)))
+            else:
+                scaled = _scale_literal(raw, s.corpse_time_factor)
+                if scaled is not None:
+                    cfg[key] = scaled
+    live_max = gd.corevar("CorpseConditionOnlineCount", 0.0)
+    if live_max > 0 and int(s.corpse_max_count) != int(live_max):
+        cfg["CorpseConditionOnlineCount"] = str(max(1, int(s.corpse_max_count)))
+
     # Startgeld (06.09.2026): PlayerStartingMoney, Vanilla 0, nur neues Spiel.
     if int(s.starting_money) != int(gd.corevar("PlayerStartingMoney", 0.0)):
         cfg["PlayerStartingMoney"] = str(max(0, int(s.starting_money)))
@@ -2547,6 +2695,20 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 continue
             bucket = patches if edition is None else dlc_slot_patches.setdefault(edition, {})
             bucket.setdefault(sid, {})["ArtifactSlots"] = str(target)
+    # Pistolenslot (06.09.2026, Nexus 1735 dukeen / 1533 overjoony): Waffen
+    # der gewaehlten Klassen bekommen ItemSlotType = Pistol (Text live aus
+    # einem Pistolen-Item). Die Hauptslots nehmen weiterhin jede Waffe.
+    level = int(s.pistol_slot_level)
+    if level > 0:
+        literal = gd.pistol_slot_literal()
+        allowed = {1: {"smg"}, 2: {"smg", "shotgun"}}.get(level)
+        for sid, (cat, slot, edition) in sorted(gd.slot_weapon_items().items()):
+            if literal is None or slot != "PrimaryWeapon":
+                continue
+            if allowed is not None and cat not in allowed:
+                continue
+            bucket = patches if edition is None else dlc_slot_patches.setdefault(edition, {})
+            bucket.setdefault(sid, {})["ItemSlotType"] = literal
 
     # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte).
     # Kaskade: Einzelsorte > globaler Regler -- der Override ERSETZT den
@@ -3113,6 +3275,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"DifficultyPrototypes/DifficultyPrototypes_patch_{n}.cfg",
         _difficulty_patch(gd, s))
     cws_patches = _weapon_settings_patch(gd, s)
+    for sid, cfg in _bullet_drop_patch(gd, s).items():
+        cws_patches.setdefault(sid, {}).update(cfg)
     cws_patches.update(_npc_weapon_patch(gd, s))
     add("WeaponData/WeaponAttributesPrototypes/"
         f"WeaponAttributesPrototypes_patch_{n}.cfg", _npc_ai_patch(gd, s))
@@ -3162,6 +3326,10 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _threats_patch(gd, s))
     add(f"AimAssistPresetPrototypes/AimAssistPresetPrototypes_patch_{n}.cfg",
         _aimassist_patch(gd, s))
+    add(f"ProjectilePrototypes/ProjectilePrototypes_patch_{n}.cfg",
+        _projectile_patch(gd, s))
+    add(f"ObjSleepParamsPrototypes/ObjSleepParamsPrototypes_patch_{n}.cfg",
+        _sleep_patch(gd, s))
     add(f"CameraShakePrototypes/CameraShakePrototypes_patch_{n}.cfg",
         _camerashake_patch(gd, s))
     add(f"ArtifactSpawnerPrototypes/ArtifactSpawnerPrototypes_patch_{n}.cfg",
@@ -3352,6 +3520,34 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Aim assist off (mouse)")
     if s.no_aim_assist_gamepad:
         lines.append("Aim assist off (gamepad)")
+    for label, value, vanilla in (("Dialog FOV", s.dialog_fov, 70.0),
+                                  ("Cutscene FOV", s.cutscene_fov, 90.0),
+                                  ("Default FOV", s.default_fov, 90.0)):
+        if _neq(value, vanilla):
+            lines.append(f"{label} {value:g}")
+    for label, level in (("Compass", s.hud_compass), ("Crosshair", s.hud_crosshair),
+                         ("Dead body markers", s.hud_body_markers),
+                         ("Stash markers", s.hud_stash_markers)):
+        if int(level) == 1:
+            lines.append(f"{label} always shown")
+        elif int(level) == 2:
+            lines.append(f"{label} always hidden")
+    f("Bodies stay", s.corpse_time_factor)
+    if _neq(s.corpse_max_count, 10):
+        lines.append(f"Max bodies near you {int(s.corpse_max_count)}")
+    f("Weather duration", s.weather_duration_factor)
+    f("Bullet drop", s.bullet_drop_factor)
+    f("Bullet speed", s.bullet_speed_factor)
+    if int(s.pistol_slot_level) > 0:
+        lines.append("Pistol slot accepts " + {1: "SMGs", 2: "SMGs and shotguns"}.get(
+            int(s.pistol_slot_level), "any weapon"))
+    f("Mutant physical protection", s.mutant_protection_factor)
+    if s.sleep_anytime:
+        lines.append("Sleep whenever you like")
+    if _neq(s.min_sleep_hours, 7):
+        lines.append(f"Minimum sleep {int(s.min_sleep_hours)} h")
+    if s.sleep_in_emission:
+        lines.append("Sleeping during emissions allowed")
     f("Ammo damage", s.ammo_damage_factor)
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)

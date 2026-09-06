@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.24.0
-File version:  1.24.0
+Name:          S2Tweaker 1.25.0
+File version:  1.25.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,29 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.25.0 - field of view, HUD switches, bodies, weather, ballistics,
+pistol slot, mutant armor, sleep
+
+- Field of view (Player): dialog FOV (vanilla 70 = the zoom-in during
+  conversations), cutscene FOV (90), default gameplay FOV (90).
+- HUD elements (Player): compass, crosshair, dead body markers and
+  stash markers each forced always shown or always hidden, on every
+  difficulty (Master hides all four in vanilla).
+- Bodies stay (World): how long dead bodies remain and how many the
+  game keeps around you (vanilla 30/15/5 min, 10 bodies).
+- Weather duration (World): how long each weather lasts.
+- Bullet drop 0-300 % and bullet speed 50-300 % (Weapons); Gauss, RPG
+  and grenade rounds untouched.
+- Pistol slot (Weapons): SMGs, SMGs and shotguns, or any weapon may sit
+  in the sidearm slot; main slots keep taking everything. NOT compatible
+  with OXA; conflicts with mods that patch the same weapon entries.
+- Mutant physical protection (Mutants): global and per species.
+- Sleep (Player): sleep whenever you like, minimum sleep hours
+  (vanilla 7), sleeping during emissions.
+- Two more game files are read; the first start re-extracts the game
+  data once (10-20 s).
+- Not play-tested, like the rest of the tool. Existing paks stay valid.
+
 1.24.0 - artifact slots, shooting camera shake, ADS zoom, ladder
 speed, starting money, aim assist switches
 

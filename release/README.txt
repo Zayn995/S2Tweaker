@@ -7,7 +7,7 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-Around 250 tweaks in 13 tabs: Player, Vaulting, Weight & items, Combat,
+Around 265 tweaks in 13 tabs: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, World, Economy, Traders.
 
 WHAT YOU CAN TWEAK (short tour)
@@ -15,7 +15,10 @@ WHAT YOU CAN TWEAK (short tour)
 - Player: health, stamina (incl. per-action costs), walk/crouch and
   run/sprint speed, jump height, fall damage, breath hold, interaction
   reach and talk distance, ladder climb speed, save slots and autosave
-  interval, starting money for a new game, max carry
+  interval, starting money for a new game, dialog/cutscene/default field
+  of view, four HUD elements (compass, crosshair, body and stash markers)
+  forced on or off, sleep rules (sleep whenever you like, minimum hours,
+  sleep during emissions), max carry
   weight + where the overweight penalty starts, item weights per category,
   radiation, bleeding, hunger & sleepiness, headshot multiplier,
   explosions, hit camera shake / aim punch
@@ -26,7 +29,8 @@ WHAT YOU CAN TWEAK (short tour)
   Deluxe/Ultimate/Pre-order edition guns included. 9 factors each (damage,
   spread, recoil, durability, fire rate, effective range, bleeding, ADS
   move speed, ADS aim-in speed), plus magazine size, melee damage and
-  range, jamming, scoped sway, shooting camera shake, ADS zoom and two
+  range, jamming, scoped sway, shooting camera shake, ADS zoom, bullet
+  drop, bullet speed, which weapon classes fit the pistol slot, and two
   switches that turn aim assist off for mouse or gamepad. Weapons are listed with their real in-game names
   ("GunAK74_ST - AKM-74S") and the search box finds both spellings
 - Ammo on TWO levels: global sliders (damage, armor piercing, armor
@@ -40,12 +44,13 @@ WHAT YOU CAN TWEAK (short tour)
   usage, reaction delay, "NPCs don't self-heal", NPC gear quality, NPC
   flashlights (brightness & reach, beam width, use in combat, on/off
   hours), experimental A-Life sliders
-- Mutants: global damage/health/speed/hearing/regen plus a per-species
-  tree in four size groups; bloodsucker cloaking
+- Mutants: global damage/health/speed/hearing/regen/protection plus a
+  per-species tree in four size groups; bloodsucker cloaking
 - Factions (experimental): your standing with 13 factions, every
   faction-vs-faction pairing between the majors, reputation rollback time
   and reaction strength, "Trading requires standing"
-- World: anomaly damage (global + per element type), consumable strength,
+- World: how long bodies stay and how many, weather duration, anomaly
+  damage (global + per element type), consumable strength,
   medkit & bandage healing, rain/storm and emission frequency, emission
   duration, loot amounts (two separate game systems, four sliders),
   dropped weapon condition, artifact strength/radiation/spawn, detector &

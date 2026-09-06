@@ -35,7 +35,7 @@ assert set(app._im_blocks) >= {"small", "medium", "humanoid", "large"}
 assert app.mutant_overrides == {}, f"Phantom: {app.mutant_overrides}"
 assert "damage" not in app._im_params["Poltergeist"], "Poltergeist wirkt indirekt"
 assert "damage" not in app._im_params["Rat"], "Rat wirkt indirekt"
-assert set(app._im_params["Bloodsucker"]) == {"hp", "speed", "damage", "regen"}
+assert set(app._im_params["Bloodsucker"]) == {"hp", "speed", "damage", "regen", "protection"}
 assert "regen" in app._im_params["Poltergeist"]
 n_regen_species = sum(1 for p in app._im_params.values() if "regen" in p)
 print(f"Baum: {len(app._im_blocks)} Bloecke, {len(app._im_species)} Arten, "

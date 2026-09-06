@@ -181,6 +181,7 @@ MUT_PARAM_LABELS = {  # Reihenfolge = Regler-Reihenfolge je Art
     "speed": "Speed",
     "damage": "Damage (each attack)",
     "regen": "Health regen",
+    "protection": "Physical protection",
 }
 
 # Reine ANZEIGE-Gruppierung (nach Groesse/Charakter, keine Spielwerte);
@@ -457,6 +458,22 @@ def fmt_min(v: float) -> str:
     return f"{int(round(v))} min"
 
 
+def fmt_hud(v: float) -> str:
+    return {0: "vanilla (as the difficulty sets it)", 1: "always shown"}.get(int(round(v)), "always hidden")
+
+
+def fmt_slot(v: float) -> str:
+    return {0: "vanilla (pistols only)", 1: "+ SMGs", 2: "+ SMGs & shotguns"}.get(int(round(v)), "any weapon")
+
+
+def fmt_fov(v: float) -> str:
+    return f"{v:.0f}\u00b0"
+
+
+def fmt_hours(v: float) -> str:
+    return f"{int(round(v))} h"
+
+
 def fmt_plus(v: float) -> str:
     return "vanilla" if int(round(v)) == 0 else f"+{int(round(v))}"
 
@@ -555,6 +572,13 @@ SLIDER_FIELDS: dict[str, str] = {
     "climb": "climb_speed_factor", "start_money": "starting_money",
     "art_slots": "artifact_slots_bonus", "shoot_shake": "shooting_shake_factor",
     "ads_zoom": "ads_zoom_factor",
+    "dialog_fov": "dialog_fov", "cutscene_fov": "cutscene_fov", "default_fov": "default_fov",
+    "hud_compass": "hud_compass", "hud_crosshair": "hud_crosshair",
+    "hud_bodies": "hud_body_markers", "hud_stashes": "hud_stash_markers",
+    "corpse_time": "corpse_time_factor", "corpse_max": "corpse_max_count",
+    "weather_dur": "weather_duration_factor", "bullet_drop": "bullet_drop_factor",
+    "bullet_speed": "bullet_speed_factor", "pistol_slot": "pistol_slot_level",
+    "mprot": "mutant_protection_factor", "sleep_min": "min_sleep_hours",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
@@ -604,6 +628,8 @@ CHECK_FIELDS: dict[str, str] = {
     "upgrades_no_tiers": "upgrades_no_tiers",
     "no_aim_mouse": "no_aim_assist_mouse",
     "no_aim_gamepad": "no_aim_assist_gamepad",
+    "sleep_anytime": "sleep_anytime",
+    "sleep_emission": "sleep_in_emission",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -612,6 +638,8 @@ FOOTPRINT_PROBES: dict[str, float] = {
     "npc_weapon_rank_add": 2.0,
     "scope_sway_pct": 50.0,
     "trader_min_durability_pct": 0.0,
+    "hud_compass": 2.0, "hud_crosshair": 2.0, "hud_body_markers": 2.0,
+    "hud_stash_markers": 2.0, "pistol_slot_level": 3.0,
 }
 
 # Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
@@ -1887,7 +1915,7 @@ class ImSpeciesRow:
             pass
         try:
             for param in self.params:
-                lo, hi = (0.0, 4.0) if param == "regen" else (0.25, 5.0)
+                lo, hi = (0.0, 4.0) if param in ("regen", "protection") else (0.25, 5.0)
                 self.sliders[param] = SliderRow(
                     self.body, MUT_PARAM_LABELS[param], lo, hi, 0.25, 1,
                     fmt_factor, on_change=self._changed)
@@ -3358,6 +3386,11 @@ class App(ctk.CTk):
             species = self.gd.mutant_faction(sid)
             if species:
                 regen_by_species.setdefault(species, []).append(regen)
+        prot_by_species: dict[str, int] = {}
+        for sid in self.gd.mutant_protections():
+            species = self.gd.mutant_faction(sid)
+            if species:
+                prot_by_species[species] = prot_by_species.get(species, 0) + 1
         species_list = sorted(hp_by_species)
         self._im_species = species_list
         self._im_params = {}
@@ -3369,6 +3402,8 @@ class App(ctk.CTk):
                 params.append("damage")
             if regen_by_species.get(species):
                 params.append("regen")
+            if prot_by_species.get(species):
+                params.append("protection")
             self._im_params[species] = params
             hps = hp_by_species[species]
             parts = [f"{proto_count[species]} prototype"
@@ -3660,6 +3695,41 @@ class App(ctk.CTk):
                      "no effect on an existing save. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        f = self._section(body, "Camera & HUD")
+        self._slider(f, "dialog_fov", "Dialog field of view", 50, 110, 5, 70, fmt_fov,
+                     "The camera zooms in during conversations (vanilla 70). "
+                     "Set it to your normal FOV to stop the zoom. Not "
+                     "play-tested yet.")
+        self._slider(f, "cutscene_fov", "Cutscene field of view", 50, 120, 5, 90, fmt_fov,
+                     "Vanilla 90. Not play-tested yet.")
+        self._slider(f, "default_fov", "Default field of view", 50, 120, 5, 90, fmt_fov,
+                     "The game's default gameplay FOV (vanilla 90). If you use "
+                     "the FOV setting in the game's own options, that setting "
+                     "most likely wins; this only changes the default. Not "
+                     "play-tested yet.")
+        ctk.CTkLabel(
+            f, text="   HUD elements: the Master difficulty hides all four, the "
+                    "other difficulties show them. These force one state on "
+                    "every difficulty. Not play-tested yet.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="gray60").pack(fill="x", padx=12)
+        self._slider(f, "hud_compass", "Compass", 0, 2, 1, 0, fmt_hud)
+        self._slider(f, "hud_crosshair", "Crosshair", 0, 2, 1, 0, fmt_hud)
+        self._slider(f, "hud_bodies", "Dead body markers", 0, 2, 1, 0, fmt_hud)
+        self._slider(f, "hud_stashes", "Stash markers", 0, 2, 1, 0, fmt_hud)
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Sleep")
+        self._check(f, "sleep_anytime", "Sleep whenever you like (no 'not tired enough')",
+                    "Vanilla lets you sleep only from 50 % tiredness. Not "
+                    "play-tested yet.")
+        self._slider(f, "sleep_min", "Minimum sleep", 1, 12, 1, 7, fmt_hours,
+                     "The shortest sleep the game allows (vanilla 7 h). Not "
+                     "play-tested yet.")
+        self._check(f, "sleep_emission", "Allow sleeping during emissions",
+                    "Vanilla forbids it. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
         f = self._section(body, "Saving (quality of life)")
         self._slider(f, "save_manual", "Manual save slots", 10, 999, 1, 31, fmt_int,
                      "How many manual saves a campaign may hold before the "
@@ -3933,6 +4003,12 @@ class App(ctk.CTk):
                      "Mutants passively regenerate health, just like human "
                      "NPCs (vanilla varies by species). × 0 = wounds stay "
                      "– the mutant counterpart of 'NPCs don't self-heal'.")
+        self._slider(f, "mprot", "Mutant physical protection", 0, 4, 0.25, 1, fmt_factor,
+                     "The Protection values of every mutant (vanilla: mostly "
+                     "melee 'Strike' protection, 1 to 4; bullet protection is "
+                     "0 everywhere and stays 0). \u00d7 0 = no protection, like "
+                     "'No More Tanky Mutants'. Per-species overrides in the "
+                     "tree below. Not play-tested yet.")
         self._slider(f, "mut_attack_cd", "Mutant attack cooldown", 25, 400, 25, 100, fmt_pct,
                      "Difficulty multiplier on the pause between mutant "
                      "attacks (vanilla 1.0 on every difficulty). 200 % = "
@@ -4093,10 +4169,38 @@ class App(ctk.CTk):
                      "some). 0 % = no zoom at all, 200 % = twice the vanilla "
                      "zoom. Scopes keep their own magnification. Not "
                      "play-tested yet.")
+        self._slider(f, "bullet_drop", "Bullet drop", 0, 300, 25, 100, fmt_pct,
+                     "How far bullets fall over distance (vanilla drop height "
+                     "170 on every weapon class). 0 % = flat trajectory, like "
+                     "'Fully Unlocked Ballistics'. NPC bullets are unchanged. "
+                     "Not play-tested yet.")
+        self._slider(f, "bullet_speed", "Bullet speed", 50, 300, 25, 100, fmt_pct,
+                     "Flight speed of the 11 bullet types (vanilla 20000 to "
+                     "42000). Gauss, RPG and grenade launcher rounds are "
+                     "untouched. Faster = less lead on moving targets. Not "
+                     "play-tested yet.")
         self._slider(f, "melee_range", "Melee range (knife & butt strike)", 50, 300, 25, 100, fmt_pct,
                      "How far the knife and the butt strike reach (vanilla "
                      "1.6 m for both). The 'Increased Melee Range' idea from "
                      "Nexus. Not play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Pistol slot")
+        self._slider(f, "pistol_slot", "Pistol slot accepts", 0, 3, 1, 0, fmt_slot,
+                     "Lets SMGs, shotguns or any weapon sit in the sidearm "
+                     "slot; the two main slots keep taking every weapon. The "
+                     "'SMG in pistol slot' and 'Any weapon as sidearm' mods. "
+                     "Not play-tested yet.")
+        ctk.CTkLabel(
+            f, text="   \u26a0 Compatibility: NOT compatible with OXA (it redefines "
+                    "the weapons) and it conflicts with any mod that patches "
+                    "the same weapon entries (Better Ballistics and the like; "
+                    "the mod scan will tell you). Known quirks from the Nexus "
+                    "mods: the stat comparison then always compares against "
+                    "the sidearm-slot weapon, and long guns are still held "
+                    "two-handed.",
+            anchor="w", justify="left", wraplength=780,
+            font=ctk.CTkFont(size=11), text_color="#E0A040").pack(fill="x", padx=12)
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Aim assist (controls)")
@@ -4309,6 +4413,20 @@ class App(ctk.CTk):
                      "How long a full day-night cycle takes in real time "
                      "(vanilla: one game day per real hour). 200 % = two "
                      "hours per day, the day/night ratio stays vanilla.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Bodies & weather")
+        self._slider(f, "corpse_time", "Bodies stay", 25, 500, 25, 100, fmt_pct,
+                     "How long dead bodies remain (vanilla 30 min near you, "
+                     "15 min once seen, 5 min once looted). Like 'Corpse "
+                     "Despawn Time Increased'. Not play-tested yet.")
+        self._slider(f, "corpse_max", "Max bodies near you", 4, 40, 1, 10, fmt_int,
+                     "How many bodies the game keeps around you before it "
+                     "starts removing the oldest (vanilla 10). Higher costs "
+                     "performance. Not play-tested yet.")
+        self._slider(f, "weather_dur", "Weather duration", 25, 400, 25, 100, fmt_pct,
+                     "How long each weather lasts before the next roll "
+                     "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Loot in stashes & on bodies")
@@ -4854,6 +4972,23 @@ class App(ctk.CTk):
             ads_zoom_factor=s["ads_zoom"].get() / 100.0,
             no_aim_assist_mouse=bool(self.checks["no_aim_mouse"].get()),
             no_aim_assist_gamepad=bool(self.checks["no_aim_gamepad"].get()),
+            dialog_fov=float(s["dialog_fov"].get()),
+            cutscene_fov=float(s["cutscene_fov"].get()),
+            default_fov=float(s["default_fov"].get()),
+            hud_compass=int(s["hud_compass"].get()),
+            hud_crosshair=int(s["hud_crosshair"].get()),
+            hud_body_markers=int(s["hud_bodies"].get()),
+            hud_stash_markers=int(s["hud_stashes"].get()),
+            corpse_time_factor=s["corpse_time"].get() / 100.0,
+            corpse_max_count=int(s["corpse_max"].get()),
+            weather_duration_factor=s["weather_dur"].get() / 100.0,
+            bullet_drop_factor=s["bullet_drop"].get() / 100.0,
+            bullet_speed_factor=s["bullet_speed"].get() / 100.0,
+            pistol_slot_level=int(s["pistol_slot"].get()),
+            mutant_protection_factor=s["mprot"].get(),
+            sleep_anytime=bool(self.checks["sleep_anytime"].get()),
+            min_sleep_hours=int(s["sleep_min"].get()),
+            sleep_in_emission=bool(self.checks["sleep_emission"].get()),
             ammo_damage_factor=s["ammo_dmg"].get() / 100.0,
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
@@ -5910,7 +6045,7 @@ class App(ctk.CTk):
         for species, params in (data.get("mutant_overrides") or {}).items():
             try:
                 clean = {p: float(v) for p, v in params.items()
-                         if p in ("hp", "speed", "damage", "regen")
+                         if p in ("hp", "speed", "damage", "regen", "protection")
                          and abs(float(v) - 1.0) > 1e-9}
             except (TypeError, ValueError, AttributeError):
                 continue

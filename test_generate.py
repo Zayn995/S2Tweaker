@@ -102,6 +102,11 @@ s = Settings(
     artifact_slots_bonus=2, shooting_shake_factor=0.0, ads_zoom_factor=2.0,   # 1.24.0
     climb_speed_factor=2.0, starting_money=5000,
     no_aim_assist_mouse=True, no_aim_assist_gamepad=True,
+    dialog_fov=90, cutscene_fov=100, default_fov=100, hud_compass=1, hud_crosshair=2,   # 1.25.0
+    hud_body_markers=2, hud_stash_markers=1, corpse_time_factor=3.0, corpse_max_count=20,
+    weather_duration_factor=0.5, bullet_drop_factor=0.0, bullet_speed_factor=1.5,
+    pistol_slot_level=2, mutant_protection_factor=0.5,
+    sleep_anytime=True, min_sleep_hours=3, sleep_in_emission=True,
     anomaly_electro_factor=0.5, anomaly_fire_factor=2.0,
     consumable_factor=2.0, rain_factor=2.0, emission_factor=0.5,
     emission_duration_factor=2.0,
