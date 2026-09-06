@@ -724,6 +724,8 @@ class Settings:
     # --- 1.28.0 P8 (Haendler und Wirtschaft; par. 1.3 / 2.9) ---
     repair_cost_reputation: bool = False     # CoreVariables ReputationRepairCostModifiers.[0..3] alle auf 1.0
     infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolut, Spielstunden)
+    # --- 1.29.0 ---
+    equip_speed_factor: float = 1.0          # WeaponGeneralSetup Show/HideEquipmentTime (je 1.0), Zeit / Faktor
     # --- Munition (global ueber alle Munitionstypen) ---
     ammo_damage_factor: float = 1.0
     ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
@@ -3046,6 +3048,15 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     # adsspeed-Regler ist nur das BEWEGUNGSTEMPO waehrend des Zielens)
     for key in WEAPON_AIMTIME_KEYS:
         scale(key, "aimtime", s.aim_time_factor, invert=True)
+    # 1.29.0: Waffe ziehen und wegstecken (ShowEquipmentTime /
+    # HideEquipmentTime, Vanilla je 1.0 an allen 92 Basis- und 11
+    # Editions-Waffen). Zeit / Faktor wie beim Nachladen; anders als der
+    # Nachlade-Regler nimmt dieser die Editions-Waffen mit, weil sie den
+    # Schluessel selbst tragen und sonst spuerbar anders waeren.
+    # "equiptime" ist KEIN Kaskaden-Parameter (nicht in WEAPON_PARAMS) -
+    # _weapon_factor faellt damit immer auf den globalen Regler zurueck.
+    for key in ("ShowEquipmentTime", "HideEquipmentTime"):
+        scale(key, "equiptime", s.equip_speed_factor, invert=True)
 
     # ADS-Zoom (06.09.2026, Nexus 'No zoom while aiming' / 'Zoom in when
     # aiming'): AimingFOVModifier < 1 = Zoom beim Zielen (0.92/0.88/0.83).
@@ -5569,6 +5580,7 @@ def summarize(s: Settings) -> list[str]:
     if s.psy_phantoms_only:
         lines.append("Psy fields spawn phantoms instead of real stalkers")
     f("Reload speed", s.reload_speed_factor)
+    f("Weapon draw & holster speed", s.equip_speed_factor)
     f("Jam clearing speed", s.jam_clear_factor)
     f("Mutant trophy drop chance", s.mutant_loot_chance_factor)
     f("Stash clues on bodies", s.stash_clue_factor)

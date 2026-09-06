@@ -592,6 +592,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "butt_wear": "butt_wear_factor", "expl_radius": "explosion_radius_factor",
     "expl_npc": "explosion_npc_damage_factor", "phantom_dog": "phantom_dog_damage_factor",
     "reload": "reload_speed_factor", "jam_clear": "jam_clear_factor",
+    # 1.29.0
+    "equip_speed": "equip_speed_factor",
     "mut_loot": "mutant_loot_chance_factor", "stash_clue": "stash_clue_factor",
     "alife_vision": "alife_vision_factor", "map_reveal": "map_reveal_factor",
     "ft_lock": "fast_travel_lock", "guide_delay": "guide_delay_factor",
@@ -4785,6 +4787,14 @@ class App(ctk.CTk):
                      "time. Edition weapons (Deluxe/Pre-order) stay vanilla. "
                      "NOT play-tested yet - the animation may or may not "
                      "follow, report back.")
+        self._slider(f, "equip_speed", "Weapon draw & holster speed", 50, 400, 25, 100, fmt_pct,
+                     "How fast a weapon is raised and put away (the game's "
+                     "ShowEquipmentTime and HideEquipmentTime, vanilla 1.0 on "
+                     "every weapon). 200 % = half the time. Unlike the reload "
+                     "slider this one also covers the Deluxe and Pre-order "
+                     "weapons. The same animation caveat applies: the timing "
+                     "value changes, the animation may not follow. Not "
+                     "play-tested yet.")
         self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 25, 100, fmt_pct,
                      "How fast a jam is cleared (vanilla 4 to 5.5 s per "
                      "weapon). 200 % = half the time. Not play-tested yet.")
@@ -5867,6 +5877,7 @@ class App(ctk.CTk):
             phantom_dog_damage_factor=s["phantom_dog"].get() / 100.0,
             psy_phantoms_only=bool(self.checks["psy_phantoms"].get()),
             reload_speed_factor=s["reload"].get() / 100.0,
+            equip_speed_factor=s["equip_speed"].get() / 100.0,
             jam_clear_factor=s["jam_clear"].get() / 100.0,
             mutant_loot_chance_factor=s["mut_loot"].get() / 100.0,
             stash_clue_factor=s["stash_clue"].get() / 100.0,

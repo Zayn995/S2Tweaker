@@ -814,4 +814,41 @@ assert "Reputation does not affect repair prices" in joined and "rumours refresh
 assert not any(k in "\n".join(summarize(S())) for k in ("Reputation does not", "rumours refresh"))
 print("P8.5 Zusammenfassung: 2 Zeilen vorhanden, neutral leer  OK")
 
+# =========================================================================
+# 1.29.0 - Waffe ziehen und wegstecken
+# =========================================================================
+WGS = "WeaponData/WeaponGeneralSetupPrototypes/WeaponGeneralSetupPrototypes_patch_S2Tweaker.cfg"
+EQUIP_KEYS = ("ShowEquipmentTime", "HideEquipmentTime")
+
+# --- 1) Live-Bestand: 92 Basis-Waffen, alle auf 1.0 ------------------------------
+live = {sid: n.values for sid, n in gd.weapongeneral.children.items()
+        if "#" not in sid and "ShowEquipmentTime" in n.values}
+assert len(live) == 92, len(live)
+assert {v["ShowEquipmentTime"] for v in live.values()} == {"1.0"}
+assert {v["HideEquipmentTime"] for v in live.values()} == {"1.0"}
+assert not build_patches(gd, S(equip_speed_factor=1.0))
+print(f"1.29.0 Live: {len(live)} Waffen mit Zieh-/Wegsteck-Zeit, alle 1.0, Neutral leer  OK")
+
+# --- 2) Zeit / Faktor, Basis- und Editions-Waffen ---------------------------------
+p = build_patches(gd, S(equip_speed_factor=2.0))
+wgs = parsed(p, WGS)
+assert len(wgs.children) == 92, len(wgs.children)
+assert all(n.values == {"ShowEquipmentTime": "0.5", "HideEquipmentTime": "0.5"}
+           for n in wgs.children.values())
+dlc = [k for k in p if k.startswith("//GameLite/DLCGameData/") and "WeaponGeneralSetup" in k]
+assert len(dlc) == 3, dlc                       # Deluxe, PreOrder, Ultimate
+n_dlc = sum(len(parsed(p, k).children) for k in dlc)
+assert n_dlc == 11, n_dlc
+assert all(v == "0.5" for k in dlc for n in parsed(p, k).children.values()
+           for key, v in n.values.items() if key in EQUIP_KEYS)
+half = parsed(build_patches(gd, S(equip_speed_factor=0.5)), WGS)
+assert next(iter(half.children.values())).values["ShowEquipmentTime"] == "2.0"
+assert "FireInterval" not in p[WGS] and "ReloadTimeMultiplier" not in p[WGS]
+print(f"1.29.0 Regler: 92 Basis- + {n_dlc} Editions-Waffen, x2 -> 0.5 s, x0.5 -> 2.0 s  OK")
+
+# --- 3) Zusammenfassung ------------------------------------------------------------
+assert "Weapon draw & holster speed × 2" in "\n".join(summarize(S(equip_speed_factor=2.0)))
+assert "draw & holster" not in "\n".join(summarize(S()))
+print("1.29.0 Zusammenfassung: Zeile vorhanden, neutral leer  OK")
+
 print("\n1.28.0-TEST OK")
