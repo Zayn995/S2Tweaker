@@ -219,6 +219,12 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.27.1 - Fix: scope-class buttons in the Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
+[list]
+[*]In 1.27.0 the five class buttons under 'Single scope overrides' (2x scopes, 3x scopes ...) stayed greyed out after the first load of the game data, so the per-scope list could not be opened until a preset was loaded. Fixed; a new test replays that first load
+[*]No tweak changes. Existing paks and presets stay valid
+[/list]
+
 [b]v1.27.0 - 30 tweaks from a sweep through the game's own config keys, and an Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
 [list]
 [*]A systematic pass over every config key the tool had never touched (CoreVariables alone has 526). Nothing is added to the game - only existing numbers and flags change
@@ -233,6 +239,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.26.0 - 26 tweaks from the wider modding scene[/b] (~290 tweaks + ammo swap, 13 tabs)
+[spoiler]
 [list]
 [*]A sweep through the Steam Workshop, mod.io, ap-pro.ru, stalker-world.ru and the open sources of sdwvit's mod collection for things that are plain config values and were not in the tool yet. Nothing is added to the game - only existing numbers and flags change
 [*][b]Body & movement[/b] (Player, new section): Skif can't be knocked down (mutant charges, blasts); no slowdown in water; free look on ladders (vanilla 30/40 degrees, now 90); look straight down (vanilla stops at 80 degrees)
@@ -246,6 +253,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The tool reads five more game files (post effects, explosions, stash clues, map markers, anomalies). [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
 [*]Not play-tested in-game, like the rest of the tool - every tooltip says so; least certain are reload speed (does the animation follow?), the guide delay and the guard switch. Existing paks stay valid
 [/list]
+[/spoiler]
 
 [b]v1.25.0 - Field of view, HUD switches, bodies, weather, ballistics, pistol slot, mutant armor, sleep[/b] (~265 tweaks + ammo swap, 13 tabs)
 [spoiler]
