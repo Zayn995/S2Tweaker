@@ -925,6 +925,26 @@ SLIDER_FIELDS: dict[str, str] = {
     "ammo_cover": "ammo_cover_factor",
     "ammo_stack": "ammo_stack_factor",
     "jam_chance": "jam_chance_factor",
+    "recoil_recovery": "recoil_recovery_factor",
+    "spread_bloom": "spread_bloom_factor",
+    "aim_steady": "aim_steady_factor",
+    "zombie_spread": "zombie_spread_factor",
+    "exp_armor_dmg": "explosion_armor_damage_factor",
+    "exp_armor_pierce": "explosion_armor_pierce_factor",
+    "exp_destructible": "explosion_destructible_factor",
+    "bullet_pen": "bullet_penetration_factor",
+    "bullet_range": "bullet_range_factor",
+    "hip_steady": "hip_steady_factor",
+    "move_steady": "move_steady_factor",
+    "recoil_pattern": "recoil_pattern_factor",
+    "dropped_ammo": "dropped_ammo_factor",
+    "weapon_noise": "weapon_noise_factor",
+    "item_grid": "item_grid_factor",
+    "inv_action": "inventory_action_factor",
+    "npc_anomaly": "npc_anomaly_ignore_factor",
+    "ragdoll": "ragdoll_force_factor",
+    "npc_retreat_dist": "npc_retreat_radius_factor",
+    "npc_retreat_dmg": "npc_retreat_damage_factor",
     "npc_vs_npc": "npc_vs_npc_damage_factor",
     "upg_repair": "upgrade_repair_surcharge",
     "mut_series": "mutant_attack_series_factor",
@@ -1004,6 +1024,7 @@ CHECK_FIELDS: dict[str, str] = {
     # 1.31.0 (GitHub Issue #8)
     "rq_jobs_instant": "repeatable_jobs_instant",
     "stat_bars": "stat_bars_follow",
+    "chamber_round": "chamber_round",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -4671,6 +4692,18 @@ class App(ctk.CTk):
                      "Honest note: 999 is a limit you will almost never reach "
                      "- ammunition is the one that actually bites, and it has "
                      "its own slider in the Ammo tab. Not play-tested yet.")
+        self._slider(f, "item_grid", "Inventory space per item", 25, 200, 5, 100,
+                     fmt_pct,
+                     "How many grid cells an item takes up (vanilla 1x1 for "
+                     "small things up to 6x3 for a rifle). 50 % roughly "
+                     "halves every footprint; nothing ever drops below one "
+                     "cell. Whole cells only, so small items may not change "
+                     "at all. Not play-tested yet.")
+        self._slider(f, "inv_action", "Inventory action speed", 25, 400, 5, 100,
+                     fmt_pct,
+                     "How long using something from the inventory takes "
+                     "(vanilla 2.5 to 5 s). 200 % = half the time. Not "
+                     "play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Combat")
@@ -4690,6 +4723,25 @@ class App(ctk.CTk):
                      "Blast, impulse and concussion radius of grenades, "
                      "launcher rounds, barrels and gas cylinders (vanilla "
                      "RGD-5 7 m, F1 10 m). Like 'IncreaseGrenadeRadius'. Not "
+                     "play-tested yet.")
+        self._slider(f, "exp_armor_dmg", "Explosion armor damage", 0, 400, 5, 100,
+                     fmt_pct,
+                     "How much an explosion wears your armor and NPC armor "
+                     "(vanilla 20 to 50 per blast). 0 % = blasts hurt but "
+                     "leave the suit intact. Not play-tested yet.")
+        self._slider(f, "exp_armor_pierce", "Explosion armor penetration", 0, 400, 5,
+                     100, fmt_pct,
+                     "How well a blast goes through armor (vanilla 4 to 6). "
+                     "Lower = heavy armor protects more against grenades. Not "
+                     "play-tested yet.")
+        self._slider(f, "exp_destructible", "Explosion damage to objects", 0, 400, 5,
+                     100, fmt_pct,
+                     "Damage to destructible props - crates, barrels, gas "
+                     "bottles (vanilla 1000 to 4000). Not play-tested yet.")
+        self._slider(f, "ragdoll", "Ragdoll force on death", 0, 400, 5, 100, fmt_pct,
+                     "How hard a body is thrown by the shot that kills it "
+                     "(vanilla multipliers 2 and 3 on every prototype). "
+                     "0 % = bodies drop where they stand. Cosmetic. Not "
                      "play-tested yet.")
         self._slider(f, "expl_npc", "Explosion damage to NPCs", 0.25, 5, 0.1, 1, fmt_factor,
                      "The DamageNPC value of every explosion type (vanilla "
@@ -4733,6 +4785,28 @@ class App(ctk.CTk):
         self._slider(f, "npchp", "NPC health", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "npc_acc", "NPC accuracy", 0.25, 3, 0.1, 1, fmt_factor,
                      "× 2 = NPCs shoot twice as precisely (smaller bullet spread).")
+        self._slider(f, "zombie_spread", "Zombie spread penalty", 0, 300, 5, 100,
+                     fmt_pct,
+                     "Zombified stalkers shoot with an extra 30 of spread on "
+                     "top of the weapon's own (vanilla, all 75 NPC weapon "
+                     "profiles). 0 % = zombies aim as well as anyone else. Not "
+                     "play-tested yet.")
+        self._slider(f, "npc_anomaly", "NPCs walk into anomalies", 0, 400, 5, 100,
+                     fmt_pct,
+                     "Chance that a stalker or mutant ignores the anomaly "
+                     "it is standing next to (vanilla 10 %, a few 40 to "
+                     "50 %). Capped at 100 %. 0 % = they never blunder in. "
+                     "Not play-tested yet.")
+        self._slider(f, "npc_retreat_dist", "NPC retreat distance", 25, 400, 5, 100,
+                     fmt_pct,
+                     "How far an NPC falls back when it decides to retreat "
+                     "(vanilla 8 to 25 m). Only the 32 prototypes that "
+                     "retreat at all are touched. Not play-tested yet.")
+        self._slider(f, "npc_retreat_dmg", "NPC damage before retreating", 25, 400,
+                     5, 100, fmt_pct,
+                     "How much damage an NPC soaks up before it pulls back "
+                     "(vanilla 20 to 1000 depending on the type). Lower = "
+                     "they break sooner. Not play-tested yet.")
         self._slider(f, "npc_vs_npc", "NPC vs NPC damage", 0, 400, 5, 100, fmt_pct,
                      "How hard stalkers hit EACH OTHER - vanilla is 70 % "
                      "of normal damage on every weapon, so faction fights "
@@ -5391,6 +5465,73 @@ class App(ctk.CTk):
         self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 5, 100, fmt_pct,
                      "How fast a jam is cleared (vanilla 4 to 5.5 s per "
                      "weapon). 200 % = half the time. Not play-tested yet.")
+        self._slider(f, "recoil_recovery", "Recoil & spread recovery", 25, 400, 5, 100,
+                     fmt_pct,
+                     "How quickly the weapon settles back down after a shot. "
+                     "Recoil and spread each have their own recovery time in "
+                     "vanilla (0.25 to 0.8 s); 200 % halves both. Not "
+                     "play-tested yet.")
+        self._slider(f, "spread_bloom", "Spread build-up", 0, 300, 5, 100, fmt_pct,
+                     "How much the spread widens while you keep firing "
+                     "(vanilla up to 1.5, and 39 weapons have no build-up at "
+                     "all - those stay that way). 0 % = the spread never grows "
+                     "during a burst. Recoil has no build-up in vanilla, so "
+                     "this only touches spread. Not play-tested yet.")
+        self._slider(f, "aim_steady", "Aim & crouch steadiness", 0, 300, 5, 100,
+                     fmt_pct,
+                     "How much aiming down the sights and crouching calm the "
+                     "weapon (experimental). Vanilla: crouching takes 15 % off "
+                     "the recoil, and on 71 weapons aiming removes the spread "
+                     "entirely. Capped at 'removes it completely' - the game "
+                     "data has nothing stronger, and what it would do with "
+                     "more is anyone's guess. Not play-tested yet.")
+        self._slider(f, "bullet_pen", "Bullet wall penetration", 0, 300, 5, 100,
+                     fmt_pct,
+                     "Chance that a bullet carries on through what it hits "
+                     "(vanilla 0 to 1.0 depending on the round; rounds at 0 "
+                     "stay at 0). Capped at 100 %. Not play-tested yet.")
+        self._slider(f, "bullet_range", "Bullet max range", 25, 400, 5, 100, fmt_pct,
+                     "How far a projectile flies before it is removed "
+                     "(vanilla 100000 for every round - 1 km). Rarely the "
+                     "limit you notice, but it is the hard ceiling. Not "
+                     "play-tested yet.")
+        self._slider(f, "hip_steady", "Hip-fire stance effect", 0, 300, 5, 100,
+                     fmt_pct,
+                     "How much your stance changes hip fire. Vanilla: "
+                     "crouching takes 0.2 off the spread, jumping adds 0.3. "
+                     "0 % = stance makes no difference from the hip, 200 % "
+                     "doubles both. The aiming counterpart is the slider "
+                     "above. Not play-tested yet.")
+        self._slider(f, "move_steady", "Movement effect on aim", 0, 300, 5, 100,
+                     fmt_pct,
+                     "How much walking and running spoil your aim (vanilla "
+                     "adds 0.1 to 1.0 to the spread, depending on the "
+                     "weapon). 0 % = moving costs you no accuracy at all. "
+                     "Not play-tested yet.")
+        self._slider(f, "recoil_pattern", "Recoil pattern reset", 25, 400, 5, 100,
+                     fmt_pct,
+                     "How long you have to stop shooting before the recoil "
+                     "pattern starts from the top again (vanilla 0.3 s, a "
+                     "few weapons 1 to 5 s). The pattern's DIRECTION lives "
+                     "in a packed asset and cannot be changed from config - "
+                     "only this pause and the strength. Not play-tested yet.")
+        self._check(f, "chamber_round",
+                    "Every weapon keeps a round in the chamber",
+                    "65 of the 92 weapons already give you one extra round "
+                    "after reloading; this brings the other 27 in line. Not "
+                    "play-tested yet.")
+        self._slider(f, "dropped_ammo", "Ammo in dropped weapons", 0, 400, 5, 100,
+                     fmt_pct,
+                     "How much ammunition sits in the weapon of a dead NPC "
+                     "(vanilla 1 to 10 rounds). Weapons whose value is unset "
+                     "in vanilla are left alone. Whole rounds. Not "
+                     "play-tested yet.")
+        self._slider(f, "weapon_noise", "Weapon noise", 0, 300, 5, 100, fmt_pct,
+                     "How loud your weapon is - what NPCs actually hear "
+                     "(vanilla 0.6 to 0.8; silenced cases sit at 0 and stay "
+                     "there). 0 % = nobody hears your shots. This is the "
+                     "missing half of the stealth sliders, which so far only "
+                     "changed how well NPCs hear. Not play-tested yet.")
         self._slider(f, "butt_wear", "Weapon wear per butt strike", 0, 300, 5, 100, fmt_pct,
                      "Every butt strike costs the weapon 5 durability in "
                      "vanilla. 0 % = bash crates for free, like 'The weapon "
@@ -6554,6 +6695,27 @@ class App(ctk.CTk):
             equip_speed_factor=s["equip_speed"].get() / 100.0,
             shooting_anim_skip=int(s["anim_skip"].get()),
             jam_chance_factor=s["jam_chance"].get() / 100.0,
+            recoil_recovery_factor=s["recoil_recovery"].get() / 100.0,
+            spread_bloom_factor=s["spread_bloom"].get() / 100.0,
+            aim_steady_factor=s["aim_steady"].get() / 100.0,
+            zombie_spread_factor=s["zombie_spread"].get() / 100.0,
+            explosion_armor_damage_factor=s["exp_armor_dmg"].get() / 100.0,
+            explosion_armor_pierce_factor=s["exp_armor_pierce"].get() / 100.0,
+            explosion_destructible_factor=s["exp_destructible"].get() / 100.0,
+            bullet_penetration_factor=s["bullet_pen"].get() / 100.0,
+            bullet_range_factor=s["bullet_range"].get() / 100.0,
+            hip_steady_factor=s["hip_steady"].get() / 100.0,
+            move_steady_factor=s["move_steady"].get() / 100.0,
+            recoil_pattern_factor=s["recoil_pattern"].get() / 100.0,
+            chamber_round=bool(self.checks["chamber_round"].get()),
+            dropped_ammo_factor=s["dropped_ammo"].get() / 100.0,
+            weapon_noise_factor=s["weapon_noise"].get() / 100.0,
+            item_grid_factor=s["item_grid"].get() / 100.0,
+            inventory_action_factor=s["inv_action"].get() / 100.0,
+            npc_anomaly_ignore_factor=s["npc_anomaly"].get() / 100.0,
+            ragdoll_force_factor=s["ragdoll"].get() / 100.0,
+            npc_retreat_radius_factor=s["npc_retreat_dist"].get() / 100.0,
+            npc_retreat_damage_factor=s["npc_retreat_dmg"].get() / 100.0,
             npc_vs_npc_damage_factor=s["npc_vs_npc"].get() / 100.0,
             stat_bars_follow=bool(self.checks["stat_bars"].get()),
             jam_clear_factor=s["jam_clear"].get() / 100.0,

@@ -208,6 +208,29 @@ s = Settings(
     upgrade_repair_surcharge=0.0,    # Upgrades verteuern Reparatur nicht
     ammo_pack_factor=2.0,            # Packungsgroesse beim Aufsammeln
     stash_sets_factor=2.0,           # Fundgruppen je Versteck
+    # 1.32.0: Schussverhalten, Explosionen, Geschosse
+    recoil_recovery_factor=2.0,      # Erholung nach dem Schuss (invers)
+    spread_bloom_factor=0.0,         # kein Streuungsaufbau bei Dauerfeuer
+    aim_steady_factor=2.0,           # Zielen/Ducken beruhigen doppelt
+    zombie_spread_factor=0.0,        # Zombies zielen wie normale Stalker
+    explosion_armor_damage_factor=0.0,
+    explosion_armor_pierce_factor=2.0,
+    explosion_destructible_factor=3.0,
+    bullet_penetration_factor=2.0,
+    bullet_range_factor=2.0,
+    # 1.32.0, zweite Runde (Maklane's Better Zone)
+    hip_steady_factor=2.0,
+    move_steady_factor=0.0,
+    recoil_pattern_factor=2.0,
+    chamber_round=True,
+    dropped_ammo_factor=3.0,
+    weapon_noise_factor=0.5,
+    item_grid_factor=0.5,
+    inventory_action_factor=2.0,
+    npc_anomaly_ignore_factor=0.0,
+    ragdoll_force_factor=3.0,
+    npc_retreat_radius_factor=2.0,
+    npc_retreat_damage_factor=0.5,
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")

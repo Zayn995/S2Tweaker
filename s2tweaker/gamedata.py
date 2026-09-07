@@ -1971,10 +1971,17 @@ class GameData:
                     result[sid] = found
         return result
 
-    def weapon_general_values(self, path: str) -> dict[str, float]:
+    def weapon_general_values(self, path: str,
+                              signed: bool = False) -> dict[str, float]:
         """{SID: Wert} aller WeaponGeneralSetup-Structs, die den (ggf.
-        verschachtelten) Pfad SELBST definieren (Wert > 0). Vererbte Werte
-        skalieren automatisch ueber den Patch des Eltern-Structs mit."""
+        verschachtelten) Pfad SELBST definieren. Vererbte Werte skalieren
+        automatisch ueber den Patch des Eltern-Structs mit.
+
+        Vorgabe ist `Wert > 0` — fuer alle Regler, bei denen 0 oder negativ
+        "gibt es nicht" heisst. `signed=True` liefert auch negative und
+        Null-Werte: gebraucht seit 1.32.0 fuer die Aim-Modifikatoren, die in
+        Vanilla durchweg NEGATIV sind (Zielen und Ducken SENKEN Rueckstoss
+        und Streuung, -0.15 bis -1.0)."""
         result: dict[str, float] = {}
         for sid, node in self.weapongeneral.children.items():
             if "#" in sid:
@@ -1983,7 +1990,7 @@ class GameData:
             if raw is None:
                 continue
             number = parse_number(raw)
-            if number > 0:
+            if signed or number > 0:
                 result[sid] = number
         return result
 

@@ -182,6 +182,8 @@ Sources: https://raw.githubusercontent.com/chrisvblemos/stalker2cfg/main/Stalker
 | `Weapon_Durability` | weapon max-health multiplier (also vs anomaly damage) | 1.0 everywhere |
 | `Armor_Durability` | armor overall health multiplier | 1.0 / 1.35 / 1.0 / 0.9 / 0.6 |
 
+> **Correction, 2026-09-07 (measured against the 2.0.4 data):** two of the three keys above are **gone from the game**. `Weapon_DurabilityDamage` and `Weapon_Durability` no longer appear anywhere in `DifficultyPrototypes.cfg`; only `Armor_Durability` survives. Noticed while taking apart Maklane's Better Zone (Nexus 241), which still writes them. S2Tweaker never used them - its weapon-durability slider goes through `DurabilityDamagePerShot` on the per-weapon CWS structs (the "alternative per-item route" below), and armor through `Armor_Durability`. Treat the recommendation in this paragraph as historical.
+
 For "durability ×N": set `Weapon_DurabilityDamage = vanilla / N` and `Armor_Durability = vanilla × N` (optionally `Weapon_Durability × N`) in **every** difficulty struct. "No degradation" preset: Weapon_DurabilityDamage = 0, Weapon_Durability = 9999, Armor_Durability = 9999 (existing mod recipe).
 
 **Alternative per-item route** (finer, but ⚠ item condition is baked into saves — BaseDurability edits "may only work on items spawned after the mod was applied"):

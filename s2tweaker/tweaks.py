@@ -755,6 +755,29 @@ class Settings:
     mutant_attack_series_factor: float = 1.0  # AbilityPrototypes MaxAttacksInSeries (0/1/2/3)
     mutant_attack_bleed_factor: float = 1.0   # dito BleedingChanceIncrement (.1f / 0.f / .5f)
     jam_chance_factor: float = 1.0           # WGS Min/MaxJamChance (0.0 / 4.0-15.0)
+    # --- 1.32.0: Schussverhalten (Siebte Datenrecherche, Nr. 3/4/5) ---
+    recoil_recovery_factor: float = 1.0      # WGS RadiusNormalizationInterval/-Delay, Rueckstoss UND Streuung, INVERS
+    spread_bloom_factor: float = 1.0         # WGS DispersionParams Max/PerIterationRadiusExtensionModifier
+    aim_steady_factor: float = 1.0           # WGS Aim/AimCrouch/AimFullCrouchModifier, Betrag gedeckelt auf 1.0
+    zombie_spread_factor: float = 1.0        # CWS DispersionRadiusZombieAddend (75x 30.0)
+    explosion_armor_damage_factor: float = 1.0   # ExplosionPrototypes DamageArmorPlayer/-NPC
+    explosion_armor_pierce_factor: float = 1.0   # dito ArmorPenetrationPlayer/-NPC (4-6)
+    explosion_destructible_factor: float = 1.0   # dito DamageDestructible (1000-4000)
+    bullet_penetration_factor: float = 1.0   # ProjectilePrototypes PenetrationSpawnChance, Deckel 1.0
+    bullet_range_factor: float = 1.0         # ProjectilePrototypes MaxFlyDistance (16x 100000)
+    # --- 1.32.0, zweite Runde (Maklane's Better Zone, Nexus 241) ---
+    hip_steady_factor: float = 1.0           # WGS HipModifiers (4 Schluessel x 2 Zweige), Betrag <= 1
+    move_steady_factor: float = 1.0          # WGS MovementSpeedModifiers (2 Zweige), Betrag <= 1
+    recoil_pattern_factor: float = 1.0       # WGS RecoilParams.RecoilPatternInterval (0.3/1.0/5.0)
+    chamber_round: bool = False              # WGS AdditionalBulletsAfterReloadingCount 0 -> 1
+    dropped_ammo_factor: float = 1.0         # WGS Min/MaxDeadNPCLoadedAmmoCount (-1 = tabu)
+    weapon_noise_factor: float = 1.0         # CWS FireLoudness (150x, 0.6-0.8)
+    item_grid_factor: float = 1.0            # ItemPrototypes ItemGridWidth/-Height (1375x)
+    inventory_action_factor: float = 1.0     # ItemPrototypes InventoryActionTime (243x), INVERS
+    npc_anomaly_ignore_factor: float = 1.0   # ObjPrototypes AnomalyRestrictionsIgnoreChance, Deckel 1
+    ragdoll_force_factor: float = 1.0        # ObjPrototypes DeathHit-/DeathVelocityImpulseMultiplier
+    npc_retreat_radius_factor: float = 1.0   # ObjPrototypes RetreatRadius (3 top + 29 verschachtelt)
+    npc_retreat_damage_factor: float = 1.0   # dito DamageAccumulatedToRetreat
     npc_vs_npc_damage_factor: float = 1.0    # CWS NPCToNPCDamageScaler (150x 0.7)
     stat_bars_follow: bool = False           # CWS DamageUI/RangeUI/RateOfFireUI mitziehen
     ammo_pack_factor: float = 1.0            # ItemPrototypes AmmoPackCount (30/10/20/50)
@@ -2388,18 +2411,37 @@ def _bullet_drop_patch(gd: GameData, s: Settings) -> dict:
 def _projectile_patch(gd: GameData, s: Settings) -> dict:
     """Geschoss-Geschwindigkeit (06.09.2026): Speed der Kugel-Projektile
     (20000-42000). Gauss (1e7), RPG (6000) und Granaten (3500) bleiben."""
-    if not _neq(s.bullet_speed_factor, 1.0) or s.bullet_speed_factor <= 0:
+    speed_on = _neq(s.bullet_speed_factor, 1.0) and s.bullet_speed_factor > 0
+    # 1.32.0 (Nr. 15/16): Wanddurchschlag und Maximalreichweite
+    pen_on = _neq(s.bullet_penetration_factor, 1.0) and s.bullet_penetration_factor >= 0
+    range_on = _neq(s.bullet_range_factor, 1.0) and s.bullet_range_factor > 0
+    if not (speed_on or pen_on or range_on):
         return {}
     patches: dict = {}
-    for sid, node in gd.projectiles.children.items():
+    for sid, node in sorted(gd.projectiles.children.items()):
         if "#" in sid:
             continue
+        cfg: dict = {}
         raw = node.values.get("Speed")
-        if raw is None:
-            continue
-        value = parse_number(raw)
-        if 10000 <= value < 1_000_000:
-            patches[sid] = {"Speed": _num(value * s.bullet_speed_factor)}
+        if speed_on and raw is not None:
+            value = parse_number(raw)
+            if 10000 <= value < 1_000_000:
+                cfg["Speed"] = _num(value * s.bullet_speed_factor)
+        if pen_on:
+            # Wahrscheinlichkeit 0..1: gedeckelt; Vanilla-0 bleibt 0
+            raw = node.values.get("PenetrationSpawnChance")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.bullet_penetration_factor, cap=1.0)
+                if scaled is not None and scaled != raw.strip():
+                    cfg["PenetrationSpawnChance"] = scaled
+        if range_on:
+            raw = node.values.get("MaxFlyDistance")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.bullet_range_factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg["MaxFlyDistance"] = scaled
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -3121,6 +3163,113 @@ def _npc_vs_npc_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _zombie_spread_patch(gd: GameData, s: Settings) -> dict:
+    """Streuungs-Aufschlag fuer zombifizierte Stalker (CharacterWeaponSettings).
+
+    `DispersionRadiusZombieAddend` steht bei allen 75 NPC-Structs auf 30.0
+    (gemessen 07.09.2026) - ein AUFSCHLAG auf die Streuung, der nur greift,
+    wenn der Schuetze zombifiziert ist. 0 % = Zombies zielen so gut wie
+    normale Stalker. Gefunden in "Stalker Unlimited" (Nexus 1453)."""
+    if not _neq(s.zombie_spread_factor, 1.0) or s.zombie_spread_factor < 0:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.weaponsettings.children.items()):
+        if "#" in sid:
+            continue
+        raw = node.values.get("DispersionRadiusZombieAddend")
+        if raw is None:
+            continue
+        scaled = _scale_literal(raw, s.zombie_spread_factor)
+        if scaled is not None and scaled != raw.strip():
+            patches[sid] = {"DispersionRadiusZombieAddend": scaled}
+    return patches
+
+
+def _weapon_noise_patch(gd: GameData, s: Settings) -> dict:
+    """Wie laut eine Waffe ist (CharacterWeaponSettings `FireLoudness`).
+
+    150 Structs, Vanilla 0.6 bis 0.8 (neun stehen auf 0.0 - lautlose
+    Sonderfaelle, die 0 bleiben). Das ist der fehlende Baustein neben den
+    Stealth-Reglern: bisher konnte man einstellen, wie gut NPCs hoeren,
+    aber nicht, wie laut die eigene Waffe ist. 0 % = kein Schuss wird
+    gehoert. Gefunden in "Maklane's Better Zone" (Nexus 241)."""
+    if not _neq(s.weapon_noise_factor, 1.0) or s.weapon_noise_factor < 0:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.weaponsettings.children.items()):
+        if "#" in sid:
+            continue
+        raw = node.values.get("FireLoudness")
+        if raw is None or parse_number(raw) <= 0:
+            continue
+        scaled = _scale_literal(raw, s.weapon_noise_factor)
+        if scaled is not None and scaled != raw.strip():
+            patches[sid] = {"FireLoudness": scaled}
+    return patches
+
+
+def _npc_body_patch(gd: GameData, s: Settings) -> dict:
+    """Drei NPC-weite Stellschrauben aus ObjPrototypes (1.32.0).
+
+    - `AnomalyRestrictionsIgnoreChance` (1657 Prototypen, Vanilla 0.1):
+      wie oft ein NPC die Anomalie-Sperre ignoriert und hineinlaeuft.
+      Gedeckelt bei 1.0.
+    - `DeathHitImpulseMultiplier` 2.0 / `DeathVelocityImpulseMultiplier`
+      3.0: mit welcher Wucht ein Koerper beim Sterben wegfliegt.
+    - Rueckzug: `RetreatRadius` (wie weit) und `DamageAccumulatedToRetreat`
+      (wieviel Schaden vorher) - beide stehen teils direkt am Prototyp,
+      teils unter RetreatActionData, darum beide Orte.
+
+    Player und die Basis `[0]` bleiben aussen vor."""
+    anomaly = _neq(s.npc_anomaly_ignore_factor, 1.0) and s.npc_anomaly_ignore_factor >= 0
+    ragdoll = _neq(s.ragdoll_force_factor, 1.0) and s.ragdoll_force_factor >= 0
+    radius = _neq(s.npc_retreat_radius_factor, 1.0) and s.npc_retreat_radius_factor >= 0
+    damage = _neq(s.npc_retreat_damage_factor, 1.0) and s.npc_retreat_damage_factor >= 0
+    if not (anomaly or ragdoll or radius or damage):
+        return {}
+
+    simple = []
+    if anomaly:
+        simple.append(("AnomalyRestrictionsIgnoreChance", s.npc_anomaly_ignore_factor, 1.0))
+    if ragdoll:
+        simple.append(("DeathHitImpulseMultiplier", s.ragdoll_force_factor, None))
+        simple.append(("DeathVelocityImpulseMultiplier", s.ragdoll_force_factor, None))
+    if radius:
+        simple.append(("RetreatRadius", s.npc_retreat_radius_factor, None))
+    if damage:
+        simple.append(("DamageAccumulatedToRetreat", s.npc_retreat_damage_factor, None))
+    nested = [(key, factor) for key, factor, _cap in simple
+              if key in ("RetreatRadius", "DamageAccumulatedToRetreat")]
+
+    patches: dict = {}
+    for sid, node in sorted(gd.obj.children.items()):
+        if sid in ("[0]", "Player") or "#" in sid:
+            continue
+        cfg: dict = {}
+        for key, factor, cap in simple:
+            raw = node.values.get(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, factor, cap=cap)
+            if scaled is not None and scaled != raw.strip():
+                cfg[key] = scaled
+        action = node.children.get("RetreatActionData")
+        if action is not None:
+            inner: dict = {}
+            for key, factor in nested:
+                raw = action.values.get(key)
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None and scaled != raw.strip():
+                    inner[key] = scaled
+            if inner:
+                cfg["RetreatActionData"] = inner
+        if cfg:
+            patches[sid] = cfg
+    return patches
+
+
 def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     """WeaponGeneralSetup: Streuung, Rueckstoss, Feuerrate (Kaskade).
 
@@ -3192,6 +3341,35 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if value > 0:
                 emit(patches, sid, path, value / f if invert else value * f)
 
+    # Patrone in der Kammer (1.32.0): 65 der 92 Waffen geben nach dem
+    # Nachladen eine Zusatzpatrone, 27 nicht. Der Schalter zieht die 27 nach.
+    if s.chamber_round:
+        for _sid, _node in sorted(gd.weapongeneral.children.items()):
+            if "#" in _sid:
+                continue
+            _raw = _node.values.get("AdditionalBulletsAfterReloadingCount")
+            if _raw is not None and parse_number(_raw) < 1:
+                # Stueckzahl: als Ganzzahl schreiben wie Vanilla ("1", nicht "1.0")
+                patches.setdefault(_sid, {})["AdditionalBulletsAfterReloadingCount"] = "1"
+
+    # Munition in der Waffe eines toten NPCs (1.32.0). ⚠ -1 heisst "nicht
+    # gesetzt" und wird uebersprungen (16 bzw. 19 Waffen) - ein Faktor
+    # darauf ergaebe -2 und damit Unsinn.
+    if _neq(s.dropped_ammo_factor, 1.0) and s.dropped_ammo_factor >= 0:
+        for _sid, _node in sorted(gd.weapongeneral.children.items()):
+            if "#" in _sid:
+                continue
+            for _key in ("MinDeadNPCLoadedAmmoCount", "MaxDeadNPCLoadedAmmoCount"):
+                _raw = _node.values.get(_key)
+                if _raw is None:
+                    continue
+                _value = parse_number(_raw)
+                if _value < 0:
+                    continue
+                _new = max(0, int(round(_value * s.dropped_ammo_factor)))
+                if _new != int(_value):
+                    patches.setdefault(_sid, {})[_key] = str(_new)
+
     # Ladehemmung (1.31.0): die Wahrscheinlichkeit selbst, NICHT die
     # Haltbarkeits-Schwellen, ab denen sie greift (MinJamDurabilityThreshold
     # 0.75 / MaxJamDurabilityThreshold 0.1 bleiben vanilla — sie sagen, AB
@@ -3201,6 +3379,72 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     # "equiptime" seit 1.29.0).
     scale("MinJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
     scale("MaxJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
+
+    # Erholung nach dem Schuss (1.32.0). Rueckstoss UND Streuung haben je
+    # ein eigenes RadiusNormalizationModifiers-Struct; beide Zeiten werden
+    # INVERS skaliert (200 % = halb so lang, also schnelleres Beruhigen).
+    # Delay steht bei vielen Waffen auf 0.0 und bleibt es (skip_unchanged).
+    for _branch in ("RecoilParams", "DispersionParams"):
+        for _key in ("RadiusNormalizationInterval", "RadiusNormalizationDelay"):
+            scale(f"{_branch}.ShootingStateParams.RadiusNormalizationModifiers.{_key}",
+                  "recoilrecovery", s.recoil_recovery_factor, invert=True,
+                  skip_unchanged=True)
+
+    # Streuungs-Aufbau bei Dauerfeuer (1.32.0). ⚠ Nur der DispersionParams-
+    # Zweig: auf der Rueckstoss-Seite stehen ALLE 92 Waffen auf 0.0/0.0/0,
+    # dort gibt es in Vanilla gar keinen Aufbau (gemessen 07.09.2026).
+    # RadiusExtensionBulletCount (ab dem wievielten Schuss) bleibt
+    # unangetastet — das ist eine andere Achse als "wie stark".
+    for _key in ("MaxRadiusExtensionModifier", "PerIterationRadiusExtensionModifier"):
+        scale(f"DispersionParams.ShootingStateParams.RadiusExtensionModifiers.{_key}",
+              "spreadbloom", s.spread_bloom_factor, skip_unchanged=True)
+    # Wie stark Zielen und Ducken die Waffe beruhigen (1.32.0,
+    # experimentell). Vanilla: auf der Rueckstoss-Seite senkt Ducken um
+    # 15 %, auf der Streuungs-Seite nimmt Zielen sie bei 71 Waffen KOMPLETT
+    # weg (-1.0). Der Betrag wird deshalb bei 1.0 gedeckelt — mehr als
+    # "faellt ganz weg" gibt es in den Spieldaten nirgends, und was das
+    # Spiel mit -2.0 taete, weiss niemand.
+    if _neq(s.aim_steady_factor, 1.0) and s.aim_steady_factor >= 0:
+        for _branch in ("RecoilParams", "DispersionParams"):
+            for _key in ("AimModifier", "AimCrouchModifier",
+                         "AimFullCrouchModifier"):
+                _path = f"{_branch}.ShootingStateParams.AimModifiers.{_key}"
+                values = gd.weapon_general_values(_path, signed=True)
+                for _sid, _value in sorted(values.items()):
+                    _new = max(-1.0, min(1.0, _value * s.aim_steady_factor))
+                    if _neq(_new, _value):
+                        emit(patches, _sid, _path, _new)
+
+    # Hueftfeuer und Bewegung (1.32.0) - dieselbe Familie wie die
+    # Aim-Modifikatoren darueber: unter ShootingStateParams liegen DREI
+    # gleichartige Bloecke (AimModifiers, HipModifiers,
+    # MovementSpeedModifiers), je einmal fuer Rueckstoss und Streuung.
+    # Vanilla: Ducken senkt die Hueft-Streuung um 0.2, Springen hebt sie um
+    # 0.3, und Laufen hebt sie um 0.1 bis 1.0. Betrag wieder auf 1.0
+    # gedeckelt - mehr kommt in den Spieldaten nirgends vor.
+    for _factor, _keys, _group in (
+            (s.hip_steady_factor,
+             ("HipModifier", "HipCrouchModifier", "HipFullCrouchModifier",
+              "HipJumpModifier"), "HipModifiers"),
+            (s.move_steady_factor, ("MovementSpeedModifier",),
+             "MovementSpeedModifiers")):
+        if not _neq(_factor, 1.0) or _factor < 0:
+            continue
+        for _branch in ("RecoilParams", "DispersionParams"):
+            for _key in _keys:
+                _path = f"{_branch}.ShootingStateParams.{_group}.{_key}"
+                for _sid, _value in sorted(
+                        gd.weapon_general_values(_path, signed=True).items()):
+                    _new = max(-1.0, min(1.0, _value * _factor))
+                    if _neq(_new, _value):
+                        emit(patches, _sid, _path, _new)
+
+    # Pause, nach der das Rueckstossmuster von vorn beginnt (Vanilla 0.3 s,
+    # 18 Waffen 1.0, zwei 5.0). Die RICHTUNG des Musters steckt in einem
+    # IoStore-Asset und bleibt unerreichbar - nur diese Pause ist cfg-seitig.
+    scale("RecoilParams.RecoilPatternInterval", "recoilpattern",
+          s.recoil_pattern_factor, skip_unchanged=True)
+
     scale("DispersionParams.FirstShotDispersionRadius", "spread",
           s.spread_factor)
     scale("RecoilParams.RecoilRadius", "recoil", s.recoil_factor)
@@ -3359,7 +3603,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     # Waffen im DLC-Zweig behalten Vanilla. Wirkung im Spiel offen.
     reload_on = _neq(s.reload_speed_factor, 1.0) and s.reload_speed_factor > 0
     jam_on = _neq(s.jam_clear_factor, 1.0) and s.jam_clear_factor > 0
-    if reload_on or jam_on:
+    jam_chance_on = _neq(s.jam_chance_factor, 1.0) and s.jam_chance_factor >= 0
+    if reload_on or jam_on or jam_chance_on:
         for sid, node in sorted(gd.weapongeneral.children.items()):
             if sid.startswith("[") or "#" in sid:
                 continue
@@ -3380,14 +3625,36 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                             rows[idx] = row
                     if rows:
                         cfg["WeaponReloadTimePerAttachment"] = rows
-            if jam_on:
+            # WeaponJamParams.[i] traegt GENAU zwei Schluessel: JamChanceCoef
+            # (wie wahrscheinlich es klemmt) und FullJamTime (wie lange das
+            # Beseitigen dauert). Bis 1.31.0 schrieb der Klemmer-Regler nur
+            # FullJamTime hinein - ein HALBER Array-Eintrag. Sollte {bpatch}
+            # Array-Eintraege ersetzen statt zusammenzufuehren (docs/SPEC.md
+            # par. 0, offene Frage), haette das den Klemm-Koeffizienten still
+            # geloescht. Beide Regler geben den Eintrag jetzt KOMPLETT aus.
+            if jam_on or jam_chance_on:
                 table = node.children.get("WeaponJamParams")
                 if table is not None:
                     rows = {}
                     for idx, entry in table.children.items():
-                        raw = entry.values.get("FullJamTime")
-                        if raw is not None and parse_number(raw) > 0:
-                            rows[idx] = {"FullJamTime": _num(parse_number(raw) / s.jam_clear_factor)}
+                        time_raw = entry.values.get("FullJamTime")
+                        coef_raw = entry.values.get("JamChanceCoef")
+                        row = {}
+                        if time_raw is not None:
+                            value = parse_number(time_raw)
+                            row["FullJamTime"] = (
+                                _num(value / s.jam_clear_factor)
+                                if jam_on and value > 0 else time_raw.strip())
+                        if coef_raw is not None:
+                            value = parse_number(coef_raw)
+                            row["JamChanceCoef"] = (
+                                _num(value * s.jam_chance_factor)
+                                if jam_chance_on and value > 0 else coef_raw.strip())
+                        # Nur schreiben, wenn sich wirklich etwas aendert
+                        if row and any(
+                                row.get(k) != (entry.values.get(k) or "").strip()
+                                for k in row):
+                            rows[idx] = row
                     if rows:
                         cfg["WeaponJamParams"] = rows
             if cfg:
@@ -4376,6 +4643,40 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if target != vanilla:
                 patches.setdefault(sid, {})["MaxStackCount"] = str(target)
 
+    # Platz im Inventar je Gegenstand (1.32.0): ItemGridWidth/-Height
+    # stehen an allen 1375 Items (1x1 bis 6x3). Ganzzahlig, nie unter 1 -
+    # ein Gegenstand ohne Flaeche waere im Raster nicht darstellbar.
+    if _neq(s.item_grid_factor, 1.0) and s.item_grid_factor > 0:
+        for sid, node in sorted(gd.items.children.items()):
+            if sid == "[0]" or "#" in sid:
+                continue
+            cfg = {}
+            for key in ("ItemGridWidth", "ItemGridHeight"):
+                raw = node.values.get(key)
+                if raw is None:
+                    continue
+                value = parse_number(raw)
+                if value <= 0:
+                    continue
+                new = max(1, int(round(value * s.item_grid_factor)))
+                if new != int(value):
+                    cfg[key] = str(new)
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
+
+    # Dauer von Inventar-Aktionen (1.32.0), INVERS: 200 % = halb so lang.
+    # Vanilla 2.5 bis 5.0 s an 243 Gegenstaenden.
+    if _neq(s.inventory_action_factor, 1.0) and s.inventory_action_factor > 0:
+        for sid, node in sorted(gd.items.children.items()):
+            if sid == "[0]" or "#" in sid:
+                continue
+            raw = node.values.get("InventoryActionTime")
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, 1.0 / s.inventory_action_factor)
+            if scaled is not None and scaled != raw.strip():
+                patches.setdefault(sid, {})["InventoryActionTime"] = scaled
+
     # Packungsgroesse der Munition (1.31.0, aus "Stalker Unlimited"):
     # wieviele Schuss eine aufgesammelte Packung hergibt. Bewusst NUR ein
     # globaler Regler und KEIN Baum-Parameter — das ist eine Fundmenge,
@@ -4971,6 +5272,22 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
         for sid in gd.upgrade_sids_with(key):
             patches.setdefault(sid, {})[key] = ""
 
+    # Upgrade-Preis je Upgrade (1.32.0, Nr. 14): `BaseCost` steht an allen
+    # 1288 Upgrades (5400-21700). Bewusst KEIN eigener Regler - der
+    # vorhandene "Upgrade cost" skalierte bisher nur den Difficulty-
+    # Multiplikator; jetzt zieht er die Einzelpreise mit, genau wie in
+    # 1.28.0 die NPC-Haendlerwerte in die Preisregler gewandert sind.
+    if _neq(s.upgrade_cost_factor, 1.0) and s.upgrade_cost_factor >= 0:
+        for sid, node in sorted(gd.upgrades.children.items()):
+            if "#" in sid:
+                continue
+            raw = node.values.get("BaseCost")
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, s.upgrade_cost_factor)
+            if scaled is not None and scaled != raw.strip():
+                patches.setdefault(sid, {})["BaseCost"] = scaled
+
     # Reparatur-Aufschlag je verbautem Upgrade (1.31.0). `RepairCostModifier`
     # steht in Vanilla bei ALLEN 1288 Upgrades auf 0.2f — der Posten, den
     # die Formel in docs/SPEC.md par. 1.10 als "0.1-Koeffizient ohne cfg-
@@ -5041,7 +5358,12 @@ def _explosion_patch(gd: GameData, s: Settings) -> dict:
     laeuft weiter ueber den Schwierigkeits-Multiplikator."""
     radius_on = _neq(s.explosion_radius_factor, 1.0) and s.explosion_radius_factor > 0
     npc_on = _neq(s.explosion_npc_damage_factor, 1.0) and s.explosion_npc_damage_factor >= 0
-    if not (radius_on or npc_on):
+    # 1.32.0 (Siebte Datenrecherche Nr. 11/12): Ruestungsschaden,
+    # Ruestungsdurchschlag und Schaden an zerstoerbaren Objekten
+    armor_on = _neq(s.explosion_armor_damage_factor, 1.0) and s.explosion_armor_damage_factor >= 0
+    pierce_on = _neq(s.explosion_armor_pierce_factor, 1.0) and s.explosion_armor_pierce_factor >= 0
+    destr_on = _neq(s.explosion_destructible_factor, 1.0) and s.explosion_destructible_factor >= 0
+    if not (radius_on or npc_on or armor_on or pierce_on or destr_on):
         return {}
     patches: dict = {}
     for sid, node in sorted(gd.explosions.children.items()):
@@ -5061,6 +5383,24 @@ def _explosion_patch(gd: GameData, s: Settings) -> dict:
                 scaled = _scale_literal(raw, s.explosion_npc_damage_factor)
                 if scaled is not None:
                     cfg["DamageNPC"] = scaled
+        for flag, factor, keys in (
+                (armor_on, s.explosion_armor_damage_factor,
+                 ("DamageArmorPlayer", "DamageArmorNPC")),
+                (pierce_on, s.explosion_armor_pierce_factor,
+                 ("ArmorPenetrationPlayer", "ArmorPenetrationNPC")),
+                (destr_on, s.explosion_destructible_factor,
+                 ("DamageDestructible",))):
+            if not flag:
+                continue
+            for key in keys:
+                raw = node.values.get(key)
+                # Vanilla-0 bleibt 0 - DamageArmorNPC steht bei sechs der
+                # zwoelf Explosionen auf 0., sonst gaebe es Scheinpatches
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
         if cfg:
             patches[sid] = cfg
     return patches
@@ -5531,6 +5871,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         obj_patches.setdefault(sid, {}).update(cfg)
     for sid, cfg in _obj_flags_patch(gd, s).items():
         obj_patches.setdefault(sid, {}).update(cfg)
+    for sid, cfg in _npc_body_patch(gd, s).items():
+        _merge_nested(obj_patches.setdefault(sid, {}), cfg)
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
 
     ability_patches = _mutant_abilities_patch(gd, s)
@@ -5556,6 +5898,10 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     # dict.update auf Struct-Ebene und wuerden einen fertigen Eintrag
     # sonst ueberschreiben.
     for sid, cfg in _npc_vs_npc_patch(gd, s).items():
+        cws_patches.setdefault(sid, {}).update(cfg)
+    for sid, cfg in _zombie_spread_patch(gd, s).items():
+        cws_patches.setdefault(sid, {}).update(cfg)
+    for sid, cfg in _weapon_noise_patch(gd, s).items():
         cws_patches.setdefault(sid, {}).update(cfg)
     add("WeaponData/WeaponAttributesPrototypes/"
         f"WeaponAttributesPrototypes_patch_{n}.cfg", _npc_ai_patch(gd, s))
@@ -6084,6 +6430,28 @@ def summarize(s: Settings) -> list[str]:
     f("Mutant attacks per series", s.mutant_attack_series_factor)
     f("Mutant bleeding buildup", s.mutant_attack_bleed_factor)
     f("Weapon jam chance", s.jam_chance_factor)
+    f("Hip-fire stance effect", s.hip_steady_factor)
+    f("Movement effect on aim", s.move_steady_factor)
+    f("Recoil pattern reset", s.recoil_pattern_factor)
+    if s.chamber_round:
+        lines.append("Every weapon keeps a round in the chamber")
+    f("Ammo in dropped weapons", s.dropped_ammo_factor)
+    f("Weapon noise", s.weapon_noise_factor)
+    f("Inventory space per item", s.item_grid_factor)
+    f("Inventory action speed", s.inventory_action_factor)
+    f("NPCs walk into anomalies", s.npc_anomaly_ignore_factor)
+    f("Ragdoll force on death", s.ragdoll_force_factor)
+    f("NPC retreat distance", s.npc_retreat_radius_factor)
+    f("NPC damage before retreating", s.npc_retreat_damage_factor)
+    f("Recoil & spread recovery", s.recoil_recovery_factor)
+    f("Spread build-up", s.spread_bloom_factor)
+    f("Aim & crouch steadiness", s.aim_steady_factor)
+    f("Zombie spread penalty", s.zombie_spread_factor)
+    f("Explosion armor damage", s.explosion_armor_damage_factor)
+    f("Explosion armor penetration", s.explosion_armor_pierce_factor)
+    f("Explosion damage to objects", s.explosion_destructible_factor)
+    f("Bullet wall penetration", s.bullet_penetration_factor)
+    f("Bullet max range", s.bullet_range_factor)
     f("NPC vs NPC damage", s.npc_vs_npc_damage_factor)
     if s.stat_bars_follow:
         lines.append("Inventory stat bars follow your changes")

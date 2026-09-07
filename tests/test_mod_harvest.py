@@ -190,6 +190,154 @@ assert len(values) == 45, len(values)
 assert all(int(v) >= 1 for v in values), values
 print(f"Versteck-Sets: {len(values)} Eintraege, nur ItemSetCount angefasst  OK")
 
+# --- 3) Erholung nach dem Schuss (invers, beide Zweige) ------------------
+WGS = ("WeaponData/WeaponGeneralSetupPrototypes/"
+       "WeaponGeneralSetupPrototypes_patch_S2Tweaker.cfg")
+p = build_patches(gd, Settings(recoil_recovery_factor=2.0))[WGS]
+# Recoil UND Dispersion haben je ein eigenes RadiusNormalizationModifiers
+assert p.count("RadiusNormalizationInterval") == 181, p.count("RadiusNormalizationInterval")
+assert p.count("RadiusNormalizationDelay") == 76, p.count("RadiusNormalizationDelay")
+for branch in ("RecoilParams", "DispersionParams"):
+    assert branch in p, branch
+# invers: 0.8 wird zu 0.4
+assert "0.4" in p
+print("Erholung: beide Zweige, invers, Null-Delays uebersprungen  OK")
+
+# --- 4) Streuungs-Aufbau: NUR der Dispersion-Zweig -----------------------
+p = build_patches(gd, Settings(spread_bloom_factor=0.0))[WGS]
+assert "RadiusExtensionBulletCount" not in p, "BulletCount ist tabu"
+# Auf der Rueckstoss-Seite steht in Vanilla alles auf 0.0 - dort darf nichts
+# entstehen; nur DispersionParams taucht auf
+recoil_ext = p.count("RecoilParams : struct.begin")
+for chunk in p.split("\n\n"):
+    if "RadiusExtensionModifiers" in chunk:
+        assert "DispersionParams" in chunk, chunk[:120]
+print("Streuungs-Aufbau: nur der Dispersion-Zweig, BulletCount unangetastet  OK")
+
+# --- 5) Zielen/Ducken: Betrag gedeckelt ----------------------------------
+p = build_patches(gd, Settings(aim_steady_factor=2.0))[WGS]
+import re as _re2
+vals = [float(v) for v in _re2.findall(r"Aim\w*Modifier = (-?[\d.]+)", p)]
+assert vals, "keine Aim-Modifikatoren gepatcht"
+assert all(-1.0 <= v <= 1.0 for v in vals), (min(vals), max(vals))
+# -1.0 x 2 waere -2.0 -> gedeckelt auf -1.0 = unveraendert, also NICHT im Patch
+assert -1.0 not in vals, "gedeckelter Wert als Scheinpatch geschrieben"
+print(f"Zielen/Ducken: {len(vals)} Werte, alle im Band -1.0..1.0  OK")
+
+# --- 9) Zombie-Streuungsaufschlag ----------------------------------------
+p = nodes(build_patches(gd, Settings(zombie_spread_factor=0.0)), CWS)
+assert len(p) == 75, len(p)
+assert {n.values["DispersionRadiusZombieAddend"] for n in p.values()} == {"0.0"}
+print("Zombie-Aufschlag: alle 75 NPC-Profile  OK")
+
+# --- 11/12) Explosionen ---------------------------------------------------
+EXP = "ExplosionPrototypes/ExplosionPrototypes_patch_S2Tweaker.cfg"
+p = nodes(build_patches(gd, Settings(explosion_armor_damage_factor=0.0,
+                                     explosion_armor_pierce_factor=2.0,
+                                     explosion_destructible_factor=3.0)), EXP)
+assert len(p) == 11, len(p)
+armor_npc = [sid for sid, n in p.items() if "DamageArmorNPC" in n.values]
+assert len(armor_npc) == 6, len(armor_npc)   # sechs stehen in Vanilla auf 0.
+pierce = {n.values["ArmorPenetrationPlayer"] for n in p.values()
+          if "ArmorPenetrationPlayer" in n.values}
+# Vanilla schreibt "4." / "5." / "6."; _scale_literal normalisiert das
+# beim Verdoppeln zu "8.0" / "10.0" / "12.0" - numerisch dasselbe
+assert pierce == {"8.0", "10.0", "12.0"}, sorted(pierce)
+print("Explosionen: 11 Typen, Null-Werte uebersprungen, Literalform erhalten  OK")
+
+# --- 15/16) Geschosse -----------------------------------------------------
+PRJ = "ProjectilePrototypes/ProjectilePrototypes_patch_S2Tweaker.cfg"
+p = nodes(build_patches(gd, Settings(bullet_penetration_factor=5.0,
+                                     bullet_range_factor=2.0)), PRJ)
+pens = [float(n.values["PenetrationSpawnChance"]) for n in p.values()
+        if "PenetrationSpawnChance" in n.values]
+assert pens and max(pens) <= 1.0, pens
+ranges = [n.values["MaxFlyDistance"] for n in p.values() if "MaxFlyDistance" in n.values]
+assert len(ranges) == 16, len(ranges)
+print(f"Geschosse: {len(pens)} Durchschlagswerte (Deckel 1.0), {len(ranges)} Reichweiten  OK")
+
+# --- 14) Upgrade-Preis haengt am vorhandenen Regler ------------------------
+p = nodes(build_patches(gd, Settings(upgrade_cost_factor=0.5)), UPG)
+costs = [sid for sid, n in p.items() if "BaseCost" in n.values]
+assert len(costs) == 1282, len(costs)
+# kein eigener Regler: das Feld existiert nicht
+assert not hasattr(Settings(), "upgrade_base_cost_factor")
+print("Upgrade-Preis: 1282 Upgrades, eingefaltet in den vorhandenen Regler  OK")
+
+# --- Klemm-Korrektur: der Array-Eintrag geht KOMPLETT raus ---------------
+# WeaponJamParams.[i] traegt genau zwei Schluessel. Bis 1.31.0 schrieb der
+# Klemmer-Regler nur FullJamTime hinein; beide Regler geben jetzt beide aus.
+for setting in (Settings(jam_clear_factor=2.0), Settings(jam_chance_factor=0.5)):
+    p = build_patches(gd, setting)[WGS]
+    assert p.count("JamChanceCoef") == p.count("FullJamTime") > 0, (
+        p.count("JamChanceCoef"), p.count("FullJamTime"))
+print("Klemm-Eintrag: beide Schluessel in beiden Reglern  OK")
+
+# --- Hueftfeuer, Bewegung, Muster, Kammer, Munition in Waffen ------------
+p = build_patches(gd, Settings(hip_steady_factor=2.0))[WGS]
+import re as _re3
+vals = [float(v) for v in _re3.findall(r"Hip\w*Modifier = (-?[\d.]+)", p)]
+assert vals and all(-1.0 <= v <= 1.0 for v in vals), (min(vals), max(vals))
+assert "HipJumpModifier" in p and "HipCrouchModifier" in p
+print(f"Hueftfeuer: {len(vals)} Werte, Betrag gedeckelt  OK")
+
+p = build_patches(gd, Settings(move_steady_factor=0.0))[WGS]
+assert "MovementSpeedModifier" in p
+print("Bewegung: MovementSpeedModifiers gepatcht  OK")
+
+p = build_patches(gd, Settings(recoil_pattern_factor=2.0))[WGS]
+assert p.count("RecoilPatternInterval") == 92, p.count("RecoilPatternInterval")
+print("Rueckstossmuster-Pause: 92 Waffen  OK")
+
+p = nodes(build_patches(gd, Settings(chamber_round=True)), WGS)
+assert len(p) == 27, len(p)     # 65 der 92 haben die Zusatzpatrone schon
+assert {n.values["AdditionalBulletsAfterReloadingCount"] for n in p.values()} == {"1"}
+print("Kammer-Patrone: genau die 27 ohne  OK")
+
+p = nodes(build_patches(gd, Settings(dropped_ammo_factor=3.0)), WGS)
+for node in p.values():
+    for key in ("MinDeadNPCLoadedAmmoCount", "MaxDeadNPCLoadedAmmoCount"):
+        if key in node.values:
+            assert int(node.values[key]) >= 0, node.values[key]   # nie -1 skaliert
+print("Munition in Waffen Toter: keine -1 angefasst  OK")
+
+# --- Waffen-Lautstaerke ---------------------------------------------------
+p = nodes(build_patches(gd, Settings(weapon_noise_factor=0.0)), CWS)
+assert len(p) == 141, len(p)    # 150 minus die neun, die schon auf 0 stehen
+print("Lautstaerke: 141 Structs, die stillen bleiben still  OK")
+
+# --- Inventar --------------------------------------------------------------
+p = nodes(build_patches(gd, Settings(item_grid_factor=0.5)), ITEMS)
+cells = [int(n.values[k]) for n in p.values()
+         for k in ("ItemGridWidth", "ItemGridHeight") if k in n.values]
+assert cells and min(cells) >= 1, min(cells)   # nie unter eine Zelle
+print(f"Inventar-Raster: {len(cells)} Werte, nie unter 1 Zelle  OK")
+
+p = nodes(build_patches(gd, Settings(inventory_action_factor=2.0)), ITEMS)
+times = {sid: float(n.values["InventoryActionTime"]) for sid, n in p.items()
+         if "InventoryActionTime" in n.values}
+assert len(times) == 243, len(times)
+# invers: jeder Wert ist exakt die Haelfte seines Vanilla-Werts
+for sid, got in times.items():
+    vanilla = float(gd.items.children[sid].values["InventoryActionTime"])
+    assert abs(got - vanilla / 2) < 1e-6, (sid, vanilla, got)
+print("Inventar-Tempo: 243 Gegenstaende, invers  OK")
+
+# --- NPC-Koerper und Rueckzug ---------------------------------------------
+OBJ = "ObjPrototypes/ObjPrototypes_patch_S2Tweaker.cfg"
+p = nodes(build_patches(gd, Settings(npc_anomaly_ignore_factor=5.0)), OBJ)
+vals = [float(n.values["AnomalyRestrictionsIgnoreChance"]) for n in p.values()
+        if "AnomalyRestrictionsIgnoreChance" in n.values]
+assert vals and max(vals) <= 1.0, max(vals)     # Wahrscheinlichkeit, Deckel 1
+assert "Player" not in p and "[0]" not in p
+print(f"Anomalie-Ignorieren: {len(vals)} Prototypen, Deckel 1.0, Player aussen vor  OK")
+
+p = nodes(build_patches(gd, Settings(npc_retreat_radius_factor=2.0,
+                                     npc_retreat_damage_factor=0.5)), OBJ)
+nested = [sid for sid, n in p.items() if "RetreatActionData" in n.children]
+assert nested, "verschachtelter Rueckzug nicht gepatcht"
+print(f"Rueckzug: {len(p)} Prototypen, davon {len(nested)} verschachtelt  OK")
+
 # --- Tweak-Liste ----------------------------------------------------------
 lines = summarize(Settings(ammo_bleeding_factor=2.0, jam_chance_factor=0.0,
                            npc_vs_npc_damage_factor=2.0, stat_bars_follow=True,

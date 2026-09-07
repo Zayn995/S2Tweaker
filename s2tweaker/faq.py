@@ -482,6 +482,45 @@ FAQ_ENTRIES = [
              "variety item sets kinds different loot groups world",
     },
     {
+        "q": "Can I change how the gun behaves during a burst?",
+        "a": "Three sliders in the Weapons tab. 'Recoil & spread recovery' "
+             "sets how fast the weapon settles back down (recoil and "
+             "spread have separate recovery times in vanilla, 0.25 to "
+             "0.8 s). 'Spread build-up' is how much the spread widens "
+             "while you hold the trigger - 39 weapons have no build-up at "
+             "all and stay that way, and recoil has none in vanilla, so "
+             "this only touches spread. 'Aim & crouch steadiness' scales "
+             "how much aiming and crouching calm the gun; it is capped at "
+             "'removes it completely', because the game data has nothing "
+             "stronger. None of it is play-tested.",
+        "k": "recoil recovery spread bloom build up burst sustained fire "
+             "climb settle aim down sights crouch steady dispersion "
+             "handling full auto",
+    },
+    {
+        "q": "Can I make my shots quieter?",
+        "a": "Yes - 'Weapon noise' in the Weapons tab. Every weapon carries "
+             "its own loudness (vanilla 0.6 to 0.8; a few silenced cases "
+             "sit at 0 and stay there), and that is what NPCs actually "
+             "hear. 0 % means nobody hears your shots at all. Until now "
+             "the stealth sliders only changed how well NPCs hear - this "
+             "is the other half of the same equation, so the two work "
+             "together. Not play-tested yet.",
+        "k": "noise loud quiet silencer suppressor stealth hear gunshot "
+             "sound alert sneaky",
+    },
+    {
+        "q": "Can I carry more by making items smaller?",
+        "a": "Sort of - 'Inventory space per item' in the Weight & items "
+             "tab changes how many grid cells a thing occupies (vanilla "
+             "1x1 for small items up to 6x3 for a rifle). It never drops "
+             "below one cell, and because cells are whole numbers small "
+             "items often will not change at all. It does not touch "
+             "weight: for that use 'Max carry weight' and 'Item weight'.",
+        "k": "inventory space grid size slots backpack room items smaller "
+             "carry more tetris",
+    },
+    {
         "q": "Can I remove recoil completely?",
         "a": "Two routes. 'Weapon recoil' at 0 % sets every weapon's "
              "RecoilRadius (the kick strength) to zero - the per-shot "
