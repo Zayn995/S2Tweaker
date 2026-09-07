@@ -13,10 +13,10 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself (1.30.0, SHA-256 9a47b3c0...ca1b): [url=https://www.virustotal.com/gui/file/9a47b3c00aa1b3257c5fa5bbb6be2c1074acff1ee0adef3c3c322fc9ce97ca1b]VirusTotal - 0 of 66[/url]
+[*]The mod itself (1.33.0): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.30.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.33.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -236,6 +236,22 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [heading]CHANGELOG[/heading]
+
+[b]v1.33.0 - ten dials read out of other people's mods, and the first play-test acted on[/b] (~460 tweaks + ammo swap, 14 tabs)
+[list]
+[*][b]Someone finally tested this in the game.[/b] Molkerr played 1.31.0 and sent four findings - two were real bugs here, and both are fixed below. Ammo stack sizes are now confirmed working in-game, which is the first hard confirmation this tool has ever had
+[*][b]Accept several repeatable jobs in one conversation[/b] (Economy tab). The counter this tool raised in 1.31.0 only decides how many jobs a giver PREPARES per round - his dialog still closed after one yes. A new switch re-opens it a second after you accept. It stores nothing in your save and clears none of the game's bookkeeping, so removing the pak leaves no trace
+[*][b]Edition (DLC) items follow the item sliders now[/b]. The 22 Deluxe / Pre-Order / Ultimate items declare their own grid size, weight, use time and durability, and the general item sliders had never reached them
+[*][b]Anomaly wear on gear[/b] - one slider for the whole family of corrosion effects. An anomaly hit costs your armour, helmet and both weapons between 0.2 and 25 points of condition depending on the anomaly; 0 % stops it entirely
+[*][b]Weapon and armor max condition[/b] - how much condition there is to wear through in the first place. Note that condition lives in your save, so it shows on gear that spawns after you install the mod
+[*][b]Damage at extreme range[/b] - past the drop-off distance a shot keeps only 10 to 60 % of its damage depending on the weapon. This is the floor under that
+[*][b]A-Life[/b]: how full a lair is when it first spawns, how often the rarer archetypes appear in it, how fast lairs expand toward you, and the director's fallback spawn count
+[*][b]Ammo[/b]: two more per-round factors (spread, and spread while aiming), both also per round type in the tree
+[*][b]Stamina and bleeding caps[/b] - the two ceilings in the effect table that nothing else here touched. Worth raising if you stack stamina artifacts
+[*][b]Inventory stat bars[/b] now move accuracy and handling as well, as an honest approximation - accuracy follows spread, handling follows aim time
+[*][b]Correction:[/b] the "artifact visibility radius" slider from 1.28.0 sits on a key whose meaning we could not prove. Reading the files of "Less Shy Artifacts" showed it changes the DETECTOR's display radius instead - which "Detector & scanner range" here has done all along. The slider is renamed and says so
+[*]Upgrade strength now also covers the accuracy and movement-speed upgrade effects, which hung on no slider at all
+[/list]
 
 [b]v1.32.0 - 33 more dials, most of them found by taking other people's mods apart[/b] (~450 tweaks + ammo swap, 14 tabs)
 [list]

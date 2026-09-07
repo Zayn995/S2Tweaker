@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.32.0
-File version:  1.32.0
+Name:          S2Tweaker 1.33.0
+File version:  1.33.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,43 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.33.0 - ten dials from other people's mods, and the first play-test acted on
+
+- Someone finally tested this in the game. Molkerr played 1.31.0 and sent
+  four findings; two were real bugs here. Ammo stack sizes are confirmed
+  working in-game - the first hard confirmation this tool has ever had.
+- 'Accept several jobs in one conversation' (Economy): the counter raised
+  in 1.31.0 only decides how many jobs a giver PREPARES per round, and his
+  dialog closed after one yes. A new switch re-opens it a second after you
+  accept. It stores nothing in your save and clears none of the game's own
+  bookkeeping, so pulling the pak out leaves no trace.
+- Edition (DLC) items follow the item sliders now. The 22 Deluxe /
+  Pre-Order / Ultimate items declare their own grid size, weight, use time
+  and durability; the general item sliders had never reached them.
+- 'Anomaly wear on gear': one slider for the whole corrosion family - an
+  anomaly hit costs armour, helmet and both weapons 0.2 to 25 points of
+  condition. 0 % stops it entirely.
+- 'Weapon & armor max condition': how much condition there is to begin
+  with. Condition lives in your save, so it shows on gear that spawns
+  after you install the mod.
+- 'Damage at extreme range': past the drop-off distance a shot keeps only
+  10 to 60 % of its damage. This is the floor under that.
+- A-Life: lair starting occupancy, how often rarer archetypes appear, how
+  fast lairs expand toward you, the director's fallback spawn count.
+- Ammunition: two more per-round factors (spread, spread while aiming).
+- 'Stamina & bleeding caps': the two ceilings in the effect table nothing
+  else here touched.
+- Inventory stat bars now move accuracy and handling too, as an honest
+  approximation (accuracy follows spread, handling follows aim time).
+- Correction: the 'artifact visibility radius' slider from 1.28.0 sits on
+  a key whose meaning could not be proven. The mod it was modelled on
+  changes the DETECTOR's display radius instead - which 'Detector &
+  scanner range' has done all along. Renamed, and it says so.
+- Upgrade strength now also covers the accuracy and movement-speed upgrade
+  effects, which hung on no slider at all.
+- No new game files are read: no re-extraction, paks and presets stay
+  valid. Nothing else play-tested - please report back.
+
 1.32.0 - 33 more dials, and a fix in the jamming data
 
 - Fix: the jam entry in the weapon data holds two keys (how likely a jam
