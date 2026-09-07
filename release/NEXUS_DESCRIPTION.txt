@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~430 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
+[i]~450 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -39,7 +39,7 @@ Every release since 1.23.0 has been scanned as a whole ZIP before it went out. T
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]430 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]450 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -237,6 +237,22 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.32.0 - 33 more dials, most of them found by taking other people's mods apart[/b] (~450 tweaks + ammo swap, 14 tabs)
+[list]
+[*][b]Fix worth knowing about:[/b] the jam entry in the weapon data holds two keys - how likely a jam is, and how long clearing one takes. Since 1.26.0 the tool only ever wrote the second one into that entry. Depending on how the game merges partial entries that could have quietly wiped the jam coefficient. Both are written in full now
+[*][b]Shooting feel[/b]: weapon jam chance (0 % = never jams), recoil and spread recovery, spread build-up while you hold the trigger, how much aiming, crouching and moving steady the gun, the pause after which the recoil pattern starts over, and a round kept in the chamber on every weapon
+[*][b]Weapon noise[/b] - how loud your shots are, which is what NPCs actually hear. Until now the stealth sliders only changed how well they hear; this is the other half of the same equation
+[*][b]Inventory stat bars follow your changes[/b] - those damage, range and fire-rate bars are hand-set numbers the game never recomputes, which is why they never moved no matter what you tweaked. Now they follow your sliders, per weapon and per category. Accuracy and handling stay put: they mix dispersion, recoil and weight, and there is no honest formula for them
+[*][b]Ammunition[/b]: four more per-round modifiers (bleeding, recoil, trajectory flatness, and how hard a round is on the barrel), pack size when you pick one up, bullet wall penetration and maximum flight range
+[*][b]NPCs[/b]: how hard stalkers hit each other (vanilla 70 %, which is why faction fights drag on), how much spread zombified stalkers get, when an NPC retreats and how far, and how often they blunder into anomalies
+[*][b]Mutants[/b]: how many blows they land in one go and how fast their claws make you bleed. Human and boss attacks carry the same keys and are deliberately left alone
+[*][b]Explosions[/b]: armor damage, armor penetration and damage to crates, barrels and gas bottles - separate from the blast radius you already had
+[*][b]Economy and inventory[/b]: the repair surcharge every fitted upgrade adds (vanilla 0.2 each - the reason a fully modded rifle costs a fortune to fix), upgrade prices now scale per upgrade as well, how much grid space an item takes, how fast inventory actions are, and how many different item groups a stash rolls
+[*][b]Repeatable jobs[/b] from 1.31.0 are in here too: how many a task giver hands out per round, and whether he offers the next one right away
+[*]Also: ragdoll force on death, and how far bodies fly
+[*]No new game files are read: [b]no re-extraction[/b], existing paks and presets stay valid. Nothing here is play-tested in-game - please report back
+[/list]
+
 [b]v1.31.0 - More repeatable jobs, and eight dials found in other people's mods[/b] (~430 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Repeatable jobs per round[/b] (Economy tab), requested on GitHub by Molkerr. Measured first: every one of the eight task givers hands out [b]three[/b] jobs and then goes quiet until a 24-hour timer resets his counter - and that counter is never counted back down when you hand a job in. The slider raises the three, capped per giver at the number of different jobs he actually has (6 for the Warlock, 10 for Drabadan, 8-9 for the rest), so you never get the same task twice in a row just because the pool ran out
@@ -254,6 +270,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.30.0 - Bigger inventory stacks[/b] (~400 tweaks + ammo swap, 14 tabs)
+[spoiler]
 [list]
 [*]Requested on GitHub by Molkerr. Measured first: the game caps [b]ammunition at 900 per stack[/b] (all 34 round types) - that is the only stack limit you really run into. Weapons, armor, artifacts and attachments already sit at 999, PDAs/notes/keys/quest items at 300000, and binoculars, detectors, the weird DLC artifacts and money cards at 1 on purpose. The last group is never touched
 [*][b]Ammo stack size[/b] (Ammo tab): x 10 turns 900 into 9000. The same value [b]per round[/b] as the fifth factor in the ammo tree, so 5.45 can have a huge stack while RPG rounds stay as they are - a round's own factor beats the global slider
@@ -262,6 +279,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Worth pairing with [b]Max carry weight[/b] and [b]Item weight[/b]: in vanilla the weight stops you long before the stack does (900 rounds of 7.62 already weigh 21.6 kg of your 80), so the stack limit only becomes the real one once you raise carrying capacity - or in a stash, where weight does not count
 [*]No new game files are read: no re-extraction, existing paks and presets stay valid. Not play-tested in-game
 [/list]
+[/spoiler]
 
 [b]v1.29.0 - Interface: exact number boxes, faction colour themes, and a slider fix[/b] (~400 tweaks + ammo swap, 14 tabs)
 [spoiler]

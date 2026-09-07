@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.31.0
-File version:  1.31.0
+Name:          S2Tweaker 1.32.0
+File version:  1.32.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,37 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.32.0 - 33 more dials, and a fix in the jamming data
+
+- Fix: the jam entry in the weapon data holds two keys (how likely a jam
+  is, how long clearing takes). Since 1.26.0 only the second one was ever
+  written into that entry; depending on how the game merges partial
+  entries that could have quietly wiped the jam coefficient. Both are
+  written in full now.
+- Shooting feel: jam chance (0 % = never jams), recoil and spread
+  recovery, spread build-up during a burst, how much aiming, crouching
+  and moving steady the gun, recoil pattern reset, a round kept in the
+  chamber on every weapon.
+- 'Weapon noise' - how loud your shots are, which is what NPCs hear. The
+  stealth sliders only changed how well they hear; this is the other half.
+- 'Inventory stat bars follow your changes': those bars are hand-set
+  numbers the game never recomputes. Now damage, range and fire rate
+  follow your sliders. Accuracy and handling stay put - they are mixed
+  values with no honest formula.
+- Ammunition: bleeding, recoil, trajectory flatness and barrel wear per
+  round, pack size on pickup, wall penetration, maximum flight range.
+- NPCs: NPC-versus-NPC damage (vanilla 70 %), zombie spread, when and how
+  far they retreat, how often they walk into anomalies.
+- Mutants: attacks per series, bleeding buildup. Human and boss attacks
+  are left alone on purpose.
+- Explosions: armor damage, armor penetration, damage to props.
+- Economy/inventory: repair surcharge per fitted upgrade, per-upgrade
+  prices, inventory grid space, inventory action speed, stash variety.
+- Repeatable jobs (from 1.31.0): how many per round, and whether the
+  giver offers the next one right away.
+- No new game files are read: no re-extraction, paks and presets stay
+  valid. Nothing play-tested in-game - please report back.
+
 1.31.0 - More repeatable jobs, and eight dials from other people's mods
 
 - 'Repeatable jobs per round' (Economy), requested on GitHub. Measured

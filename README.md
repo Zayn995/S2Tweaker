@@ -36,7 +36,7 @@ Everyone is free to use it. This README tells you everything you need.
   reading of the factions: the game files carry no faction colours, and no
   game artwork is shipped.
 
-~430 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+~450 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34
@@ -62,7 +62,7 @@ loot amounts in stashes, on bodies
 and in the world's item generators, dropped-weapon condition (average +
 vanilla-style random spread, or exact), trader prices & min. durability,
 trader stock amount/variety/restock and wallets, repair/upgrade costs,
-fast travel, quest rewards, inventory stack size (ammunition globally and per round, food and medicine separately), ammo pack size, four more per-round modifiers (bleeding, recoil, trajectory flatness, weapon wear), weapon jam chance, NPC-versus-NPC damage, mutant attacks per series and bleeding buildup, the repair surcharge each fitted upgrade adds, how many repeatable jobs a task giver hands out per round and whether he offers the next one right away, stash item variety, and an option that makes the inventory stat bars follow your changes.
+fast travel, quest rewards, inventory stack size (ammunition globally and per round, food and medicine separately), ammo pack size, four more per-round modifiers (bleeding, recoil, trajectory flatness, weapon wear), weapon jam chance, NPC-versus-NPC damage, mutant attacks per series and bleeding buildup, the repair surcharge each fitted upgrade adds, how many repeatable jobs a task giver hands out per round and whether he offers the next one right away, stash item variety, and an option that makes the inventory stat bars follow your changes, weapon jam chance and noise, recoil and spread recovery, spread build-up during a burst, how much aiming, crouching and moving steady the gun, the recoil pattern reset, a round kept in the chamber, ammunition left in the weapons of the dead, bullet wall penetration and maximum range, explosion armor damage and penetration, blast damage to props, zombie aim, NPC-versus-NPC damage, when NPCs retreat and how often they blunder into anomalies, ragdoll force, mutant attacks per series and bleeding buildup, inventory grid size and action speed, stash item variety, ammo pack size, and the repair surcharge each fitted upgrade adds.
 
 The override trees add up to 720 weapon and 100 ammo sliders (plus the
 armor, faction and mutant trees) on top of the fixed ones — they are
