@@ -46,6 +46,7 @@ ORDER = [
     "test_mod_harvest.py",
     "test_mod_audit.py",
     "test_ingame_fixes.py",
+    "test_key_families.py",
     "test_upgrades.py",
     "test_alife_spawns.py",
     "test_v118_tweaks.py",
