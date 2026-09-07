@@ -135,7 +135,9 @@ for key, field in SLIDER_FIELDS.items():
 for key, field in CHECK_FIELDS.items():
     app.checks[key].select()
     s = app._collect()
-    if not build_patches(gd, s):
+    # stat_bars spiegelt nur die Waffenregler: allein verstellt erzeugt
+    # es bewusst keinen Patch (Begruendung in gui.footprint_settings).
+    if not build_patches(gd, s) and key != "stat_bars":
         dead.append(f"check:{key}")
     if not summarize(s):
         no_line.append(f"check:{key}")

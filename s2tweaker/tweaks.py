@@ -249,7 +249,10 @@ WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
 }
 
 # --- Munitions-Zwei-Ebenen-System: Einzelsorte > globaler Regler ---------
-AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover", "stack"]
+# ⚠ Reihenfolge NICHT aendern und Neues nur ANHAENGEN: sie bestimmt die
+# Zeilenfolge im Patch und damit die Byte-Gleichheit zu aelteren Paks.
+AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover", "stack",
+               "bleeding", "recoil", "flatness", "wear"]
 
 AMMO_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -257,6 +260,10 @@ AMMO_PARAM_LABELS = {  # GUI (englisch)
     "armordamage": "Armor damage",
     "cover": "Cover penetration",
     "stack": "Stack size",
+    "bleeding": "Bleeding",
+    "recoil": "Recoil",
+    "flatness": "Trajectory flatness",
+    "wear": "Weapon wear",
 }
 
 # Regler-Schluessel -> cfg-Schluessel in ItemPrototypes (= AMMO_MOD_KEYS).
@@ -268,6 +275,10 @@ AMMO_PARAM_KEYS = {
     "armordamage": "ArmorDamageMod",
     "cover": "CoverPiercingMod",
     "stack": "MaxStackCount",
+    "bleeding": "BleedingMod",
+    "recoil": "RecoilMod",
+    "flatness": "FlatnessMod",
+    "wear": "WeaponExhaustionMod",
 }
 
 # Reihenfolge = Sortierung der Sorten INNERHALB eines Kalibers
@@ -737,6 +748,20 @@ class Settings:
     # Einzelsorten-Overrides {Ammo-SID: {param: faktor}}; ein Eintrag
     # ERSETZT den globalen Regler fuer diesen Parameter an dieser Sorte
     # (wie bei den Waffen), er multipliziert sich nicht dazu.
+    # UpgradePrototypes RepairCostModifier: ABSOLUTWERT, Vanilla 0.2f bei
+    # allen 1288 Upgrades (live gegengelesen). Der gleichnamige Schluessel
+    # in ObjPrototypes (1659x, Wert 1) gehoert zu den NPCs und bleibt tabu.
+    upgrade_repair_surcharge: float = 0.2
+    mutant_attack_series_factor: float = 1.0  # AbilityPrototypes MaxAttacksInSeries (0/1/2/3)
+    mutant_attack_bleed_factor: float = 1.0   # dito BleedingChanceIncrement (.1f / 0.f / .5f)
+    jam_chance_factor: float = 1.0           # WGS Min/MaxJamChance (0.0 / 4.0-15.0)
+    npc_vs_npc_damage_factor: float = 1.0    # CWS NPCToNPCDamageScaler (150x 0.7)
+    stat_bars_follow: bool = False           # CWS DamageUI/RangeUI/RateOfFireUI mitziehen
+    ammo_pack_factor: float = 1.0            # ItemPrototypes AmmoPackCount (30/10/20/50)
+    ammo_bleeding_factor: float = 1.0        # ItemPrototypes BleedingMod (35x 1.0)
+    ammo_recoil_factor: float = 1.0          # dito RecoilMod (35x 1.0)
+    ammo_flatness_factor: float = 1.0        # dito FlatnessMod (1.0-1.9; hoeher = flachere Flugbahn)
+    ammo_wear_factor: float = 1.0            # dito WeaponExhaustionMod (0.8-1.3; Abnutzung je Schuss)
     ammo_stack_factor: float = 1.0           # ItemPrototypes MaxStackCount, Munition (900)
     consumable_stack_factor: float = 1.0     # dito Nahrung/Medizin (999)
     ammo_overrides: dict = field(default_factory=dict)
@@ -777,7 +802,8 @@ class Settings:
     # --- Loot in Verstecken und auf Leichen (StashPrototypes) ---
     stash_loot_factor: float = 1.0           # Stueckzahlen je Fund
     stash_chance_factor: float = 1.0         # Fundwahrscheinlichkeit
-    stash_ammo_factor: float = 1.0           # Munition an gefundenen Waffen
+    stash_ammo_factor: float = 1.0
+    stash_sets_factor: float = 1.0           # StashPrototypes ItemSetCount (0-15)           # Munition an gefundenen Waffen
     # --- Loot-Mengen im grossen Generator (ItemGeneratorPrototypes) ---
     loot_amount_factor: float = 1.0          # Stueckzahlen je Fundstelle
     # --- Zustand gedroppter Waffen (docs/GENERATOR_RESEARCH.md 3.3) ---
@@ -825,6 +851,15 @@ class Settings:
     upgrade_cost_factor: float = 1.0
     quest_reward_factor: float = 1.0
     repeatable_quest_factor: float = 1.0     # Cooldown wiederholbarer Jobs
+    # --- 1.31.0: Jobs je Runde (GitHub Issue #8, Molkerr) ---
+    # Vanilla-Cap ist bei allen acht Gebern 3 (live gegengelesen); der
+    # Regler ist ein ABSOLUTWERT, je Geber auf seinen Aufgaben-Topf
+    # gedeckelt (6 bis 10). 0/negativ = aus.
+    repeatable_jobs_per_round: int = 3
+    # Haengt den Job-Dialog vom False- auf den True-Ausgang des
+    # Limit-Knotens: der Geber bietet sofort den naechsten Job an,
+    # statt erst wenn er leer ist.
+    repeatable_jobs_instant: bool = False
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
     armor_price_factor: float = 1.0
@@ -1231,7 +1266,8 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
     loot = _neq(s.stash_loot_factor, 1.0)
     chance = _neq(s.stash_chance_factor, 1.0)
     ammo = _neq(s.stash_ammo_factor, 1.0)
-    if not (loot or chance or ammo):
+    sets = _neq(s.stash_sets_factor, 1.0)
+    if not (loot or chance or ammo or sets):
         return {}
 
     patches: dict = {}
@@ -1247,6 +1283,15 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
                                   s.stash_ammo_factor)
             if scaled is not None:
                 cfg["MainWeaponAmmoCount"] = scaled
+        if sets:
+            # ItemSetCount = wieviele Fundgruppen ein Versteck auswuerfelt
+            # (Vanilla 0 bis 15, meist 2-5). Andere Achse als der
+            # Mengen-Regler darueber: mehr SORTEN statt mehr Stueck.
+            # _scale_count laesst 0 bei 0 und geht nie unter 1.
+            scaled = _scale_count(entry.values.get("ItemSetCount"),
+                                  s.stash_sets_factor)
+            if scaled is not None:
+                cfg["ItemSetCount"] = scaled
         if loot:
             items: dict = {}
             items_node = entry.children.get("Items")
@@ -2119,6 +2164,51 @@ def _mutant_abilities_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _mutant_attack_patch(gd: GameData, s: Settings) -> dict:
+    """Angriffe je Serie und Blutungsaufbau der Mutanten.
+
+    `MaxAttacksInSeries` (wie viele Schlaege ein Mutant am Stueck macht,
+    Vanilla 0/1/2/3) und `BleedingChanceIncrement` (wie schnell ein
+    Treffer die Blutung aufbaut, Vanilla meist .1f). Beides gemessen
+    07.09.2026 an 143 Mutanten-Attacken; menschliche und Boss-Attacken
+    tragen dieselben Schluessel und bleiben draussen (siehe
+    gd.mutant_attack_params). Gefunden in "Stalker Unlimited" (Nexus 1453).
+
+    Vanilla 0 bleibt 0 (eine Attacke ohne Serie bekommt keine), sonst
+    mindestens 1 — eine halbe Attacke gibt es nicht. Die Blutung behaelt
+    ihre Schreibweise (`.1f` bleibt `.1f`)."""
+    want_series = _neq(s.mutant_attack_series_factor, 1.0) and s.mutant_attack_series_factor >= 0
+    want_bleed = _neq(s.mutant_attack_bleed_factor, 1.0) and s.mutant_attack_bleed_factor >= 0
+    if not (want_series or want_bleed):
+        return {}
+    keys = ()
+    if want_series:
+        keys += ("MaxAttacksInSeries",)
+    if want_bleed:
+        keys += ("BleedingChanceIncrement",)
+    patches: dict = {}
+    for sid, found in sorted(gd.mutant_attack_params(keys).items()):
+        for path, raw in sorted(found.items()):
+            parts = path.split(".")
+            if parts[-1] == "MaxAttacksInSeries":
+                vanilla = parse_number(raw)
+                if vanilla <= 0:
+                    continue
+                new = max(1, int(round(vanilla * s.mutant_attack_series_factor)))
+                if new == int(vanilla):
+                    continue
+                value = str(new)
+            else:
+                value = _scale_literal(raw, s.mutant_attack_bleed_factor)
+                if value is None or value == raw:
+                    continue
+            node = patches.setdefault(sid, {})
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            node[parts[-1]] = value
+    return patches
+
+
 def _invisibility_patch(gd: GameData, s: Settings) -> dict:
     """Bloodsucker-Tarnung: Tarn-Tempo und Enttarnung durch Treffer."""
     cloak_on = _neq(s.bloodsucker_cloak_factor, 1.0) and s.bloodsucker_cloak_factor > 0
@@ -2978,6 +3068,56 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
                 scaled_raw = _scale_literal(raw, bleed_factor)
                 if scaled_raw is not None and scaled_raw != raw.strip():
                     patches.setdefault(sid, {})["ChanceBleedingPerShot"] = scaled_raw
+
+        # Anzeigebalken im Inventar (1.31.0). Sie sind reine Deko: das
+        # Spiel rechnet sie NIE aus den echten Werten aus, sie stehen als
+        # feste Zahlen 0..1 an jedem CWS-Struct (gemessen: 150 Structs,
+        # Maximum genau 1.0). Darum ziehen sie hier mit demselben Faktor
+        # mit wie der echte Wert, gedeckelt bei 1.0. Angeboten werden nur
+        # die drei sauber zuordenbaren Balken — Accuracy und Handling sind
+        # Mischwerte aus Streuung, Rueckstoss und Gewicht, fuer die es
+        # keine ehrliche Formel gibt. Ausloeser: der Nexus-Bericht von
+        # Ygracael (03.09.), bis 1.30.0 nur ein FAQ-Eintrag.
+        if s.stat_bars_follow:
+            for key, param, global_factor in (
+                    ("DamageUI", "damage", 1.0),
+                    ("RangeUI", "range", s.weapon_range_factor),
+                    ("RateOfFireUI", "firerate", 1.0)):
+                bar_factor = factor_for(sid, param, global_factor)
+                if not _neq(bar_factor, 1.0) or bar_factor < 0:
+                    continue
+                value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
+                if value <= 0:
+                    continue
+                new = min(1.0, value * bar_factor)
+                if _neq(new, value):
+                    patches.setdefault(sid, {})[key] = _num(new)
+    return patches
+
+
+def _npc_vs_npc_patch(gd: GameData, s: Settings) -> dict:
+    """Wie hart NPCs EINANDER treffen (CharacterWeaponSettings).
+
+    `NPCToNPCDamageScaler` steht in Vanilla bei allen 150 CWS-Structs auf
+    0.7 (gemessen 07.09.2026) — Stalker gegen Stalker macht also 70 % des
+    Schadens. Ein Wert, ein Regler; er beruehrt den Spieler nicht.
+    Gefunden beim Durchsehen der Mod "Stalker Unlimited" (Nexus 1453).
+
+    Bewusst OHNE Kaskade: das ist kein Waffengefuehl, sondern eine
+    Weltregel — und sie an einer einzelnen Waffe zu verstellen waere im
+    Tooltip nicht zu erklaeren."""
+    if not _neq(s.npc_vs_npc_damage_factor, 1.0) or s.npc_vs_npc_damage_factor < 0:
+        return {}
+    patches: dict = {}
+    for sid, node in sorted(gd.weaponsettings.children.items()):
+        if "#" in sid:
+            continue
+        raw = node.values.get("NPCToNPCDamageScaler")
+        if raw is None:
+            continue
+        scaled = _scale_literal(raw, s.npc_vs_npc_damage_factor)
+        if scaled is not None and scaled != raw.strip():
+            patches[sid] = {"NPCToNPCDamageScaler": scaled}
     return patches
 
 
@@ -3006,22 +3146,34 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         node[parts[-1]] = _num(value)
 
     def scale(path: str, param: str, global_factor: float = 1.0,
-              invert: bool = False):
+              invert: bool = False, skip_unchanged: bool = False):
+        """skip_unchanged: Blaetter auslassen, deren Ergebnis gleich
+        Vanilla ist. Gebraucht seit 1.31.0 fuer die Ladehemmung — dort
+        steht MinJamChance bei 91 von 92 Waffen auf 0.0, und 0 x Faktor
+        bleibt 0; ohne den Filter stuenden 91 wirkungslose Zeilen im
+        Patch. Fuer die aelteren Aufrufe bleibt das Verhalten
+        unveraendert (Vorgabe False), damit deren Paks bytegleich
+        bleiben."""
         values = gd.weapon_general_values(path)
         for sid, value in sorted(values.items()):
             f = _weapon_factor(s, gd.weapon_category(sid), sid, param,
                                global_factor)
             if not _neq(f, 1.0) or f < 0 or (invert and f <= 0):
                 continue
-            emit(patches, sid, path, value / f if invert else value * f)
+            new = value / f if invert else value * f
+            if skip_unchanged and not _neq(new, value):
+                continue
+            emit(patches, sid, path, new)
         dlc_values = gd.dlc_weapon_general_values(path)
         for (ed, sid), value in sorted(dlc_values.items()):
             f = _weapon_factor(s, gd.dlc_weapon_category(ed, sid), sid,
                                param, global_factor)
             if not _neq(f, 1.0) or f < 0 or (invert and f <= 0):
                 continue
-            emit(dlc_patches.setdefault(ed, {}), sid, path,
-                 value / f if invert else value * f)
+            new = value / f if invert else value * f
+            if skip_unchanged and not _neq(new, value):
+                continue
+            emit(dlc_patches.setdefault(ed, {}), sid, path, new)
         dlc_defined = {sid for _ed, sid in dlc_values}
         for sid, params in sorted(s.weapon_overrides.items()):
             f = params.get(param)
@@ -3040,6 +3192,15 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if value > 0:
                 emit(patches, sid, path, value / f if invert else value * f)
 
+    # Ladehemmung (1.31.0): die Wahrscheinlichkeit selbst, NICHT die
+    # Haltbarkeits-Schwellen, ab denen sie greift (MinJamDurabilityThreshold
+    # 0.75 / MaxJamDurabilityThreshold 0.1 bleiben vanilla — sie sagen, AB
+    # WANN geklemmt wird, und das laesst sich nicht in einen Satz fassen).
+    # "jamchance" steht bewusst NICHT in WEAPON_PARAMS: damit faellt
+    # _weapon_factor immer auf den globalen Regler zurueck (Muster wie
+    # "equiptime" seit 1.29.0).
+    scale("MinJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
+    scale("MaxJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
     scale("DispersionParams.FirstShotDispersionRadius", "spread",
           s.spread_factor)
     scale("RecoilParams.RecoilRadius", "recoil", s.recoil_factor)
@@ -4168,6 +4329,10 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         "armordamage": s.ammo_armor_damage_factor,
         "cover": s.ammo_cover_factor,
         "stack": s.ammo_stack_factor,
+        "bleeding": s.ammo_bleeding_factor,
+        "recoil": s.ammo_recoil_factor,
+        "flatness": s.ammo_flatness_factor,
+        "wear": s.ammo_wear_factor,
     }
     # Ohne "or s.ammo_overrides" faende ein Pak mit AUSSCHLIESSLICH
     # Einzelsorten-Overrides gar nicht statt.
@@ -4210,6 +4375,16 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             target = max(1, min(300000, int(round(vanilla * s.consumable_stack_factor))))
             if target != vanilla:
                 patches.setdefault(sid, {})["MaxStackCount"] = str(target)
+
+    # Packungsgroesse der Munition (1.31.0, aus "Stalker Unlimited"):
+    # wieviele Schuss eine aufgesammelte Packung hergibt. Bewusst NUR ein
+    # globaler Regler und KEIN Baum-Parameter — das ist eine Fundmenge,
+    # kein Ballistik-Wert, und der Sorten-Baum haette sonst zehn Regler.
+    if _neq(s.ammo_pack_factor, 1.0):
+        for sid, vanilla in sorted(gd.ammo_pack_counts().items()):
+            target = max(1, int(round(vanilla * s.ammo_pack_factor)))
+            if target != int(vanilla):
+                patches.setdefault(sid, {})["AmmoPackCount"] = str(target)
 
     # Artefakt-Detektor-Items (Echo/Bear/Veles/Gilka): Reichweiten skalieren
     if _neq(s.detector_range_factor, 1.0):
@@ -4486,6 +4661,70 @@ def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
+    """Jobs, die ein Auftraggeber pro Runde ausgibt (GitHub Issue #8).
+
+    Fundort: je RSQ-Geber EIN If-Knoten mit `Less <Zaehler> 3` in
+    QuestNodePrototypes.cfg. Das ist die einzige Zahl, die das Limit setzt —
+    der Zaehler wird beim Abgeben eines Jobs nie heruntergezaehlt, nur der
+    24-h-Timer setzt ihn auf 0 zurueck (das ist der Cooldown-Regler
+    nebenan). Beide Schrauben zusammen ergeben "wie viele Jobs, wie oft".
+
+    Gedeckelt wird je Geber auf seinen eigenen Aufgaben-Topf (6 bis 10):
+    mehr Jobs als er verschiedene Aufgaben hat, zieht nur Wiederholungen.
+
+    Der Bedingungs-Eintrag wird KOMPLETT ausgegeben (alle Schluessel, nicht
+    nur VariableValue): ob {bpatch} verschachtelte Array-Eintraege
+    zusammenfuehrt oder ersetzt, ist nicht belegt (docs/SPEC.md par. 0) —
+    komplett ist der Patch unter beiden Lesarten richtig.
+
+    Die 75-MB-Datei wird nur geparst, wenn der Regler nicht auf Vanilla
+    steht (dasselbe Lazy-Muster wie beim Cooldown-Regler)."""
+    target = int(s.repeatable_jobs_per_round)
+    if target == Settings.repeatable_jobs_per_round or target < 1:
+        return {}
+    patches: dict = {}
+    for giver in gd.repeatable_quest_givers():
+        want = min(target, giver["pool"])
+        if not _neq(want, giver["cap"]):
+            continue
+        outer, inner = giver["cond_path"]
+        conditions = giver["cap_node"].children["Conditions"]
+        entry = _struct_dict(conditions.children[outer].children[inner])
+        entry["VariableValue"] = str(want)
+        patches[giver["cap_key"]] = {"Conditions": {outer: {inner: entry}}}
+    return patches
+
+
+def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
+    """Der Auftraggeber bietet den naechsten Job sofort an (Issue #8).
+
+    In Vanilla haengt sein SetDialog-Knoten am FALSE-Ausgang des
+    Limit-Knotens: der Job-Dialog wird erst wieder scharf, wenn der Geber
+    LEER ist. Auf True umgehaengt fragt er sofort wieder — das ist die
+    Haelfte der Anfrage, die "mehrmals ansprechen" heisst.
+
+    Geaendert wird nur der Pin-Name; der Verbindungs-Eintrag geht mit
+    seiner SID KOMPLETT raus, und mit ihm der ganze Launcher-Eintrag samt
+    seiner uebrigen Verbindungen (Array-Regel wie oben). Der Verbindungs-
+    Index ist NICHT bei allen Gebern gleich — er wird live gesucht.
+
+    Ohne diesen Schalter bringt ein hoeheres Limit wenig; dieselbe
+    Kombination faehrt die Nexus-Mod "New Game Start" (1211)."""
+    if not s.repeatable_jobs_instant:
+        return {}
+    patches: dict = {}
+    for giver in gd.repeatable_quest_givers():
+        if giver["pin"] == "True":
+            continue
+        launcher_key, conn_key = giver["link_path"]
+        launcher = giver["dialog_node"].children["Launchers"].children[launcher_key]
+        entry = _struct_dict(launcher)
+        entry["Connections"][conn_key]["Name"] = "True"
+        patches[giver["dialog_key"]] = {"Launchers": {launcher_key: entry}}
+    return patches
+
+
 def _relations_patch(gd: GameData, s: Settings) -> dict:
     """Fraktionsbeziehungen + Reputations-Rollback (RelationPrototypes.cfg).
 
@@ -4731,6 +4970,25 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
             continue
         for sid in gd.upgrade_sids_with(key):
             patches.setdefault(sid, {})[key] = ""
+
+    # Reparatur-Aufschlag je verbautem Upgrade (1.31.0). `RepairCostModifier`
+    # steht in Vanilla bei ALLEN 1288 Upgrades auf 0.2f — der Posten, den
+    # die Formel in docs/SPEC.md par. 1.10 als "0.1-Koeffizient ohne cfg-
+    # Schluessel" fuehrte. Absolutregler, weil der Wert einheitlich ist;
+    # verglichen wird trotzdem je Upgrade gegen den live gelesenen Wert.
+    # Gefunden in "Stalker Unlimited" (Nexus 1453).
+    for sid, node in sorted(gd.upgrades.children.items()):
+        if "#" in sid:
+            continue
+        raw = node.values.get("RepairCostModifier")
+        if raw is None:
+            continue
+        if not _neq(s.upgrade_repair_surcharge, parse_number(raw)):
+            continue
+        # Literalform erhalten (Vanilla schreibt "0.2f")
+        suffix = "f" if raw.strip().endswith(("f", "F")) else ""
+        patches.setdefault(sid, {})["RepairCostModifier"] = (
+            _num(s.upgrade_repair_surcharge) + suffix)
     return patches
 
 
@@ -5277,6 +5535,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 
     ability_patches = _mutant_abilities_patch(gd, s)
     _merge_nested(ability_patches, _phantom_dog_patch(gd, s))
+    _merge_nested(ability_patches, _mutant_attack_patch(gd, s))
     add(f"AbilityPrototypes/AbilityPrototypes_patch_{n}.cfg", ability_patches)
     add(f"MeleeWeaponPrototypes/MeleeWeaponPrototypes_patch_{n}.cfg",
         _melee_patch(gd, s))
@@ -5292,6 +5551,11 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         cws_patches.setdefault(sid, {}).update(cfg)
     cws_patches.update(_npc_weapon_patch(gd, s))
     for sid, cfg in _guard_patch(gd, s).items():
+        cws_patches.setdefault(sid, {}).update(cfg)
+    # NACH _npc_weapon_patch/_guard_patch mergen: die beiden benutzen
+    # dict.update auf Struct-Ebene und wuerden einen fertigen Eintrag
+    # sonst ueberschreiben.
+    for sid, cfg in _npc_vs_npc_patch(gd, s).items():
         cws_patches.setdefault(sid, {}).update(cfg)
     add("WeaponData/WeaponAttributesPrototypes/"
         f"WeaponAttributesPrototypes_patch_{n}.cfg", _npc_ai_patch(gd, s))
@@ -5406,6 +5670,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _relations_patch(gd, s))
     quest_patches = _quest_timer_patch(gd, s)
     quest_patches.update(_skip_intro_patch(gd, s))
+    _merge_nested(quest_patches, _quest_limit_patch(gd, s))
+    _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
         _emission_patch(gd, s))
@@ -5812,6 +6078,21 @@ def summarize(s: Settings) -> list[str]:
     f("Ammo armor damage", s.ammo_armor_damage_factor)
     f("Ammo cover penetration", s.ammo_cover_factor)
     f("Ammo stack size", s.ammo_stack_factor)
+    if _neq(s.upgrade_repair_surcharge, Settings.upgrade_repair_surcharge):
+        lines.append(f"Repair surcharge per upgrade {s.upgrade_repair_surcharge:g} "
+                     f"(vanilla {Settings.upgrade_repair_surcharge:g})")
+    f("Mutant attacks per series", s.mutant_attack_series_factor)
+    f("Mutant bleeding buildup", s.mutant_attack_bleed_factor)
+    f("Weapon jam chance", s.jam_chance_factor)
+    f("NPC vs NPC damage", s.npc_vs_npc_damage_factor)
+    if s.stat_bars_follow:
+        lines.append("Inventory stat bars follow your changes")
+    f("Ammo pack size", s.ammo_pack_factor)
+    f("Stash item sets", s.stash_sets_factor)
+    f("Ammo bleeding", s.ammo_bleeding_factor)
+    f("Ammo recoil", s.ammo_recoil_factor)
+    f("Ammo trajectory flatness", s.ammo_flatness_factor)
+    f("Ammo weapon wear", s.ammo_wear_factor)
     f("Food & medicine stack size", s.consumable_stack_factor)
     # Strenger als die Waffen-Schleife weiter unten: ein Muellschluessel aus
     # einem von Hand bearbeiteten Preset darf hier kein KeyError werfen.
@@ -5920,6 +6201,11 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Upgrades: no earlier tier required")
     f("Quest money rewards", s.quest_reward_factor)
     f("Repeatable quest cooldown", s.repeatable_quest_factor)
+    if _neq(s.repeatable_jobs_per_round, Settings.repeatable_jobs_per_round):
+        lines.append(f"Repeatable jobs per round {s.repeatable_jobs_per_round:g} "
+                     f"(vanilla {Settings.repeatable_jobs_per_round})")
+    if s.repeatable_jobs_instant:
+        lines.append("Task givers offer the next job right away")
     f("ADS aim-in speed", s.aim_time_factor)
     f("Weapon prices", s.weapon_price_factor)
     f("Armor prices", s.armor_price_factor)

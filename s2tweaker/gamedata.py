@@ -181,6 +181,54 @@ def default_cache_dir() -> Path:
     return base
 
 
+# Wiederholbare Jobs (repeatable side quests): die Knoten einer Quest tragen
+# QuestSIDs wie "RSQ01" oder "RSQ06_C00___SIDOROVICH" — gruppiert wird ueber
+# den fuehrenden RSQ<Nummer>-Teil (acht Auftraggeber, gemessen 07.09.2026).
+_RSQ_GROUP_RE = re.compile(r"^(RSQ\d+)")
+
+
+def _less_condition(node: CfgStruct,
+                    variables: set[str]) -> tuple[tuple[str, str], float] | None:
+    """Im Conditions-Baum eines If-Knotens die `Less`-Bedingung auf eine der
+    genannten Variablen suchen. Liefert ((AussenSchluessel, InnenSchluessel),
+    Grenzwert) — der Pfad wird gebraucht, um genau diesen Array-Eintrag
+    spaeter KOMPLETT auszugeben."""
+    conds = node.children.get("Conditions")
+    if conds is None:
+        return None
+    for outer_key, outer in conds.children.items():
+        for inner_key, inner in outer.children.items():
+            values = inner.values
+            comparance = (values.get("ConditionComparance") or "").strip()
+            variable = (values.get("GlobalVariablePrototypeSID") or "").strip()
+            if comparance == "EConditionComparance::Less" and variable in variables:
+                return (outer_key, inner_key), parse_number(values.get("VariableValue"))
+    return None
+
+
+def _launcher_link(node: CfgStruct,
+                   source_sid: str) -> tuple[tuple[str, str], str] | None:
+    """Die Launcher-Verbindung eines Knotens finden, die von `source_sid`
+    kommt. Liefert ((LauncherSchluessel, VerbindungsSchluessel), Pin-Name).
+
+    Launchers sind EINGEHENDE Verbindungen (`Name` ist der Ausgangs-Pin des
+    ausloesenden Knotens) — nachgeprueft am Vanilla-Graphen: der Random-
+    Knoten von RSQ01 nennt seinen If-Knoten mit Pin True. Der Verbindungs-
+    Index ist NICHT bei allen Gebern gleich (viermal [0], viermal [1]),
+    darum wird er hier gesucht statt angenommen."""
+    launchers = node.children.get("Launchers")
+    if launchers is None:
+        return None
+    for launcher_key, launcher in launchers.children.items():
+        connections = launcher.children.get("Connections")
+        if connections is None:
+            continue
+        for conn_key, conn in connections.children.items():
+            if (conn.values.get("SID") or "").strip() == source_sid:
+                return (launcher_key, conn_key), (conn.values.get("Name") or "").strip()
+    return None
+
+
 class GameData:
     def __init__(self, gamedata_dir: Path):
         """gamedata_dir: Ordner, der die cfg-TEXT-Dateien enthaelt
@@ -2088,7 +2136,13 @@ class GameData:
     # Munitionssorte (Vanilla ueberall 900) und damit im Sorten-Baum
     # einstellbar wie die vier Mods. GitHub Issue #7 (Molkerr).
     AMMO_MOD_KEYS = ("DamageMod", "ArmorPiercingMod", "ArmorDamageMod",
-                     "CoverPiercingMod", "MaxStackCount")
+                     "CoverPiercingMod", "MaxStackCount",
+                     # 1.31.0: vier weitere Modifikatoren, die jede der
+                     # 35 Sorten selbst deklariert (gemessen 07.09.2026:
+                     # Bleeding/Recoil ueberall 1.0, Flatness 1.0-1.9,
+                     # WeaponExhaustion 0.8-1.3)
+                     "BleedingMod", "RecoilMod", "FlatnessMod",
+                     "WeaponExhaustionMod")
 
     def ammo_mods(self) -> dict[str, dict[str, float]]:
         """{SID: {ModKey: aufgeloester Vanilla-Wert}} aller Munitions-Items."""
@@ -2316,6 +2370,156 @@ class GameData:
             if value > 0:
                 result[sid] = value
         return result
+
+    def ammo_pack_counts(self) -> dict[str, float]:
+        """{Ammo-SID: AmmoPackCount} — wieviele Schuss eine aufgesammelte
+        Packung hergibt.
+
+        Gemessen 07.09.2026: 35 Structs, davon 30 (13x), 10 (8x), 20 (7x),
+        50 (3x) und **1** bei TemplateAmmo und den drei Werfergranaten
+        (AVOG, AHEDP, APG7V). Die 1 wird wie bei stack_counts() gefiltert:
+        Werfergranaten kommen einzeln, das ist eine Design-Entscheidung des
+        Spiels und keine Grenze, die stoert."""
+        result: dict[str, float] = {}
+        for sid, node in self.items.children.items():
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != "ammo":
+                continue
+            raw = self.resolve(self.items, sid, "AmmoPackCount")
+            if raw is None:
+                continue
+            value = parse_number(raw)
+            if value > 1:
+                result[sid] = value
+        return result
+
+    # --------------------------------------- Mutanten: Attacken-Details
+    def mutant_attack_params(self, keys: tuple[str, ...]) -> dict[str, dict[str, str]]:
+        """{Ability-SID: {Pfad: Roh-Literal}} fuer die genannten Schluessel,
+        NUR an Mutanten-Attacken.
+
+        Die Auswahl laeuft ueber SPECIES_ABILITY_PREFIXES — dieselbe Liste,
+        die schon der Schadens-Regler je Art benutzt. Wichtig, weil dieselben
+        Schluessel auch an menschlichen und an Boss-Attacken stehen
+        (Human_MeleeAttack, Korshunov_*, Faust_*, Controller_ZombifyNPC) und
+        an den Vorlagen BaseAttackAbility/Default: gemessen 07.09.2026 sind
+        es 143 Mutanten-Attacken gegen 34 andere Traeger, die hier bewusst
+        draussen bleiben. Literale werden roh geliefert (`.1f`, `0.f`), damit
+        der Builder die Schreibweise erhalten kann."""
+        result: dict[str, dict[str, str]] = {}
+        prefixes = tuple(p for lst in SPECIES_ABILITY_PREFIXES.values() for p in lst)
+        for sid, node in self.abilities.children.items():
+            if "#" in sid or not sid.startswith(prefixes):
+                continue
+            found: dict[str, str] = {}
+
+            def walk(current, path: str) -> None:
+                for key, raw in current.values.items():
+                    if key in keys:
+                        found[f"{path}{key}" if path else key] = raw.strip()
+                for name, child in current.children.items():
+                    walk(child, f"{path}{name}.")
+
+            walk(node, "")
+            if found:
+                result[sid] = found
+        return result
+
+    # ------------------------------------ wiederholbare Jobs: Limit je Geber
+    def repeatable_quest_givers(self) -> list[dict]:
+        """Die acht Auftraggeber wiederholbarer Jobs (RSQ*) mit den zwei
+        Stellschrauben, die neben dem Cooldown-Timer daran haengen.
+
+        Vanilla-Mechanik, am 07.09.2026 gegen die Spieldaten gemessen: je
+        Geber zaehlt eine eigene Globalvariable die in dieser Runde
+        ausgegebenen Jobs hoch (`Add 1` je Aufgabe). Ein If-Knoten laesst
+        nur weiter, solange der Zaehler `Less 3` ist; der SetTimer-Knoten
+        setzt ihn nach 24 Stunden auf 0 zurueck (das ist der vorhandene
+        Cooldown-Regler). Beim ABGEBEN wird nie heruntergezaehlt — die 3
+        ist also die Zahl der Jobs pro Runde, nicht der gleichzeitig
+        gehaltenen. Gegengeprueft an der Nexus-Mod "New Game Start" (1211),
+        die genau diese Zahl auf 6 setzt.
+
+        Zweite Stellschraube: der SetDialog-Knoten des Gebers haengt in
+        Vanilla am FALSE-Ausgang des If-Knotens — der Job-Dialog wird also
+        erst wieder scharf, wenn der Geber LEER ist. Auf True umgehaengt
+        bietet er sofort den naechsten Job an.
+
+        Erkennung bewusst datengetrieben statt ueber die Knotennamen
+        ("...If_LessThen3Tasks" waere ein englischer Name, der mit einem
+        Spiel-Update wandern kann): gesucht wird je Quest der If-Knoten mit
+        einer `Less`-Bedingung auf eine Variable, die in derselben Quest per
+        `Add` hochgezaehlt wird.
+
+        Je Geber ein dict: quest, cap_key/cap_node/cap/cond_path, pool
+        (Zahl der Aufgaben-Container), dialog_key/dialog_node/link_path/pin.
+        Parst die 75-MB-Datei — nur lazy anfassen (wie questnodes)."""
+        groups: dict[str, list[tuple[str, CfgStruct]]] = {}
+        for key, node in self.questnodes.children.items():
+            quest = (node.values.get("QuestSID") or "").strip()
+            match = _RSQ_GROUP_RE.match(quest)
+            if match:
+                groups.setdefault(match.group(1), []).append((key, node))
+
+        givers: list[dict] = []
+        for group, nodes in sorted(groups.items()):
+            counters = {
+                (n.values.get("GlobalVariablePrototypeSID") or "").strip()
+                for _k, n in nodes
+                if (n.values.get("NodeType") or "").strip()
+                == "EQuestNodeType::SetGlobalVariable"
+                and (n.values.get("ChangeValueMode") or "").strip()
+                == "EChangeValueMode::Add"
+            }
+            counters.discard("")
+            if not counters:
+                continue
+
+            cap = None
+            for key, node in nodes:
+                if (node.values.get("NodeType") or "").strip() != "EQuestNodeType::If":
+                    continue
+                hit = _less_condition(node, counters)
+                if hit is not None:
+                    cap = (key, node, hit[0], hit[1])
+                    break
+            if cap is None:
+                continue
+            cap_key, cap_node, cond_path, cap_value = cap
+            cap_sid = (cap_node.values.get("SID") or "").strip() or cap_key
+
+            pool = sum(
+                1 for _k, n in nodes
+                if (n.values.get("NodeType") or "").strip()
+                == "EQuestNodeType::Container"
+            )
+
+            dialog = None
+            for key, node in nodes:
+                if (node.values.get("NodeType") or "").strip() != "EQuestNodeType::SetDialog":
+                    continue
+                link = _launcher_link(node, cap_sid)
+                if link is not None:
+                    dialog = (key, node, link[0], link[1])
+                    break
+            if dialog is None:
+                continue
+            dialog_key, dialog_node, link_path, pin = dialog
+
+            givers.append({
+                "quest": group,
+                "cap_key": cap_key,
+                "cap_node": cap_node,
+                "cap": cap_value,
+                "cond_path": cond_path,
+                "pool": pool,
+                "dialog_key": dialog_key,
+                "dialog_node": dialog_node,
+                "link_path": link_path,
+                "pin": pin,
+            })
+        return givers
 
     # ------------------------------------------------- Fraktionsbeziehungen
     # Recherche: docs/FACTION_RELATIONS_RESEARCH.md (582 Paare, Stand 2.0.x)

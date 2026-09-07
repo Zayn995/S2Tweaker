@@ -924,6 +924,16 @@ SLIDER_FIELDS: dict[str, str] = {
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
     "ammo_cover": "ammo_cover_factor",
     "ammo_stack": "ammo_stack_factor",
+    "jam_chance": "jam_chance_factor",
+    "npc_vs_npc": "npc_vs_npc_damage_factor",
+    "upg_repair": "upgrade_repair_surcharge",
+    "mut_series": "mutant_attack_series_factor",
+    "mut_bleed": "mutant_attack_bleed_factor",
+    "ammo_pack": "ammo_pack_factor",
+    "ammo_bleed": "ammo_bleeding_factor",
+    "ammo_recoil": "ammo_recoil_factor",
+    "ammo_flat": "ammo_flatness_factor",
+    "ammo_wear": "ammo_wear_factor",
     "cons_stack": "consumable_stack_factor", "anomaly": "anomaly_damage_factor",
     "anom_electro": "anomaly_electro_factor", "anom_chem": "anomaly_chemical_factor",
     "anom_fire": "anomaly_fire_factor", "anom_grav": "anomaly_gravity_factor",
@@ -935,6 +945,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "rain": "rain_factor",
     "emission": "emission_factor", "stash_loot": "stash_loot_factor",
     "stash_chance": "stash_chance_factor", "stash_ammo": "stash_ammo_factor",
+    "stash_sets": "stash_sets_factor",
     "loot_amount": "loot_amount_factor", "art_effect": "artifact_effect_factor",
     "art_radiation": "artifact_radiation_factor", "art_spawn": "artifact_spawn_factor",
     "art_rarity": "artifact_rarity_factor", "detector": "detector_range_factor",
@@ -948,6 +959,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "sellprice": "trader_sell_price_factor", "repair": "repair_cost_factor",
     "upgrade": "upgrade_cost_factor", "questreward": "quest_reward_factor",
     "rq_cooldown": "repeatable_quest_factor",
+    "rq_jobs": "repeatable_jobs_per_round",
     "price_weapon": "weapon_price_factor", "price_armor": "armor_price_factor",
     "price_ammo": "ammo_price_factor", "price_artifact": "artifact_price_factor",
     "price_consumable": "consumable_price_factor",
@@ -989,6 +1001,9 @@ CHECK_FIELDS: dict[str, str] = {
     "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
     # 1.28.0 (Kern-Sweep P8)
     "repair_no_rep": "repair_cost_reputation",
+    # 1.31.0 (GitHub Issue #8)
+    "rq_jobs_instant": "repeatable_jobs_instant",
+    "stat_bars": "stat_bars_follow",
 }
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
@@ -1020,6 +1035,10 @@ FOOTPRINT_PROBES: dict[str, float] = {
 EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
     "rq_cooldown": ("QuestNodePrototypes",
                     frozenset({"InGameHours"})),
+    "rq_jobs": ("QuestNodePrototypes",
+                frozenset({"VariableValue"})),
+    "check:rq_jobs_instant": ("QuestNodePrototypes",
+                              frozenset({"Name"})),
     "loot_amount": ("ItemGeneratorPrototypes",
                     frozenset({"MinCount", "MaxCount"})),
     "drop_cond": ("ItemGeneratorPrototypes",
@@ -1036,6 +1055,8 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
                      frozenset({"MinSpawnChance", "MaxSpawnChance"})),
     "stash_ammo": ("StashPrototypes",
                    frozenset({"MainWeaponAmmoCount"})),
+    "stash_sets": ("StashPrototypes",
+                   frozenset({"ItemSetCount"})),
     "check:npc_no_heal": ("ObjPrototypes", frozenset({"RegenHP"})),
     "check:upgrades_take_both": ("UpgradePrototypes",
                                  frozenset({"BlockingUpgradePrototypeSIDs"})),
@@ -1066,7 +1087,18 @@ def footprint_settings(key: str) -> list[Settings] | None:
     mit — deren Fussabdruck deckt dieselben Dateien ab."""
     if key.startswith("check:"):
         field_name = CHECK_FIELDS.get(key[len("check:"):])
-        return None if field_name is None else [Settings(**{field_name: True})]
+        if field_name is None:
+            return None
+        # stat_bars_follow SPIEGELT nur, was andere Regler tun: ohne
+        # verstellten Schaden/Reichweite/Feuerrate schreibt es gar
+        # nichts, der Fussabdruck waere leer. Eine Sonde mit Partner-
+        # Regler wuerde stattdessen dessen Blaetter erben und bei jeder
+        # fremden Reichweiten-Mod falschen Alarm schlagen. Also wie
+        # npc_gear und die Baum-Regler: bewusst nicht markierbar - die
+        # Waffenregler, denen es folgt, sind es ja.
+        if field_name == "stat_bars_follow":
+            return None
+        return [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
     if field_name is None:
         return None
@@ -4701,6 +4733,11 @@ class App(ctk.CTk):
         self._slider(f, "npchp", "NPC health", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "npc_acc", "NPC accuracy", 0.25, 3, 0.1, 1, fmt_factor,
                      "× 2 = NPCs shoot twice as precisely (smaller bullet spread).")
+        self._slider(f, "npc_vs_npc", "NPC vs NPC damage", 0, 400, 5, 100, fmt_pct,
+                     "How hard stalkers hit EACH OTHER - vanilla is 70 % "
+                     "of normal damage on every weapon, so faction fights "
+                     "drag on. Does not touch what they do to you or you "
+                     "to them. Not play-tested yet.")
         self._slider(f, "npc_vision", "NPC vision range", 10, 200, 5, 100, fmt_pct,
                      "How far human NPCs (incl. the Faust fight) can see you. "
                      "Korshunov & Scar boss senses stay vanilla. "
@@ -5077,6 +5114,20 @@ class App(ctk.CTk):
                      "Mutants passively regenerate health, just like human "
                      "NPCs (vanilla varies by species). × 0 = wounds stay "
                      "– the mutant counterpart of 'NPCs don't self-heal'.")
+        self._slider(f, "mut_series", "Mutant attacks per series", 0.5, 3, 0.1, 1,
+                     fmt_factor,
+                     "How many blows a mutant lands in one go before it "
+                     "backs off (vanilla 1 to 3, depending on the attack; "
+                     "many attacks have no series at all and stay that "
+                     "way). Rounded to whole hits, never below one. Human "
+                     "and boss attacks are left alone. Not play-tested "
+                     "yet.")
+        self._slider(f, "mut_bleed", "Mutant bleeding buildup", 0, 3, 0.1, 1,
+                     fmt_factor,
+                     "How fast a mutant hit builds up bleeding. × 0 = "
+                     "claws no longer make you bleed. Bosses and human "
+                     "melee keep their vanilla values. Not play-tested "
+                     "yet.")
         self._slider(f, "mprot", "Mutant physical protection", 0, 4, 0.1, 1, fmt_factor,
                      "The Protection values of every mutant (vanilla: mostly "
                      "melee 'Strike' protection, 1 to 4; bullet protection is "
@@ -5320,6 +5371,23 @@ class App(ctk.CTk):
                      "weapons. The same animation caveat applies: the timing "
                      "value changes, the animation may not follow. Not "
                      "play-tested yet.")
+        self._check(f, "stat_bars",
+                    "Inventory stat bars follow your changes",
+                    "The damage/range/fire-rate bars in the inventory are "
+                    "decoration: the game never computes them from the "
+                    "real values, they are fixed numbers on every weapon. "
+                    "Tick this and they move with your sliders, per "
+                    "weapon and per category. Accuracy and handling are "
+                    "left alone - they mix dispersion, recoil and weight, "
+                    "and there is no honest formula for them. Cosmetic "
+                    "only, it changes no damage. Not play-tested yet.")
+        self._slider(f, "jam_chance", "Weapon jam chance", 0, 200, 5, 100, fmt_pct,
+                     "How often a worn weapon jams. Vanilla runs from 4.5 "
+                     "to 15 depending on the gun, and this scales each "
+                     "one; 0 % = weapons never jam at all. The condition "
+                     "at which jamming starts is left alone. Stacks with "
+                     "the difficulty jamming multiplier. Not play-tested "
+                     "yet.")
         self._slider(f, "jam_clear", "Jam clearing speed", 50, 400, 5, 100, fmt_pct,
                      "How fast a jam is cleared (vanilla 4 to 5.5 s per "
                      "weapon). 200 % = half the time. Not play-tested yet.")
@@ -5431,6 +5499,33 @@ class App(ctk.CTk):
                      "weight' and 'Item weight': in vanilla you hit the weight "
                      "limit long before the stack limit - 900 rounds of 7.62 "
                      "already weigh 21.6 kg of your 80. Not play-tested yet.")
+        self._slider(f, "ammo_pack", "Ammo pack size", 25, 400, 5, 100, fmt_pct,
+                     "How many rounds one picked-up pack contains "
+                     "(vanilla 30 for rifle rounds, 10 to 50 for the "
+                     "rest). Launcher grenades come one at a time in "
+                     "vanilla and stay that way. Whole numbers, never "
+                     "below one. Not play-tested yet.")
+        self._slider(f, "ammo_bleed", "Ammo bleeding", 0, 300, 5, 100, fmt_pct,
+                     "How much bleeding a hit from this round causes. "
+                     "Vanilla is 1.0 on every round, so this is a clean "
+                     "global dial; 0 % = rounds never start bleeding. The "
+                     "weapon's own bleeding value applies on top. Not "
+                     "play-tested yet.")
+        self._slider(f, "ammo_recoil", "Ammo recoil", 0, 300, 5, 100, fmt_pct,
+                     "Recoil contributed by the round itself (vanilla 1.0 "
+                     "everywhere). Stacks with the weapon recoil slider "
+                     "and with recoil upgrades. Not play-tested yet.")
+        self._slider(f, "ammo_flat", "Ammo trajectory flatness", 25, 300, 5, 100,
+                     fmt_pct,
+                     "Higher = flatter flight path, so less drop at "
+                     "distance. Vanilla runs from 1.0 to 1.9 depending on "
+                     "the round, and this scales each one. Not "
+                     "play-tested yet.")
+        self._slider(f, "ammo_wear", "Ammo weapon wear", 0, 300, 5, 100, fmt_pct,
+                     "How hard a round is on the barrel (vanilla 0.8 to "
+                     "1.3 - cheap rounds wear more). 0 % = this round "
+                     "never wears the weapon. Stacks with the weapon "
+                     "durability slider. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single ammo overrides (advanced)")
@@ -5792,6 +5887,12 @@ class App(ctk.CTk):
         self._slider(f, "stash_ammo", "Stash & body ammo bonus", 25, 400, 5, 100, fmt_pct,
                      "Extra rounds handed out to match the weapon caliber, on "
                      "top of the item list above.")
+        self._slider(f, "stash_sets", "Stash item variety", 25, 400, 5, 100, fmt_pct,
+                     "How many different item groups a stash rolls "
+                     "(vanilla 2 to 5, a few up to 15). This is the other "
+                     "axis to the amount slider above: more KINDS of loot "
+                     "rather than bigger piles. Whole numbers, never below "
+                     "one. Not play-tested yet.")
         self._slider(f, "stash_clue", "Stash clues on bodies", 0, 1000, 10, 100, fmt_pct,
                      "Chance that a dead NPC carries a stash clue (vanilla 2 % "
                      "plus 1 % per clue already found, per region; capped at "
@@ -5933,12 +6034,36 @@ class App(ctk.CTk):
                      "(vanilla 24). Lower = fresh rumours and hints sooner. "
                      "Not play-tested yet.")
         self._slider(f, "upgrade", "Upgrade cost", 0, 200, 5, 100, fmt_pct)
+        self._slider(f, "upg_repair", "Repair surcharge per upgrade",
+                     0, 1, 0.05, 0.2, fmt_dec,
+                     "Every part you have fitted makes repairs dearer. "
+                     "Vanilla charges 0.2 per upgrade on top - which is "
+                     "why a fully modded rifle costs a fortune to fix. 0 = "
+                     "upgrades are free to maintain, your repair bill only "
+                     "follows the weapon itself. Same value on all 1288 "
+                     "upgrades in vanilla. Not play-tested yet.")
         self._slider(f, "questreward", "Quest money rewards", 0.25, 10, 0.1, 1, fmt_factor)
         self._slider(f, "rq_cooldown", "Repeatable quest cooldown", 0, 400, 5, 100, fmt_pct,
                      "Wait time until task givers offer new repeatable "
                      "jobs (vanilla 24 in-game hours). 0 % = new jobs "
                      "right away. A cooldown already ticking in your "
                      "save finishes at its old pace first.")
+        self._slider(f, "rq_jobs", "Repeatable jobs per round", 1, 10, 1, 3,
+                     fmt_int,
+                     "How many jobs a task giver hands out before he runs "
+                     "dry and the cooldown above has to pass (vanilla 3). "
+                     "Each giver is capped at the number of different jobs "
+                     "he actually has (6 to 10, depending on the giver) - "
+                     "asking for more would only repeat them. Pair it with "
+                     "the switch below, or the extra jobs only show up "
+                     "after the cooldown. Not play-tested yet.")
+        self._check(f, "rq_jobs_instant",
+                    "Task givers offer the next job right away",
+                    "Vanilla only re-opens the job dialog once a giver has "
+                    "run dry, so you leave with one job per visit. This "
+                    "lets him offer the next one immediately while he is "
+                    "below the limit above - that is what lets you carry "
+                    "several repeatable jobs at once. Not play-tested yet.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,
@@ -6351,6 +6476,8 @@ class App(ctk.CTk):
             mutant_speed_factor=s["mspeed"].get(),
             mutant_hearing_factor=s["mhearing"].get() / 100.0,
             mutant_regen_factor=s["mut_regen"].get(),
+            mutant_attack_series_factor=s["mut_series"].get(),
+            mutant_attack_bleed_factor=s["mut_bleed"].get(),
             mutant_overrides={sp: dict(v)
                               for sp, v in self.mutant_overrides.items()},
             bloodsucker_cloak_factor=s["bs_cloak"].get(),
@@ -6426,6 +6553,9 @@ class App(ctk.CTk):
             reload_speed_factor=s["reload"].get() / 100.0,
             equip_speed_factor=s["equip_speed"].get() / 100.0,
             shooting_anim_skip=int(s["anim_skip"].get()),
+            jam_chance_factor=s["jam_chance"].get() / 100.0,
+            npc_vs_npc_damage_factor=s["npc_vs_npc"].get() / 100.0,
+            stat_bars_follow=bool(self.checks["stat_bars"].get()),
             jam_clear_factor=s["jam_clear"].get() / 100.0,
             mutant_loot_chance_factor=s["mut_loot"].get() / 100.0,
             stash_clue_factor=s["stash_clue"].get() / 100.0,
@@ -6561,6 +6691,11 @@ class App(ctk.CTk):
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
             ammo_cover_factor=s["ammo_cover"].get() / 100.0,
             ammo_stack_factor=s["ammo_stack"].get(),
+            ammo_pack_factor=s["ammo_pack"].get() / 100.0,
+            ammo_bleeding_factor=s["ammo_bleed"].get() / 100.0,
+            ammo_recoil_factor=s["ammo_recoil"].get() / 100.0,
+            ammo_flatness_factor=s["ammo_flat"].get() / 100.0,
+            ammo_wear_factor=s["ammo_wear"].get() / 100.0,
             consumable_stack_factor=s["cons_stack"].get(),
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
@@ -6593,6 +6728,7 @@ class App(ctk.CTk):
             stash_loot_factor=s["stash_loot"].get() / 100.0,
             stash_chance_factor=s["stash_chance"].get() / 100.0,
             stash_ammo_factor=s["stash_ammo"].get() / 100.0,
+            stash_sets_factor=s["stash_sets"].get() / 100.0,
             loot_amount_factor=s["loot_amount"].get() / 100.0,
             dropped_condition_pct=s["drop_cond"].get(),
             dropped_condition_exact=bool(self.checks["drop_cond_exact"].get()),
@@ -6617,8 +6753,11 @@ class App(ctk.CTk):
             trader_sell_price_factor=s["sellprice"].get(),
             repair_cost_factor=s["repair"].get() / 100.0,
             upgrade_cost_factor=s["upgrade"].get() / 100.0,
+            upgrade_repair_surcharge=s["upg_repair"].get(),
             quest_reward_factor=s["questreward"].get(),
             repeatable_quest_factor=s["rq_cooldown"].get() / 100.0,
+            repeatable_jobs_per_round=int(s["rq_jobs"].get()),
+            repeatable_jobs_instant=bool(self.checks["rq_jobs_instant"].get()),
             weapon_price_factor=s["price_weapon"].get(),
             armor_price_factor=s["price_armor"].get(),
             ammo_price_factor=s["price_ammo"].get(),

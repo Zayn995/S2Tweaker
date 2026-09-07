@@ -233,6 +233,22 @@ FAQ_ENTRIES = [
              "money farming instant",
     },
     {
+        "q": "Can I take several repeatable jobs at once?",
+        "a": "Yes - Economy tab, 'Repeatable jobs per round' plus the "
+             "switch under it. Vanilla gives you three jobs per giver and "
+             "only re-opens his job dialog once he has run dry, so in "
+             "practice you leave with one at a time. The slider raises the "
+             "three (each giver is capped at the number of different jobs "
+             "he actually has, 6 to 10), and the switch lets him offer the "
+             "next one right away. Both work with the cooldown slider "
+             "above: the slider says how many per round, the cooldown says "
+             "how often a round starts. Nothing here is play-tested yet - "
+             "please report back.",
+        "k": "repeatable quests jobs tasks multiple several at once stack "
+             "accept more than one three limit cap talk again quest giver "
+             "barkeep warlock sidorovich drabadan harpy malachite rostok",
+    },
+    {
         "q": "Can dropped weapons spawn in better (or exact) condition?",
         "a": "Yes - World tab, 'Dropped weapon condition'. The slider sets "
              "the AVERAGE (vanilla ~37.5 % for primary weapons); the game "
@@ -407,13 +423,63 @@ FAQ_ENTRIES = [
              "Every weapon carries fixed DamageUI / AccuracyUI / "
              "RateOfFireUI / HandlingUI / RangeUI keys for the inventory "
              "display; the game never recomputes them from the real "
-             "damage, spread or fire interval - only attachments and "
-             "upgrades nudge them. Your tweaks change the real values "
-             "(what happens when you shoot), the bars stay decorative. "
-             "Verify in the field, not in the inventory screen.",
+             "damage, spread or fire interval. Your tweaks change the "
+             "real values, the bars stay decorative - unless you tick "
+             "'Inventory stat bars follow your changes' in the Weapons "
+             "tab, which rewrites the damage, range and fire-rate bars "
+             "with the same factor you set. Accuracy and handling are "
+             "left alone: they mix dispersion, recoil and weight, and "
+             "there is no honest formula for them.",
         "k": "stats display bars inventory ui not updating damage "
              "accuracy handling rate of fire range shown wrong same "
              "unchanged cosmetic",
+    },
+    {
+        "q": "Can I stop my weapons from jamming?",
+        "a": "Yes - Weapons tab, 'Weapon jam chance'. Vanilla gives each "
+             "gun its own jam chance (4.5 to 15 depending on the model) "
+             "that kicks in as the weapon wears down; the slider scales "
+             "all of them, and 0 % means no weapon ever jams. The "
+             "condition at which jamming starts is left as it is, and "
+             "the difficulty jamming multiplier still applies on top. "
+             "'Jam clearing speed' next to it only changes how long "
+             "clearing a jam takes.",
+        "k": "jam jamming stuck weapon malfunction misfire chance never "
+             "reliable dirty condition durability clearing",
+    },
+    {
+        "q": "Why do faction fights take so long?",
+        "a": "Because stalkers hit each other for 70 % of normal damage "
+             "in vanilla - a single value on every weapon. 'NPC vs NPC "
+             "damage' in the NPCs & AI tab scales it, so 200 % makes "
+             "squad battles short and brutal. It changes nothing about "
+             "what NPCs do to you or you to them. Not play-tested yet.",
+        "k": "faction fight battle npc vs npc damage each other stalkers "
+             "shootout long bullet sponge squad war",
+    },
+    {
+        "q": "Why is repairing my upgraded weapon so expensive?",
+        "a": "Every fitted upgrade adds to the bill: vanilla charges 0.2 "
+             "per upgrade on top of the weapon's own repair cost, the "
+             "same value on all 1288 upgrades. 'Repair surcharge per "
+             "upgrade' in the Economy tab sets that number; 0 means a "
+             "fully modded rifle costs no more to fix than a bare one. "
+             "The separate 'Repair cost' slider scales the base price.",
+        "k": "repair cost expensive upgrade modded weapon technician "
+             "price fix maintenance surcharge",
+    },
+    {
+        "q": "How do I find more ammo and more variety in the world?",
+        "a": "Two sliders beyond the loot amount. 'Ammo pack size' (Ammo "
+             "tab) sets how many rounds one picked-up pack holds - vanilla "
+             "30 for rifle rounds, 10 to 50 for the rest; launcher "
+             "grenades come one at a time and stay that way. 'Stash item "
+             "variety' (World tab) changes how many different item groups "
+             "a stash rolls (vanilla 2 to 5), which is the other axis to "
+             "'Loot in stashes & on bodies': more kinds rather than bigger "
+             "piles. Both are whole numbers and never drop below one.",
+        "k": "ammo pack size rounds pickup box more ammunition stash "
+             "variety item sets kinds different loot groups world",
     },
     {
         "q": "Can I remove recoil completely?",

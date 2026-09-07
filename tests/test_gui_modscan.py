@@ -43,12 +43,17 @@ print(f"Vollstaendigkeit: {len(SLIDER_FIELDS)} Regler + "
 # Bewusste Ausnahme: npc_gear patcht nur Weight-Blaetter, die der
 # Scan-Vergleich absichtlich ausschliesst (Kollisions-Haertung) — der
 # Regler ist deklariert unmarkierbar wie die Baum-Regler.
+# Zweite bewusste Ausnahme (1.31.0): check:stat_bars spiegelt nur die
+# Waffenregler und erzeugt allein nichts - siehe footprint_settings.
 unscannable = {k for k in SLIDER_FIELDS if footprint_settings(k) is None}
-assert unscannable == {"npc_gear"}, unscannable
+unscannable |= {"check:" + k for k in CHECK_FIELDS
+                if footprint_settings("check:" + k) is None}
+assert unscannable == {"npc_gear", "check:stat_bars"}, unscannable
 t0 = time.time()
 empty = []
 for key in [k for k in SLIDER_FIELDS if k not in unscannable] \
-        + ["check:" + k for k in CHECK_FIELDS]:
+        + [c for c in ("check:" + k for k in CHECK_FIELDS)
+           if c not in unscannable]:
     probes = footprint_settings(key)
     assert probes is not None, key
     pairs = set()

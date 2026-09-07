@@ -193,6 +193,21 @@ s = Settings(
     relation_rollback_factor=0.5,
     aim_time_factor=2.0,             # global: alle Aiming-Zeiten halbiert
     repeatable_quest_factor=0.25,    # 24 h -> 6 h (parst die 75-MB-Datei)
+    repeatable_jobs_per_round=6,     # Issue #8: 3 -> 6 Jobs je Runde
+    repeatable_jobs_instant=True,    # Geber bietet sofort den naechsten an
+    # 1.31.0 aus der Mod-Ausbeute (Stalker Unlimited)
+    ammo_bleeding_factor=2.0,        # BleedingMod je Sorte
+    ammo_recoil_factor=0.5,          # RecoilMod je Sorte
+    ammo_flatness_factor=1.5,        # FlatnessMod (flachere Flugbahn)
+    ammo_wear_factor=0.5,            # WeaponExhaustionMod
+    jam_chance_factor=0.0,           # Waffen klemmen nie
+    npc_vs_npc_damage_factor=2.0,    # Fraktionskaempfe kuerzer
+    stat_bars_follow=True,           # Anzeigebalken ziehen mit
+    mutant_attack_series_factor=2.0, # Angriffe je Serie
+    mutant_attack_bleed_factor=0.0,  # Krallen lassen nicht mehr bluten
+    upgrade_repair_surcharge=0.0,    # Upgrades verteuern Reparatur nicht
+    ammo_pack_factor=2.0,            # Packungsgroesse beim Aufsammeln
+    stash_sets_factor=2.0,           # Fundgruppen je Versteck
 )
 
 print(f"\n=== Aktive Tweaks: {len(summarize(s))} ===")
