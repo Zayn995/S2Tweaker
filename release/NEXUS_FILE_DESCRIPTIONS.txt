@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.30.0
-File version:  1.30.0
+Name:          S2Tweaker 1.31.0
+File version:  1.31.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,40 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.31.0 - More repeatable jobs, and eight dials from other people's mods
+
+- 'Repeatable jobs per round' (Economy), requested on GitHub. Measured
+  first: each of the eight task givers hands out THREE jobs and then goes
+  quiet until a 24-hour timer resets his counter - which is never counted
+  back down when you hand a job in. The slider raises the three, capped
+  per giver at the number of different jobs he actually has (6 to 10).
+- 'Task givers offer the next job right away' (switch under it): vanilla
+  only reopens the job dialogue once a giver has run dry, which is why
+  you leave with one job per visit. This lets him offer the next one
+  while he is below the limit - that is what lets you carry several at
+  once. Works together with the existing cooldown slider: how many per
+  round, and how often a round starts.
+- Four more per-round modifiers (Ammo tab and in the tree): bleeding,
+  recoil, trajectory flatness, and how hard a round is on the barrel.
+- 'Ammo pack size': how many rounds a picked-up pack holds (vanilla 30
+  for rifle rounds, 10 to 50 for the rest). Launcher grenades stay at 1.
+- 'Weapon jam chance': vanilla gives each gun its own (4.5 to 15);
+  0 % = no weapon ever jams. The condition at which it starts is kept.
+- 'Inventory stat bars follow your changes' (switch, Weapons): those
+  bars are hand-set numbers the game never recomputes - that is why they
+  never moved. Now damage, range and fire rate follow your sliders.
+  Accuracy and handling stay put; they are mixed values. Cosmetic only.
+- 'NPC vs NPC damage': stalkers hit each other for 70 % of normal damage
+  in vanilla, which is why faction fights drag on.
+- 'Mutant attacks per series' and 'Mutant bleeding buildup'. Human and
+  boss attacks carry the same keys and are left vanilla on purpose.
+- 'Repair surcharge per upgrade' (Economy): every fitted part adds 0.2
+  to the repair bill in vanilla. 0 = upgrades are free to maintain.
+- 'Stash item variety' (World): how many different item groups a stash
+  rolls - more kinds rather than bigger piles.
+- No new game files are read: no re-extraction, paks and presets stay
+  valid. Nothing here is play-tested in-game - please report back.
+
 1.30.0 - Bigger inventory stacks
 
 - Requested on GitHub. Measured first: the game caps AMMUNITION at 900
