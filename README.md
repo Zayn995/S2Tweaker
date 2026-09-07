@@ -285,6 +285,10 @@ the *installed* version, and never hardcode game numbers.
 
 ## Credits
 
+- **Molkerr** — the first person to actually verify this tool in the game.
+  Six reports so far (issues #6 to #9), and the play-test that turned "not
+  play-tested yet" into a list of confirmed values. Two real bugs in shipped
+  code were found by him reading his own inventory, not by any test suite.
 - [repak](https://github.com/trumank/repak) by trumank
 - [bin2cfg](https://github.com/joric/stalker/wiki) by joric,
   [S2CfgToJSON](https://github.com/sdwvit/S2CfgToJSON) by sdwvit (+ thexii)
