@@ -922,7 +922,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "infotopic": "infotopic_refresh_hours",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
-    "ammo_cover": "ammo_cover_factor", "anomaly": "anomaly_damage_factor",
+    "ammo_cover": "ammo_cover_factor",
+    "ammo_stack": "ammo_stack_factor",
+    "cons_stack": "consumable_stack_factor", "anomaly": "anomaly_damage_factor",
     "anom_electro": "anomaly_electro_factor", "anom_chem": "anomaly_chemical_factor",
     "anom_fire": "anomaly_fire_factor", "anom_grav": "anomaly_gravity_factor",
     "radiation": "radiation_factor", "bleeding": "bleeding_factor",
@@ -4631,6 +4633,12 @@ class App(ctk.CTk):
                     "Sets the weight of every quest item to 0 (most of them "
                     "weigh something, up to 25 kg). Helps with "
                     "quest items that get stuck in the inventory.")
+        self._slider(f, "cons_stack", "Food & medicine stack size", 1, 20, 0.5, 1, fmt_factor,
+                     "How many of one food, drink or medical item fit in a "
+                     "single inventory slot (vanilla 999 for all 24 of them). "
+                     "Honest note: 999 is a limit you will almost never reach "
+                     "- ammunition is the one that actually bites, and it has "
+                     "its own slider in the Ammo tab. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Combat")
@@ -5416,6 +5424,13 @@ class App(ctk.CTk):
         self._slider(f, "ammo_ad", "Ammo armor damage", 25, 300, 5, 100, fmt_pct)
         self._slider(f, "ammo_cover", "Ammo cover penetration", 0, 300, 5, 100, fmt_pct,
                      "How well bullets punch through wooden walls, fences etc.")
+        self._slider(f, "ammo_stack", "Ammo stack size", 1, 20, 0.5, 1, fmt_factor,
+                     "How many rounds fit in one inventory slot (vanilla 900 "
+                     "for every round). × 10 = 9000. Per round in the tree "
+                     "below as the fifth factor. Worth pairing with 'Max carry "
+                     "weight' and 'Item weight': in vanilla you hit the weight "
+                     "limit long before the stack limit - 900 rounds of 7.62 "
+                     "already weigh 21.6 kg of your 80. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single ammo overrides (advanced)")
@@ -6545,6 +6560,8 @@ class App(ctk.CTk):
             ammo_piercing_factor=s["ammo_ap"].get() / 100.0,
             ammo_armor_damage_factor=s["ammo_ad"].get() / 100.0,
             ammo_cover_factor=s["ammo_cover"].get() / 100.0,
+            ammo_stack_factor=s["ammo_stack"].get(),
+            consumable_stack_factor=s["cons_stack"].get(),
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},

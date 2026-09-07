@@ -2084,8 +2084,11 @@ class GameData:
                 result[sid] = entries
         return result
 
+    # MaxStackCount steht bewusst mit drin: es ist ein echter Wert je
+    # Munitionssorte (Vanilla ueberall 900) und damit im Sorten-Baum
+    # einstellbar wie die vier Mods. GitHub Issue #7 (Molkerr).
     AMMO_MOD_KEYS = ("DamageMod", "ArmorPiercingMod", "ArmorDamageMod",
-                     "CoverPiercingMod")
+                     "CoverPiercingMod", "MaxStackCount")
 
     def ammo_mods(self) -> dict[str, dict[str, float]]:
         """{SID: {ModKey: aufgeloester Vanilla-Wert}} aller Munitions-Items."""
@@ -2102,6 +2105,29 @@ class GameData:
                     mods[key] = parse_number(raw)
             if mods:
                 result[sid] = mods
+        return result
+
+    def stack_counts(self, category: str) -> dict[str, int]:
+        """{SID: Vanilla-MaxStackCount} aller Items EINER Kategorie.
+
+        Gemessen 07.09.2026 (GitHub Issue #7): der Schluessel steht 1375x in
+        ItemPrototypes.cfg — Munition 900 (35x), Nahrung/Medizin und die
+        meisten Ausruestungsgegenstaende 999, PDAs/Notizen/Schluessel 300000.
+        **Alles mit Vanilla <= 1 bleibt draussen** (Ferngläser, Detektoren,
+        Weird-Artefakte, Geldkarten): die 1 ist dort eine Design-Entscheidung
+        des Spiels, kein Deckel, den jemand anheben wollte."""
+        result: dict[str, int] = {}
+        for sid in self.items.children:
+            if sid == "[0]" or "#" in sid or sid.startswith("Template"):
+                continue
+            if self.item_category(sid) != category:
+                continue
+            raw = self.resolve(self.items, sid, "MaxStackCount")
+            if raw is None:
+                continue
+            value = int(parse_number(raw))
+            if value > 1:
+                result[sid] = value
         return result
 
     def ammo_kinds(self) -> dict[str, tuple[str, str]]:

@@ -61,6 +61,22 @@ FAQ_ENTRIES = [
              "wheel scrollen mausrad versehentlich",
     },
     {
+        "q": "Can I carry more than 900 rounds in one stack?",
+        "a": "Yes - 'Ammo stack size' in the Ammo tab, and per round as the "
+             "fifth factor in the tree below it. Vanilla is 900 for every "
+             "round; x 10 makes it 9000. Food and medicine have their own "
+             "slider in the Weight & items tab (vanilla 999). Honest notes: "
+             "ammunition is the only stack limit you really run into - "
+             "weapons, armor and artifacts already sit at 999 and PDAs, notes "
+             "and keys at 300000. And in vanilla the WEIGHT stops you first: "
+             "900 rounds of 7.62 weigh 21.6 kg of your 80. Pair it with 'Max "
+             "carry weight' and 'Item weight' and the stack limit becomes the "
+             "real one. Binoculars, detectors, the weird DLC artifacts and "
+             "money cards stay at 1 on purpose.",
+        "k": "stack size stacking inventory slot ammo ammunition 900 999 more "
+             "rounds per stack bundle stapel stapelgroesse munition",
+    },
+    {
         "q": "How do I heal more per medkit / health pack?",
         "a": "Two sliders in the World tab: 'Medkit & bandage healing' "
              "scales ONLY medical items (medkits and bandages), while "

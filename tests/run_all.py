@@ -41,6 +41,7 @@ ORDER = [
     "test_recoil_upgrades.py",
     "test_magazine_cascade.py",
     "test_ammo_caliber.py",
+    "test_stack_size.py",
     "test_upgrades.py",
     "test_alife_spawns.py",
     "test_v118_tweaks.py",

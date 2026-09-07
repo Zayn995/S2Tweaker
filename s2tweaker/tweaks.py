@@ -249,13 +249,14 @@ WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
 }
 
 # --- Munitions-Zwei-Ebenen-System: Einzelsorte > globaler Regler ---------
-AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover"]
+AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover", "stack"]
 
 AMMO_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
     "piercing": "Armor piercing",
     "armordamage": "Armor damage",
     "cover": "Cover penetration",
+    "stack": "Stack size",
 }
 
 # Regler-Schluessel -> cfg-Schluessel in ItemPrototypes (= AMMO_MOD_KEYS).
@@ -266,6 +267,7 @@ AMMO_PARAM_KEYS = {
     "piercing": "ArmorPiercingMod",
     "armordamage": "ArmorDamageMod",
     "cover": "CoverPiercingMod",
+    "stack": "MaxStackCount",
 }
 
 # Reihenfolge = Sortierung der Sorten INNERHALB eines Kalibers
@@ -735,6 +737,8 @@ class Settings:
     # Einzelsorten-Overrides {Ammo-SID: {param: faktor}}; ein Eintrag
     # ERSETZT den globalen Regler fuer diesen Parameter an dieser Sorte
     # (wie bei den Waffen), er multipliziert sich nicht dazu.
+    ammo_stack_factor: float = 1.0           # ItemPrototypes MaxStackCount, Munition (900)
+    consumable_stack_factor: float = 1.0     # dito Nahrung/Medizin (999)
     ammo_overrides: dict = field(default_factory=dict)
 
     # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
@@ -4163,6 +4167,7 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         "piercing": s.ammo_piercing_factor,
         "armordamage": s.ammo_armor_damage_factor,
         "cover": s.ammo_cover_factor,
+        "stack": s.ammo_stack_factor,
     }
     # Ohne "or s.ammo_overrides" faende ein Pak mit AUSSCHLIESSLICH
     # Einzelsorten-Overrides gar nicht statt.
@@ -4179,12 +4184,32 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                     continue
                 vanilla = mods[key]
                 scaled = vanilla * factor
+                if param == "stack":
+                    # Stapelgroesse ist eine STUECKZAHL: ganzzahlig, nie unter
+                    # 1, und gedeckelt auf 300000 — den Wert, den das Spiel
+                    # selbst fuer "praktisch unbegrenzt" benutzt (PDAs,
+                    # Notizen, Schluessel). Darueber hinaus zu gehen waere
+                    # geraten, nicht gemessen.
+                    new_stack = max(1, min(300000, int(round(scaled))))
+                    if new_stack != int(vanilla):
+                        cfg[key] = str(new_stack)
+                    continue
                 # Vanilla 0 bleibt 0 -> _neq faengt es ab: kein Scheinpatch,
                 # kein Absturz (A545D ArmorPiercingMod ist 0.0).
                 if _neq(scaled, vanilla):
                     cfg[key] = _num(scaled)
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
+
+    # Stapelgroesse Nahrung & Medizin (GitHub Issue #7, Molkerr). Vanilla 999
+    # bei 24 Gegenstaenden — eine Grenze, die man im Spiel kaum erreicht; der
+    # Tooltip sagt das auch. Die Gitarre (MaxStackCount 1) faellt durch die
+    # >1-Regel in stack_counts() heraus.
+    if _neq(s.consumable_stack_factor, 1.0):
+        for sid, vanilla in sorted(gd.stack_counts("consumable").items()):
+            target = max(1, min(300000, int(round(vanilla * s.consumable_stack_factor))))
+            if target != vanilla:
+                patches.setdefault(sid, {})["MaxStackCount"] = str(target)
 
     # Artefakt-Detektor-Items (Echo/Bear/Veles/Gilka): Reichweiten skalieren
     if _neq(s.detector_range_factor, 1.0):
@@ -5786,6 +5811,8 @@ def summarize(s: Settings) -> list[str]:
     f("Ammo armor piercing", s.ammo_piercing_factor)
     f("Ammo armor damage", s.ammo_armor_damage_factor)
     f("Ammo cover penetration", s.ammo_cover_factor)
+    f("Ammo stack size", s.ammo_stack_factor)
+    f("Food & medicine stack size", s.consumable_stack_factor)
     # Strenger als die Waffen-Schleife weiter unten: ein Muellschluessel aus
     # einem von Hand bearbeiteten Preset darf hier kein KeyError werfen.
     # Das Praefix "Ammo " haelt A545A davon ab, wie eine Waffen-SID zu wirken.
