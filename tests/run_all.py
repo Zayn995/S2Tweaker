@@ -69,6 +69,7 @@ ORDER = [
     "test_ingame_fixes.py",
     "test_v135_tweaks.py",
     "test_key_families.py",
+    "test_orphan_sids.py",
     "test_upgrades.py",
     "test_alife_spawns.py",
     "test_v118_tweaks.py",
@@ -194,7 +195,8 @@ TIMEOUT = 900
 # stirbt eine. Sobald eine gewaehlte Suite ein Fenster baut, faellt der Lauf
 # automatisch auf EINEN Prozess zurueck.
 SLOW_FIRST = ["test_key_families.py", "test_modscan_filter.py",
-              "test_build_layout.py", "test_wiring.py", "test_v128_tweaks.py"]
+              "test_build_layout.py", "test_wiring.py", "test_v128_tweaks.py",
+              "test_orphan_sids.py"]
 
 
 def _jobs():
