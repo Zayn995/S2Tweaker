@@ -1797,6 +1797,13 @@ class GameData:
                                         for k in self.LAIR_TIMER_KEYS),
                         "guard": lair.startswith("Guard"),
                         "mutant": faction in self.LAIR_MUTANT_FACTIONS,
+                        # 1.33.0: Startbefuellung des Lagers (688x 0.5,
+                        # 100x 1.0) und die Archetyp-Gewichte. Die
+                        # Archetyp-Eintraege sind BENANNT (nicht [i]), ein
+                        # Teil-bpatch ist hier also unbedenklich.
+                        "initial": (blk.values.get("InitialSpawnQuantityPercent") or "").strip(),
+                        "archetypes": {k: (a.values.get("SpawnWeight") or "").strip()
+                                       for k, a in (arch.children.items() if arch else ())},
                     })
         return out
 
@@ -2149,7 +2156,11 @@ class GameData:
                      # Bleeding/Recoil ueberall 1.0, Flatness 1.0-1.9,
                      # WeaponExhaustion 0.8-1.3)
                      "BleedingMod", "RecoilMod", "FlatnessMod",
-                     "WeaponExhaustionMod")
+                     "WeaponExhaustionMod",
+                     # 1.33.0: beim Gegenlesen fremder Mods gefunden
+                     # (Maklane 241, Stalker Unlimited 1453) und selbst
+                     # nachgemessen: je 35 Sorten, 33x 1.0
+                     "DispersionMod", "AimDispersionMod")
 
     def ammo_mods(self) -> dict[str, dict[str, float]]:
         """{SID: {ModKey: aufgeloester Vanilla-Wert}} aller Munitions-Items."""
@@ -2514,8 +2525,45 @@ class GameData:
                 continue
             dialog_key, dialog_node, link_path, pin = dialog
 
+            # 1.33.0: der Knoten, der feuert, wenn der Spieler im Dialog
+            # zusagt. Datengetrieben gesucht (nicht ueber den Namen
+            # "Technical_GetQuest"): ein Technical-Knoten derselben Quest,
+            # dessen Launcher auf den Dialog zeigt und dabei einen Ausgang
+            # mit "confirm" im Namen nennt. Gemessen 07.09.2026: bei allen
+            # acht Gebern genau einer.
+            dialog_sid = (dialog_node.values.get("SID") or "").strip() or dialog_key
+            quest_sid = (dialog_node.values.get("QuestSID") or "").strip()
+            accept = None
+            for key, node in nodes:
+                if (node.values.get("NodeType") or "").strip() != "EQuestNodeType::Technical":
+                    continue
+                launchers = node.children.get("Launchers")
+                for lnode in (launchers.children.values() if launchers else ()):
+                    conns = lnode.children.get("Connections")
+                    for cnode in (conns.children.values() if conns else ()):
+                        if ((cnode.values.get("SID") or "").strip() == dialog_sid
+                                and "confirm" in (cnode.values.get("Name") or "").lower()):
+                            accept = (node.values.get("SID") or "").strip() or key
+                            break
+                    if accept:
+                        break
+                if accept:
+                    break
+
+            # Naechster freier Launcher-Index am Dialog-Knoten: dort haengen
+            # wir den Wieder-scharf-Knoten an, ohne eine vorhandene
+            # Verdrahtung zu ueberschreiben.
+            dlg_launchers = dialog_node.children.get("Launchers")
+            used = []
+            for lkey in (dlg_launchers.children if dlg_launchers else {}):
+                match_idx = re.match(r"^\[(\d+)\]$", lkey)
+                if match_idx:
+                    used.append(int(match_idx.group(1)))
+            next_launcher = (max(used) + 1) if used else 0
+
             givers.append({
                 "quest": group,
+                "quest_sid": quest_sid,
                 "cap_key": cap_key,
                 "cap_node": cap_node,
                 "cap": cap_value,
@@ -2523,8 +2571,11 @@ class GameData:
                 "pool": pool,
                 "dialog_key": dialog_key,
                 "dialog_node": dialog_node,
+                "dialog_sid": dialog_sid,
                 "link_path": link_path,
                 "pin": pin,
+                "accept": accept,
+                "next_launcher": next_launcher,
             })
         return givers
 

@@ -18,7 +18,7 @@ import re
 
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
-from .gamedata import GameData
+from .gamedata import CATEGORY_TEMPLATES, GameData
 
 ALL_CATEGORIES = {
     "weapon", "armor", "ammo", "artifact", "attach",
@@ -252,7 +252,9 @@ WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
 # ⚠ Reihenfolge NICHT aendern und Neues nur ANHAENGEN: sie bestimmt die
 # Zeilenfolge im Patch und damit die Byte-Gleichheit zu aelteren Paks.
 AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover", "stack",
-               "bleeding", "recoil", "flatness", "wear"]
+               "bleeding", "recoil", "flatness", "wear",
+               # 1.33.0 ans ENDE angehaengt (Byte-Gleichheit alter Paks)
+               "dispersion", "aimdispersion"]
 
 AMMO_PARAM_LABELS = {  # GUI (englisch)
     "damage": "Damage",
@@ -264,6 +266,8 @@ AMMO_PARAM_LABELS = {  # GUI (englisch)
     "recoil": "Recoil",
     "flatness": "Trajectory flatness",
     "wear": "Weapon wear",
+    "dispersion": "Spread",
+    "aimdispersion": "Spread while aiming",
 }
 
 # Regler-Schluessel -> cfg-Schluessel in ItemPrototypes (= AMMO_MOD_KEYS).
@@ -279,6 +283,8 @@ AMMO_PARAM_KEYS = {
     "recoil": "RecoilMod",
     "flatness": "FlatnessMod",
     "wear": "WeaponExhaustionMod",
+    "dispersion": "DispersionMod",
+    "aimdispersion": "AimDispersionMod",
 }
 
 # Reihenfolge = Sortierung der Sorten INNERHALB eines Kalibers
@@ -787,6 +793,27 @@ class Settings:
     ammo_wear_factor: float = 1.0            # dito WeaponExhaustionMod (0.8-1.3; Abnutzung je Schuss)
     ammo_stack_factor: float = 1.0           # ItemPrototypes MaxStackCount, Munition (900)
     consumable_stack_factor: float = 1.0     # dito Nahrung/Medizin (999)
+
+    # --- 1.33.0: Ausbeute der neunten Datenrecherche (27 fremde Mods
+    # gegengelesen, docs/ROADMAP.md "Neunte Datenrecherche") -------------
+    anomaly_wear_factor: float = 1.0         # EffectPrototypes: alle Corrosion-Effekte
+                                             # (Burning/Carousel/Chemical/Clicker/Electro je
+                                             # Body/Head/Pistol/Weapon/SecWeapon, 0.2-25) +
+                                             # VelocityCorrosion; ButtStroke bleibt eigener Regler
+    gear_durability_factor: float = 1.0      # ItemPrototypes BaseDurability (Waffen 1125-3000,
+                                             # Ruestung 520-1040) - nur neu erzeugte Gegenstaende
+    far_damage_factor: float = 1.0           # CWS MinBulletDistanceDamageModifier (150x 0.1-0.6,
+                                             # Deckel 1.0) + ...ArmorPiercingModifier (150x 1.0)
+    effect_cap_other_factor: float = 1.0     # ObjEffectMaxParams RegenStamina 30 / DegenBleeding 5
+    lair_initial_fill_factor: float = 1.0    # LairPrototypes InitialSpawnQuantityPercent
+                                             # (688x 0.5, 100x 1.0), Deckel 1.0
+    lair_rare_archetype_factor: float = 1.0  # dito SpawnWeight, NUR die seltenen (0 < w < 1.0:
+                                             # 147x 0.2, 23x 0.5), Deckel 1.0; Nullen bleiben 0
+    lair_expansion_player_factor: float = 1.0  # ALifeDirectorScenario
+                                             # DefaultALifeLairExpansionToPlayerTimeMin (120), INVERS
+    fallback_spawn_count: int = 3            # dito FallbackMaxSpawnCount (3), absolut
+    ammo_dispersion_factor: float = 1.0      # ItemPrototypes DispersionMod (35x, 33x 1.0)
+    ammo_aim_dispersion_factor: float = 1.0  # dito AimDispersionMod (35x, 33x 1.0)
     ammo_overrides: dict = field(default_factory=dict)
 
     # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
@@ -883,6 +910,7 @@ class Settings:
     # Limit-Knotens: der Geber bietet sofort den naechsten Job an,
     # statt erst wenn er leer ist.
     repeatable_jobs_instant: bool = False
+    repeatable_jobs_multi: bool = False       # 1.33.0: mehrere Jobs je Gespraech
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
     armor_price_factor: float = 1.0
@@ -1001,8 +1029,16 @@ FAST_TRAVEL_LOCKS = {0: "EOverweightLock::NoLock", 1: "EOverweightLock::Partial"
 # (+15 % Haltbarkeit). Gegenteilige Vorzeichen sind Malus-Effekte
 # (RecoilNeg20, DurabilityPerShotNeg20) und bleiben unangetastet.
 UPGRADE_FAMILIES = {
+    # 1.33.0: `Accuracy` fehlte hier ganz (AccuracyUpgrade -> AccuracyEffect
+    # +50 %, gemessen 07.09.2026) - der Regler hat den Effekt bisher
+    # uebersprungen. Die zwei Aim-Modifikatoren stehen dazu, weil sie
+    # sachlich zur Streuung gehoeren; ihre Vorzeichen sind in Vanilla
+    # uneinheitlich (AimDispersionPos100 -100 %, DispersionAimModifierNeg70
+    # +70 %), darum "neg": es wird nur skaliert, was wirklich ein Bonus ist.
     "upg_accuracy_factor": {"Dispersion": "neg", "DispersionMaxRadiusExtension": "neg",
-                            "DispersionPerIterationRadiusExtension": "neg"},
+                            "DispersionPerIterationRadiusExtension": "neg",
+                            "Accuracy": "pos", "DispersionAimModifier": "neg",
+                            "DispersionOffsetAimModifier": "neg"},
     "upg_handling_factor": {"AimingTime": "neg", "AimingMovementSpeed": "pos",
                             "IdleSwayXModifier": "neg", "IdleSwayYModifier": "neg",
                             "ShowEquipmentTime": "pos", "HideEquipmentTime": "pos",
@@ -1016,7 +1052,9 @@ UPGRADE_FAMILIES = {
     "upg_armor_protection_factor": {"ProtectionStrike": "pos", "ProtectionBurn": "pos",
                                     "ProtectionShock": "pos", "ProtectionChemical": "pos",
                                     "ProtectionPSY": "pos", "ProtectionRadiation": "pos"},
-    "upg_armor_misc_factor": {"RegenStamina": "pos"},
+    # 1.33.0: MovementSpeedUpgrade -> MovementSpeedEffect (+50 %) hing an
+    # keinem Regler; die zwei Exo-Varianten stehen auf 0.f und bleiben es.
+    "upg_armor_misc_factor": {"RegenStamina": "pos", "MovementSpeed": "pos"},
 }
 BACK_SPEED_KEYS = ("WalkBackCoef", "RunBackCoef", "MoveBackCrouchCoef",
                    "MoveBackLowCrouchCoef", "RunDiagonalBackCoef", "WalkDiagonalBackCoef")
@@ -3120,6 +3158,35 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
         # Mischwerte aus Streuung, Rueckstoss und Gewicht, fuer die es
         # keine ehrliche Formel gibt. Ausloeser: der Nexus-Bericht von
         # Ygracael (03.09.), bis 1.30.0 nur ein FAQ-Eintrag.
+        # 1.33.0: Schaden und Durchschlag auf Extremdistanz. Gefunden beim
+        # Gegenlesen von Maklane (241) und Stalker Unlimited (1453), die
+        # beide daran drehen. Gemessen: `MinBulletDistanceDamageModifier`
+        # steht 150x zwischen 0.1 und 0.6 (= so viel Schaden bleibt jenseits
+        # der Abfalldistanz uebrig), `MinBulletDistanceArmorPiercingModifier`
+        # 150x auf 1.0. Bewusst NICHT im Reichweiten-Regler: der verschiebt
+        # die Distanzen, das hier ist der Boden dahinter (steht so seit der
+        # Recherche vom 04.09. in der ROADMAP).
+        if _neq(s.far_damage_factor, 1.0) and s.far_damage_factor >= 0:
+            # Beide Deckel 1.0: der Wert ist ein ANTEIL des Nahwerts, und 1.0
+            # heisst bereits "kein Verlust auf Distanz". Darueber hinaus
+            # waere ein Schuss auf 300 m durchschlagskraeftiger als aus
+            # 5 m - nicht erklaerbar, also gedeckelt. Vanilla steht beim
+            # Durchschlag ueberall auf 1.0, dort wirkt der Regler also nur
+            # nach unten (steht so im Tooltip).
+            for key, cap in (("MinBulletDistanceDamageModifier", 1.0),
+                             ("MinBulletDistanceArmorPiercingModifier", 1.0)):
+                raw = gd.resolve(gd.weaponsettings, sid, key)
+                if raw is None:
+                    continue
+                value = parse_number(raw)
+                if value <= 0:
+                    continue
+                new = value * s.far_damage_factor
+                if cap is not None:
+                    new = min(cap, new)
+                if _neq(new, value):
+                    patches.setdefault(sid, {})[key] = _num(new)
+
         if s.stat_bars_follow:
             for key, param, global_factor in (
                     ("DamageUI", "damage", 1.0),
@@ -3128,6 +3195,30 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
                 bar_factor = factor_for(sid, param, global_factor)
                 if not _neq(bar_factor, 1.0) or bar_factor < 0:
                     continue
+                value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
+                if value <= 0:
+                    continue
+                new = min(1.0, value * bar_factor)
+                if _neq(new, value):
+                    patches.setdefault(sid, {})[key] = _num(new)
+
+            # 1.33.0: die zwei restlichen Balken. Bis 1.32.0 blieben sie
+            # bewusst draussen, weil Accuracy und Handling im Spiel
+            # Mischwerte sind. Zwei fremde Mods (Maklane 241, Stalker
+            # Unlimited 1453) setzen sie trotzdem, und ein halb mitziehender
+            # Balkensatz ist verwirrender als ein ganzer. Also als ehrliche
+            # NAEHERUNG: Genauigkeit folgt der Streuung (weniger Streuung =
+            # besserer Balken, darum invers), Handling folgt der Zielzeit
+            # (die ist schon invers definiert: x2 = doppelt so schnell).
+            # Der Tooltip sagt, dass das eine Naeherung ist.
+            for key, param, global_factor, invert in (
+                    ("AccuracyUI", "spread", s.spread_factor, True),
+                    ("HandlingUI", "aimtime", s.aim_time_factor, False)):
+                bar_factor = factor_for(sid, param, global_factor)
+                if not _neq(bar_factor, 1.0) or bar_factor <= 0:
+                    continue
+                if invert:
+                    bar_factor = 1.0 / bar_factor
                 value = parse_number(gd.resolve(gd.weaponsettings, sid, key))
                 if value <= 0:
                     continue
@@ -3739,6 +3830,27 @@ def _effect_max_patch(gd: GameData, s: Settings) -> dict:
                 continue
             suffix = "f" if raw.strip().endswith(("f", "F")) else ""
             entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
+    # 1.33.0: die zwei restlichen Deckel. Die Liste hat genau zehn Eintraege
+    # (gemessen): sechs Schutzwerte (oben), PenaltyLessWeight 90 und
+    # AdditionalInventoryWeight 140 (haengen am Traglast-Regler) - und diese
+    # beiden hier, die bisher an keinem Regler hingen. "More Uncapped"
+    # (Nexus 858) nimmt alle zehn mal zehn.
+    if _neq(s.effect_cap_other_factor, 1.0) and s.effect_cap_other_factor > 0:
+        root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
+        values = root.children.get("MaxEffectValues") if root is not None else None
+        for idx, entry in (values.children.items() if values is not None else ()):
+            sid = (entry.values.get("EffectSID") or "").strip()
+            if sid.replace("EEffectType::", "") not in ("RegenStamina", "DegenBleeding"):
+                continue
+            raw = entry.values.get("MaxValue")
+            value = parse_number(raw)
+            if raw is None or value <= 0 or idx in entries:
+                continue
+            new = value * s.effect_cap_other_factor
+            if not _neq(new, value):
+                continue
+            suffix = "f" if raw.strip().endswith(("f", "F")) else ""
+            entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
     if not entries:
         return {}
     return {"DefaultEffectMaxParamsSID": {"MaxEffectValues": entries}}
@@ -3763,6 +3875,32 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                         cfg[key] = scaled
             if cfg:
                 patches["ButtStroke_Corrosion"] = cfg
+    # 1.33.0: Ausruestungs-Verschleiss in Anomalien. Gefunden beim
+    # Gegenlesen von "Better Durability 3.0" (Nexus 1695), die genau diese
+    # Familie durch 4 teilt. Gemessen 07.09.2026: die Effekt-Typen
+    # `Corrosion` und `VelocityCorrosion` bilden fuenf Anomalie-Saetze
+    # (Burning/Carousel/Chemical/Clicker/Electro, dazu die Prolog-Variante)
+    # mit je einem Eintrag fuer Body/Head/Pistol/Weapon/SecWeapon, Werte
+    # 0.2 bis 25 Haltbarkeit je Treffer. Die gleichnamigen Composite-Eltern
+    # stehen auf 0.f und bleiben unberuehrt (Wert 0). ButtStroke_Corrosion
+    # gehoert dem eigenen Kolbenschlag-Regler und wird hier ausgelassen.
+    if _neq(s.anomaly_wear_factor, 1.0) and s.anomaly_wear_factor >= 0:
+        for sid, node in gd.effects.children.items():
+            if sid == "ButtStroke_Corrosion" or "#" in sid:
+                continue
+            typ = (node.values.get("Type") or "").replace("EEffectType::", "").strip()
+            if typ not in ("Corrosion", "VelocityCorrosion"):
+                continue
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                if raw is None or parse_number(raw) <= 0:
+                    continue
+                scaled = _scale_literal(raw, s.anomaly_wear_factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
     if s.guards_no_instakill:
         node = gd.effects.children.get("KillVolumeEffect")
         extra = (node.children.get("ApplyExtraEffectPrototypeSIDs")
@@ -4556,6 +4694,17 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             patches[sid] = {"Weight": _num(weight * s.item_weight_factor)}
     if s.ignore_equipped_weight:
         patches["[0]"] = {"IgnoreEquippedWeight": "true"}
+    # 1.33.0: maximale Haltbarkeit von Waffen und Ruestung (BaseDurability).
+    # Bis dahin haben wir den Wert nur GELESEN (Haendler-Mindestzustand),
+    # nie gepatcht - "Better Durability 3.0" (Nexus 1695) nimmt ihn mal
+    # fuenf. gear_durability() liefert nur echte Ausruestung (die 1.0 des
+    # Basis-Structs faellt raus). Ganzzahlig macht das Spiel selbst nicht,
+    # also bleibt der skalierte Wert eine Kommazahl wie in Vanilla.
+    if _neq(s.gear_durability_factor, 1.0) and s.gear_durability_factor > 0:
+        for sid, (_cat, vanilla) in sorted(gd.gear_durability().items()):
+            new = vanilla * s.gear_durability_factor
+            if _neq(new, vanilla):
+                patches.setdefault(sid, {})["BaseDurability"] = _num(new)
     # Quest-Items wiegen nichts (Nexus "quest item weight to 0"): die
     # Kategorie-Regler lassen Quest-Items aus, hier explizit Weight = 0.
     if s.quest_items_weightless:
@@ -4600,6 +4749,8 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         "recoil": s.ammo_recoil_factor,
         "flatness": s.ammo_flatness_factor,
         "wear": s.ammo_wear_factor,
+        "dispersion": s.ammo_dispersion_factor,
+        "aimdispersion": s.ammo_aim_dispersion_factor,
     }
     # Ohne "or s.ammo_overrides" faende ein Pak mit AUSSCHLIESSLICH
     # Einzelsorten-Overrides gar nicht statt.
@@ -4784,6 +4935,59 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     for edition, extra in dlc_slot_patches.items():
         for sid, cfg in extra.items():
             dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
+
+    # --- 1.33.0: dieselben Regler auch fuer die Editions-Gegenstaende ------
+    # Gemeldet von Molkerr (GitHub #9, 07.09.2026): "Resizing icons in the
+    # inventory doesn't work with DLC armor and weapons". Stimmt - die 22
+    # Editions-Stuecke (Deluxe 11, PreOrder 4, Ultimate 7) deklarieren
+    # Weight, ItemGridWidth/-Height, InventoryActionTime und BaseDurability
+    # SELBST, aber bis hierher lief nur der Basiszweig. Eine frueher Sitzung
+    # hatte "DLC-Gewichte, nur 22 Items, lohnt nicht" notiert - genau das ist
+    # jemandem aufgefallen. Kategorie kommt aus der Vererbungskette
+    # (dlc_item_chain springt in die Basis-Templates).
+    grid_on = _neq(s.item_grid_factor, 1.0) and s.item_grid_factor > 0
+    act_on = _neq(s.inventory_action_factor, 1.0) and s.inventory_action_factor > 0
+    dur_on = _neq(s.gear_durability_factor, 1.0) and s.gear_durability_factor > 0
+    weight_on = _neq(s.item_weight_factor, 1.0) and bool(s.item_weight_categories)
+    if grid_on or act_on or dur_on or weight_on:
+        for edition, trees in gd.dlc_editions.items():
+            tree = trees.get("items")
+            for sid, node in sorted((tree.children if tree else {}).items()):
+                if sid.startswith("[") or "#" in sid or sid.startswith("Template"):
+                    continue
+                cfg: dict = {}
+                if grid_on:
+                    for key in ("ItemGridWidth", "ItemGridHeight"):
+                        value = parse_number(node.values.get(key))
+                        if value > 0:
+                            new = max(1, int(round(value * s.item_grid_factor)))
+                            if new != int(value):
+                                cfg[key] = str(new)
+                if act_on:
+                    value = parse_number(node.values.get("InventoryActionTime"))
+                    if value > 0:
+                        new = value / s.inventory_action_factor
+                        if _neq(new, value):
+                            cfg["InventoryActionTime"] = _num(new)
+                if dur_on:
+                    value = parse_number(node.values.get("BaseDurability"))
+                    if value > 1.0:
+                        new = value * s.gear_durability_factor
+                        if _neq(new, value):
+                            cfg["BaseDurability"] = _num(new)
+                if weight_on:
+                    value = parse_number(node.values.get("Weight"))
+                    cat = None
+                    for step in gd.dlc_item_chain(edition, sid):
+                        if step.name in CATEGORY_TEMPLATES:
+                            cat = CATEGORY_TEMPLATES[step.name]
+                            break
+                    if value > 0 and cat in s.item_weight_categories:
+                        new = value * s.item_weight_factor
+                        if _neq(new, value):
+                            cfg["Weight"] = _num(new)
+                if cfg:
+                    dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
     return patches, dlc_patches
 
 
@@ -4997,6 +5201,64 @@ def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
+    """Mehrere wiederholbare Auftraege in EINEM Gespraech annehmen (1.33.0).
+
+    Ausloeser: Molkerrs In-Game-Test (GitHub #9, 07.09.2026) - der
+    Limit-Regler aus 1.31.0 erhoeht nur, wie viele Jobs ein Geber je Runde
+    VORBEREITET; nach der ersten Zusage bietet der Dialog keinen zweiten an.
+    Gemessen: `Technical_GetQuest` feuert bei der Zusage, danach wird der
+    SetDialog-Knoten nicht wieder scharf.
+
+    Vorbild ist "Zone Borders / Contracts" (Nexus 2638) - aber bewusst
+    ANDERS gebaut. Deren Weg legt je Geber eine eigene Globalvariable an
+    (angenommen minus abgegeben) und raeumt nach jeder Annahme die
+    Bridge-Ergebnisse von `Add_C0x` und `Technical_GetQuest` weg. Genau
+    daran scheitert er: der Autor schreibt selbst in den Kommentaren
+    "Once you take a set of quests you must complete all of them before
+    turning in or the mod breaks. I couldn't fix this". Wer aufraeumt,
+    loescht dem Spiel die Notiz, welcher Auftrag schon laeuft.
+
+    Wir loeschen darum NICHTS und legen KEINE eigene Variable an: ein
+    einziger neuer Technical-Knoten je Geber haengt an der Zusage und macht
+    den Dialog nach einer Sekunde wieder scharf. Der vorhandene Rundenzaehler
+    bleibt die Obergrenze (der Regler daneben stellt sie ein), das Aufraeumen
+    bleibt Vanilla - und weil wir nur zwei Knoten je Geber anfassen statt die
+    Quest-Datei neu zu schreiben, vertraegt es sich auch mit Mods, die an den
+    Belohnungen derselben Quests drehen (deren zweite gemeldete Schwaeche).
+
+    Nichts davon liegt im Spielstand: Pak raus = alles wie vorher."""
+    if not s.repeatable_jobs_multi:
+        return {}
+    patches: dict = {}
+    for giver in gd.repeatable_quest_givers():
+        accept = giver.get("accept")
+        quest_sid = giver.get("quest_sid")
+        dialog_sid = giver.get("dialog_sid")
+        if not (accept and quest_sid and dialog_sid):
+            continue          # Geber ohne erkennbare Zusage bleibt vanilla
+        node_sid = f"{quest_sid}_S2T_ReArmDialog"
+        patches[node_sid] = {
+            "__new__": True,
+            "SID": node_sid,
+            "NodePrototypeVersion": "1",
+            "Repeatable": "true",
+            "QuestSID": quest_sid,
+            "NodeType": "EQuestNodeType::Technical",
+            "Launchers": {"[0]": {"Excluding": "false",
+                                  "Connections": {"[0]": {"SID": accept, "Name": ""}}}},
+            # Kurze Verzoegerung wie bei 2638: die Zusage soll erst fertig
+            # abgewickelt sein, bevor der Dialog wieder aufmacht.
+            "StartDelay": "1.0",
+        }
+        idx = int(giver.get("next_launcher", 0))
+        patches.setdefault(dialog_sid, {}).setdefault("Launchers", {})[f"[{idx}]"] = {
+            "Excluding": "false",
+            "Connections": {"[0]": {"SID": node_sid, "Name": ""}},
+        }
+    return patches
+
+
 def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
     """Der Auftraggeber bietet den naechsten Job sofort an (Issue #8).
 
@@ -5138,7 +5400,15 @@ def _lairs_patch(gd: GameData, s: Settings) -> dict:
     mut_on = _neq(s.lair_mutant_factor, 1.0) and s.lair_mutant_factor > 0
     hum_on = _neq(s.lair_human_factor, 1.0) and s.lair_human_factor > 0
     rsp_on = _neq(s.lair_respawn_factor, 1.0) and s.lair_respawn_factor > 0
-    if not (mut_on or hum_on or rsp_on):
+    # 1.33.0 (neunte Datenrecherche): Startbefuellung und die Gewichte der
+    # selteneren Archetypen. Beides drehen "A-Life Extended" (273) und
+    # "More Enemies" (438); gemessen: InitialSpawnQuantityPercent 688x 0.5
+    # und 100x 1.0, SpawnWeight 2244x 1.0 / 237x 0 / 147x 0.2 / 23x 0.5.
+    ini_on = (_neq(s.lair_initial_fill_factor, 1.0)
+              and s.lair_initial_fill_factor > 0)
+    arch_on = (_neq(s.lair_rare_archetype_factor, 1.0)
+               and s.lair_rare_archetype_factor > 0)
+    if not (mut_on or hum_on or rsp_on or ini_on or arch_on):
         return {}
     standard = gd.lair_standard_timers()
     patches: dict = {}
@@ -5159,6 +5429,27 @@ def _lairs_patch(gd: GameData, s: Settings) -> dict:
                 value = parse_number(raw)
                 if value > 0:
                     cfg[key] = _num(value / s.lair_respawn_factor)
+        if ini_on and not blk["guard"]:
+            value = parse_number(blk["initial"])
+            if value > 0:
+                new = min(1.0, value * s.lair_initial_fill_factor)
+                if _neq(new, value):
+                    cfg["InitialSpawnQuantityPercent"] = _num(new)
+        # Archetyp-Gewichte: NUR die selteneren (0 < w < 1.0) werden
+        # angehoben - alle gleichmaessig zu skalieren wuerde am Verhaeltnis
+        # nichts aendern, und die Nullen sind eine Design-Entscheidung des
+        # Spiels (der Archetyp kommt in diesem Lager gar nicht vor).
+        arch_cfg: dict = {}
+        if arch_on and not blk["guard"]:
+            for name, raw in sorted(blk["archetypes"].items()):
+                value = parse_number(raw)
+                if not (0 < value < 1.0):
+                    continue
+                new = min(1.0, value * s.lair_rare_archetype_factor)
+                if _neq(new, value):
+                    arch_cfg[name] = {"SpawnWeight": _num(new)}
+        if arch_cfg:
+            cfg["SpawnSettingsPerArchetypes"] = arch_cfg
         if cfg:
             (patches.setdefault(blk["lair"], {})
                     .setdefault("Preset", {})
@@ -5189,9 +5480,29 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
         _neq(v, 1.0) and v >= 0 for v in kinds.values())
     pack = s.encounter_pack_factor
     pack_on = _neq(pack, 1.0) and pack > 0
-    if not (freq_on or weight_on or pack_on):
+    # 1.33.0: zwei Einzelwerte desselben Presets, die an keinem Regler
+    # hingen. "A-Life Extended" (273) halbiert die Ausbreitungszeit
+    # (120 -> 60); FallbackMaxSpawnCount (3) ist der Notnagel, wenn der
+    # Director keine passende Gruppe findet.
+    exp_on = (_neq(s.lair_expansion_player_factor, 1.0)
+              and s.lair_expansion_player_factor > 0)
+    fb_on = int(s.fallback_spawn_count) != int(
+        parse_number(d.values.get("FallbackMaxSpawnCount")) or 3)
+    if not (freq_on or weight_on or pack_on or exp_on or fb_on):
         return {}
     preset: dict = {}
+
+    if exp_on:
+        value = parse_number(d.values.get("DefaultALifeLairExpansionToPlayerTimeMin"))
+        if value > 0:
+            new = max(1, int(round(value / s.lair_expansion_player_factor)))
+            if new != int(value):
+                preset["DefaultALifeLairExpansionToPlayerTimeMin"] = str(new)
+    if fb_on:
+        value = parse_number(d.values.get("FallbackMaxSpawnCount"))
+        target = max(1, int(s.fallback_spawn_count))
+        if value > 0 and target != int(value):
+            preset["FallbackMaxSpawnCount"] = str(target)
 
     if freq_on:
         for key in ("DefaultSpawnDelayMin", "DefaultSpawnDelayMax",
@@ -5697,6 +6008,59 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
             cfg[key] = _num(new) + suffix
         if cfg:
             patches[sid] = cfg
+
+    # 1.33.0: Composite-Effekte nachziehen. Ein Composite (31 Stueck, z.B.
+    # BattleExoskeleton_Varta_Armor_accuracy "20 %") traegt selbst KEINE
+    # Wirkung, sondern nur die Zahl fuers Techniker-Menue und verweist per
+    # ApplyExtraEffectPrototypeSIDs auf die echten Effekte
+    # (IdleSwayXPos20 + IdleSwayYPos20 + DispersionPos15). Bisher haben wir
+    # die Kinder skaliert und die angezeigte Zahl stehen lassen - die
+    # Anzeige log dann. Nur wenn ALLE Kinder mit DEMSELBEN Faktor skaliert
+    # wurden, ist die Anzeige eindeutig; sonst bleibt sie bewusst vanilla.
+    for sid in sorted(refs):
+        node = gd.effects.children.get(sid)
+        if node is None or sid in patches:
+            continue
+        if (node.values.get("Type") or "").strip() != "EEffectType::Composite":
+            continue
+        extra = node.children.get("ApplyExtraEffectPrototypeSIDs")
+        if extra is None:
+            continue
+        kids = [v.strip() for v in extra.values.values() if not _is_empty_sid(v)]
+        if not kids:
+            continue
+        kid_factors = set()
+        for kid in kids:
+            knode = gd.effects.children.get(kid)
+            ktyp = ((knode.values.get("Type") or "").replace("EEffectType::", "").strip()
+                    if knode is not None else "")
+            fam_dir = by_type.get(ktyp)
+            kid_factors.add(factors[fam_dir[0]] if fam_dir else 1.0)
+        if len(kid_factors) != 1:
+            continue
+        factor = kid_factors.pop()
+        if not (_neq(factor, 1.0) and factor >= 0):
+            continue
+        cfg = {}
+        for key in ("ValueMin", "ValueMax"):
+            raw = node.values.get(key)
+            if raw is None:
+                continue
+            core = raw.strip()
+            suffix = "%" if core.endswith("%") else ("f" if core.endswith(("f", "F")) else "")
+            number = core[:-1] if suffix else core
+            try:
+                value = float(number.rstrip(".") or "0")
+            except ValueError:
+                continue
+            if value == 0:                     # 0.f-Platzhalter bleiben
+                continue
+            new = value * factor
+            if not _neq(new, value):
+                continue
+            cfg[key] = _num(new) + suffix
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -6018,6 +6382,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     quest_patches.update(_skip_intro_patch(gd, s))
     _merge_nested(quest_patches, _quest_limit_patch(gd, s))
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
+    _merge_nested(quest_patches, _quest_multi_patch(gd, s))
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
         _emission_patch(gd, s))
@@ -6456,6 +6821,18 @@ def summarize(s: Settings) -> list[str]:
     if s.stat_bars_follow:
         lines.append("Inventory stat bars follow your changes")
     f("Ammo pack size", s.ammo_pack_factor)
+    # 1.33.0 (neunte Datenrecherche)
+    f("Anomaly wear on gear", s.anomaly_wear_factor)
+    f("Weapon & armor max condition", s.gear_durability_factor)
+    f("Damage at extreme range", s.far_damage_factor)
+    f("Stamina & bleeding caps", s.effect_cap_other_factor)
+    f("Lair starting occupancy", s.lair_initial_fill_factor)
+    f("Rare lair archetypes", s.lair_rare_archetype_factor)
+    f("Lair expansion toward you", s.lair_expansion_player_factor)
+    if int(s.fallback_spawn_count) != 3:
+        lines.append(f"Fallback spawn count: {int(s.fallback_spawn_count)}")
+    f("Ammo spread", s.ammo_dispersion_factor)
+    f("Ammo spread while aiming", s.ammo_aim_dispersion_factor)
     f("Stash item sets", s.stash_sets_factor)
     f("Ammo bleeding", s.ammo_bleeding_factor)
     f("Ammo recoil", s.ammo_recoil_factor)
@@ -6569,6 +6946,8 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Upgrades: no earlier tier required")
     f("Quest money rewards", s.quest_reward_factor)
     f("Repeatable quest cooldown", s.repeatable_quest_factor)
+    if s.repeatable_jobs_multi:
+        lines.append("Accept several repeatable jobs in one conversation")
     if _neq(s.repeatable_jobs_per_round, Settings.repeatable_jobs_per_round):
         lines.append(f"Repeatable jobs per round {s.repeatable_jobs_per_round:g} "
                      f"(vanilla {Settings.repeatable_jobs_per_round})")

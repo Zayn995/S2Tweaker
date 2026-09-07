@@ -200,6 +200,17 @@ s = Settings(
     ammo_recoil_factor=0.5,          # RecoilMod je Sorte
     ammo_flatness_factor=1.5,        # FlatnessMod (flachere Flugbahn)
     ammo_wear_factor=0.5,            # WeaponExhaustionMod
+    # --- 1.33.0: neunte Datenrecherche (27 fremde Mods gegengelesen) ---
+    anomaly_wear_factor=0.25,        # Corrosion-Familie (Anomalien fressen Ausruestung)
+    gear_durability_factor=3.0,      # ItemPrototypes BaseDurability
+    far_damage_factor=2.0,           # CWS MinBulletDistance*Modifier (Deckel 1.0)
+    effect_cap_other_factor=2.0,     # ObjEffectMaxParams RegenStamina/DegenBleeding
+    lair_initial_fill_factor=1.5,    # LairPrototypes InitialSpawnQuantityPercent
+    lair_rare_archetype_factor=2.0,  # dito SpawnWeight der seltenen Archetypen
+    lair_expansion_player_factor=2.0,  # ALifeDirectorScenario Ausbreitungszeit
+    fallback_spawn_count=6,          # dito FallbackMaxSpawnCount
+    ammo_dispersion_factor=0.5,      # ItemPrototypes DispersionMod
+    ammo_aim_dispersion_factor=0.5,  # dito AimDispersionMod
     jam_chance_factor=0.0,           # Waffen klemmen nie
     npc_vs_npc_damage_factor=2.0,    # Fraktionskaempfe kuerzer
     stat_bars_follow=True,           # Anzeigebalken ziehen mit

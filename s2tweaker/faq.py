@@ -234,16 +234,15 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I take several repeatable jobs at once?",
-        "a": "Yes - Economy tab, 'Repeatable jobs per round' plus the "
-             "switch under it. Vanilla gives you three jobs per giver and "
-             "only re-opens his job dialog once he has run dry, so in "
-             "practice you leave with one at a time. The slider raises the "
-             "three (each giver is capped at the number of different jobs "
-             "he actually has, 6 to 10), and the switch lets him offer the "
-             "next one right away. Both work with the cooldown slider "
-             "above: the slider says how many per round, the cooldown says "
-             "how often a round starts. Nothing here is play-tested yet - "
-             "please report back.",
+        "a": "Economy tab: tick 'Accept several jobs in one conversation' "
+             "and raise 'Repeatable jobs per round'. The vanilla counter "
+             "says how many jobs a giver PREPARES per round, and his dialog "
+             "closes after you say yes once - which is why the 1.31.0 "
+             "sliders alone did not let you take a second one (measured, "
+             "then confirmed in-game by Molkerr). The switch adds one node "
+             "per giver that re-opens the dialog a second after you accept. "
+             "It adds no save variables and clears nothing, so pulling the "
+             "pak out leaves no trace. Untested in-game - report back.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",
@@ -1122,17 +1121,58 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Why can't I see artifacts until I stand on them?",
-        "a": "Vanilla gives every artifact a visibility radius of 40 cm, so "
-             "you practically have to stand on one. World tab, 'Artifacts': "
-             "'Artifact visibility radius' scales it - about 19x is the "
-             "7.5 m the mod 'Less Shy Artifacts' uses. Next to it, "
-             "'Artifacts don't hop away' stops the 146 artifacts that jump "
-             "off when you approach, and two experimental sliders change "
-             "how far they keep away and how long they pause between hops. "
-             "Detectors have their own slider further down. Not play-tested "
-             "yet.",
+        "a": "Use 'Detector & scanner range' in the World tab - that is the "
+             "one that works. It scales the detector's own artifact display "
+             "radius (vanilla 230 to 400 cm), which is exactly what the mod "
+             "'Less Shy Artifacts' raises to 750. We also offer 'Artifact "
+             "Radius value' next to the artifact sliders, but be warned: we "
+             "added it believing it was that mod's key, and after reading "
+             "the mod's files we know it is not. What that 40 cm Radius "
+             "does is unproven. Next to it, 'Artifacts don't hop away' "
+             "stops the 146 artifacts that jump off when you approach. Not "
+             "play-tested yet.",
         "k": "artifact artifacts invisible see visible radius hidden find "
              "shy hop jump away run escape catch detector distance",
+    },
+    {
+        "q": "Anomalies keep wrecking my armour and guns - can I stop that?",
+        "a": "Yes. Armor tab, section 'Gear condition': 'Anomaly wear on "
+             "gear' scales what one anomaly hit costs your armour, helmet "
+             "and both weapons. Vanilla charges between 0.2 and 25 points "
+             "per hit depending on the anomaly - the Clicker and the "
+             "Carousel are the expensive ones. 0 % means anomalies stop "
+             "damaging your gear altogether. The butt-strike wear slider in "
+             "the Weapons tab is a separate thing. Not play-tested yet.",
+        "k": "anomaly anomalies corrosion wear damage gear armor armour "
+             "weapon condition ruin destroy carousel clicker chemical "
+             "electro burning repair costs",
+    },
+    {
+        "q": "Can I make weapons and armour last longer overall?",
+        "a": "Two different sliders do that. 'Weapon durability' and 'Armor "
+             "durability' change how fast condition drops. New in this "
+             "version: 'Weapon & armor max condition' in the Armor tab "
+             "changes how much condition there is in the first place "
+             "(vanilla 1,125-3,000 for guns, 520-1,040 for armour). One "
+             "catch you should know: an item's condition is stored in your "
+             "save, so a bigger maximum only shows on gear that spawns "
+             "after you install the mod - the rifle already in your hands "
+             "keeps its old bar. Not play-tested yet.",
+        "k": "durability condition max maximum bar longer break broken "
+             "repair wear tear weapon armor armour basedurability",
+    },
+    {
+        "q": "My gun does almost no damage at long range - can I change that?",
+        "a": "Weapons tab: 'Weapon effective range' moves the distance at "
+             "which damage starts dropping off, and 'Damage at extreme "
+             "range' sets the floor under it - vanilla leaves only 10 to "
+             "60 % of the damage past that distance, depending on the "
+             "weapon. 100 % means no loss at all. Armour penetration at "
+             "range moves with the same slider, but it already sits at "
+             "100 % in vanilla, so only values below 100 % change it. Not "
+             "play-tested yet.",
+        "k": "range distance damage falloff drop off far long sniper "
+             "minbulletdistance penetration armor piercing extreme",
     },
     {
         "q": "Why do repairs cost more with some factions?",

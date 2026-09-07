@@ -16,19 +16,31 @@ from __future__ import annotations
 INDENT = "   "
 
 
-def _emit_struct(name: str, content: dict, depth: int, lines: list[str]) -> None:
+def _emit_struct(name: str, content: dict, depth: int, lines: list[str],
+                 plain: bool = False) -> None:
     pad = INDENT * depth
     # "__attrs__" = zusaetzliche Struct-Attribute, z.B. refkey=Basis fuer einen
     # NEUEN Knoten, der von einem vorhandenen erbt ({refkey=X;bpatch},
     # sdwvit-Muster; seit 1.27.0 fuer die Pro-Fernrohr-Effekte)
     attrs = content.get("__attrs__")
-    head = f"{attrs};bpatch" if attrs else "bpatch"
-    lines.append(f"{pad}{name} : struct.begin {{{head}}}")
+    # "__new__" = ein Knoten, den es in Vanilla NICHT gibt (seit 1.33.0 fuer
+    # die zusaetzlichen Quest-Knoten). Ein neuer Top-Level-Name wird vom
+    # Spiel angehaengt (docs/SPEC.md par. 0) - dabei darf KEIN {bpatch}
+    # stehen, sonst soll er etwas zusammenfuehren, das es nicht gibt.
+    # Innerhalb eines neuen Knotens sind auch alle Kinder neu - sie duerfen
+    # ebenfalls kein {bpatch} tragen (so schreibt es auch die Vorlage, Nexus
+    # 2638). Darum wird das Kennzeichen nach unten durchgereicht.
+    plain = plain or bool(content.get("__new__"))
+    if plain:
+        head = attrs or ""
+    else:
+        head = f"{attrs};bpatch" if attrs else "bpatch"
+    lines.append(f"{pad}{name} : struct.begin" + (f" {{{head}}}" if head else ""))
     for key, value in content.items():
-        if key == "__attrs__":
+        if key in ("__attrs__", "__new__"):
             continue
         if isinstance(value, dict):
-            _emit_struct(key, value, depth + 1, lines)
+            _emit_struct(key, value, depth + 1, lines, plain)
         else:
             # Leerer Wert (= Liste leeren, z.B. Upgrade-Sperren): "Key ="
             # ohne Leerzeichen dahinter, wie das Spiel es selbst schreibt

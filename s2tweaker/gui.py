@@ -954,6 +954,17 @@ SLIDER_FIELDS: dict[str, str] = {
     "ammo_recoil": "ammo_recoil_factor",
     "ammo_flat": "ammo_flatness_factor",
     "ammo_wear": "ammo_wear_factor",
+    # 1.33.0 (neunte Datenrecherche, 27 fremde Mods gegengelesen)
+    "ammo_disp": "ammo_dispersion_factor",
+    "ammo_aimdisp": "ammo_aim_dispersion_factor",
+    "anom_wear": "anomaly_wear_factor",
+    "gear_dur": "gear_durability_factor",
+    "far_damage": "far_damage_factor",
+    "cap_other": "effect_cap_other_factor",
+    "lair_initial": "lair_initial_fill_factor",
+    "lair_rare": "lair_rare_archetype_factor",
+    "lair_expand": "lair_expansion_player_factor",
+    "fallback_spawn": "fallback_spawn_count",
     "cons_stack": "consumable_stack_factor", "anomaly": "anomaly_damage_factor",
     "anom_electro": "anomaly_electro_factor", "anom_chem": "anomaly_chemical_factor",
     "anom_fire": "anomaly_fire_factor", "anom_grav": "anomaly_gravity_factor",
@@ -1023,6 +1034,7 @@ CHECK_FIELDS: dict[str, str] = {
     "repair_no_rep": "repair_cost_reputation",
     # 1.31.0 (GitHub Issue #8)
     "rq_jobs_instant": "repeatable_jobs_instant",
+    "rq_jobs_multi": "repeatable_jobs_multi",
     "stat_bars": "stat_bars_follow",
     "chamber_round": "chamber_round",
 }
@@ -5102,6 +5114,19 @@ class App(ctk.CTk):
                      "How fast fallen lair members are replaced (vanilla 3 / 8 "
                      "min, wipe 8 min). Story lairs with instant refill stay as "
                      "they are.")
+        self._slider(f, "lair_initial", "Lair starting occupancy", 50, 200, 5, 100, fmt_pct,
+                     "How full a lair is the first time it spawns - vanilla "
+                     "fills most of them only half (0.5), a few completely. "
+                     "200 % = every lair starts at its full head count "
+                     "(capped there). Base-guard lairs stay vanilla. Not "
+                     "play-tested yet.")
+        self._slider(f, "lair_rare", "Rare lair archetypes", 100, 500, 10, 100, fmt_pct,
+                     "Inside a lair every archetype has a draw weight: most "
+                     "sit at 1.0, but 170 entries are rarities at 0.2 or 0.5 "
+                     "(the odd sniper or close-combat specialist). This "
+                     "raises only those, capped at 1.0 - so the unusual ones "
+                     "show up more often. Archetypes at 0 stay at 0: the game "
+                     "means them not to appear there. Not play-tested yet.")
         self._slider(f, "refill_cd", "Lair refill cooldown", 25, 400, 5, 100, fmt_pct,
                      "The A-Life policy's pause before a wiped-out lair is "
                      "refilled (vanilla 360 s after a full wipe, 120 s after a "
@@ -5128,6 +5153,15 @@ class App(ctk.CTk):
                      "dogs 4–12, fleshes 2–6 ...) – our best reading of how pack "
                      "size is derived, unverified. Types the director never "
                      "spawns (chimera, controller, burer ...) are skipped.")
+        self._slider(f, "lair_expand", "Lairs expand toward you", 25, 400, 5, 100, fmt_pct,
+                     "How long the simulation waits before a faction pushes a "
+                     "lair in your direction (vanilla 120 min). 400 % = every "
+                     "30 minutes. Offline behaviour, so expect it to show up "
+                     "slowly. Not play-tested yet.")
+        self._slider(f, "fallback_spawn", "Fallback spawn count", 1, 20, 1, 3, fmt_int,
+                     "What the director spawns when it finds no matching "
+                     "scenario at all (vanilla 3). Rarely used, but it is the "
+                     "floor under every encounter. Not play-tested yet.")
         for key, label, tip in (
                 ("enc_blinddog", "Encounters: blind dogs", "Weight of blind-dog packs."),
                 ("enc_boar", "Encounters: boars", "Weight of boar packs."),
@@ -5378,6 +5412,15 @@ class App(ctk.CTk):
         self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
                      "Scales effective fire distance and damage drop-off "
                      "start/length together.")
+        self._slider(f, "far_damage", "Damage at extreme range", 25, 400, 5, 100, fmt_pct,
+                     "Past the drop-off distance a shot keeps only a fraction "
+                     "of its damage - vanilla 10 to 60 % depending on the gun. "
+                     "This is the floor under that, capped at 100 % (full "
+                     "damage at any range). Armour penetration at range moves "
+                     "with it, but it already sits at 100 % in vanilla, so "
+                     "there only values below 100 % change anything. The range "
+                     "slider above moves the distances, this one the damage "
+                     "left behind them. Not play-tested yet.")
         self._slider(f, "wbleed", "Weapon bleeding", 0, 300, 5, 100, fmt_pct,
                      "Bleeding chance and intensity your shots inflict. "
                      "0 % = your bullets never cause bleeding.")
@@ -5667,6 +5710,16 @@ class App(ctk.CTk):
                      "1.3 - cheap rounds wear more). 0 % = this round "
                      "never wears the weapon. Stacks with the weapon "
                      "durability slider. Not play-tested yet.")
+        self._slider(f, "ammo_disp", "Ammo spread", 0, 300, 5, 100, fmt_pct,
+                     "Spread the round itself adds (vanilla 1.0 on 33 of "
+                     "the 35 rounds, 1.2 on two). 0 % = the round adds no "
+                     "spread at all. Stacks with the weapon spread slider. "
+                     "Not play-tested yet.")
+        self._slider(f, "ammo_aimdisp", "Ammo spread while aiming", 0, 300, 5, 100,
+                     fmt_pct,
+                     "The same thing while aiming down sights (vanilla 1.0, "
+                     "two rounds sit at 10.0 - those are the ones that are "
+                     "meant to be fired from the hip). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single ammo overrides (advanced)")
@@ -5738,6 +5791,29 @@ class App(ctk.CTk):
                      "give beyond that is lost. 111 % lifts the percent caps to "
                      "100 (the maximum), physical scales freely. Like the 'Max "
                      "Stats Patch'. Not play-tested yet.")
+        self._slider(f, "cap_other", "Stamina & bleeding caps", 50, 1000, 10, 100, fmt_pct,
+                     "The same list holds two more ceilings that nothing else "
+                     "here touches: stamina regeneration from artifacts and "
+                     "upgrades stops counting at 30, bleeding resistance at 5. "
+                     "Worth raising if you stack stamina artifacts. Not "
+                     "play-tested yet.")
+        ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Gear condition")
+        self._slider(f, "gear_dur", "Weapon & armor max condition", 25, 500, 5, 100, fmt_pct,
+                     "The condition bar's full length - vanilla runs from "
+                     "1,125 to 3,000 for guns and 520 to 1,040 for armor. "
+                     "500 % = five times as much to wear through, like "
+                     "'Better Durability'. ⚠ An item's condition is stored in "
+                     "your save, so this only shows on gear that spawns AFTER "
+                     "you install the mod. Not play-tested yet.")
+        self._slider(f, "anom_wear", "Anomaly wear on gear", 0, 300, 5, 100, fmt_pct,
+                     "How much condition an anomaly hit costs your armour, "
+                     "helmet and both weapons (vanilla 0.2 to 25 per hit "
+                     "depending on the anomaly - the Clicker and Carousel are "
+                     "the brutal ones). 0 % = anomalies no longer damage your "
+                     "gear at all. Separate from the butt-strike slider in the "
+                     "Weapons tab. Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Grenades vs armor")
@@ -6120,14 +6196,17 @@ class App(ctk.CTk):
                      "(bolt 300) or a timer (flower 2 h). 1000 % = practically "
                      "no recharge, like 'NoWeirdArtifactRecharge'. Not "
                      "play-tested yet.")
-        self._slider(f, "art_radius", "Artifact visibility radius", 1, 20, 0.1, 1, fmt_factor,
-                     "How close you must be before an artifact becomes visible "
-                     "(vanilla 40 cm - practically standing on it). \u00d7 19 is "
-                     "about 7.5 m, the range the Nexus mod 'Less Shy Artifacts' "
-                     "uses. Honest note: this is the only key that fits that "
-                     "mod's description, but we could not read the mod's own "
-                     "files - the reading is very likely, not proven. Not "
-                     "play-tested yet.")
+        self._slider(f, "art_radius", "Artifact 'Radius' value (unproven)", 1, 20, 0.1, 1, fmt_factor,
+                     "Every artifact carries a Radius of 40 cm. We built this "
+                     "slider believing that is what 'Less Shy Artifacts' "
+                     "changes - since then we have read that mod's files, and "
+                     "it does something else entirely: it raises the "
+                     "DETECTOR's ShowArtifactRadius. So what this key does is "
+                     "genuinely unknown, and the slider may do nothing. If you "
+                     "want artifacts to show up from further away, use "
+                     "'Detector & scanner range' in the World tab instead - "
+                     "that is the key the mod actually uses. Not play-tested "
+                     "yet.")
         self._check(f, "art_no_hop", "Artifacts don't hop away",
                     "146 of the 154 artifacts jump away when you get close; "
                     "this switches that off. The eight that already stay put "
@@ -6199,12 +6278,28 @@ class App(ctk.CTk):
                      "the switch below, or the extra jobs only show up "
                      "after the cooldown. Not play-tested yet.")
         self._check(f, "rq_jobs_instant",
-                    "Task givers offer the next job right away",
-                    "Vanilla only re-opens the job dialog once a giver has "
-                    "run dry, so you leave with one job per visit. This "
-                    "lets him offer the next one immediately while he is "
-                    "below the limit above - that is what lets you carry "
-                    "several repeatable jobs at once. Not play-tested yet.")
+                    "Task giver's dialog opens while he still has jobs",
+                    "Vanilla arms the job dialog only once the giver has "
+                    "finished stocking up. This arms it while he is still "
+                    "below the limit above. ⚠ Play-tested by Molkerr on "
+                    "1.31.0 (GitHub #9): on its own this does NOT let you "
+                    "take a second job in the same conversation - for that "
+                    "use the switch below. Kept because it re-arms the "
+                    "dialog earlier after a round resets.")
+        self._check(f, "rq_jobs_multi",
+                    "Accept several jobs in one conversation (experimental)",
+                    "Adds one node per task giver that re-opens his job "
+                    "dialog a second after you accept, so you can keep "
+                    "taking jobs until his round limit above is reached. "
+                    "Modelled on 'Zone Borders / Contracts' (Nexus 2638) but "
+                    "built smaller on purpose: that mod tracks held jobs in "
+                    "its own save variables and clears the game's bookkeeping "
+                    "after every hand-out, and its author reports it breaks "
+                    "if you turn a job in before finishing the rest. We add "
+                    "no variables and clear nothing, so removing the pak "
+                    "leaves no trace - and unlike a full quest-file rewrite "
+                    "it does not clash with mods that change job rewards. "
+                    "Untested in-game: please report back.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,
@@ -6858,6 +6953,17 @@ class App(ctk.CTk):
             ammo_recoil_factor=s["ammo_recoil"].get() / 100.0,
             ammo_flatness_factor=s["ammo_flat"].get() / 100.0,
             ammo_wear_factor=s["ammo_wear"].get() / 100.0,
+            # 1.33.0 (neunte Datenrecherche)
+            ammo_dispersion_factor=s["ammo_disp"].get() / 100.0,
+            ammo_aim_dispersion_factor=s["ammo_aimdisp"].get() / 100.0,
+            anomaly_wear_factor=s["anom_wear"].get() / 100.0,
+            gear_durability_factor=s["gear_dur"].get() / 100.0,
+            far_damage_factor=s["far_damage"].get() / 100.0,
+            effect_cap_other_factor=s["cap_other"].get() / 100.0,
+            lair_initial_fill_factor=s["lair_initial"].get() / 100.0,
+            lair_rare_archetype_factor=s["lair_rare"].get() / 100.0,
+            lair_expansion_player_factor=s["lair_expand"].get() / 100.0,
+            fallback_spawn_count=int(s["fallback_spawn"].get()),
             consumable_stack_factor=s["cons_stack"].get(),
             weapon_category_factors=self._collect_weapon_cats(),
             weapon_overrides={sid: dict(v)
@@ -6920,6 +7026,7 @@ class App(ctk.CTk):
             repeatable_quest_factor=s["rq_cooldown"].get() / 100.0,
             repeatable_jobs_per_round=int(s["rq_jobs"].get()),
             repeatable_jobs_instant=bool(self.checks["rq_jobs_instant"].get()),
+            repeatable_jobs_multi=bool(self.checks["rq_jobs_multi"].get()),
             weapon_price_factor=s["price_weapon"].get(),
             armor_price_factor=s["price_armor"].get(),
             ammo_price_factor=s["price_ammo"].get(),

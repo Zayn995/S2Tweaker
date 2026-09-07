@@ -59,3 +59,7 @@ release/ISSUE_6_ANTWORT.txt
 
 # Nexus-Icon (Meme-Gesichter, nur lokal; NEXUS_ICON.png jederzeit per tools/make_icon.py neu)
 release/NEXUS_ICON*.png
+
+# Fremde Mods zum Gegenlesen (nie committen - fremdes Copyright)
+fremd mods/
+ZoneCheats*.zip

@@ -68,7 +68,11 @@ print("Live: alle 34 Sorten tragen die vier neuen Modifikatoren  OK")
 # Reihenfolge: die vier haengen HINTEN an - sonst waeren alte Paks nicht
 # mehr bytegleich (dieselbe Regel wie bei der Stapelgroesse in 1.30.0)
 assert AMMO_PARAMS[:5] == ["damage", "piercing", "armordamage", "cover", "stack"], AMMO_PARAMS
-assert AMMO_PARAMS[5:] == ["bleeding", "recoil", "flatness", "wear"], AMMO_PARAMS
+assert AMMO_PARAMS[5:9] == ["bleeding", "recoil", "flatness", "wear"], AMMO_PARAMS
+# 1.33.0 haengt nach derselben Regel zwei weitere hinten an (Spread und
+# Spread-beim-Zielen aus der neunten Datenrecherche) - die vier oben
+# behalten dadurch ihre Position, alte Paks bleiben bytegleich.
+assert AMMO_PARAMS[9:] == ["dispersion", "aimdispersion"], AMMO_PARAMS
 print("Parameter-Reihenfolge unveraendert, Neues angehaengt  OK")
 
 p = nodes(build_patches(gd, Settings(ammo_bleeding_factor=2.0, ammo_recoil_factor=0.5,
