@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.28.0
-File version:  1.28.0
+Name:          S2Tweaker 1.30.0
+File version:  1.30.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,45 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.30.0 - Bigger inventory stacks
+
+- Requested on GitHub. Measured first: the game caps AMMUNITION at 900
+  per stack (all 34 round types) - that is the only stack limit you
+  really run into. Weapons, armor and artifacts already sit at 999,
+  PDAs/notes/keys at 300000, and binoculars, detectors, the weird DLC
+  artifacts and money cards at 1 on purpose. That last group is never
+  touched.
+- 'Ammo stack size' (Ammo tab): x 10 turns 900 into 9000. The same value
+  PER ROUND as the fifth factor in the ammo tree - a round's own factor
+  beats the global slider.
+- 'Food & medicine stack size' (Weight & items) for the 22 consumables
+  that sit at 999.
+- Whole numbers, never below 1, capped at 300000 - the value the game
+  itself uses for 'unlimited'.
+- Pairs with 'Max carry weight' and 'Item weight': in vanilla the weight
+  stops you long before the stack does (900 rounds of 7.62 weigh 21.6 kg
+  of your 80), so the stack cap only becomes the real one once you raise
+  carrying capacity - or in a stash, where weight does not count.
+- No new game files are read: no re-extraction, paks and presets stay
+  valid. Not play-tested in-game.
+
+1.29.0 - Interface: exact number boxes, faction colour themes, slider fix
+
+- Fix worth updating for: sliders could not always reach their vanilla
+  value (74 of 376 were affected, among them player damage and every
+  trader price), so a freshly started tool could patch values nobody had
+  touched. Fixed and pinned by a test.
+- A number box behind every slider - dot and comma both work.
+- The mouse wheel no longer moves sliders while you scroll; a toolbar
+  switch hands it back.
+- 12 colour themes in the style of the game's factions, switched live
+  and remembered. Purely cosmetic - the pak you build is identical.
+- Tabs in two rows with a small mark each, so the full names fit; the
+  vaulting tab is called 'Vaulting' again. 'Confirm & load game data'
+  pulses amber until you press it. Bigger text, proper warning boxes.
+- Two new weapon tweaks: draw & holster speed (edition guns included)
+  and skipped shooting animations.
+
 1.27.1 - Fix: scope-class buttons in the Upgrades tab
 
 - In 1.27.0 the five class buttons under 'Single scope overrides' stayed

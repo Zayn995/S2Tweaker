@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from s2tweaker import gui as guimod            # noqa: E402
 from s2tweaker.gamedata import GameData        # noqa: E402
+from s2tweaker import theme                    # noqa: E402
 
 # Umbiegen, damit ein Lauf NIE die echten Einstellungen ueberschreibt:
 guimod.SETTINGS_FILE = OUT / "_throwaway_settings.json"
@@ -286,16 +287,17 @@ scroll_top(app.tabs.tab("Traders"))
 shot("17_traders.png")
 app.checks["trader_inf_money"].deselect()
 
-# ---------------------------------------------- 18-20 Farbdesigns (1.29.0)
-# Das Aushaengeschild des Releases: dieselbe Seite in drei Fraktionsfarben.
-# Bewusst der Player-Tab, damit man Regler, Zahlenfelder und Warnbox in
-# jeder Farbe sieht - und nicht drei leere Fenster.
+# ------------------------------------------------- 18+ Farbdesigns (1.29.0)
+# JEDES Design einmal, auf derselben Seite - so sieht man den Unterschied und
+# nicht zwoelf verschiedene Inhalte. Bewusst der Player-Tab: dort sind Regler,
+# Zahlenfelder, Warnbox und Fusszeile gleichzeitig im Bild.
 app.tabs.set("Player")
 scroll_top(app.tabs.tab("Player"))
-for nr, design in (("18", "Duty"), ("19", "Spark"), ("20", "Monolith")):
+for i, design in enumerate(theme.names(), start=18):
     app._set_theme(design)
-    shot(f"{nr}_theme_{design.lower()}.png")
-app._set_theme("Standard")
+    name = design.lower().replace(" ", "")
+    shot(f"{i}_theme_{name}.png")
+app._set_theme(theme.DEFAULT_NAME)
 
 print("\nweapon_overrides:", app.weapon_overrides)
 print("ammo_overrides:", app.ammo_overrides)

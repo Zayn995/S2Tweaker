@@ -18,6 +18,23 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.30.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
+[b]Every version scanned since 1.23.0 - click to expand[/b]
+[spoiler]
+Every release since 1.23.0 has been scanned as a whole ZIP before it went out. The list is here so you can check any of them yourself, not just the current file.
+[list]
+[*][b]1.30.0[/b] - [url=https://www.virustotal.com/gui/file/9a47b3c00aa1b3257c5fa5bbb6be2c1074acff1ee0adef3c3c322fc9ce97ca1b]VirusTotal: 0 of 66[/url] (ZIP SHA-256 9a47b3c0...ca1b)
+[*][b]1.29.0[/b] - [url=https://www.virustotal.com/gui/file/98a25203e942ef02366f007059da6a4e899a6573d10d9593376132094aaa06bf]VirusTotal: 0 of 66[/url] (ZIP SHA-256 98a25203...06bf)
+[*][b]1.28.0[/b] - [url=https://www.virustotal.com/gui/file/72a3ab9d95f52215044aa18b65c1614b99042fb76d62dc4f08eabc7d7c7aae3e]VirusTotal: 0 of 66[/url] (ZIP SHA-256 72a3ab9d...ae3e)
+[*][b]1.27.1[/b] - [url=https://www.virustotal.com/gui/file/02310ec7beeec2bb3bf17068c3418f3360a06f6f253aa110c07d291d496b2cfe]VirusTotal: 0 of 65[/url] (ZIP SHA-256 02310ec7...2cfe)
+[*][b]1.27.0[/b] - [url=https://www.virustotal.com/gui/file/5ef991908a3470fe394d17fce1cf2314308a16c9127fb3351bdb1f6c6573c2d8]VirusTotal: 0 of 65[/url] (ZIP SHA-256 5ef99190...c2d8)
+[*][b]1.26.0[/b] - [url=https://www.virustotal.com/gui/file/9e144b606461b5e2ed8cd0f7e05e705115a7f177757bc8775f2bd1d26b187a6d]VirusTotal: 0 of 66[/url] (ZIP SHA-256 9e144b60...7a6d)
+[*][b]1.25.0[/b] - [url=https://www.virustotal.com/gui/file/a7021596c840d0e8261019162621e6b8b9063c72320aaa9700cea4bf9168a047]VirusTotal: 0 of 66[/url] (ZIP SHA-256 a7021596...a047)
+[*][b]1.24.0[/b] - [url=https://www.virustotal.com/gui/file/eeef5c9c47166fabed2ce7089ac510b3486062c9ed5e74fab32ff878cd67b325]VirusTotal: 0 of 67[/url] (ZIP SHA-256 eeef5c9c...b325)
+[*][b]1.23.0[/b] - [url=https://www.virustotal.com/gui/file/05bc7bae990193f8a63f04f850496cf4cea05947d83e84d58a658dacb479f878]VirusTotal: 0 of 66[/url] (ZIP SHA-256 05bc7bae...f878)
+[/list]
+1.23.0 was the first version without the bundled repak.exe - since then the package contains exactly one executable, and that one is python.org's signed pythonw.exe.
+[/spoiler]
+
 [quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
