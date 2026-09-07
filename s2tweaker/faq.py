@@ -235,14 +235,15 @@ FAQ_ENTRIES = [
     {
         "q": "Can I take several repeatable jobs at once?",
         "a": "Economy tab: tick 'Accept several jobs in one conversation' "
-             "and raise 'Repeatable jobs per round'. The vanilla counter "
-             "says how many jobs a giver PREPARES per round, and his dialog "
-             "closes after you say yes once - which is why the 1.31.0 "
-             "sliders alone did not let you take a second one (measured, "
-             "then confirmed in-game by Molkerr). The switch adds one node "
-             "per giver that re-opens the dialog a second after you accept. "
-             "It adds no save variables and clears nothing, so pulling the "
-             "pak out leaves no trace. Untested in-game - report back.",
+             "and raise 'Repeatable jobs per round'. Saying yes switches the "
+             "giver's dialog off, so the switch clears that and re-opens it "
+             "a second later (1.34.0; the 1.33.0 version only re-opened it "
+             "and did nothing, found by Molkerr in-game). Handing in one job "
+             "normally shuts the giver's whole quest down, which would take "
+             "the jobs you still carry with it, so one more key is flipped "
+             "to keep them running - a value 634 of the game's 1395 end "
+             "nodes already use. That part is untested and the riskiest "
+             "thing here: please report back if a held job breaks.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",

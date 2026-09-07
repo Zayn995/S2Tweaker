@@ -1,7 +1,7 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~450 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
+[i]~460 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
@@ -13,10 +13,10 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself (1.33.0): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
+[*]The mod itself (1.34.0): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.33.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.34.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -35,7 +35,7 @@ Every release since 1.23.0 has been scanned as a whole ZIP before it went out. T
 1.23.0 was the first version without the bundled repak.exe - since then the package contains exactly one executable, and that one is python.org's signed pythonw.exe.
 [/spoiler]
 
-[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files, but it has [b]not been play-tested in-game yet[/b] - bug reports in the comments are very welcome![/quote]
+[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files. Since 1.33.0 a player (Molkerr) has confirmed a whole set of them in the running game - stack sizes, magazine size, the ammunition swap, the weight and artifact sliders among them - and found two real bugs, both fixed. Most of the ~460 controls have still never been watched in action, and each tooltip says where it stands. Bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
@@ -237,6 +237,13 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.34.0 - the several-jobs switch actually works now[/b] (~460 tweaks + ammo swap, 14 tabs)
+[list]
+[*][b]"Accept several jobs in one conversation" is repaired.[/b] Molkerr play-tested 1.33.0 and reported that it did nothing. Taking a task giver's quest apart node by node showed two mistakes: accepting a job does not merely end the conversation, it switches the dialogue node OFF (the accept node hangs on it as an excluding launcher), and the extra launcher this tool added carried a merge flag although it was a brand-new entry. Both are fixed, so the dialogue really does re-open a second after you say yes
+[*][b]Handing one job in no longer has to take the others down with it.[/b] The giver's round-end node shuts down everything inside his quest - including the jobs you are still carrying. With the switch on, that single key is turned off; 634 of the game's 1395 end nodes already ship that way, so it is a normal value, not a hack. Still the riskiest thing this tool does and still untested - please report back
+[*][b]Nothing else changed[/b]: no new sliders, no new game files, existing paks and presets stay valid
+[/list]
+
 [b]v1.33.0 - ten dials read out of other people's mods, and the first play-test acted on[/b] (~460 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Someone finally tested this in the game.[/b] Molkerr played 1.31.0 and sent four findings - two were real bugs here, and both are fixed below. Ammo stack sizes are now confirmed working in-game, which is the first hard confirmation this tool has ever had
@@ -269,6 +276,7 @@ If the ~mods folder doesn't exist, create it.
 [*]No new game files are read: [b]no re-extraction[/b], existing paks and presets stay valid. Nothing here is play-tested in-game - please report back
 [/list]
 
+[spoiler]
 [b]v1.31.0 - More repeatable jobs, and eight dials found in other people's mods[/b] (~430 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Repeatable jobs per round[/b] (Economy tab), requested on GitHub by Molkerr. Measured first: every one of the eight task givers hands out [b]three[/b] jobs and then goes quiet until a 24-hour timer resets his counter - and that counter is never counted back down when you hand a job in. The slider raises the three, capped per giver at the number of different jobs he actually has (6 for the Warlock, 10 for Drabadan, 8-9 for the rest), so you never get the same task twice in a row just because the pool ran out
@@ -286,7 +294,6 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.30.0 - Bigger inventory stacks[/b] (~400 tweaks + ammo swap, 14 tabs)
-[spoiler]
 [list]
 [*]Requested on GitHub by Molkerr. Measured first: the game caps [b]ammunition at 900 per stack[/b] (all 34 round types) - that is the only stack limit you really run into. Weapons, armor, artifacts and attachments already sit at 999, PDAs/notes/keys/quest items at 300000, and binoculars, detectors, the weird DLC artifacts and money cards at 1 on purpose. The last group is never touched
 [*][b]Ammo stack size[/b] (Ammo tab): x 10 turns 900 into 9000. The same value [b]per round[/b] as the fifth factor in the ammo tree, so 5.45 can have a huge stack while RPG rounds stay as they are - a round's own factor beats the global slider

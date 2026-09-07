@@ -6,6 +6,10 @@ Sein Bericht, Punkt fuer Punkt:
      aus 1.31.0 erhoeht nur den VORRAT je Runde. Neu in 1.33.0: ein
      zusaetzlicher Knoten je Geber macht den Dialog nach der Zusage wieder
      scharf (Schalter "Accept several jobs in one conversation").
+     1.34.0: repariert - die Zusage schaltet den Dialog per
+     Excluding-Launcher AB, darum raeumt jetzt ein BridgeCleanUp-Knoten
+     ihr Ergebnis weg, und der neue Launcher-Eintrag geht ohne {bpatch}
+     raus (Diagnose 08.09.2026, siehe _quest_multi_patch).
   3. Fadenkreuz beim Zielen -> kein Fehler, normales Spielverhalten
   4. "Resizing icons doesn't work with DLC armor and weapons" -> stimmt:
      die 22 Editions-Gegenstaende deklarieren Weight, ItemGridWidth/-Height,
@@ -52,29 +56,55 @@ nodes = cfgparse.parse(p[QUESTS]).children
 givers = gd.repeatable_quest_givers()
 check(len(givers) == 8, f"{len(givers)} Auftraggeber erkannt")
 
-new_nodes = [s for s in nodes if s.endswith("_S2T_ReArmDialog")]
-check(len(new_nodes) == 8, f"{len(new_nodes)} neue Knoten, einer je Geber")
-check(not [s for s in new_nodes if s in gd.questnodes.children],
+rearm = [s for s in nodes if s.endswith("_S2T_ReArmDialog")]
+clear = [s for s in nodes if s.endswith("_S2T_ClearAccept")]
+check(len(rearm) == 8 and len(clear) == 8,
+      f"{len(clear)} Aufraeum- und {len(rearm)} Wieder-scharf-Knoten, je einer pro Geber")
+check(not [s for s in rearm + clear if s in gd.questnodes.children],
       "keiner der neuen Namen existiert in Vanilla (wird also angehaengt)")
 
 raw = p[QUESTS]
-for sid in new_nodes:
+for sid in rearm + clear:
     start = raw.index(f"{sid} : struct.begin")
     end = raw.index("\nstruct.end", start)
-    block = raw[start:end]
-    assert "{bpatch}" not in block, f"{sid} traegt bpatch"
+    assert "{bpatch}" not in raw[start:end], f"{sid} traegt bpatch"
 check(True, "kein neuer Knoten traegt {bpatch} (nichts zum Zusammenfuehren)")
 
 by_quest = {g["quest_sid"]: g for g in givers}
-for sid in new_nodes:
+
+# 1a) Der Aufraeum-Knoten haengt an der Zusage und loescht GENAU deren
+#     Ergebnis - der Grund, warum die 1.33.0-Fassung nicht wirkte: der
+#     SetDialog-Knoten wird von der Zusage per Excluding-Launcher
+#     abgeschaltet und bleibt es, solange das Ergebnis steht.
+for sid in clear:
     node = nodes[sid]
-    quest = node.values["QuestSID"]
-    giver = by_quest[quest]
+    giver = by_quest[node.values["QuestSID"]]
+    assert node.values["NodeType"] == "EQuestNodeType::BridgeCleanUp", sid
+    assert node.values["Repeatable"] == "true", sid
     conn = node.children["Launchers"].children["[0]"].children["Connections"].children["[0]"]
     assert conn.values["SID"] == giver["accept"], (sid, conn.values["SID"])
+    cleaned = list(node.children["NodesToCleanUpResults"].values.values())
+    assert cleaned == [giver["accept"]], (sid, cleaned)
+check(True, "jeder Aufraeum-Knoten loescht NUR das Ergebnis der Zusage seines Gebers")
+
+# 1b) Die Add_C0x-Knoten bleiben unberuehrt. Genau die raeumt das Vorbild
+#     (Nexus 2638) mit weg - und genau daran zerbricht es laut seinem Autor.
+adds = {k for k in gd.questnodes.children if "_Add_C" in k}
+for sid in clear:
+    cleaned = set(nodes[sid].children["NodesToCleanUpResults"].values.values())
+    assert not (cleaned & adds), (sid, cleaned & adds)
+check(True, "kein Auftragsbehaelter (Add_C0x) wird aufgeraeumt")
+
+# 1c) Kette Zusage -> Aufraeumen -> Dialog wieder scharf
+for sid in rearm:
+    node = nodes[sid]
+    quest = node.values["QuestSID"]
+    conn = node.children["Launchers"].children["[0]"].children["Connections"].children["[0]"]
+    assert conn.values["SID"] == f"{quest}_S2T_ClearAccept", (sid, conn.values["SID"])
     assert node.values["NodeType"] == "EQuestNodeType::Technical"
     assert node.values["Repeatable"] == "true"
-check(True, "jeder neue Knoten haengt an der Zusage seines eigenen Gebers")
+    assert node.values["StartDelay"] == "1.0"
+check(True, "der Wieder-scharf-Knoten haengt hinter dem Aufraeumen, nicht direkt an der Zusage")
 
 for giver in givers:
     dlg = nodes[giver["dialog_sid"]]
@@ -87,6 +117,76 @@ for giver in givers:
     vanilla_launchers = gd.questnodes.children[giver["dialog_sid"]].children["Launchers"].children
     assert idx not in vanilla_launchers, (giver["quest"], idx)
 check(True, "der Dialog bekommt genau EINEN zusaetzlichen Launcher auf einem freien Index")
+
+# 1d) Der neue Launcher-Eintrag ist NEU - er darf kein {bpatch} tragen
+#     (zweiter Grund, warum 1.33.0 nicht wirkte: bpatch heisst
+#     "zusammenfuehren", und es gibt nichts, womit man ihn zusammenfuehren
+#     koennte). Seine Eltern muessen es dagegen tragen.
+for giver in givers:
+    head = raw.index(f"{giver['dialog_sid']} : struct.begin")
+    block = raw[head:raw.index("\nstruct.end\n", head)]
+    idx = f"[{giver['next_launcher']}] : struct.begin"
+    assert "Launchers : struct.begin {bpatch}" in block, giver["quest"]
+    assert idx + "\n" in block + "\n", (giver["quest"], idx)
+    assert idx + " {bpatch}" not in block, (giver["quest"], idx)
+check(True, "der neue Launcher-Eintrag geht ohne {bpatch} raus, seine Eltern mit")
+
+# 1e) Gegenprobe an den Spieldaten: der Dialog wird von der Zusage wirklich
+#     per Excluding-Launcher abgeschaltet (die Messung, auf der der Umbau
+#     beruht), und kein einziger Bedingungsknoten liest das Ergebnis der
+#     Zusage - deshalb ist Aufraeumen gefahrlos.
+def _walk(node, path=""):
+    for k, v in node.values.items():
+        yield path, k, v
+    for k, ch in node.children.items():
+        yield from _walk(ch, f"{path}/{k}")
+
+excluded = 0
+for giver in givers:
+    dlg = gd.questnodes.children[giver["dialog_sid"]]
+    for lnode in dlg.children["Launchers"].children.values():
+        conns = lnode.children.get("Connections")
+        for c in (conns.children.values() if conns else ()):
+            if c.values.get("SID", "").strip() == giver["accept"]:
+                assert lnode.values.get("Excluding", "").strip() == "true", giver["quest"]
+                excluded += 1
+check(excluded == 8, f"bei allen {excluded} Gebern schaltet die Zusage den Dialog per Excluding ab")
+
+readers = [k for k, n in gd.questnodes.children.items()
+           for _p, key, val in _walk(n)
+           if key == "LinkedNodePrototypeSID" and "Technical_GetQuest" in (val or "")]
+check(not readers, "keine Bedingung im Spiel liest das Ergebnis eines Zusage-Knotens")
+
+# 1f) Das Abgeben: der End-Knoten hinter dem Rundenaufraeumer raeumt in
+#     Vanilla ALLES in der Quest ab - auch die Behaelter der Auftraege, die
+#     man noch traegt. Genau dieser eine Schluessel geht auf false.
+vanilla_ends = {k: n for k, n in gd.questnodes.children.items()
+                if (n.values.get("NodeType") or "").strip() == "EQuestNodeType::End"}
+falses = [k for k, n in vanilla_ends.items()
+          if (n.values.get("ExcludeAllNodesInContainer") or "").strip() == "false"]
+check(len(falses) >= 500,
+      f"false ist kein Sonderwert: {len(falses)} von {len(vanilla_ends)} End-Knoten "
+      f"stehen in Vanilla selbst darauf")
+
+for giver in givers:
+    end_sid = giver["end_sid"]
+    assert end_sid, giver["quest"]
+    assert giver["end_exclude"] == "true", (giver["quest"], giver["end_exclude"])
+    assert nodes[end_sid].values == {"ExcludeAllNodesInContainer": "false"}, \
+        (end_sid, nodes[end_sid].values)
+    assert not nodes[end_sid].children, end_sid
+check(True, "jeder der acht End-Knoten bekommt GENAU diesen einen Schluessel auf false")
+
+# der Aufraeumer selbst bleibt vanilla - wir loeschen nichts zusaetzlich
+for giver in givers:
+    assert giver["cleanup_sid"] not in nodes, giver["cleanup_sid"]
+check(True, "der Vanilla-Aufraeumer wird nicht angefasst")
+
+# Gegenprobe: ohne den Schalter bleibt der End-Knoten unberuehrt
+only_limit = build(repeatable_jobs_per_round=6)
+if only_limit:
+    assert "ExcludeAllNodesInContainer" not in only_limit.get(QUESTS, "")
+check(True, "ohne den Schalter fasst nichts den End-Knoten an")
 
 # Zusammenspiel mit den zwei aelteren Reglern derselben Familie
 both = build(repeatable_jobs_multi=True, repeatable_jobs_per_round=6,

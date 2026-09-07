@@ -2561,9 +2561,35 @@ class GameData:
                     used.append(int(match_idx.group(1)))
             next_launcher = (max(used) + 1) if used else 0
 
+            # 1.34.0: der Aufraeumer der Runde und der End-Knoten dahinter.
+            # Datengetrieben gesucht (nicht ueber die Namen): der
+            # BridgeCleanUp-Knoten derselben Quest und der End-Knoten, dessen
+            # Launcher auf ihn zeigt. Gemessen 08.09.2026: je Geber genau
+            # einer von beiden. Der End-Knoten traegt
+            # `ExcludeAllNodesInContainer` — das ist die Stelle, an der beim
+            # Abgeben EINES Auftrags die anderen mitgerissen werden.
+            cleanup_sid = end_sid = end_exclude = None
+            for key, node in nodes:
+                if (node.values.get("NodeType") or "").strip() == "EQuestNodeType::BridgeCleanUp":
+                    cleanup_sid = (node.values.get("SID") or "").strip() or key
+                    break
+            if cleanup_sid:
+                for key, node in nodes:
+                    if (node.values.get("NodeType") or "").strip() != "EQuestNodeType::End":
+                        continue
+                    if _launcher_link(node, cleanup_sid) is None:
+                        continue
+                    end_sid = (node.values.get("SID") or "").strip() or key
+                    end_exclude = (node.values.get(
+                        "ExcludeAllNodesInContainer") or "").strip()
+                    break
+
             givers.append({
                 "quest": group,
                 "quest_sid": quest_sid,
+                "cleanup_sid": cleanup_sid,
+                "end_sid": end_sid,
+                "end_exclude": end_exclude,
                 "cap_key": cap_key,
                 "cap_node": cap_node,
                 "cap": cap_value,

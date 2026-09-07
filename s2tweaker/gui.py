@@ -6288,18 +6288,23 @@ class App(ctk.CTk):
                     "dialog earlier after a round resets.")
         self._check(f, "rq_jobs_multi",
                     "Accept several jobs in one conversation (experimental)",
-                    "Adds one node per task giver that re-opens his job "
-                    "dialog a second after you accept, so you can keep "
-                    "taking jobs until his round limit above is reached. "
-                    "Modelled on 'Zone Borders / Contracts' (Nexus 2638) but "
-                    "built smaller on purpose: that mod tracks held jobs in "
-                    "its own save variables and clears the game's bookkeeping "
-                    "after every hand-out, and its author reports it breaks "
-                    "if you turn a job in before finishing the rest. We add "
-                    "no variables and clear nothing, so removing the pak "
-                    "leaves no trace - and unlike a full quest-file rewrite "
-                    "it does not clash with mods that change job rewards. "
-                    "Untested in-game: please report back.")
+                    "Accepting a job switches the giver's dialog off, so this "
+                    "adds two nodes per giver: one clears that result, the "
+                    "other re-opens the dialog a second later. You can then "
+                    "keep taking jobs until the round limit above is reached. "
+                    "It also flips one key on the giver's round-end node: "
+                    "vanilla shuts down everything in his quest as soon as "
+                    "any one job is handed in, which would take the jobs you "
+                    "are still carrying with it. (634 of the game's 1395 end "
+                    "nodes already ship with that key off, so it is a normal "
+                    "value, not a hack.) Play-tested by Molkerr on 1.33.0 "
+                    "(GitHub #9) - that is how the first two bugs here were "
+                    "found. WARNING: the hand-in case is the riskiest thing "
+                    "this tool does and is still untested; the author of "
+                    "'Zone Borders / Contracts' (Nexus 2638) failed at the "
+                    "same spot with a much bigger rewrite. We add no save "
+                    "variables and clear nothing the game does not clear "
+                    "itself, so removing the pak leaves no trace.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,

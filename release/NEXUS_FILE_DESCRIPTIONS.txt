@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.33.0
-File version:  1.33.0
+Name:          S2Tweaker 1.34.0
+File version:  1.34.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,22 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.34.0 - the several-jobs switch actually works now
+
+- 'Accept several jobs in one conversation' is repaired. Molkerr play-tested
+  1.33.0 and reported that it did nothing. Taking a task giver's quest apart
+  node by node showed two mistakes: accepting a job does not merely end the
+  conversation, it switches the dialogue node OFF (the accept node hangs on
+  it as an excluding launcher), and the extra launcher the tool added carried
+  a merge flag although it was a brand-new entry. Both fixed.
+- Handing one job in no longer has to take the others down with it. The
+  giver's round-end node shuts down everything inside his quest, including
+  the jobs you still carry; with the switch on, that one key is off. 634 of
+  the game's 1395 end nodes already ship that way. Still untested and the
+  riskiest thing here - please report back.
+- Nothing else changed: no new sliders, no new game files, existing paks and
+  presets stay valid.
+
 1.33.0 - ten dials from other people's mods, and the first play-test acted on
 
 - Someone finally tested this in the game. Molkerr played 1.31.0 and sent
