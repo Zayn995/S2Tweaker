@@ -11,6 +11,9 @@ Around 400 tweaks in 14 tabs: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
+Ammunition stacks at 900 per slot in vanilla - the Ammo tab can raise that,
+globally or per round, and food and medicine have their own slider.
+
 Every slider has a number box for exact values (dot and comma both work),
 the mouse wheel only scrolls the page unless you switch it over, and the
 Theme button offers 12 colour themes in the style of the game's factions -

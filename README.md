@@ -62,7 +62,7 @@ loot amounts in stashes, on bodies
 and in the world's item generators, dropped-weapon condition (average +
 vanilla-style random spread, or exact), trader prices & min. durability,
 trader stock amount/variety/restock and wallets, repair/upgrade costs,
-fast travel, quest rewards.
+fast travel, quest rewards, inventory stack size (ammunition globally and per round, food and medicine separately).
 
 The override trees add up to 720 weapon and 100 ammo sliders (plus the
 armor, faction and mutant trees) on top of the fixed ones — they are

@@ -220,6 +220,16 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.30.0 - Bigger inventory stacks[/b] (~400 tweaks + ammo swap, 14 tabs)
+[list]
+[*]Requested on GitHub by Molkerr. Measured first: the game caps [b]ammunition at 900 per stack[/b] (all 34 round types) - that is the only stack limit you really run into. Weapons, armor, artifacts and attachments already sit at 999, PDAs/notes/keys/quest items at 300000, and binoculars, detectors, the weird DLC artifacts and money cards at 1 on purpose. The last group is never touched
+[*][b]Ammo stack size[/b] (Ammo tab): x 10 turns 900 into 9000. The same value [b]per round[/b] as the fifth factor in the ammo tree, so 5.45 can have a huge stack while RPG rounds stay as they are - a round's own factor beats the global slider
+[*][b]Food & medicine stack size[/b] (Weight & items) for the 22 consumables that sit at 999
+[*]Counts stay whole numbers, never drop below 1, and are capped at 300000 - the value the game itself uses for "unlimited"
+[*]Worth pairing with [b]Max carry weight[/b] and [b]Item weight[/b]: in vanilla the weight stops you long before the stack does (900 rounds of 7.62 already weigh 21.6 kg of your 80), so the stack limit only becomes the real one once you raise carrying capacity - or in a stash, where weight does not count
+[*]No new game files are read: no re-extraction, existing paks and presets stay valid. Not play-tested in-game
+[/list]
+
 [b]v1.29.0 - Interface: exact number boxes, faction colour themes, and a slider fix[/b] (~400 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Fix worth updating for:[/b] sliders could not always reach their vanilla value. The UI library takes a number of notches, not a step size; where a slider's range was not a whole multiple of its step, vanilla fell between two notches. Measured on 1.28.0: [b]74 of 376 sliders[/b], among them player damage, every trader and category price, quest rewards and five factors in all eight weapon categories. A freshly started tool could write those values into a pak although nobody had touched anything. Now every slider lands exactly on vanilla, and the test suite checks all 376 on every run
@@ -232,6 +242,7 @@ If the ~mods folder doesn't exist, create it.
 [/list]
 
 [b]v1.28.0 - 38 tweaks from a sweep through the game's core files[/b] (~400 tweaks + ammo swap, 14 tabs)
+[spoiler]
 [list]
 [*]A systematic pass through the config keys and whole game files the tool had never read - among them the A-Life policy, the NPC needs presets, the mutant scent sensors, the cover and target-choice profiles, the sky constants and the world loot groups. Nothing is added to the game; only existing numbers and flags change
 [*][b]Player[/b]: how hard a landing has to be before Skif limps (plus a switch to never limp), bleeding per hit and from hits your armor stops, damage screen effects (the red hit flash and the burn, chemical, electric, darkness and quicksilver overlays), flashlight stays bright in dialogue, quicksave overwrite window, combat music threshold and how long it lingers
@@ -245,6 +256,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Twelve more game files are read. [b]The first start re-extracts your game data once[/b] (10-20 seconds); after that everything is cached again
 [*]Not play-tested in-game, like the rest of the tool - every tooltip says so. Least certain are the sky values (that file has never been patched by any mod and its keys are missing from the game executable), the target-choice and cover profiles, the armor wear coefficient and the artifact visibility radius. Existing paks and presets stay valid
 [/list]
+[/spoiler]
 
 [b]v1.27.1 - Fix: scope-class buttons in the Upgrades tab[/b] (~340 tweaks + ammo swap, 14 tabs)
 [spoiler]
