@@ -233,6 +233,54 @@ FAQ_ENTRIES = [
              "money farming instant",
     },
     {
+        "q": "Can I turn off mouse smoothing and view acceleration?",
+        "a": "Player tab, Camera & HUD: two switches (1.35.0). Unreal smooths "
+             "mouse input and accelerates the camera while you keep turning, "
+             "and the game's own options cannot switch either off. These are "
+             "the only two things this tool writes that are NOT game data: "
+             "they go into Stalker2/Config/UserInput.ini inside the pak. "
+             "Removing the pak removes them again - but the mod scan cannot "
+             "warn you if another mod ships the same file, because it only "
+             "compares config values. Not play-tested yet.",
+        "k": "mouse smoothing view acceleration input lag aim feel raw input "
+             "userinput ini camera acceleration turning",
+    },
+    {
+        "q": "Can I make NPC bullets hurt me less (or more)?",
+        "a": "Yes - NPCs & AI tab, 'NPC vs player damage' (1.35.0). Every weapon "
+             "in the game carries three separate scalers: NPC against NPC "
+             "(vanilla 70 %), NPC against you (100 %) and NPC against "
+             "characters friendly to you (30 %). All three have their own "
+             "slider now. This is not the difficulty multiplier - the two "
+             "stack, so you can soften incoming fire without making your own "
+             "shots weaker. Not play-tested yet.",
+        "k": "npc damage to me player incoming bullets hurt less more tanky "
+             "difficulty enemy damage friendly ally companion escort",
+    },
+    {
+        "q": "Can I see traders, technicians and medics on the map?",
+        "a": "Traders tab, 'Show traders, technicians, medics and guides on "
+             "the map' (1.35.0). 80 NPCs already carry a map symbol in the "
+             "game files - 34 traders, 18 technicians, 14 guides, 14 medics - "
+             "but the flag that displays it is off for all but eight of them. "
+             "The switch turns it on for exactly those 80. Nobody new is "
+             "added and nobody without a symbol is touched. Enemies cannot be "
+             "shown this way: the game has no marker type for them.",
+        "k": "map markers traders technicians medics guides icons minimap "
+             "where is the trader show npc on map merchant",
+    },
+    {
+        "q": "Do I need a detector to see artifacts?",
+        "a": "In vanilla, yes for 147 of the 154 artifacts. World tab, "
+             "'Artifacts are visible without a detector' (1.35.0) clears that "
+             "requirement. Whether the game then draws them from any distance "
+             "or still uses each artifact's own visibility radius is untested "
+             "- if you want them visible from further away, 'Detector & "
+             "scanner range' is the setting with proven effect.",
+        "k": "artifact detector required visible without see artifacts "
+             "veles bear echo svarog no detector",
+    },
+    {
         "q": "Can I take several repeatable jobs at once?",
         "a": "Economy tab: tick 'Accept several jobs in one conversation' "
              "and raise 'Repeatable jobs per round'. Saying yes switches the "

@@ -1,8 +1,27 @@
-"""Komplette Testbatterie mit echten Exit-Codes.
+"""Testbatterie mit echten Exit-Codes.
 
-    python tests/run_all.py              # alles
-    python tests/run_all.py --changed    # nur, was die Aenderung beruehrt
-    python tests/run_all.py --only theme gui_layout
+    python tests/run_all.py              # der Lauf: 33 Suiten, KEIN Fenster
+    python tests/run_all.py --only faq   # gezielt (auch Fenster-Suiten)
+
+Umgebaut am 08.09.2026 (Besitzer: "bau es richtig unter 5 minuten nur das
+was muss", "nicht 1000 mal oeffnen schliessen", "teste doch einfach per hand
+was getestet werden muss").
+
+**Es gibt keinen automatischen Lauf mehr, der Fenster aufmacht.** Die rund
+zwanzig Suiten, die ein echtes App-Fenster bauen, sind aus jeder Auswahl
+draussen — auch aus `--all`. Sie pruefen Aussehen, Layout und Designs; das
+bewegt sich seit Releases nicht mehr, `test_theme` hat sich dabei
+regelmaessig aufgehaengt, und parallel haben die Fenster sich gegenseitig
+den Fokus geklaut. Was am Aussehen neu ist, sieht man schneller mit einem
+Blick ins laufende Programm.
+
+Was die Fenster-Suiten inhaltlich absicherten, prueft `test_wiring.py` ohne
+Tk: steht jeder Regler in der Feldtabelle, wird er in `_collect()`
+eingesammelt (der tote Regler aus 1.16.0), bewirkt er etwas, steht er in der
+Tweak-Liste.
+
+Der Lauf ist parallel (-jN, Vorgabe 4) mit Zeitlimit je Suite. Wer per
+`--only` doch eine Fenster-Suite waehlt, bekommt automatisch EINEN Prozess.
 
 Braucht die Vanilla-Daten (vanilla/-Ordner im Repo, oder einmal die GUI
 laden lassen und den Cache-Inhalt dorthin kopieren). Jeder Test laeuft als
@@ -11,6 +30,7 @@ mit. Exit-Code 0 = alles gruen. Die Lehre hinter diesem Runner: Pipes wie
 "| tail" verschlucken Exit-Codes; hier wird jeder Code einzeln geprueft.
 """
 import ast
+import concurrent.futures
 import os
 import subprocess
 import sys
@@ -19,6 +39,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_wiring.py",
     "test_loot_paths.py",
     "test_modscan_filter.py",
     "test_gui_release.py",
@@ -46,6 +67,7 @@ ORDER = [
     "test_mod_harvest.py",
     "test_mod_audit.py",
     "test_ingame_fixes.py",
+    "test_v135_tweaks.py",
     "test_key_families.py",
     "test_upgrades.py",
     "test_alife_spawns.py",
@@ -129,22 +151,28 @@ def affected_by(changed):
     return picked
 
 
+def opens_window(name):
+    """Baut diese Suite ein echtes App-Fenster? Aus dem Quelltext gelesen,
+    damit eine neue Suite von selbst richtig einsortiert wird."""
+    try:
+        return "gui.App()" in path_of(name).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 args = sys.argv[1:]
-picked = ALL
-if "--changed" in args:
-    git = subprocess.run(["git", "diff", "--name-only", "HEAD"],
-                         cwd=HERE.parent, capture_output=True, text=True)
-    new = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"],
-                         cwd=HERE.parent, capture_output=True, text=True)
-    changed = {ln.strip() for ln in (git.stdout + new.stdout).splitlines()
-               if ln.strip()}
-    picked = affected_by(changed)
-    print(f"--changed: {len(changed)} geaenderte Datei(en) -> "
-          f"{len(picked)} von {len(ALL)} Suiten")
-    if not picked:
-        print("Nichts Relevantes geaendert.")
-        sys.exit(0)
-elif "--only" in args:
+# Gehoert zum Release, nicht in jeden Lauf: baut den kompletten
+# Programmordner (27 s) und startet ihn zur Probe.
+RELEASE_ONLY = ["test_build_layout.py"]
+WINDOW = [n for n in ALL if opens_window(n) or n in RELEASE_ONLY]
+picked = [n for n in ALL if n not in WINDOW]
+# Auch --all laesst die Fenster-Suiten aus (Besitzer 08.09.2026: "die theme
+# kacke haengt sich auf, die muss nicht mehr getestet werden" / "teste doch
+# einfach per hand was getestet werden muss"). Sie parallel laufen zu lassen
+# war zusaetzlich falsch: die Fenster klauen sich gegenseitig den Fokus, und
+# eines davon reisst dann den Lauf mit. Wer sie doch braucht, ruft sie
+# einzeln auf - dann laufen sie garantiert seriell (siehe unten).
+if "--only" in args:
     pats = [a for a in args[args.index("--only") + 1:] if not a.startswith("-")]
     picked = [n for n in ALL if any(p.lower() in n.lower() for p in pats)]
     if not picked:
@@ -155,21 +183,60 @@ env = dict(os.environ, PYTHONIOENCODING="utf-8")
 failed = []
 times = []
 t_all = time.time()
-for name in picked:
-    t0 = time.time()
-    r = subprocess.run([sys.executable, str(path_of(name))], env=env,
-                       capture_output=True, text=True, encoding="utf-8",
-                       errors="replace")
-    dt = time.time() - t0
-    times.append((dt, name))
-    mark = "OK  " if r.returncode == 0 else "FAIL"
-    print(f"{mark}  {name:<28} {dt:5.1f}s")
-    if r.returncode != 0:
-        failed.append(name)
-        both = r.stdout + "\n" + r.stderr
-        for line in both.strip().splitlines()[-12:]:
-            print("      " + line)
+# Zeitlimit je Suite: die laengste (test_theme) braucht rund 6,5 Minuten,
+# 15 Minuten sind also grosszuegig. Haengt eine Suite - typisch, wenn eins
+# der echten Testfenster geschlossen wird -, bricht sie ab und der Rest
+# laeuft weiter, statt den ganzen Lauf zu blockieren.
+TIMEOUT = 900
 
+# Parallel, aber NUR ohne Fenster. Fenster-Suiten parallel laufen zu lassen
+# war ein Fehler: sie klauen sich gegenseitig den Fokus, und dann haengt oder
+# stirbt eine. Sobald eine gewaehlte Suite ein Fenster baut, faellt der Lauf
+# automatisch auf EINEN Prozess zurueck.
+SLOW_FIRST = ["test_key_families.py", "test_modscan_filter.py",
+              "test_build_layout.py", "test_wiring.py", "test_v128_tweaks.py"]
+
+
+def _jobs():
+    if any(opens_window(n) for n in picked):
+        print("Fenster-Suite dabei -> seriell (Fenster stoeren sich sonst)")
+        return 1
+    for a in args:
+        if a.startswith("-j"):
+            try:
+                return max(1, int(a[2:]))
+            except ValueError:
+                pass
+    return min(4, (os.cpu_count() or 2))
+
+
+def run_one(name):
+    t0 = time.time()
+    try:
+        r = subprocess.run([sys.executable, str(path_of(name))], env=env,
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=TIMEOUT)
+        code, out = r.returncode, r.stdout + "\n" + r.stderr
+    except subprocess.TimeoutExpired:
+        code, out = -1, f"TIMEOUT nach {TIMEOUT} s - Testfenster geschlossen?"
+    return name, code, out, time.time() - t0
+
+
+jobs = _jobs()
+order = ([n for n in SLOW_FIRST if n in picked]
+         + [n for n in picked if n not in SLOW_FIRST])
+print(f"{len(order)} Suiten, {jobs} parallel")
+done = 0
+with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+    for name, code, out, dt in pool.map(run_one, order):
+        done += 1
+        times.append((dt, name))
+        mark = "OK  " if code == 0 else ("TIME" if code == -1 else "FAIL")
+        print(f"{mark}  {done:2d}/{len(order)}  {name:<28} {dt:5.1f}s", flush=True)
+        if code != 0:
+            failed.append(name)
+            for line in out.strip().splitlines()[-12:]:
+                print("      " + line)
 print()
 print(f"Gesamt {(time.time() - t_all) / 60:.1f} min. Die fuenf laengsten:")
 for dt, name in sorted(times, reverse=True)[:5]:

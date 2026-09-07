@@ -703,7 +703,14 @@ print("P7.2 Huepfen: Schalter trifft genau die 146 true-Artefakte, die 8 false b
 # --- P7.3) Keep-away und Huepf-Pause, inkl. Ausreisser und Null-Werte ---------------
 p = build_patches(gd, S(artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0))
 it = parsed(p, ITEMS)
-assert it.children["TemplateArtifact"].values == {"PlayerDistance": "500.0", "JumpSeriesDelay": "90.0"}
+# 1.35.0: die zwei Regler nehmen je einen zweiten Schluessel derselben
+# Familie mit - ReturnDistanceValue (10000) haengt am Abstand, JumpDelay
+# (6.0/3.0, die Pause zwischen EINZELNEN Spruengen) an der Pause. Damit ist
+# die Huepf-Familie vollstaendig; Details in tests/test_v135_tweaks.py.
+assert it.children["TemplateArtifact"].values == {
+    "PlayerDistance": "500.0", "ReturnDistanceValue": "5000.0",
+    "JumpSeriesDelay": "90.0", "JumpDelay": "12.0"}, \
+    it.children["TemplateArtifact"].values
 assert it.children["QuestArtifactCrystalThorn"].values["PlayerDistance"] == "50000.0"   # Ausreisser mitskaliert
 zero = [s for s, n in arts.items() if parse_number(n.values["JumpSeriesDelay"]) == 0]
 assert zero and all("JumpSeriesDelay" not in it.children[s].values for s in zero if s in it.children)

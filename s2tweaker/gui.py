@@ -23,6 +23,7 @@ from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
 from .tweaks import (
     ALL_CATEGORIES,
+    input_ini,
     AMMO_CALIBER_LABELS,
     CALIBERS_ODD,
     ARMOR_PARAM_LABELS,
@@ -797,6 +798,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "lair_respawn": "lair_respawn_factor",
     "enc_freq": "encounter_frequency_factor",
     "enc_mutants": "encounter_mutant_factor", "enc_pack": "encounter_pack_factor",
+    "enc_wounded": "encounter_wounded_factor",   # 1.35.0
+    "enc_dead": "encounter_dead_factor",
     "enc_blinddog": "enc_blinddog_factor", "enc_boar": "enc_boar_factor",
     "enc_flesh": "enc_flesh_factor", "enc_tushkan": "enc_tushkan_factor",
     "enc_chimera": "enc_chimera_factor",
@@ -917,6 +920,14 @@ SLIDER_FIELDS: dict[str, str] = {
     # 1.28.0 (Kern-Sweep P7)
     "art_radius": "artifact_radius_factor", "art_keepaway": "artifact_keepaway_factor",
     "art_hop_pause": "artifact_hop_pause_factor",
+    # 1.35.0: kleine Kandidaten (Familien-Waechter + neunte Recherche)
+    "art_hop_dist": "artifact_hop_distance_factor",
+    "art_hop_count": "artifact_hop_count_factor",
+    "npc_vs_player": "npc_vs_player_damage_factor",
+    "npc_vs_friendly": "npc_vs_friendly_damage_factor",
+    "bullet_pen_depth": "bullet_penetration_depth_factor",
+    "look_h": "look_speed_h_factor", "look_v": "look_speed_v_factor",
+    "cam_slowdown": "camera_slowdown_factor",
     "loot_reroll": "loot_reroll_radius_factor", "loot_reroll_time": "loot_reroll_timer_factor",
     # 1.28.0 (Kern-Sweep P8)
     "infotopic": "infotopic_refresh_hours",
@@ -1023,6 +1034,10 @@ CHECK_FIELDS: dict[str, str] = {
     "psy_phantoms": "psy_phantoms_only", "npc_no_loot": "npcs_no_corpse_loot",
     "map_regions": "map_all_regions", "teleports_instant": "instant_teleports",
     "skip_intro": "skip_intro", "traders_no_gear": "traders_no_gear_buy",
+    "traders_map": "traders_on_map",           # 1.35.0
+    "no_mouse_smooth": "no_mouse_smoothing",
+    "no_view_accel": "no_view_acceleration",
+    "art_no_detector": "artifacts_no_detector",
     "npc_no_pickup": "npcs_no_weapon_pickup",
     # 1.28.0 (Kern-Sweep P1)
     "no_limp": "no_landing_limp", "flashlight_dialog": "flashlight_dialog_bright",
@@ -1130,6 +1145,12 @@ def footprint_settings(key: str) -> list[Settings] | None:
         # npc_gear und die Baum-Regler: bewusst nicht markierbar - die
         # Waffenregler, denen es folgt, sind es ja.
         if field_name == "stat_bars_follow":
+            return None
+        # 1.35.0: die zwei Maus-Schalter schreiben ueberhaupt keine
+        # GameData-Datei, sondern Stalker2/Config/UserInput.ini. Der
+        # Scan vergleicht cfg-Blaetter - hier gibt es nichts zu
+        # vergleichen, der Fussabdruck waere leer.
+        if field_name in ("no_mouse_smoothing", "no_view_acceleration"):
             return None
         return [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
@@ -4525,6 +4546,35 @@ class App(ctk.CTk):
                      "The dark screen edges while crouching (vanilla intensity "
                      "0.6). 0 % = none, like 'Remove Crouch Vignette'. Not "
                      "play-tested yet.")
+        self._slider(f, "look_h", "Look speed, horizontal", 50, 200, 5, 100, fmt_pct,
+                     "Turning speed left and right. Vanilla is 40 on the "
+                     "player and 50 in the core config - so you turn a third "
+                     "faster sideways than you look up and down, and the "
+                     "game's own sensitivity setting moves both together and "
+                     "cannot change that ratio. Both places are scaled the "
+                     "same. Not play-tested yet.")
+        self._slider(f, "look_v", "Look speed, vertical", 50, 200, 5, 100, fmt_pct,
+                     "Looking up and down (vanilla 30 in both places). Set "
+                     "this to about 133 % to match the horizontal speed. Not "
+                     "play-tested yet.")
+        self._slider(f, "cam_slowdown", "Camera slowdown from hazards", 0, 200, 5, 100, fmt_pct,
+                     "How much your view is slowed while a chemical anomaly, "
+                     "barbed wire or a flycatcher has hold of you (vanilla "
+                     "-60 %, -80 %, -70 %). 0 % = no slowdown at all. The "
+                     "bloodsucker roar uses a different key with an unknown "
+                     "unit and is left alone. Not play-tested yet.")
+        self._check(f, "no_mouse_smooth", "Turn off mouse smoothing",
+                    "Unreal smooths mouse input by default and the "
+                    "game's options cannot switch it off. This writes "
+                    "Stalker2/Config/UserInput.ini into the pak - the "
+                    "only thing this tool builds that is not a game "
+                    "data patch, so the mod scan cannot see conflicts "
+                    "with another mod shipping the same file. Removing "
+                    "the pak removes it again. Not play-tested yet.")
+        self._check(f, "no_view_accel", "Turn off view acceleration",
+                    "The second flag in the same file: the camera "
+                    "speeding up while you keep turning. Same "
+                    "caveats as above. Not play-tested yet.")
         self._slider(f, "damage_screen", "Damage screen effects", 0, 100, 10, 100, fmt_pct,
                      "The red directional hit flash and the burn, steam, "
                      "chemical, electric, darkness and quicksilver overlays "
@@ -4824,6 +4874,17 @@ class App(ctk.CTk):
                      "of normal damage on every weapon, so faction fights "
                      "drag on. Does not touch what they do to you or you "
                      "to them. Not play-tested yet.")
+        self._slider(f, "npc_vs_player", "NPC vs player damage", 0, 400, 5, 100, fmt_pct,
+                     "How hard NPC bullets hit YOU - a per-weapon key, not the "
+                     "difficulty slider called 'NPC damage (to you)' further up: "
+                     "the two stack. Vanilla 100 % on all 150 weapon settings. "
+                     "0 % = their guns cannot hurt you. Found by "
+                     "the key-family check in 1.35.0. Not play-tested yet.")
+        self._slider(f, "npc_vs_friendly", "NPC vs allies damage", 0, 400, 5, 100, fmt_pct,
+                     "The third key of the same group: how hard NPCs hit "
+                     "characters friendly to you, vanilla 30 %. Raise it and "
+                     "escort partners die fast; lower it and they soak fire. "
+                     "Not play-tested yet.")
         self._slider(f, "npc_vision", "NPC vision range", 10, 200, 5, 100, fmt_pct,
                      "How far human NPCs (incl. the Faust fight) can see you. "
                      "Korshunov & Scar boss senses stay vanilla. "
@@ -5153,6 +5214,19 @@ class App(ctk.CTk):
                      "dogs 4–12, fleshes 2–6 ...) – our best reading of how pack "
                      "size is derived, unverified. Types the director never "
                      "spawns (chimera, controller, burer ...) are skipped.")
+        self._slider(f, "enc_wounded", "Random encounters: wounded stalkers", 25, 400, 5, 100, fmt_pct,
+                     "The game has eight scenarios that spawn wounded "
+                     "stalkers (friendly and hostile, single and in "
+                     "groups), but their share sits at 10 to 20 %. This "
+                     "scales that share, capped at 100 %. Squads that "
+                     "spawn nobody wounded in vanilla stay that way - "
+                     "the slider scales what exists, it does not invent "
+                     "wounded encounters. Not play-tested yet.")
+        self._slider(f, "enc_dead", "Random encounters: dead bodies", 25, 400, 5, 100, fmt_pct,
+                     "Same for the share that arrives already dead "
+                     "(vanilla 20 to 60 % in 36 of the 95 squad entries, "
+                     "zero in the rest - an ambush that already happened). "
+                     "Capped at 100 %. Not play-tested yet.")
         self._slider(f, "lair_expand", "Lairs expand toward you", 25, 400, 5, 100, fmt_pct,
                      "How long the simulation waits before a faction pushes a "
                      "lair in your direction (vanilla 120 min). 400 % = every "
@@ -5533,6 +5607,12 @@ class App(ctk.CTk):
                      "Chance that a bullet carries on through what it hits "
                      "(vanilla 0 to 1.0 depending on the round; rounds at 0 "
                      "stay at 0). Capped at 100 %. Not play-tested yet.")
+        self._slider(f, "bullet_pen_depth", "Bullet penetration depth", 25, 400, 5, 100,
+                     fmt_pct,
+                     "How thick a wall a bullet can still come through "
+                     "(vanilla 150 to 300 on the 16 projectile types). The "
+                     "slider above decides IF it punches through, this one "
+                     "how far. Not play-tested yet.")
         self._slider(f, "bullet_range", "Bullet max range", 25, 400, 5, 100, fmt_pct,
                      "How far a projectile flies before it is removed "
                      "(vanilla 100000 for every round - 1 km). Rarely the "
@@ -6219,8 +6299,25 @@ class App(ctk.CTk):
                      "untested. Not play-tested yet.")
         self._slider(f, "art_hop_pause", "Artifact hop pause (experimental)", 25, 400, 5, 100, fmt_pct,
                      "Pause between two hop series (vanilla 15 to 45 s "
-                     "depending on the artifact). Higher = they sit still "
-                     "longer. Not play-tested yet.")
+                     "depending on the artifact) and, since 1.35.0, the "
+                     "shorter pause between the single hops of one series "
+                     "(3 or 6 s). Higher = they sit still longer. Not "
+                     "play-tested yet.")
+        self._slider(f, "art_hop_dist", "Artifact hop distance (experimental)", 25, 300, 5, 100, fmt_pct,
+                     "How far and high one hop carries the artifact (vanilla "
+                     "15 m distance, 1 m height, force 15). Lower = it barely "
+                     "gets away from you. Not play-tested yet.")
+        self._slider(f, "art_hop_count", "Artifact hops per series (experimental)", 25, 300, 5, 100, fmt_pct,
+                     "How many hops in a row before the artifact rests "
+                     "(vanilla 3, 5, 7 or 9 depending on the artifact; the "
+                     "two that never hop stay at zero). Whole numbers, never "
+                     "below one. Not play-tested yet.")
+        self._check(f, "art_no_detector", "Artifacts are visible without a detector (experimental)",
+                    "147 of the 154 artifacts require a detector to be shown "
+                    "at all; this clears that flag on those 147 and leaves "
+                    "the seven that already don't need one alone. Whether "
+                    "the game then draws them at any distance or still uses "
+                    "the visibility radius is untested.")
         self._check(f, "art_caches", "Uncommon artifact caches actually drop (experimental)",
                     "One world loot group, 'ArtifactUncommon', has nine places "
                     "on the map but all 20 of its entries carry weight 0 - so "
@@ -6357,6 +6454,13 @@ class App(ctk.CTk):
                     "Adds Weapon and Armor to every trader's buy restrictions "
                     "(existing restrictions stay). Like 'TradersDontBuy"
                     "WeaponsArmor'. Not play-tested yet.")
+        self._check(f, "traders_map", "Show traders, technicians, medics and guides on the map",
+                    "80 NPCs already carry a map symbol in the game data - 34 "
+                    "traders, 18 technicians, 14 guides, 14 medics - but their "
+                    "display flag is off; only eight are shown in vanilla. "
+                    "This turns the flag on for exactly those 80. Nobody new "
+                    "is added, and NPCs without a symbol are untouched. Not "
+                    "play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
     def _build_footer(self):
@@ -6704,6 +6808,8 @@ class App(ctk.CTk):
             lair_human_factor=s["lair_humans"].get() / 100.0,
             lair_respawn_factor=s["lair_respawn"].get() / 100.0,
             encounter_frequency_factor=s["enc_freq"].get() / 100.0,
+            encounter_wounded_factor=s["enc_wounded"].get() / 100.0,
+            encounter_dead_factor=s["enc_dead"].get() / 100.0,
             encounter_mutant_factor=s["enc_mutants"].get() / 100.0,
             encounter_pack_factor=s["enc_pack"].get() / 100.0,
             enc_blinddog_factor=s["enc_blinddog"].get() / 100.0,
@@ -6784,6 +6890,9 @@ class App(ctk.CTk):
             look_straight_down=bool(self.checks["look_down"].get()),
             handless_zoom_factor=s["hands_zoom"].get() / 100.0,
             crouch_vignette_factor=s["crouch_vignette"].get() / 100.0,
+            look_speed_h_factor=s["look_h"].get() / 100.0,
+            look_speed_v_factor=s["look_v"].get() / 100.0,
+            camera_slowdown_factor=s["cam_slowdown"].get() / 100.0,
             butt_wear_factor=s["butt_wear"].get() / 100.0,
             mutants_trigger_anomalies=bool(self.checks["mut_anomalies"].get()),
             guards_no_instakill=bool(self.checks["guards_normal"].get()),
@@ -6803,6 +6912,7 @@ class App(ctk.CTk):
             explosion_armor_pierce_factor=s["exp_armor_pierce"].get() / 100.0,
             explosion_destructible_factor=s["exp_destructible"].get() / 100.0,
             bullet_penetration_factor=s["bullet_pen"].get() / 100.0,
+            bullet_penetration_depth_factor=s["bullet_pen_depth"].get() / 100.0,
             bullet_range_factor=s["bullet_range"].get() / 100.0,
             hip_steady_factor=s["hip_steady"].get() / 100.0,
             move_steady_factor=s["move_steady"].get() / 100.0,
@@ -6817,6 +6927,8 @@ class App(ctk.CTk):
             npc_retreat_radius_factor=s["npc_retreat_dist"].get() / 100.0,
             npc_retreat_damage_factor=s["npc_retreat_dmg"].get() / 100.0,
             npc_vs_npc_damage_factor=s["npc_vs_npc"].get() / 100.0,
+            npc_vs_player_damage_factor=s["npc_vs_player"].get() / 100.0,
+            npc_vs_friendly_damage_factor=s["npc_vs_friendly"].get() / 100.0,
             stat_bars_follow=bool(self.checks["stat_bars"].get()),
             jam_clear_factor=s["jam_clear"].get() / 100.0,
             mutant_loot_chance_factor=s["mut_loot"].get() / 100.0,
@@ -6832,6 +6944,9 @@ class App(ctk.CTk):
             weird_artifact_factor=s["weird_art"].get() / 100.0,
             skip_intro=bool(self.checks["skip_intro"].get()),
             traders_no_gear_buy=bool(self.checks["traders_no_gear"].get()),
+            traders_on_map=bool(self.checks["traders_map"].get()),
+            no_mouse_smoothing=bool(self.checks["no_mouse_smooth"].get()),
+            no_view_acceleration=bool(self.checks["no_view_accel"].get()),
             clicker_factor=s["clicker"].get() / 100.0,
             # 1.27.0
             back_speed_factor=s["back_speed"].get() / 100.0,
@@ -6941,6 +7056,9 @@ class App(ctk.CTk):
             artifacts_no_hop=bool(self.checks["art_no_hop"].get()),
             artifact_keepaway_factor=s["art_keepaway"].get() / 100.0,
             artifact_hop_pause_factor=s["art_hop_pause"].get() / 100.0,
+            artifact_hop_distance_factor=s["art_hop_dist"].get() / 100.0,
+            artifact_hop_count_factor=s["art_hop_count"].get() / 100.0,
+            artifacts_no_detector=bool(self.checks["art_no_detector"].get()),
             artifact_caches_drop=bool(self.checks["art_caches"].get()),
             loot_reroll_radius_factor=s["loot_reroll"].get() / 100.0,
             loot_reroll_timer_factor=s["loot_reroll_time"].get() / 100.0,
@@ -8239,13 +8357,17 @@ class App(ctk.CTk):
                 "Everything is set to vanilla – nothing to patch.")
             return False
         patches = build_patches(self.gd, s)
+        # 1.35.0: die zwei Maus-Schalter schreiben KEINE GameData-Datei,
+        # sondern Stalker2/Config/UserInput.ini an die Pak-Wurzel. Sie
+        # muessen darum an der Leer-Pruefung unten vorbei.
+        ini = input_ini(s)
         # summarize() kennt nur die Settings, build_patches() auch die
         # Vanilla-Werte: ein Faktor auf einen Vanilla-0-Wert (viele
         # ArmorPiercingMod/CoverPiercingMod) oder ein Item-Gewicht ohne
         # angehakte Kategorie steht in "active", erzeugt aber keine Zeile.
         # Ohne diesen Riegel bekaeme der Packer einen leeren Ordner und der
         # Benutzer einen rohen Python-Traceback statt einer Erklaerung.
-        if not patches:
+        if not patches and ini is None:
             # Ursachen-Hinweis nur nennen, wenn er auch passen KANN — sonst
             # erklaert der Dialog dem Benutzer etwas ueber Munition, waehrend
             # in Wahrheit die Gewichts-Kategorien abgehakt sind.
@@ -8262,9 +8384,10 @@ class App(ctk.CTk):
                 "The values you changed have no effect on the game data – "
                 "nothing to patch." + why)
             return False
-        pakio.pack_mod(patches, out_pak,
-                       root_files={MANIFEST_NAME:
-                                   self._build_manifest(s, active)})
+        root_files = {MANIFEST_NAME: self._build_manifest(s, active)}
+        if ini is not None:
+            root_files["Stalker2/Config/UserInput.ini"] = ini
+        pakio.pack_mod(patches, out_pak, root_files=root_files)
 
         debug_note = ""
         if self.debug_check.get():

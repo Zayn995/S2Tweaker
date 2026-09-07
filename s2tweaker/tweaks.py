@@ -911,6 +911,29 @@ class Settings:
     # statt erst wenn er leer ist.
     repeatable_jobs_instant: bool = False
     repeatable_jobs_multi: bool = False       # 1.33.0: mehrere Jobs je Gespraech
+
+    # --- 1.35.0: die kleinen Kandidaten der neunten Datenrecherche und des
+    # Familien-Waechters, alle am 08.09.2026 live nachgemessen ------------
+    npc_vs_player_damage_factor: float = 1.0   # CWS NPCToPlayerDamageScaler (150x 1.0)
+    npc_vs_friendly_damage_factor: float = 1.0 # CWS NPCToFriendlyDamageScaler (150x 0.3)
+    traders_on_map: bool = False               # NPCPrototypes UpdateMarkerOnMap: die 80
+                                               # NPCs, die schon einen Marker-TYP tragen
+    look_speed_h_factor: float = 1.0           # BaseTurnRate (Player 40, CoreVariables 50)
+    look_speed_v_factor: float = 1.0           # BaseLookUpRate (beide 30)
+    camera_slowdown_factor: float = 1.0        # EffectPrototypes TurnRateChangeYaw/Pitch
+                                               # (6 Effekte: Chemie -0.6, Draht -0.8,
+                                               # Fliegenfaenger -0.7; Wasser 0% bleibt)
+    bullet_penetration_depth_factor: float = 1.0  # ProjectilePrototypes
+                                                  # PenetrationTraceLenght (16x 150-300)
+    artifacts_no_detector: bool = False        # ItemPrototypes DetectorRequired (147x true)
+    artifact_hop_distance_factor: float = 1.0  # dito JumpDistance/JumpHeight/JumpForce
+    artifact_hop_count_factor: float = 1.0     # dito JumpAmount (3/5/7/9), ganzzahlig
+    encounter_wounded_factor: float = 1.0      # Director ScenarioSquads WoundedMultiplier
+                                               # (8 Eintraege 0.1/0.2, Rest 0), Deckel 1.0
+    encounter_dead_factor: float = 1.0         # dito DeadMultiplier (36 Eintraege > 0)
+    no_mouse_smoothing: bool = False           # Stalker2/Config/UserInput.ini
+    no_view_acceleration: bool = False         # dito - KEINE GameData-Datei
+
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
     armor_price_factor: float = 1.0
@@ -1206,6 +1229,23 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                 new = min(1.0, vanilla * factor)
                 if _neq(new, vanilla):
                     movement[key] = _num(new)
+    # 1.35.0: Blicktempo waagerecht/senkrecht getrennt. Gemessen 08.09.2026:
+    # Player.MovementParams BaseTurnRate 40 / BaseLookUpRate 30 - waagerecht
+    # dreht man also ein Drittel schneller als senkrecht, und das Spielmenue
+    # hat dafuer nur EINEN Regler. Dieselben zwei Schluessel stehen auch in
+    # CoreVariables (50.0 / 30.0); welcher gewinnt, ist unbewiesen, darum
+    # werden beide gleich skaliert (siehe _corevars_patch). KEIN Deckel 1.0 -
+    # das sind Grad je Sekunde, keine Koeffizienten.
+    for key, factor in (("BaseTurnRate", s.look_speed_h_factor),
+                        ("BaseLookUpRate", s.look_speed_v_factor)):
+        if not (_neq(factor, 1.0) and factor > 0):
+            continue
+        raw = gd.resolve(gd.obj, "Player", f"MovementParams.{key}")
+        if raw is None:
+            continue
+        scaled = _scale_literal(raw, factor)
+        if scaled is not None and scaled != raw.strip():
+            movement[key] = scaled
     if movement:
         player["MovementParams"] = movement
 
@@ -2453,7 +2493,13 @@ def _projectile_patch(gd: GameData, s: Settings) -> dict:
     # 1.32.0 (Nr. 15/16): Wanddurchschlag und Maximalreichweite
     pen_on = _neq(s.bullet_penetration_factor, 1.0) and s.bullet_penetration_factor >= 0
     range_on = _neq(s.bullet_range_factor, 1.0) and s.bullet_range_factor > 0
-    if not (speed_on or pen_on or range_on):
+    # 1.35.0: die zweite Haelfte der Durchschlags-Gruppe. `PenetrationSpawnChance`
+    # (Chance) hat `PenetrationTraceLenght` (sic, Tippfehler von GSC) im selben
+    # Struct - 16x, gemessen 150/200/300. Der Familien-Waechter hat es gemeldet,
+    # "Better Ballistics Core" (Nexus 2536) skaliert es.
+    depth_on = (_neq(s.bullet_penetration_depth_factor, 1.0)
+                and s.bullet_penetration_depth_factor > 0)
+    if not (speed_on or pen_on or range_on or depth_on):
         return {}
     patches: dict = {}
     for sid, node in sorted(gd.projectiles.children.items()):
@@ -2472,6 +2518,12 @@ def _projectile_patch(gd: GameData, s: Settings) -> dict:
                 scaled = _scale_literal(raw, s.bullet_penetration_factor, cap=1.0)
                 if scaled is not None and scaled != raw.strip():
                     cfg["PenetrationSpawnChance"] = scaled
+        if depth_on:
+            raw = node.values.get("PenetrationTraceLenght")
+            if raw is not None and parse_number(raw) > 0:
+                scaled = _scale_literal(raw, s.bullet_penetration_depth_factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg["PenetrationTraceLenght"] = scaled
         if range_on:
             raw = node.values.get("MaxFlyDistance")
             if raw is not None and parse_number(raw) > 0:
@@ -2859,11 +2911,28 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
 
     Der Editions-Zweig (DLCGameData) enthaelt KEINE Artefakte - gemessen: null
     Radius- und null Strafe-Schluessel in allen drei Editions-Dateien -, darum
-    gibt es hier anders als beim Artefakt-Slot-Regler keinen DLC-Pfad."""
+    gibt es hier anders als beim Artefakt-Slot-Regler keinen DLC-Pfad.
+
+    ⚠ **1.35.0: die Huepf-Familie ist jetzt vollstaendig.** Der Familien-
+    Waechter hatte gemeldet, dass wir nur die Haelfte anfassen. Nachgemessen
+    am 08.09.2026, alle 154 Artefakte deklarieren auch diese selbst:
+    `JumpAmount` (3/5/7/9, dazu 2x 0), `JumpDelay` (6.0/3.0 - die Pause
+    ZWISCHEN den Spruengen einer Serie, waehrend `JumpSeriesDelay` zwischen
+    den Serien liegt), `JumpForce` 15.0, `JumpDistance` 1500, `JumpHeight`
+    100 und `ReturnDistanceValue` 10000 (1x 100000). Eingefaltet statt neue
+    Regler zu erfinden: JumpDelay laeuft im Pausen-Regler mit, die
+    Rueckkehr-Distanz im Abstands-Regler; neu sind nur zwei Regler
+    (Sprungweite = Distanz/Hoehe/Kraft, Spruenge je Serie) und der Schalter
+    "ohne Detektor sichtbar" (`DetectorRequired`, 147x true / 7x false)."""
     radius_on = _neq(s.artifact_radius_factor, 1.0) and s.artifact_radius_factor > 0
     keep_on = _neq(s.artifact_keepaway_factor, 1.0) and s.artifact_keepaway_factor > 0
     pause_on = _neq(s.artifact_hop_pause_factor, 1.0) and s.artifact_hop_pause_factor > 0
-    if not (radius_on or keep_on or pause_on or s.artifacts_no_hop):
+    dist_on = (_neq(s.artifact_hop_distance_factor, 1.0)
+               and s.artifact_hop_distance_factor > 0)
+    count_on = (_neq(s.artifact_hop_count_factor, 1.0)
+                and s.artifact_hop_count_factor >= 0)
+    if not (radius_on or keep_on or pause_on or dist_on or count_on
+            or s.artifacts_no_hop or s.artifacts_no_detector):
         return {}
     patches: dict = {}
     for sid, node in gd.items.children.items():
@@ -2876,9 +2945,18 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
         cfg: dict = {}
         if s.artifacts_no_hop and _bool_literal(node.values.get("Strafe")) is True:
             cfg["Strafe"] = "false"
-        for on, key, factor in ((radius_on, "Radius", s.artifact_radius_factor),
-                                (keep_on, "PlayerDistance", s.artifact_keepaway_factor),
-                                (pause_on, "JumpSeriesDelay", s.artifact_hop_pause_factor)):
+        if (s.artifacts_no_detector
+                and _bool_literal(node.values.get("DetectorRequired")) is True):
+            cfg["DetectorRequired"] = "false"
+        for on, key, factor in (
+                (radius_on, "Radius", s.artifact_radius_factor),
+                (keep_on, "PlayerDistance", s.artifact_keepaway_factor),
+                (keep_on, "ReturnDistanceValue", s.artifact_keepaway_factor),
+                (pause_on, "JumpSeriesDelay", s.artifact_hop_pause_factor),
+                (pause_on, "JumpDelay", s.artifact_hop_pause_factor),
+                (dist_on, "JumpDistance", s.artifact_hop_distance_factor),
+                (dist_on, "JumpHeight", s.artifact_hop_distance_factor),
+                (dist_on, "JumpForce", s.artifact_hop_distance_factor)):
             if not on:
                 continue
             raw = node.values.get(key)
@@ -2887,6 +2965,15 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, factor)
             if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
                 cfg[key] = scaled
+        if count_on:
+            # Spruenge je Serie: ganzzahlig, 0 bleibt 0 (zwei Artefakte
+            # huepfen vanilla gar nicht), sonst mindestens einer.
+            raw = node.values.get("JumpAmount")
+            value = parse_number(raw) if raw is not None else 0.0
+            if raw is not None and value > 0:
+                new = max(1, int(round(value * s.artifact_hop_count_factor)))
+                if new != int(round(value)):
+                    cfg["JumpAmount"] = str(new)
         if cfg:
             patches[sid] = cfg
     return patches
@@ -2965,6 +3052,40 @@ def _npc_trader_patch(gd: GameData, s: Settings) -> dict:
                     cfg["Money"] = str(new)
         if cfg:
             patches[sid] = cfg
+    return patches
+
+
+def _npc_marker_patch(gd: GameData, s: Settings) -> dict:
+    """Haendler, Techniker, Medics und Fuehrer auf der Karte anzeigen (1.35.0).
+
+    Kein neuer Inhalt, nur eine Fahne: **80 NPCs tragen in Vanilla bereits
+    einen Marker-TYP** (`NPCMarker` = Trader 34, Technician 18, Guider 14,
+    Medic 14), aber ihre Anzeige-Fahne `UpdateMarkerOnMap` steht auf false —
+    nur acht Ausnahmen stehen auf true (gemessen 08.09.2026). Der Schalter
+    legt genau diese 80 um; NPCs mit `NPCMarker = Empty` (1265 Stueck)
+    bleiben unangetastet, es taucht also niemand neu auf, der nicht schon
+    ein Symbol haette.
+
+    ⚠ Der Vanilla-Wert steht als `false;` mit Semikolon in der Datei —
+    darum wird vor dem Vergleich abgeschnitten, sonst wuerde jeder Eintrag
+    als "abweichend" gelten.
+
+    Idee aus "Shay's Living Zone" (Nexus 1301, Trackermap-Teil); die Zahlen
+    stammen aus unserer eigenen Messung, nicht aus deren Dateien. Die
+    1,8-MB-Datei wird nur bei aktivem Schalter geparst."""
+    if not s.traders_on_map:
+        return {}
+    patches: dict = {}
+    for sid, node in gd.npcprototypes.children.items():
+        if sid == "[0]" or "#" in sid:
+            continue
+        marker = (node.values.get("NPCMarker") or "").strip().rstrip(";").strip()
+        if not marker or marker.split("::")[-1] in ("", "Empty"):
+            continue
+        flag = (node.values.get("UpdateMarkerOnMap") or "").strip().rstrip(";").strip()
+        if flag.lower() == "true":
+            continue                      # steht schon an
+        patches[sid] = {"UpdateMarkerOnMap": "true"}
     return patches
 
 
@@ -3238,19 +3359,36 @@ def _npc_vs_npc_patch(gd: GameData, s: Settings) -> dict:
 
     Bewusst OHNE Kaskade: das ist kein Waffengefuehl, sondern eine
     Weltregel — und sie an einer einzelnen Waffe zu verstellen waere im
-    Tooltip nicht zu erklaeren."""
-    if not _neq(s.npc_vs_npc_damage_factor, 1.0) or s.npc_vs_npc_damage_factor < 0:
+    Tooltip nicht zu erklaeren.
+
+    **1.35.0: der Dreiersatz ist vollstaendig.** Der Schluessel hat zwei
+    Geschwister im selben Struct, und 1.31.0 hatte nur den ersten genommen —
+    aufgefallen ueber den Familien-Waechter und beim Lesen von "Better
+    Ballistics Core" (Nexus 2536). Live gemessen (08.09.2026, je 150x):
+    `NPCToNPCDamageScaler` 0.7, `NPCToPlayerDamageScaler` 1.0,
+    `NPCToFriendlyDamageScaler` 0.3. Der mittlere ist der interessanteste:
+    er entscheidet, wie hart NPC-Kugeln DICH treffen, und zwar unabhaengig
+    vom Schwierigkeitsgrad-Multiplikator, der daneben steht."""
+    keys = (("NPCToNPCDamageScaler", s.npc_vs_npc_damage_factor),
+            ("NPCToPlayerDamageScaler", s.npc_vs_player_damage_factor),
+            ("NPCToFriendlyDamageScaler", s.npc_vs_friendly_damage_factor))
+    active = [(k, f) for k, f in keys if _neq(f, 1.0) and f >= 0]
+    if not active:
         return {}
     patches: dict = {}
     for sid, node in sorted(gd.weaponsettings.children.items()):
         if "#" in sid:
             continue
-        raw = node.values.get("NPCToNPCDamageScaler")
-        if raw is None:
-            continue
-        scaled = _scale_literal(raw, s.npc_vs_npc_damage_factor)
-        if scaled is not None and scaled != raw.strip():
-            patches[sid] = {"NPCToNPCDamageScaler": scaled}
+        cfg: dict = {}
+        for key, factor in active:
+            raw = node.values.get(key)
+            if raw is None:
+                continue
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None and scaled != raw.strip():
+                cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -3901,6 +4039,39 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = scaled
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
+    # 1.35.0: Kamera-Bremsen. Gemessen 08.09.2026 - die Typen
+    # `TurnRateChangeYaw`/`TurnRateChangePitch` gibt es GENAU sechsmal mit
+    # Wirkung: Chemie-Anomalie -0.6, Stacheldraht -0.8, Fliegenfaenger -0.7,
+    # je Yaw und Pitch. Die zwei Wasser-Effekte stehen auf 0% und bleiben es.
+    # Bewusst NICHT dabei: die zwei `Concussion`-Effekte (1.0 und 25.0) -
+    # das sind keine Prozentwerte, ihre Einheit ist unbekannt, und der
+    # Blutsauger-Schrei ueber einen "Kamera"-Regler zu verstellen waere
+    # geraten. Der Betrag ist bei 1.0 gedeckelt: mehr als "Blick steht
+    # still" gibt es in den Spieldaten nirgends.
+    if _neq(s.camera_slowdown_factor, 1.0) and s.camera_slowdown_factor >= 0:
+        for sid, node in gd.effects.children.items():
+            if "#" in sid:
+                continue
+            typ = (node.values.get("Type") or "").replace("EEffectType::", "").strip()
+            if typ not in ("TurnRateChangeYaw", "TurnRateChangePitch"):
+                continue
+            cfg = {}
+            for key in ("ValueMin", "ValueMax"):
+                raw = node.values.get(key)
+                value = parse_number(raw) if raw is not None else 0.0
+                if raw is None or value == 0:
+                    continue
+                # Betrags-Deckel: die Werte sind NEGATIV (-0.6 bis -0.8), und
+                # `cap` in _scale_literal deckelt nur nach oben. Mehr als
+                # "Blick steht still" (-1.0) kommt in den Daten nicht vor.
+                factor = s.camera_slowdown_factor
+                if abs(value * factor) > 1.0:
+                    factor = 1.0 / abs(value)
+                scaled = _scale_literal(raw, factor)
+                if scaled is not None and scaled != raw.strip():
+                    cfg[key] = scaled
+            if cfg:
+                patches.setdefault(sid, {}).update(cfg)
     if s.guards_no_instakill:
         node = gd.effects.children.get("KillVolumeEffect")
         extra = (node.children.get("ApplyExtraEffectPrototypeSIDs")
@@ -4250,6 +4421,18 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
 
     if s.no_overweight_penalty:
         cfg["InventorySPOverweightDrainCoef"] = "0.0"
+
+    # 1.35.0: Blicktempo. Dieselben zwei Schluessel stehen am Player-Struct
+    # (40/30) und hier (50.0/30.0) - welchen das Spiel benutzt, ist unbewiesen,
+    # also werden beide mit demselben Faktor skaliert. Die fuenfte Recherche
+    # hatte sie mit "dafuer gibt es einen Menuepunkt" verworfen; das Menue hat
+    # aber nur EINE Empfindlichkeit und kann das Verhaeltnis nicht aendern.
+    for key, factor, fallback in (("BaseTurnRate", s.look_speed_h_factor, 50.0),
+                                  ("BaseLookUpRate", s.look_speed_v_factor, 30.0)):
+        if _neq(factor, 1.0) and factor > 0:
+            vanilla = gd.corevar(key, fallback)
+            if vanilla > 0:
+                cfg[key] = _num(vanilla * factor)
 
     # Tageslaenge (Nexus-Dauerbrenner "Longer Days"): RealToGameTimeCoef =
     # Spielsekunden je Echtsekunde (Vanilla 24 = ein Spieltag pro Echtstunde).
@@ -5550,7 +5733,13 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
               and s.lair_expansion_player_factor > 0)
     fb_on = int(s.fallback_spawn_count) != int(
         parse_number(d.values.get("FallbackMaxSpawnCount")) or 3)
-    if not (freq_on or weight_on or pack_on or exp_on or fb_on):
+    # 1.35.0: Zustand der Begegnung (lebend/verwundet/tot)
+    wounded_on = (_neq(s.encounter_wounded_factor, 1.0)
+                  and s.encounter_wounded_factor >= 0)
+    dead_on = (_neq(s.encounter_dead_factor, 1.0)
+               and s.encounter_dead_factor >= 0)
+    if not (freq_on or weight_on or pack_on or exp_on or fb_on
+            or wounded_on or dead_on):
         return {}
     preset: dict = {}
 
@@ -5618,6 +5807,43 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                        .setdefault(ri, {}).setdefault("Restrictions", {})
                        )[ti] = {"AgentType": f"EAgentType::{atype}",
                                 "MaxCount": str(new)}
+
+    # 1.35.0: in welchem Zustand eine Begegnung ankommt. Jeder der 95
+    # Squad-Eintraege traegt vier Zahlen: AliveMultiplierMin/Max (wie gross
+    # der lebende Anteil ist, 72x 0.4/0.8), WoundedMultiplier und
+    # DeadMultiplier. Gemessen 08.09.2026 - und die Notiz aus der neunten
+    # Recherche war zu duester: **Vanilla HAT Verwundeten-Begegnungen**, es
+    # gibt acht eigene Szenarien dafuer (Humans_Wounded_Friendly/_Enemy und
+    # ihre Gruppen-Varianten, 0.1 bis 0.2). Sie sind nur selten. Darum
+    # skalieren wir, was da ist, statt Verwundete zu erfinden: Nullen
+    # bleiben Nullen, der Anteil ist bei 1.0 gedeckelt.
+    # Der Eintrag geht KOMPLETT raus (Array-Regel), also mit Archetyp,
+    # Feind-Flag, Gruppe und beiden Alive-Werten unveraendert.
+    if wounded_on or dead_on:
+        scenarios = d.children.get("Scenarios")
+        for scen_key, scen in (scenarios.children.items() if scenarios else ()):
+            squads = scen.children.get("ScenarioSquads")
+            for skey, entry in (squads.children.items() if squads else ()):
+                cfg: dict = {}
+                for on, key, factor in (
+                        (wounded_on, "WoundedMultiplier", s.encounter_wounded_factor),
+                        (dead_on, "DeadMultiplier", s.encounter_dead_factor)):
+                    if not on:
+                        continue
+                    raw = entry.values.get(key)
+                    if raw is None or parse_number(raw) <= 0:
+                        continue          # 0 bleibt 0 - nichts erfinden
+                    scaled = _scale_literal(raw, factor, cap=1.0)
+                    if scaled is not None and _neq(parse_number(scaled),
+                                                   parse_number(raw)):
+                        cfg[key] = scaled
+                if not cfg:
+                    continue
+                full = {k: v.strip() for k, v in entry.values.items()}
+                full.update(cfg)
+                (preset.setdefault("Scenarios", {})
+                       .setdefault(scen_key, {})
+                       .setdefault("ScenarioSquads", {}))[skey] = full
     return {"ALifeDirectorPreset": preset} if preset else {}
 
 
@@ -6279,6 +6505,35 @@ def _container_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
+def input_ini(s: Settings) -> str | None:
+    """Der Inhalt von `Stalker2/Config/UserInput.ini` — oder None (1.35.0).
+
+    **Ein zweiter Auslieferungsweg.** Bisher schreibt das Werkzeug
+    ausschliesslich cfg-Dateien unterhalb von GameData; diese INI liegt
+    daneben im Spielordner und wird ueber `root_files` an die Pak-Wurzel
+    gelegt (der Mount-Punkt der Pak IST der Spielordner). Genau so macht es
+    "Fluid Movement and Aiming Overhaul" (Nexus 562) — deren Datei habe ich
+    geoeffnet, um das FORMAT zu kennen; die zwei Schluessel sind
+    Unreal-Standard (`/Script/Engine.InputSettings`), keine Spielwerte.
+
+    Warum ueberhaupt: Maus-Glaettung und Sicht-Beschleunigung lassen sich im
+    Spielmenue nicht abschalten. Beides sind Ein/Aus-Fahnen, darum zwei
+    Schalter statt Regler.
+
+    ⚠ Anders als alle anderen Ausgaben ist das eine ganze Datei, kein
+    `{bpatch}`: liefert eine andere Mod dieselbe INI, entscheidet die
+    Ladereihenfolge, und unser Mod-Scan sieht das nicht (er vergleicht nur
+    cfg-Blaetter). Steht so im Tooltip."""
+    lines = []
+    if s.no_view_acceleration:
+        lines.append("bViewAccelerationEnabled=False")
+    if s.no_mouse_smoothing:
+        lines.append("bEnableMouseSmoothing=False")
+    if not lines:
+        return None
+    return "[/Script/Engine.InputSettings]\n" + "\n".join(lines) + "\n"
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -6437,7 +6692,9 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(trade_patches, _trader_wallet_patch(gd, s))
     _merge_nested(trade_patches, _buy_limits_patch(gd, s))
     add(f"TradePrototypes/TradePrototypes_patch_{n}.cfg", trade_patches)
-    add(f"NPCPrototypes/NPCPrototypes_patch_{n}.cfg", _npc_trader_patch(gd, s))
+    npc_proto = _npc_trader_patch(gd, s)
+    _merge_nested(npc_proto, _npc_marker_patch(gd, s))   # 1.35.0
+    add(f"NPCPrototypes/NPCPrototypes_patch_{n}.cfg", npc_proto)
     add(f"RelationPrototypes/RelationPrototypes_patch_{n}.cfg",
         _relations_patch(gd, s))
     quest_patches = _quest_timer_patch(gd, s)
@@ -6880,6 +7137,25 @@ def summarize(s: Settings) -> list[str]:
     f("Bullet wall penetration", s.bullet_penetration_factor)
     f("Bullet max range", s.bullet_range_factor)
     f("NPC vs NPC damage", s.npc_vs_npc_damage_factor)
+    # 1.35.0: kleine Kandidaten
+    f("NPC vs player damage", s.npc_vs_player_damage_factor)
+    f("NPC vs allies damage", s.npc_vs_friendly_damage_factor)
+    f("Bullet penetration depth", s.bullet_penetration_depth_factor)
+    f("Look speed, horizontal", s.look_speed_h_factor)
+    f("Look speed, vertical", s.look_speed_v_factor)
+    f("Camera slowdown from hazards", s.camera_slowdown_factor)
+    f("Artifact hop distance (experimental)", s.artifact_hop_distance_factor)
+    f("Artifact hops per series (experimental)", s.artifact_hop_count_factor)
+    if s.artifacts_no_detector:
+        lines.append("Artifacts are visible without a detector")
+    if s.traders_on_map:
+        lines.append("Traders, technicians, medics and guides on the map")
+    f("Random encounters: wounded stalkers", s.encounter_wounded_factor)
+    f("Random encounters: dead bodies", s.encounter_dead_factor)
+    if s.no_mouse_smoothing:
+        lines.append("Mouse smoothing off (UserInput.ini)")
+    if s.no_view_acceleration:
+        lines.append("View acceleration off (UserInput.ini)")
     if s.stat_bars_follow:
         lines.append("Inventory stat bars follow your changes")
     f("Ammo pack size", s.ammo_pack_factor)

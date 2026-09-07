@@ -48,7 +48,11 @@ print(f"Vollstaendigkeit: {len(SLIDER_FIELDS)} Regler + "
 unscannable = {k for k in SLIDER_FIELDS if footprint_settings(k) is None}
 unscannable |= {"check:" + k for k in CHECK_FIELDS
                 if footprint_settings("check:" + k) is None}
-assert unscannable == {"npc_gear", "check:stat_bars"}, unscannable
+# 1.35.0: die zwei Maus-Schalter schreiben Stalker2/Config/UserInput.ini
+# statt einer cfg - der Scan vergleicht cfg-Blaetter, es gibt also
+# nichts zu vergleichen (Begruendung in gui.footprint_settings).
+assert unscannable == {"npc_gear", "check:stat_bars",
+                       "check:no_mouse_smooth", "check:no_view_accel"}, unscannable
 t0 = time.time()
 empty = []
 for key in [k for k in SLIDER_FIELDS if k not in unscannable] \

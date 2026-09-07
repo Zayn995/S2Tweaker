@@ -324,7 +324,10 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
         for rel, content in (root_files or {}).items():
-            (staging / rel).write_text(content, encoding="utf-8")
+            # seit 1.35.0 auch verschachtelt (Stalker2/Config/UserInput.ini)
+            target = staging / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
         pakfile.pack_dir(staging, out_pak)
 
     if not out_pak.is_file():

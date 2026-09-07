@@ -116,8 +116,7 @@ def suspicious() -> dict[str, dict]:
 # Echte halbe Gruppen: gemessen, in docs/ROADMAP.md als Kandidat notiert,
 # aber (noch) nicht gebaut. Wer einen davon baut, nimmt ihn hier raus.
 CANDIDATES = {
-    "NPCToPlayerDamageScaler", "NPCToFriendlyDamageScaler",
-    "JumpDelay", "OffsetAimDispersionMod", "SpawnChanceBonus",
+    "OffsetAimDispersionMod", "SpawnChanceBonus",
     "ThreatLevelValueMax", "MaxDistanceToAlly",
     "TwinAuxReloadTimeMultiplier", "TwinTacticalAuxReloadTimeMultiplier",
     "AmmoMinCount", "AmmoMaxCount",
@@ -157,7 +156,6 @@ CANDIDATES = {
     "NarrowTraceInteractionRadius", "WideTraceInteractionRadius",
     "AccumulatedDamageReductionIncludesHealedHealth", "ApplyImpulseToHitLocationFromPlayer",
     # 07.09. abends dazugekommen, als der Test auch ObjPrototypes mitnahm:
-    "RegenThirstPoints",              # wir haben Hunger und Muedigkeit, DURST fehlt
     "MaxHungerPoints", "MaxSleepinessPoints", "MaxDrunknessPoints",
     "MaxOverDrunknessPoints", "RegenPoppyFieldSleepiness",
     "NoiseJumpCoef", "NoiseObstacleCoef",          # Stealth: wir nehmen nur Ducken/Gehen
@@ -178,6 +176,20 @@ CANDIDATES = {
 #   (c) Zeiten und Radien reiner Technik (Traces, Decals, Ticks, Audio),
 #   (d) Enum/Struktur statt Zahl.
 IGNORED = {
+    # 08.09.2026 gemessen: Durst ist ein toter Zaehler. RegenThirstPoints
+    # steht bei Spieler UND Basis auf 0.0, und das Wort "Thirst" kommt im
+    # ganzen Spiel NUR in ObjPrototypes vor - kein Effekt, kein Getraenk,
+    # kein Schwierigkeitsgrad-Schluessel fuettert ihn. Nichts zu skalieren.
+    "RegenThirstPoints",
+    # 08.09.2026, aufgetaucht als 1.35.0 das Blicktempo baute:
+    # AimLookUpCoef/AimTurnCoef (0.8) sitzen an 47 MUTANTEN-Prototypen,
+    # der Player ist NICHT dabei - das ist KI-Drehtempo beim Anvisieren,
+    # nicht die Blickempfindlichkeit des Spielers.
+    "AimLookUpCoef",
+    # dito MinJumpDistance (300-800) unter JumpActionData/
+    # JumpToEnemyActionData: Sprung-Geometrie von Mutanten-Angriffen,
+    # nicht die Huepf-Familie der Artefakte.
+    "MinJumpDistance",
     "RadiusExtensionBulletCount",      # (a) docs/ROADMAP.md: ausdruecklich tabu
     "DamageIgnoranceThreshold",        # (a) HANDOVER P6: Phasen-Unterarray bewusst nicht
     "CorpseRagdollQuestProtectionCheckTime",   # (a) Quest-Schutz, P5 tabu
@@ -240,8 +252,11 @@ if gone:
 
 # --- 4) Der Detektor selbst muss die vier Faelle von 07.09. finden -------
 # Sonst koennte er stillschweigend kaputtgehen und immer gruen melden.
-for key, why in (("NPCToPlayerDamageScaler", "Fall 2: NPC-Schaden-Dreiersatz"),
-                 ("JumpDelay", "Fall 4: Huepf-Familie der Artefakte")):
+# (Die urspruenglichen Referenzen NPCToPlayerDamageScaler und JumpDelay sind
+#  seit 1.35.0 gebaut und tauchen darum nicht mehr als Nachbarn auf. Neue
+#  Anker: zwei halbe Gruppen, die bewusst offen bleiben.)
+for key, why in (("DegenSuppressionPoints", "Unterdrueckungsfeuer"),
+                 ("NoiseJumpCoef", "halbe Stealth-Familie")):
     assert key in names, f"Detektor findet {why} nicht mehr - Regel kaputt?"
 print(f"\nDer Detektor findet die Referenzfaelle weiterhin.")
 

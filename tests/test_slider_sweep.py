@@ -44,7 +44,7 @@ from s2tweaker.cfgparse import parse_number
 from s2tweaker.gamedata import GameData
 from s2tweaker.gui import CHECK_FIELDS, SLIDER_FIELDS
 from s2tweaker.tweaks import (ALL_CATEGORIES, AMMO_PARAMS, AMMO_PARAM_KEYS,
-                              ARMOR_PARAMS, Settings, build_patches,
+                              ARMOR_PARAMS, Settings, build_patches, input_ini,
                               summarize, weapon_available_params)
 
 gd = GameData(str(VANILLA))
@@ -137,8 +137,13 @@ for key, field in CHECK_FIELDS.items():
     s = app._collect()
     # stat_bars spiegelt nur die Waffenregler: allein verstellt erzeugt
     # es bewusst keinen Patch (Begruendung in gui.footprint_settings).
-    if not build_patches(gd, s) and key != "stat_bars":
+    # 1.35.0: no_mouse_smooth/no_view_accel erzeugen bewusst KEINE cfg,
+    # sondern Stalker2/Config/UserInput.ini (tweaks.input_ini).
+    if (not build_patches(gd, s) and key not in
+            ("stat_bars", "no_mouse_smooth", "no_view_accel")):
         dead.append(f"check:{key}")
+    if key in ("no_mouse_smooth", "no_view_accel"):
+        assert input_ini(s), key
     if not summarize(s):
         no_line.append(f"check:{key}")
     app.checks[key].deselect()

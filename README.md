@@ -36,7 +36,7 @@ Everyone is free to use it. This README tells you everything you need.
   reading of the factions: the game files carry no faction colours, and no
   game artwork is shipped.
 
-~460 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+~470 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34

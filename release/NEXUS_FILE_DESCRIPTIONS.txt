@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.34.0
-File version:  1.34.0
+Name:          S2Tweaker 1.35.0
+File version:  1.35.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,26 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.35.0 - fourteen dials the key-family check dug up
+
+- NPC vs player damage and NPC vs allies damage. Every weapon carries three separate
+  scalers (NPC vs NPC 70 %, NPC vs you 100 %, NPC vs friendlies 30 %); only
+  the first had a slider until now.
+- Traders, technicians, medics and guides on the map: 80 NPCs already carry a
+  map symbol, but the flag that shows it is off for all but eight.
+- Look speed, horizontal and vertical separately - vanilla turns a third
+  faster sideways than up and down.
+- Camera slowdown from chemical anomalies, barbed wire and flycatchers.
+- Bullet penetration depth (the sibling of the penetration chance).
+- Artifacts: visible without a detector, hop distance, hops per series; the
+  hop pause and keep-away sliders now cover the rest of the family too.
+- Random encounters: the share that arrives wounded or already dead.
+- Mouse smoothing and view acceleration off - written as
+  Stalker2/Config/UserInput.ini, the only non-game-data file this tool
+  produces.
+- Measured and NOT built: thirst. The counter sits at 0.0 and nothing in the
+  game feeds it.
+
 1.34.0 - the several-jobs switch actually works now
 
 - 'Accept several jobs in one conversation' is repaired. Molkerr play-tested

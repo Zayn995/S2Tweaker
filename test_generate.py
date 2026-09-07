@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from s2tweaker.gamedata import GameData
-from s2tweaker.tweaks import Settings, build_patches, summarize
+from s2tweaker.tweaks import Settings, build_patches, input_ini, summarize
 from s2tweaker import pakio
 
 VANILLA = Path(__file__).parent / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
@@ -213,6 +213,21 @@ s = Settings(
     ammo_aim_dispersion_factor=0.5,  # dito AimDispersionMod
     jam_chance_factor=0.0,           # Waffen klemmen nie
     npc_vs_npc_damage_factor=2.0,    # Fraktionskaempfe kuerzer
+    # 1.35.0: kleine Kandidaten (Familien-Waechter + neunte Recherche)
+    npc_vs_player_damage_factor=0.5,   # NPC-Kugeln tun weniger weh
+    npc_vs_friendly_damage_factor=2.0, # Verbuendete sterben schneller
+    traders_on_map=True,               # Haendler & Co. auf der Karte
+    look_speed_h_factor=0.75,          # waagerecht langsamer
+    look_speed_v_factor=1.35,          # senkrecht angeglichen
+    camera_slowdown_factor=0.0,        # Draht/Chemie bremsen den Blick nicht
+    bullet_penetration_depth_factor=2.0,
+    artifacts_no_detector=True,
+    artifact_hop_distance_factor=0.5,
+    artifact_hop_count_factor=2.0,
+    encounter_wounded_factor=3.0,      # mehr Verwundeten-Begegnungen
+    encounter_dead_factor=0.5,         # weniger Leichen-Szenen
+    no_mouse_smoothing=True,           # UserInput.ini statt GameData
+    no_view_acceleration=True,
     stat_bars_follow=True,           # Anzeigebalken ziehen mit
     mutant_attack_series_factor=2.0, # Angriffe je Serie
     mutant_attack_bleed_factor=0.0,  # Krallen lassen nicht mehr bluten
@@ -255,5 +270,8 @@ for path, content in patches.items():
 
 OUT.mkdir(parents=True, exist_ok=True)
 pak = OUT / "zzz_S2Tweaker_Test_P.pak"
-pakio.pack_mod(patches, pak)
+ini = input_ini(s)
+assert ini and "bEnableMouseSmoothing=False" in ini, ini
+pakio.pack_mod(patches, pak,
+               root_files={"Stalker2/Config/UserInput.ini": ini})
 print(f"\nPak erzeugt: {pak}  ({pak.stat().st_size:,} bytes)")
