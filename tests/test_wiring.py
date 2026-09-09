@@ -20,10 +20,9 @@ Quelltext und in der Settings-Datenklasse:
 Punkt 1, 2 und 5 sind statisch bzw. reine Datenpruefungen, 3 und 4 laufen
 ueber `build_patches`/`summarize`. Kein Tk, kein Fenster, kein Fokus-Klau.
 
-Was hier NICHT geprueft wird und darum vor einem Release weiterhin die
-Fenster-Suiten braucht (`python tests/run_all.py --all`): Aussehen, Layout-
-Breiten, Designs, Mausrad, Dialoge. Das sind Sachen, die sich seit Releases
-nicht mehr bewegt haben.
+Nicht geprueft werden Aussehen, Layout-Breiten, Designs, Mausrad und Dialoge.
+Automatische Laeufe oeffnen keine Fenster. --static-only prueft die
+Feldverdrahtung ohne Spieldaten und wird von der CI verwendet.
 """
 import ast
 import sys
@@ -39,7 +38,6 @@ from s2tweaker.tweaks import Settings, build_patches, input_ini, summarize
 # NUR das Modul, KEIN App(): der Import baut kein Fenster.
 from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
 
-gd = GameData(str(VANILLA))
 ok = 0
 
 
@@ -75,6 +73,12 @@ known = {f.name for f in Settings.__dataclass_fields__.values()}
 unknown = sorted(f for f in fields if f not in known)
 check(not unknown, f"jede Feldtabelle zeigt auf ein echtes Settings-Feld{unknown}")
 
+if "--static-only" in sys.argv:
+    print("STATISCHE VERDRAHTUNG GRUEN (ohne Spieldaten und Fenster)")
+    sys.exit(0)
+
+gd = GameData(str(VANILLA))
+
 # --- 2) Vanilla erzeugt nichts -----------------------------------------
 check(build_patches(gd, Settings(mod_name="S2Tweaker")) == {},
       "Vanilla-Stellung erzeugt keine einzige Patchdatei")
@@ -98,6 +102,12 @@ SPECIAL = {                      # Regler, deren Vanilla-Wert 0 oder Deckel ist
 ALONE_EMPTY = {"stat_bars_follow", "no_mouse_smoothing", "no_view_acceleration",
                "relations_runtime"}
 
+COUPLED = {
+    "stash_extra_chance_pct": {"stash_extra_artifacts": True},
+    "npc_armor_drop_min_pct": {"npc_armor_drop_chance_pct": 25.0},
+    "npc_armor_drop_max_pct": {"npc_armor_drop_chance_pct": 25.0},
+}
+
 t0 = time.time()
 dead, no_line = [], []
 for field in sorted(fields):
@@ -112,7 +122,11 @@ for field in sorted(fields):
             probe = int(probe) or 1
     else:
         continue                      # dicts (Baeume) haben eigene Suiten
-    s = Settings(mod_name="S2Tweaker", **{field: probe})
+    extra = COUPLED.get(field, {})
+    s = Settings(mod_name="S2Tweaker", **{field: probe}, **extra)
+    if extra:
+        check(build_patches(gd, s) != build_patches(gd, Settings(**extra)),
+              f"dependent control {field} changes its enabled feature")
     if not build_patches(gd, s) and field not in ALONE_EMPTY:
         # zweite Sonde in die andere Richtung (Deckel!)
         if isinstance(default, (int, float)) and not isinstance(default, bool):

@@ -34,7 +34,7 @@ REPO = Path(__file__).resolve().parents[1]
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit("Aufruf: python tools/make_release_zips.py <version> "
-                         "[--exe <pfad>]")
+                         "[--dist <pfad>]")
     version = sys.argv[1]
     app = REPO / "dist" / "S2Tweaker"
     if "--dist" in sys.argv:
@@ -84,7 +84,8 @@ def main() -> None:
         ("_ssl", "_socket", "_hashlib", "libssl", "libcrypto", "sqlite3"))]
     assert not verboten, verboten
     reste = [n for n in names
-             if n.split("/")[0] in ("settings.json", "cache", "output", "presets")]
+             if n.split("/")[0] in ("settings.json", "editor.json", "pak_history",
+                                      "cache", "output", "presets", "S2Tweaker_error.log")]
     assert not reste, reste
     print(f"Gegenprobe: S2Tweaker.exe + ._pth + {len(internal)} Dateien in "
           "_internal/ + README, ohne Updater/Netzmodule/Nutzerdaten OK")
@@ -99,8 +100,9 @@ def main() -> None:
     with zipfile.ZipFile(src) as z:
         names = z.namelist()
     forbidden = [n for n in names
-                 if n.startswith(("vanilla/", "cache/", "dist/", "build/"))
-                 or "oo2core" in n or n.endswith("settings.json")
+                 if n.startswith(("vanilla/", "cache/", "dist/", "build/", "out/",
+                                  "fremd mods/", "presets/", "pak_history/"))
+                 or "oo2core" in n or n.endswith(("settings.json", "editor.json"))
                  or n.lower().endswith((".exe", ".dll", ".pyd"))]
     assert not forbidden, forbidden
     print("Gegenprobe: keine vanilla/cache/dist/oo2core/settings-Dateien OK")

@@ -48,6 +48,7 @@ NEEDED_FILES = [
     "MeleeWeaponPrototypes.cfg.bin",
     "WeatherSelectionPrototypes.cfg.bin",
     "StashPrototypes.cfg.bin",
+    "SpawnActorPrototypes.cfg.bin",  # world-stash attachment scan, streamed lazily
     "ItemGeneratorPrototypes.cfg.bin",
     "RelationPrototypes.cfg.bin",
     "QuestNodePrototypes.cfg.bin",
@@ -88,7 +89,7 @@ NEEDED_FILES = [
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 23   # 1.36.0: DialogPrototypes.cfg.bin kommt dazu
+CACHE_SCHEMA = 24   # optional world-stash additions need SpawnActorPrototypes
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).

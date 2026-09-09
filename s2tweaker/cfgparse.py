@@ -94,6 +94,10 @@ def parse(text: str, root_name: str = "<root>") -> CfgStruct:
     """cfg-Text in einen CfgStruct-Baum parsen."""
     # BOM und exotische Whitespaces tolerieren
     text = text.lstrip("﻿")
+    # The shipped AIGlobals has a numeric assignment and struct.end on one
+    # line (FleshMetal noise). Keep following materials at their actual level.
+    text = re.sub(r"(?m)^([^\r\n=]+=[ \t]*[-+\d.eEfF%;]+)[ \t]+struct\.end[ \t]*$",
+                  r"\1\nstruct.end", text)
     root = CfgStruct(root_name)
     stack: list[CfgStruct] = [root]
 

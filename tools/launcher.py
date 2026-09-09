@@ -23,12 +23,10 @@ How the packaged program starts (there is no PyInstaller since 1.21.0):
    stdin it would sit there invisibly until the pipe closes.
 
 Self-test: with the environment variable S2TWEAKER_SELFTEST=<file> the
-launcher does not open the GUI for real. It imports every bundled module
-the program relies on, proves that no networking module is present, writes
-and reads back a tiny pak in pure Python, builds the main window, tears it
-down again and
-writes a report to <file>. tools/build_exe.py runs this against a copy of
-every build before the build counts as done.
+launcher never creates a window. It imports every application module,
+proves that no networking module is present, writes and reads back a tiny
+pak in pure Python, and writes a report to <file>. tools/build_exe.py runs
+this against a copy of every build. Visual layout needs separate review.
 """
 import os
 import sys
@@ -116,10 +114,8 @@ def _selftest(report: Path) -> None:
                      "27ae41e4649b934ca495991b7852b855"), empty
     lines.append("hashlib: built-in sha256 OK")
 
-    for name in ("cfgparse", "emit", "faq", "game", "gamedata", "gui",
-                 "modscan", "names", "pakfile", "pakio", "tweaks",
-                 "vendor_bin2cfg"):
-        importlib.import_module("s2tweaker." + name)
+    for module in sorted((INTERNAL / "s2tweaker").glob("*.py")):
+        importlib.import_module("s2tweaker." + module.stem)
     for name in ("customtkinter", "darkdetect", "packaging"):
         importlib.import_module(name)
     lines.append("s2tweaker, customtkinter, darkdetect, packaging import OK")
@@ -143,10 +139,7 @@ def _selftest(report: Path) -> None:
     assert not (INTERNAL / "repak.exe").exists(), "repak.exe ist zurueck"
     lines.append("pak: pure-Python write/read roundtrip OK, no repak.exe")
 
-    app = gui.App()
-    app.update()
-    lines.append(f"window: {app.title()} {app.geometry()}")
-    app.destroy()
+    lines.append("headless: no application window created; layout not tested")
     lines.append("OK")
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

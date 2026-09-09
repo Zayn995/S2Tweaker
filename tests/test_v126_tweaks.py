@@ -156,7 +156,7 @@ blind = gen.children["BlinddogLootGenerator"].children["ItemGenerator"].children
 assert blind["Chance"] == "0.3", blind
 assert "ChimeraLootGenerator" not in gen.children          # schon 1.0
 gen = parsed(build_patches(gd, S(mutant_loot_chance_factor=10.0)), GEN)
-assert gen.children["BlinddogLootGenerator"].children["ItemGenerator"].children["[0]"].children["PossibleItems"].children["[0]"].values["Chance"] == "1.0"
+assert float(gen.children["BlinddogLootGenerator"].children["ItemGenerator"].children["[0]"].children["PossibleItems"].children["[0]"].values["Chance"]) == 1.0
 print("Trophaeen: Blinddog 0.15 -> 0.3, Deckel 1.0, Chimaere unangetastet  OK")
 
 # --- 11) Versteck-Hinweise -------------------------------------------------

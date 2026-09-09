@@ -27,6 +27,10 @@ Verfeinerungen halten die Trefferqualitaet hoch:
   - "Weight" zaehlt nur direkt unter dem Top-Struct: in ItemPrototypes ist
     das die Masse (kg), tiefer verschachtelt ist es ueberall die
     Auswahl-Lotterie (PackOfItemsGroup, Loot-Listen) — eine andere Mechanik.
+    Loot-list lottery weights receive a separate scan marker. Positional
+    loot patches also depend on the item identity at their array index;
+    rearranged foreign lists are therefore reported even if their sets
+    of item names and numeric values stayed the same.
 
 IoStore-Mods (.pak mit .ucas/.utoc daneben) werden ueber ihren .pak-Teil
 gescannt: UE5 legt nur gekochte Assets in .ucas/.utoc ab, lose Dateien wie
@@ -47,7 +51,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import cfgparse, pakio, vendor_bin2cfg
+from . import cfgparse, loot_conflicts, pakio, vendor_bin2cfg
 from .cfgparse import CfgStruct
 
 # DLC-Konfigs liegen in einem Schwester-Ordner; kein Regler patcht dort,
@@ -63,6 +67,48 @@ PACKED_NO_CFG_NOTE = ("no config overrides in its .pak part - its packed "
                       "assets (IoStore .ucas/.utoc) can't be inspected")
 
 _INDEX_KEY = re.compile(r"^\[\d+\]$")
+_EFFECT_LISTS = frozenset({"EffectPrototypeSIDs", "ShouldShowEffects"})
+EFFECT_LIST_LEAF = "@effect-list"
+
+
+class _VanillaIndex(dict):
+    """Keep the leaf index API plus position-sensitive loot identities."""
+
+    def __init__(self, game_data_dir=None):
+        super().__init__()
+        self.loot_layouts: dict[str, loot_conflicts.LootLayout] = {}
+        self.effect_lists: dict[str, dict[str, dict[str, str]]] = {}
+        self._spawn_source = (Path(game_data_dir) / "SpawnActorPrototypes.cfg"
+                              if game_data_dir is not None else None)
+        self._spawn_indexed = False
+
+    def index_stash_assignments(self):
+        """Read relevant container references only when a mod touches them.
+
+        SpawnActorPrototypes is much larger than the ordinary cfg trees.
+        Reuse the bounded streaming reader from the stash builder instead
+        of parsing the whole file or loading it for every ordinary scan.
+        """
+        if self._spawn_indexed:
+            return
+        self._spawn_indexed = True
+        if self._spawn_source is None or not self._spawn_source.is_file():
+            return
+        from .loot_extensions import _stream_spawn_containers
+        try:
+            for name, top in _stream_spawn_containers(self._spawn_source):
+                assignments = top.children.get("ItemGeneratorSettings")
+                if assignments is None:
+                    continue
+                for node in assignments.walk():
+                    value = node.values.get("PrototypeSID")
+                    if value is not None:
+                        self.setdefault((name.split("#", 1)[0], "PrototypeSID"),
+                                        set()).add(_norm_value(value))
+        except OSError:
+            # Missing/unreadable dev data remains conservatively unknown,
+            # like other unavailable trees in build_vanilla_index.
+            return
 
 # Diese gd-Attribute (alle cached_property) bilden den Vanilla-Index fuer
 # den Werte-Vergleich bei Vollkopien. Nur Dateien, die das Tool ohnehin
@@ -253,16 +299,77 @@ def _norm_value(raw: str) -> str:
         return v.lower()
 
 
+def _effect_lists(top: CfgStruct) -> dict[str, dict[str, str]]:
+    """Direct item effect lists; nested weight-threshold lists stay separate."""
+    out = {}
+    for key in _EFFECT_LISTS:
+        child = top.children.get(key)
+        if child is not None:
+            out[key] = {slot: _norm_value(value)
+                        for slot, value in child.values.items()}
+        elif key in top.values:
+            out[key] = {}              # explicit list clear
+    return out
+
+
+def _effect_list_pairs(root: CfgStruct, vanilla=None, *, footprint=False) -> set:
+    """Relate wildcard appends to foreign effect-list rewrites.
+
+    An independent native [*] append preserves existing entries. Numeric
+    replacements, full list replacements and clears can affect the same
+    item and receive a qualified marker, regardless of array key spelling.
+    """
+    pairs = set()
+    for top_key, top in root.children.items():
+        own = top_key.split("#", 1)[0]
+        attrs = top.attr_dict()
+        ref = attrs.get("refkey", "").strip()
+        names = {own}
+        if ref and not _INDEX_KEY.fullmatch(ref):
+            names.add(ref)
+        current = _effect_lists(top)
+        if footprint:
+            if current:
+                pairs.update((name, EFFECT_LIST_LEAF) for name in names)
+            continue
+        original = vanilla.get(own) if vanilla is not None else None
+        full_copy = original is not None and "bpatch" not in attrs
+        if original is None and vanilla is not None and ref in names:
+            original = vanilla.get(ref)
+        changed = bool(full_copy and original.keys() - current.keys())
+        for list_name, values in current.items():
+            child = top.children.get(list_name)
+            sparse = ("bpatch" in attrs and child is not None
+                      and "bpatch" in child.attr_dict())
+            if sparse and values and set(values) == {"[*]"}:
+                continue              # two independent appends coexist
+            old = original.get(list_name) if original is not None else None
+            if old is None:
+                changed = True
+            elif sparse:
+                changed |= any(old.get(slot) != value for slot, value in values.items())
+            else:
+                changed |= values != old
+        if changed:
+            pairs.update((name, EFFECT_LIST_LEAF) for name in names)
+    return pairs
+
+
 def build_vanilla_index(gd) -> dict[tuple[str, str], set[str]]:
     """(Top-Level-Struct, Blattname) -> {normalisierte Vanilla-Werte} ueber
     alle Spieldaten-Dateien, die das Tool kennt. Grundlage fuer den
     "hat die Vollkopie den Wert wirklich geaendert?"-Vergleich."""
-    index: dict[tuple[str, str], set[str]] = {}
+    index = _VanillaIndex(getattr(gd, "dir", None))
     for attr in _GD_TREES:
         try:
             tree = getattr(gd, attr)
         except Exception:
             continue                     # Datei fehlt im Dev-Dump: tolerieren
+        if attr == "itemgenerators":
+            index.loot_layouts = loot_conflicts.build_loot_index(tree)
+        elif attr == "items":
+            index.effect_lists = {name.split("#", 1)[0]: _effect_lists(top)
+                                  for name, top in tree.children.items()}
         for top_key, top in tree.children.items():
             top_name = top_key.split("#")[0]
             for node in top.walk():
@@ -285,6 +392,9 @@ def collect_pairs(root: CfgStruct,
     - "Weight" nur direkt unter dem Top-Struct (siehe Modul-Docstring)."""
     pairs: set[tuple[str, str]] = set()
     for top_key, top in root.children.items():
+        if (isinstance(vanilla_index, _VanillaIndex)
+                and "ItemGeneratorSettings" in top.children):
+            vanilla_index.index_stash_assignments()
         own = top_key.split("#")[0]
         names = {own}
         attrs = top.attr_dict()
@@ -293,8 +403,15 @@ def collect_pairs(root: CfgStruct,
             names.add(refkey)
         check_vanilla = (vanilla_index is not None
                          and "bpatch" not in attrs)
+        effect_nodes = {id(top.children[key]) for key in _EFFECT_LISTS
+                        if key in top.children}
         for node in top.walk():
             for key, value in node.values.items():
+                if (id(node) in effect_nodes
+                        and (key == "[*]" or _INDEX_KEY.fullmatch(key))):
+                    # Bare array indices lose the list identity and make
+                    # two independent [*] appends look like a conflict.
+                    continue
                 if key == "Weight" and node is not top:
                     continue
                 if check_vanilla:
@@ -311,6 +428,12 @@ def collect_pairs(root: CfgStruct,
                         continue         # Vollkopie wiederholt Vanilla
                 for name in names:
                     pairs.add((name, key))
+    # Original values can be the same set after an item moves to another
+    # array index. Compare those lists by position as well; lottery Weight
+    # gets its own marker and cannot collide with an item's mass in kg.
+    pairs |= loot_conflicts.changed_pairs(
+        root, getattr(vanilla_index, "loot_layouts", None))
+    pairs |= _effect_list_pairs(root, getattr(vanilla_index, "effect_lists", None))
     return pairs
 
 
@@ -413,5 +536,13 @@ def pairs_from_patches(patches: dict[str, str]) -> set[tuple[str, str]]:
     Type-Paare — nur der Fussabdruck verzichtet darauf."""
     pairs: set[tuple[str, str]] = set()
     for text in patches.values():
-        pairs |= collect_pairs(cfgparse.parse(text))
+        root = cfgparse.parse(text)
+        # Source-side structural markers describe a foreign replacement.
+        # A generated append using named sibling groups does not depend
+        # on existing array indices; its footprint gets only the explicit
+        # positional dependencies below.
+        pairs |= {(top, leaf) for top, leaf in collect_pairs(root)
+                  if leaf != loot_conflicts.LAYOUT_LEAF}
+        pairs |= loot_conflicts.layout_dependencies(root)
+        pairs |= _effect_list_pairs(root, footprint=True)
     return {(top, leaf) for top, leaf in pairs if leaf != "Type"}

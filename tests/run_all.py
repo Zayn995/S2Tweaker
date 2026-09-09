@@ -1,7 +1,7 @@
 """Testbatterie mit echten Exit-Codes.
 
-    python tests/run_all.py              # der Lauf: 33 Suiten, KEIN Fenster
-    python tests/run_all.py --only faq   # gezielt (auch Fenster-Suiten)
+    python tests/run_all.py              # alle Headless-Suiten, KEIN Fenster
+    python tests/run_all.py --only editor_state -j 2   # gezielte Headless-Auswahl
 
 Umgebaut am 08.09.2026 (Besitzer: "bau es richtig unter 5 minuten nur das
 was muss", "nicht 1000 mal oeffnen schliessen", "teste doch einfach per hand
@@ -20,12 +20,12 @@ Tk: steht jeder Regler in der Feldtabelle, wird er in `_collect()`
 eingesammelt (der tote Regler aus 1.16.0), bewirkt er etwas, steht er in der
 Tweak-Liste.
 
-Der Lauf ist parallel (-jN, Vorgabe 4) mit Zeitlimit je Suite. Wer per
-`--only` doch eine Fenster-Suite waehlt, bekommt automatisch EINEN Prozess.
+Der Lauf ist parallel (-jN oder -j N, Vorgabe 4) mit Zeitlimit je Suite.
+Auch `--only` ueberspringt Fenster-Suiten und meldet die ausgelassenen Namen.
 
 Braucht die Vanilla-Daten (vanilla/-Ordner im Repo, oder einmal die GUI
 laden lassen und den Cache-Inhalt dorthin kopieren). Jeder Test laeuft als
-eigener Prozess — ein Absturz in einem GUI-Test reisst so nicht den Rest
+eigener Prozess — ein Absturz in einer Suite reisst so nicht den Rest
 mit. Exit-Code 0 = alles gruen. Die Lehre hinter diesem Runner: Pipes wie
 "| tail" verschlucken Exit-Codes; hier wird jeder Code einzeln geprueft.
 """
@@ -39,7 +39,15 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_armor_extensions.py",
+    "test_editor_state.py",
+    "test_mod_library.py",
+    "test_workbench_headless.py",
     "test_wiring.py",
+    "test_loot_extensions.py",
+    "test_repair_extensions.py",
+    "test_world_extensions.py",
+    "test_loot_conflicts.py",
     "test_loot_paths.py",
     "test_modscan_filter.py",
     "test_gui_release.py",
@@ -175,8 +183,16 @@ picked = [n for n in ALL if n not in WINDOW]
 # eines davon reisst dann den Lauf mit. Wer sie doch braucht, ruft sie
 # einzeln auf - dann laufen sie garantiert seriell (siehe unten).
 if "--only" in args:
-    pats = [a for a in args[args.index("--only") + 1:] if not a.startswith("-")]
-    picked = [n for n in ALL if any(p.lower() in n.lower() for p in pats)]
+    pats = []
+    for argument in args[args.index("--only") + 1:]:
+        if argument.startswith("-"):
+            break
+        pats.append(argument)
+    matches = [n for n in ALL if any(p.lower() in n.lower() for p in pats)]
+    picked = [n for n in matches if n not in WINDOW]
+    skipped = [n for n in matches if n in WINDOW]
+    if skipped:
+        print("Fenster-/Release-Suiten ausgeschlossen:", ", ".join(skipped))
     if not picked:
         print("Kein Treffer fuer:", " ".join(pats))
         sys.exit(2)
@@ -204,11 +220,12 @@ def _jobs():
     if any(opens_window(n) for n in picked):
         print("Fenster-Suite dabei -> seriell (Fenster stoeren sich sonst)")
         return 1
-    for a in args:
+    for index, a in enumerate(args):
         if a.startswith("-j"):
             try:
-                return max(1, int(a[2:]))
-            except ValueError:
+                value = args[index + 1] if a == "-j" else a[2:]
+                return max(1, int(value))
+            except (ValueError, IndexError):
                 pass
     return min(4, (os.cpu_count() or 2))
 

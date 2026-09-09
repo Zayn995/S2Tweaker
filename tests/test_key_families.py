@@ -41,7 +41,8 @@ from s2tweaker import gamedata as gd_mod
 
 # --- 1) Was kennt unser Code? -------------------------------------------
 SOURCE = "\n".join((ROOT / "s2tweaker" / f).read_text(encoding="utf-8")
-                   for f in ("tweaks.py", "gamedata.py"))
+                   for f in ("tweaks.py", "gamedata.py", "loot_extensions.py",
+                             "repair_extensions.py", "world_extensions.py"))
 KNOWN_KEYS = (set(re.findall(r'"(b?[A-Z][A-Za-z0-9_]{3,})"', SOURCE))
               | set(re.findall(r"'(b?[A-Z][A-Za-z0-9_]{3,})'", SOURCE)))
 
@@ -78,7 +79,8 @@ def suspicious() -> dict[str, dict]:
     # (NextDialogSID, Terminate, AnswerTo, MainReply ...), keine
     # Stellschrauben - als Nachbarn waeren sie nur Rauschen, und die Datei
     # wuerde den Lauf um ein Drittel verlaengern.
-    wanted -= {"dialogprototypes.cfg"}
+    # SpawnActor is streamed only to attach loot helpers, not a general tweak tree.
+    wanted -= {"dialogprototypes.cfg", "spawnactorprototypes.cfg"}
     found: dict[str, dict] = defaultdict(
         lambda: {"structs": 0, "known": set(), "example": None})
     for path in sorted(VANILLA.rglob("*.cfg")):
@@ -125,14 +127,13 @@ CANDIDATES = {
     "OffsetAimDispersionMod", "SpawnChanceBonus",
     "ThreatLevelValueMax", "MaxDistanceToAlly",
     "TwinAuxReloadTimeMultiplier", "TwinTacticalAuxReloadTimeMultiplier",
-    "AmmoMinCount", "AmmoMaxCount",
-    "FireDistanceRecoilMin", "FireDistanceRecoilMax", "FireDistanceDispersion",
+    "FireDistanceRecoilMin", "FireDistanceRecoilMax",
     "PerBulletReloadingAmmoCount", "LastClipBulletsCount", "LastTotalBulletsCount",
     "DamageAccumulationMinValue", "DamageAccumulationMaxValue",
     "MinDeadThreatForgetTime", "MaxDeadThreatForgetTime",
     "HoldBreathCooldown", "HoldBreathMaxStamina", "HoldBreathStaminaThreshold",
     "ClimbFastAscendingSpeedScale", "ClimbMediumAscendingSpeedScale",
-    "MutantLootInteractHeightMin", "VoidRadiusMin", "VoidRadiusMax",
+    "VoidRadiusMin", "VoidRadiusMax",
     "EMIRadius", "EMIDuration", "DamageRadius", "EpicenterRadius",
     "DefaultALifeLairExpansionToPlayerTimeMax", "ALifeLairExpansionRadius",
     "ALifeStartSimulation", "CorpseRadius", "FactionPriority",
@@ -182,6 +183,9 @@ CANDIDATES = {
 #   (c) Zeiten und Radien reiner Technik (Traces, Decals, Ticks, Audio),
 #   (d) Enum/Struktur statt Zahl.
 IGNORED = {
+    "Delay",  # post-process startup timing, not repair strength
+    "DropOnPickup",  # item interaction behavior, not loot availability
+    "FootStepsDecalsPoolSize",  # footstep tracks are separate from projectile/blood marks
     # 08.09.2026 gemessen: Durst ist ein toter Zaehler. RegenThirstPoints
     # steht bei Spieler UND Basis auf 0.0, und das Wort "Thirst" kommt im
     # ganzen Spiel NUR in ObjPrototypes vor - kein Effekt, kein Getraenk,

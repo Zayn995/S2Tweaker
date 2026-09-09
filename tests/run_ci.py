@@ -4,13 +4,11 @@
 
 `tests/run_all.py` braucht den `vanilla/`-Ordner (extrahierte GameData).
 Der darf NIE ins Repo (GSC-Copyright, siehe CLAUDE.md), also kann die CI
-die volle Batterie nicht fahren. Diese drei Suiten kommen ohne aus und
-decken trotzdem das ab, was auf einem fremden Rechner schiefgehen kann:
-dass die GUI ueberhaupt startet, dass jeder Regler in _collect() ankommt
-dass kein Netzwerkcode zurueckkehrt und dass der Pak-Code (seit 1.23.0
-reines Python statt repak.exe) packt und liest.
+die volle Batterie nicht fahren. Diese Suiten pruefen ohne Fenster die
+Feldverdrahtung, das Netzwerkverbot, Pak-Roundtrips sowie Editor-Profile,
+Undo/Redo und Sicherung/Wiederherstellung eigener Paks.
 
-Die vollstaendige Batterie (32 Suiten) laeuft weiterhin lokal vor jedem
+Die vollstaendige Batterie laeuft weiterhin lokal vor jedem
 Release — die release-version-Skill besteht darauf.
 """
 import os
@@ -20,15 +18,19 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
-    "test_gui_collect.py",
+    "test_wiring.py",
     "test_no_network.py",
     "test_pakfile.py",      # Pak-Roundtrip in reinem Python; der Spieldaten-Teil ueberspringt sich selbst
+    "test_editor_state.py",
+    "test_mod_library.py",
+    "test_workbench_headless.py",
 ]
 
 env = dict(os.environ, PYTHONIOENCODING="utf-8")
 failed = []
 for name in ORDER:
-    r = subprocess.run([sys.executable, str(HERE / name)], env=env,
+    args = ["--static-only"] if name == "test_wiring.py" else []
+    r = subprocess.run([sys.executable, str(HERE / name), *args], env=env,
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace")
     print(("OK  " if r.returncode == 0 else "FAIL") + "  " + name, flush=True)
@@ -41,5 +43,4 @@ print()
 if failed:
     print("ROT:", ", ".join(failed))
     sys.exit(1)
-print(f"ALLE {len(ORDER)} CI-SUITEN GRUEN "
-      "(die uebrigen 30 brauchen Spieldaten und laufen lokal)")
+print(f"ALLE {len(ORDER)} CI-SUITEN GRUEN (ohne Fenster; volle Batterie lokal)")

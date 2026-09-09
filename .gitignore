@@ -4,6 +4,9 @@ cache/
 
 # Per-user data
 settings.json
+editor.json
+pak_history/
+presets/
 output/
 out/
 release/NEXUS_SUPPORT_EMAIL.txt

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 import re
 
+from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import CATEGORY_TEMPLATES, GameData
@@ -836,6 +837,9 @@ class Settings:
     weapon_calibers: dict = field(default_factory=dict)
     # Einzelruestungs-Overrides: {Item-SID: {strike/burn/...: faktor}}
     armor_overrides: dict = field(default_factory=dict)
+    armor_custom: dict = field(default_factory=dict)  # explicit per-piece fields, absent = inherit
+    armor_free_sprint: bool = False
+    armor_limp_protection: bool = False
     # Einzel-Zielfernrohr-Overrides (1.27.0): {Item-SID: {zoom/penalty: faktor}};
     # ein Eintrag ERSETZT die globalen Scope-Regler fuer dieses Fernrohr.
     scope_overrides: dict = field(default_factory=dict)
@@ -950,6 +954,37 @@ class Settings:
     encounter_dead_factor: float = 1.0         # dito DeadMultiplier (36 Eintraege > 0)
     no_mouse_smoothing: bool = False           # Stalker2/Config/UserInput.ini
     no_view_acceleration: bool = False         # dito - KEINE GameData-Datei
+
+    # Optional loot/world extensions: neutral settings emit nothing.
+    stash_extra_chance_pct: float = 10.0
+    npc_armor_drop_chance_pct: float = 0.0
+    npc_armor_drop_min_pct: float = 20.0
+    npc_armor_drop_max_pct: float = 80.0
+    npc_loaded_ammo_factor: float = 1.0
+    npc_helmet_chance_factor: float = 1.0
+    vegetation_translucency_factor: float = 1.0
+    npc_dispersion_distance_factor: float = 1.0
+    mutant_loot_range_factor: float = 1.0
+    mutant_loot_height_factor: float = 1.0
+    mutant_cut_radius_factor: float = 1.0
+    mutant_trophy_weight_factor: float = 1.0
+    mutant_trophy_value_factor: float = 1.0
+    decal_lifetime_factor: float = 1.0
+    decal_count_factor: float = 1.0
+    field_repair_body_pct: float = 0.0
+    field_repair_head_pct: float = 0.0
+    field_repair_weapons_pct: float = 0.0
+    bolt_lifetime_factor: float = 1.0
+    stash_extra_artifacts: bool = False
+    stash_extra_weapons: bool = False
+    stash_extra_armor: bool = False
+    stash_extra_attachments: bool = False
+    npc_equipment_variety: bool = False
+    mutant_loot_ground_access: bool = False
+    weird_flower_permanent: bool = False
+    surface_noise_overrides: dict[str, float] = field(default_factory=dict)
+    weather_luminance_overrides: dict[str, float] = field(default_factory=dict)
+    mutant_loot_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
 
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
@@ -5218,6 +5253,7 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                             cfg["Weight"] = _num(new)
                 if cfg:
                     dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
+    armor_extensions.apply(gd, s, patches, dlc_patches)
     return patches, dlc_patches
 
 
@@ -6816,7 +6852,45 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     n = s.mod_name
     out: dict[str, str] = {}
 
+    extensions: dict[str, dict] = {}
+    for module in (world_extensions, loot_extensions, repair_extensions):
+        for source, patch in module.build(gd, s).items():
+            stem = source.removesuffix(".cfg")
+            if source in ("AIGlobals.cfg", "CoreVariables.cfg"):
+                target = f"{source}_patch_{n}.cfg"
+            else:
+                target = f"{stem}/{stem.rsplit('/', 1)[-1]}_patch_{n}.cfg"
+            _merge_nested(extensions.setdefault(target, {}), patch)
+
     def add(path: str, patches: dict):
+        _merge_nested(patches, extensions.pop(path, {}))
+        # A combined factor of one must leave other mods' values alone.
+        # Remove the earlier global patch instead of writing vanilla back.
+        def drop(parts):
+            parents = []
+            node = patches
+            for part in parts[:-1]:
+                if not isinstance(node.get(part), dict):
+                    return
+                parents.append((node, part))
+                node = node[part]
+            node.pop(parts[-1], None)
+            for parent, part in reversed(parents):
+                if not parent[part]:
+                    del parent[part]
+
+        if path == f"CoreVariables.cfg_patch_{n}.cfg":
+            for key, factor in (("MutantLootContainerInteractRange", s.mutant_loot_range_factor),
+                                ("MutantLootInteractHeightMax", s.mutant_loot_height_factor)):
+                if factor != 1 and not _neq(factor * s.interaction_range_factor, 1):
+                    drop(("DefaultConfig", key))
+        if (path == f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg"
+                and s.mutant_loot_overrides and s.loot_amount_factor != 1):
+            for species, key, slot, row, _item in loot_extensions._trophy_entries(gd):
+                factor = s.mutant_loot_overrides.get(species, {}).get("amount_factor", 1)
+                if factor != 1 and not _neq(factor * s.loot_amount_factor, 1):
+                    for leaf in ("MinCount", "MaxCount"):
+                        drop((key, "ItemGenerator", slot, "PossibleItems", row, leaf))
         if patches:
             out[path] = emit_patch(patches)
 
@@ -6890,6 +6964,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ObjEffectMaxParamsPrototypes/ObjEffectMaxParamsPrototypes_patch_{n}.cfg",
         _effect_max_patch(gd, s))
     effect_patches = _effects_patch(gd, s)
+    effect_patches.update(armor_extensions.lead_composites(gd, s))
     _merge_nested(effect_patches, _upgrade_strength_patch(gd, s))
     _merge_nested(effect_patches, _scope_patch(gd, s))
     scope_effects, scope_items = _scope_override_patch(gd, s)
@@ -6929,7 +7004,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(gen_patches, _loot_condition_patch(gd, s))
     _merge_nested(gen_patches, _gear_quality_patch(gd, s))
     _merge_nested(gen_patches, _trader_stock_patch(gd, s))
-    _merge_nested(gen_patches, _mutant_loot_patch(gd, s))
+    # loot_extensions composes global and species trophy settings.
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
@@ -7022,12 +7097,35 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"ALifePrototypes/ALifeDirectorScenarioPrototypes/"
         f"ALifeDirectorScenarioPrototypes_patch_{n}.cfg", _director_patch(gd, s))
 
+    for path in list(extensions):
+        add(path, {})
+
     return out
 
 
 def summarize(s: Settings) -> list[str]:
     """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
     lines = []
+    defaults = Settings()
+    for field_name, (_, title, _lo, _hi, _step, _default, divisor, _tip) in extension_controls.SLIDERS.items():
+        value = getattr(s, field_name)
+        if value != getattr(defaults, field_name):
+            if field_name == "stash_extra_chance_pct" and not any((s.stash_extra_artifacts, s.stash_extra_weapons, s.stash_extra_armor, s.stash_extra_attachments)):
+                continue
+            if field_name in ("npc_armor_drop_min_pct", "npc_armor_drop_max_pct") and s.npc_armor_drop_chance_pct <= 0:
+                continue
+            lines.append(f"{title}: {value * divisor:g}%")
+    for field_name, (_, title, _tip) in extension_controls.CHECKS.items():
+        if getattr(s, field_name):
+            lines.append(title)
+    for field_name, title in (("surface_noise_overrides", "Surface noise"), ("weather_luminance_overrides", "Weather luminance")):
+        for key, value in sorted(getattr(s, field_name).items()):
+            if value != 1:
+                lines.append(f"{title} / {extension_controls.label(key)}: {value * 100:g}%")
+    for species, params in sorted(s.mutant_loot_overrides.items()):
+        for key, value in sorted(params.items()):
+            if value != 1:
+                lines.append(f"{species} trophy {key.removesuffix('_factor')}: {value * 100:g}%")
 
     def f(name, factor, vanilla=1.0):
         if _neq(factor, vanilla):
@@ -7127,6 +7225,11 @@ def summarize(s: Settings) -> list[str]:
                 lines.append(
                     f"Armor {armor_label(sid)}: "
                     f"{ARMOR_PARAM_LABELS.get(param, param).lower()} × {factor:g}")
+    lines.extend(armor_extensions.summaries(s.armor_custom, armor_label))
+    if s.armor_free_sprint:
+        lines.append("Remove armor sprint restrictions (experimental)")
+    if s.armor_limp_protection:
+        lines.append("Body armor prevents limping (experimental)")
     f("Armor protection: physical (strike)", s.armor_strike_factor)
     f("Armor protection: burn", s.armor_burn_factor)
     f("Armor protection: shock", s.armor_shock_factor)

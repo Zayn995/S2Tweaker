@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.36.1
-File version:  1.36.1
+Name:          S2Tweaker 1.37.0
+File version:  1.37.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,17 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.37.0 - editor workspace, armor, loot and world
+
+- Editable Overview/Favorites, undo/redo, named profiles and comparisons,
+  own-Pak history/restore, output preview and display options.
+- Up to 18 additional per-piece armor controls plus two global switches.
+- 18 optional loot/world additions, with selective config patches and
+  namespaced generators/effects. First load refreshes the cache once.
+- New gameplay effects and visual layout are unverified. Experimental
+  controls are labelled. Animation desynchronization remains unresolved.
+- Existing presets remain readable. No native in-game menu.
+
 1.36.1 - the relation version counter is left alone
 
 - The Factions patch no longer raises the game's relation version

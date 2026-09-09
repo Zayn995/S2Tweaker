@@ -40,6 +40,23 @@ from collections import Counter as _C
 print("Spieler-Waffen:", len(weapons), dict(_C(c for c, _ in weapons.values())))
 
 s = Settings(
+    armor_free_sprint=True, armor_limp_protection=True,
+    armor_custom={"Exoskeleton_Neutral_Armor": {
+        "weight": 6, "durability": 1800, "artifact_slots": 5,
+        "lead_slots": 3, "allow_helmet": 1, "fall": 50}},
+    stash_extra_artifacts=True, stash_extra_weapons=True, stash_extra_armor=True,
+    stash_extra_attachments=True, stash_extra_chance_pct=20,
+    npc_armor_drop_chance_pct=25, npc_armor_drop_min_pct=30, npc_armor_drop_max_pct=75,
+    npc_loaded_ammo_factor=2, npc_equipment_variety=True, npc_helmet_chance_factor=.5,
+    vegetation_translucency_factor=.5, surface_noise_overrides={"Grass": .5},
+    weather_luminance_overrides={"Fogy": .5}, npc_dispersion_distance_factor=.5,
+    mutant_loot_range_factor=1.5, mutant_loot_height_factor=1.5,
+    mutant_loot_ground_access=True, mutant_cut_radius_factor=1.5,
+    mutant_trophy_weight_factor=.5, mutant_trophy_value_factor=2,
+    mutant_loot_overrides={"Boar": {"chance_factor": .5, "amount_factor": 2}},
+    decal_lifetime_factor=2, decal_count_factor=2, weird_flower_permanent=True,
+    field_repair_body_pct=10, field_repair_head_pct=10, field_repair_weapons_pct=10,
+    bolt_lifetime_factor=5,
     max_hp=200, hp_regen=2, max_stamina=300, stamina_regen=10,
     fall_damage_pct=25, walk_speed_factor=1.1, run_speed_factor=0.8,
     jump_height_factor=1.3,

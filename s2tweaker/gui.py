@@ -21,6 +21,9 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
+from . import extension_controls
+from .workbench_ui import WorkbenchMixin
+from . import editor_state, mod_library, armor_extensions
 from .tweaks import (
     ALL_CATEGORIES,
     input_ini,
@@ -435,6 +438,7 @@ class SliderRow:
         self.default = default
         self.fmt = fmt
         self.on_change = on_change
+        self.hint = None
         self._value = float(default)
         # Wertebereich in WERT-Einheiten (auch im Log-Modus); get()/set()
         # sprechen immer Werte, nur die Schiene rechnet intern in log10.
@@ -456,8 +460,8 @@ class SliderRow:
         # wraplength: ohne das schnitt der laengste Reglername ("Handling
         # upgrades (aim time, ADS move, sway, draw, recovery, capacity)")
         # bei 260 px einfach ab. Jetzt bricht er in eine zweite Zeile um.
-        self.label = ctk.CTkLabel(row, text=label, width=260, anchor="w",
-                                  justify="left", wraplength=255)
+        self.label = ctk.CTkLabel(row, text=label, width=220, anchor="w",
+                                  justify="left", wraplength=215)
         self.label.pack(side="left")
         if self.log:
             # Logarithmische Schiene (GitHub #4 "Higher health value"): feine
@@ -509,6 +513,7 @@ class SliderRow:
                                 justify="left", wraplength=780,
                                 font=ctk.CTkFont(size=12), text_color=MUTED)
             hint.pack(fill="x", padx=12)
+            self.hint = hint
 
     def _on_rail(self, _=None):
         """Die Schiene wurde gezogen — ihr Rastwert ist jetzt der Wert."""
@@ -1030,6 +1035,7 @@ CHECK_FIELDS: dict[str, str] = {
     "sleep_emission": "sleep_in_emission",
     # 1.26.0
     "no_knockdown": "no_knockdown", "no_water_slow": "no_water_slowdown",
+    "armor_sprint": "armor_free_sprint", "armor_limp": "armor_limp_protection",
     "look_down": "look_straight_down",
     "mut_anomalies": "mutants_trigger_anomalies", "guards_normal": "guards_no_instakill",
     "psy_phantoms": "psy_phantoms_only", "npc_no_loot": "npcs_no_corpse_loot",
@@ -1055,6 +1061,9 @@ CHECK_FIELDS: dict[str, str] = {
     "stat_bars": "stat_bars_follow",
     "chamber_round": "chamber_round",
 }
+
+SLIDER_FIELDS.update({key: key for key in extension_controls.SLIDERS})
+CHECK_FIELDS.update({key: key for key in extension_controls.CHECKS})
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
 FOOTPRINT_PROBES: dict[str, float] = {
@@ -1123,6 +1132,17 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
 }
 
 
+# Only build the large loot footprints when the scan contains relevant data.
+for _key in ("npc_armor_drop_chance_pct", "npc_armor_drop_min_pct", "npc_armor_drop_max_pct",
+             "npc_loaded_ammo_factor", "npc_helmet_chance_factor", "check:npc_equipment_variety"):
+    EXPENSIVE_FOOTPRINTS[_key] = ("ItemGeneratorPrototypes", frozenset({
+        "Chance", "Weight", "@loot-weight", "@loot-layout", "AmmoMinCount",
+        "AmmoMaxCount", "MinDurability", "MaxDurability", "ItemPrototypeSID"}))
+for _key in ("stash_extra_chance_pct", "check:stash_extra_artifacts", "check:stash_extra_weapons",
+             "check:stash_extra_armor", "check:stash_extra_attachments"):
+    EXPENSIVE_FOOTPRINTS[_key] = ("SpawnActorPrototypes", frozenset({"PrototypeSID", "@loot-layout"}))
+
+
 def footprint_settings(key: str) -> list[Settings] | None:
     """Settings-Sonden mit GENAU EINEM verstellten Regler (Fussabdruck).
 
@@ -1135,6 +1155,9 @@ def footprint_settings(key: str) -> list[Settings] | None:
     None = Schluessel bewusst nicht markierbar: die wcat_-Kategorie- und die
     Baum-Regler (Waffen/Munition/Mutanten) laufen ueber die globalen Regler
     mit — deren Fussabdruck deckt dieselben Dateien ab."""
+    dict_kwargs = extension_controls.dict_probe(key)
+    if dict_kwargs is not None:
+        return [Settings(**dict_kwargs)]
     if key.startswith("check:"):
         field_name = CHECK_FIELDS.get(key[len("check:"):])
         if field_name is None:
@@ -1165,12 +1188,6 @@ def footprint_settings(key: str) -> list[Settings] | None:
     field_name = SLIDER_FIELDS.get(key)
     if field_name is None:
         return None
-    # npc_gear patcht AUSSCHLIESSLICH Weight-Blaetter — und genau die
-    # schliesst der Scan-Vergleich bewusst aus (Kollisions-Haertung,
-    # ROADMAP Mod-Scan). Ein Fussabdruck waere immer leer; der Regler ist
-    # damit wie die Baum-Regler nicht markierbar.
-    if field_name == "npc_gear_quality_factor":
-        return None
     default = getattr(Settings(), field_name)
     if field_name in FOOTPRINT_PROBES:
         probes = [FOOTPRINT_PROBES[field_name]]
@@ -1182,6 +1199,10 @@ def footprint_settings(key: str) -> list[Settings] | None:
     if field_name == "item_weight_factor":
         # Der Gewichts-Builder patcht nur die angehakten Kategorien
         extra["item_weight_categories"] = set(ALL_CATEGORIES)
+    if field_name == "stash_extra_chance_pct":
+        extra["stash_extra_artifacts"] = True
+    if field_name in ("npc_armor_drop_min_pct", "npc_armor_drop_max_pct"):
+        extra["npc_armor_drop_chance_pct"] = 25.0
     return [Settings(**{field_name: p}, **extra) for p in probes]
 
 
@@ -1280,6 +1301,7 @@ class IwWeaponRow:
                 self.sliders[param] = SliderRow(
                     self.body, WEAPON_PARAM_LABELS[param], lo, hi, 0.1, 1,
                     fmt_factor, on_change=self._changed)
+                self.app._wb_register(("weapon_overrides", self.sid, param), self.sliders[param])
         finally:
             self.app._iw_loading = prev
             try:
@@ -1704,6 +1726,7 @@ class IaAmmoRow:
                 self.sliders[param] = SliderRow(
                     self.body, AMMO_PARAM_LABELS[param], 0.1, 5, 0.1, 1,
                     fmt_factor, on_change=self._changed)
+                self.app._wb_register(("ammo_overrides", self.sid, param), self.sliders[param])
         finally:
             self.app._ia_loading = prev
             try:
@@ -1908,6 +1931,34 @@ class IaCaliberBlock:
             row.set_state(state)
 
 
+class ArmorValueRow(SliderRow):
+    """Absolute value with -1 as an explicit 'inherit other controls' sentinel."""
+    def __init__(self, parent, key, spec, **kwargs):
+        self.armor_key = key
+        super().__init__(parent, spec.label, -1, spec.maximum, spec.step, -1,
+                         lambda v: armor_extensions.format_value(key, v), **kwargs)
+
+    def _changed(self, _=None):
+        if -1 < self._value < 0:
+            self._value = -1
+        if self.armor_key in armor_extensions.POSITIVE and 0 <= self._value < 1:
+            self._value = 1
+        super()._changed()
+        if self.get() == -1:
+            self.value_label.configure(text="Inherit")
+
+    def _entry_apply(self, event=None):
+        raw = self.entry.get().strip().lower()
+        aliases = {"inherit": -1, "default": -1}
+        if self.armor_key in armor_extensions.TOGGLES:
+            aliases.update({"on": 1, "off": 0})
+        if raw in aliases:
+            self._typing = False
+            self.set(aliases[raw])
+        else:
+            super()._entry_apply(event)
+
+
 class IrArmorRow:
     """Aufklappbare Zeile EINER Ruestung im Armor-Baum.
 
@@ -1925,6 +1976,7 @@ class IrArmorRow:
                        if p in app._ir_prot.get(sid, {})]
         self.body = None
         self.sliders: dict[str, SliderRow] = {}
+        self.custom_sliders: dict[str, SliderRow] = {}
         self.reset_btn = None
         self.expanded = False
         self._highlight = "normal"
@@ -1982,12 +2034,31 @@ class IrArmorRow:
                 self.sliders[param] = SliderRow(
                     self.body, ARMOR_PARAM_LABELS[param], 0.1, 5, 0.1, 1,
                     fmt_factor, on_change=self._changed)
+                self.app._wb_register(("armor_overrides", self.sid, param), self.sliders[param])
         finally:
             self.app._ir_loading = prev
             try:
                 self.app.configure(cursor="")
             except Exception:
                 pass
+        ctk.CTkLabel(self.body, text="Additional per-armor settings", anchor="w",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(self.body, text="Inherit (-1) uses the other controls. Explicit values take priority. "
+                    "Protection values are absolute, not percentages of the original. "
+                    "Experimental options have no recorded play-test.",
+                    wraplength=650, justify="left", anchor="w").pack(fill="x", padx=12, pady=4)
+        prev = self.app._ir_loading
+        self.app._ir_loading = True
+        try:
+            specs = self.app._ir_custom_controls.get(self.sid, {})
+            for key, spec in specs.items():
+                row = ArmorValueRow(self.body, key, spec, on_change=self._custom_changed)
+                self.custom_sliders[key] = row
+                help_text = ("Experimental. " if spec.experimental else "") + spec.help
+                help_text += " Inherit (-1) restores the existing global/factor controls; explicit values replace the item field."
+                self.app._wb_register(("armor_custom", self.sid, key), row, "Armor", help_text)
+        finally:
+            self.app._ir_loading = prev
         self.reset_btn = ctk.CTkButton(
             self.body, text="\u21ba  Reset this armor", width=170,
             fg_color="transparent", border_width=1, command=self.reset)
@@ -2020,7 +2091,26 @@ class IrArmorRow:
                     row.set(stored.get(param, 1.0))
             finally:
                 self.app._ir_loading = prev
+        prev = self.app._ir_loading
+        self.app._ir_loading = True
+        try:
+            stored = self.app.armor_custom.get(self.sid, {})
+            for key, row in self.custom_sliders.items():
+                row.set(stored.get(key, -1))
+        finally:
+            self.app._ir_loading = prev
         self.refresh()
+
+    def _custom_changed(self):
+        if self.app._ir_loading:
+            return
+        values = armor_extensions.clean({key: row.get() for key, row in self.custom_sliders.items()})
+        if values:
+            self.app.armor_custom[self.sid] = values
+        else:
+            self.app.armor_custom.pop(self.sid, None)
+        self.refresh()
+        self.app._ir_after_change(self.group)
 
     def _changed(self):
         if self.app._ir_loading or not self.sliders:
@@ -2037,14 +2127,15 @@ class IrArmorRow:
 
     def reset(self):
         self.app.armor_overrides.pop(self.sid, None)
+        self.app.armor_custom.pop(self.sid, None)
         self.load_values()
         self.app._ir_after_change(self.group)
 
     # -------------------------------------------------------- Darstellung
     def refresh(self):
-        n = len(self.app.armor_overrides.get(self.sid, {}))
+        n = len(self.app.armor_overrides.get(self.sid, {})) + len(self.app.armor_custom.get(self.sid, {}))
         arrow = "\u25be" if self.expanded else "\u25b8"
-        mark = (f"     \u25cf  {n} of {len(self.params)} factors changed"
+        mark = (f"     \u25cf  {n} settings changed"
                 if n else "")
         self.btn.configure(text=f"{arrow}  {self.label}{mark}")
         self._apply_color(n)
@@ -2061,7 +2152,7 @@ class IrArmorRow:
 
     def set_highlight(self, mode: str):
         self._highlight = mode
-        self._apply_color(len(self.app.armor_overrides.get(self.sid, {})))
+        self._apply_color(len(self.app.armor_overrides.get(self.sid, {})) + len(self.app.armor_custom.get(self.sid, {})))
 
     def set_state(self, state: str):
         if state == self._state:
@@ -2070,7 +2161,7 @@ class IrArmorRow:
         self.btn.configure(state=state)
         if self.reset_btn is not None:
             self.reset_btn.configure(state=state)
-        for row in self.sliders.values():
+        for row in list(self.sliders.values()) + list(self.custom_sliders.values()):
             row.set_state(state)
 
 
@@ -2150,7 +2241,7 @@ class IrGroupBlock:
         self.collapse() if self.expanded else self.expand()
 
     def refresh(self):
-        n_over = sum(1 for sid in self.sids if sid in self.app.armor_overrides)
+        n_over = sum(1 for sid in self.sids if sid in self.app.armor_overrides or sid in self.app.armor_custom)
         arrow = "\u25be" if self.expanded else "\u25b8"
         extra = (f"     \u25cf  {n_over} of {len(self.sids)} overridden"
                  if n_over else "")
@@ -2240,6 +2331,7 @@ class IfFactionBlock:
                 row.set_highlight(self._row_mode(key))
                 self.rows[key] = row
                 self.app._if_rows[key] = row
+                self.app._wb_register(("faction_relations", key), row)
         finally:
             self.app._if_loading = prev
             try:
@@ -2383,6 +2475,7 @@ class ImSpeciesRow:
                 self.sliders[param] = SliderRow(
                     self.body, MUT_PARAM_LABELS[param], lo, hi, 0.1, 1,
                     fmt_factor, on_change=self._changed)
+                self.app._wb_register(("mutant_overrides", self.species, param), self.sliders[param])
         finally:
             self.app._im_loading = prev
             try:
@@ -2607,27 +2700,16 @@ THEME_MARKS = {
 
 
 class TabBar(ctk.CTkFrame):
-    """Tab-Leiste in MEHREREN Reihen (Besitzer 06.09.: "zusaetzlich eine
-    2. Reihe fuer die Menues ... und dann die Namen wieder voll
-    ausschreiben").
-
-    CTkTabview quetscht alle Tabs in EINE Reihe: bei 14 Tabs und dem
-    880-px-Minimum bleiben rund 60 px je Knopf, und Beschriftungen wie
-    "Weight & items" werden abgeschnitten. Diese Leiste verteilt dieselben
-    Knoepfe auf zwei Reihen und gibt jeder Spalte mindestens die Breite des
-    laengsten Namens — damit steht ueberall der volle Name.
-
-    Die Schnittstelle bleibt die von CTkTabview, soweit das Werkzeug sie
-    nutzt: add(name) liefert den Inhalts-Frame, dazu set/get und die
-    Attribute _tab_dict / _name_list."""
+    """Scrollable left navigation retaining the original tab API."""
 
     def __init__(self, master, rows: int = 2, **kw):
         super().__init__(master, fg_color="transparent", **kw)
         self._rows = max(1, int(rows))
-        self._bar = ctk.CTkFrame(self, fg_color="transparent")
-        self._bar.pack(fill="x")
+        self._bar = ctk.CTkScrollableFrame(self, width=176, fg_color="transparent")
+        self._bar.pack(side="left", fill="y", padx=(0, 6))
+        self._counts = {}
         self._holder = ctk.CTkFrame(self, fg_color="transparent")
-        self._holder.pack(fill="both", expand=True)
+        self._holder.pack(side="left", fill="both", expand=True)
         self._tab_dict: dict[str, ctk.CTkFrame] = {}
         self._buttons: dict[str, ctk.CTkButton] = {}
         self._labels: dict[str, str] = {}      # Name -> Aufschrift mit Symbol
@@ -2648,7 +2730,7 @@ class TabBar(ctk.CTkFrame):
         icon = TAB_ICONS.get(name, "")
         label = (icon + "  " + name) if icon else name
         self._labels[name] = label
-        btn = ctk.CTkButton(self._bar, text=label, height=28, width=1,
+        btn = ctk.CTkButton(self._bar, text=label, height=30, width=170, anchor="w",
                             font=self._font, corner_radius=6,
                             fg_color=self._unsel, hover_color=self._unsel_hover,
                             command=lambda n=name: self.set(n))
@@ -2661,28 +2743,18 @@ class TabBar(ctk.CTkFrame):
         return frame
 
     def _relayout(self) -> None:
-        """Knoepfe gleichmaessig auf die Reihen verteilen und jeder Spalte
-        die Breite des laengsten Namens sichern."""
-        per_row = -(-len(self._name_list) // self._rows)   # aufgerundet
         for i, name in enumerate(self._name_list):
-            row, col = divmod(i, per_row)
-            self._buttons[name].grid(row=row, column=col, padx=2, pady=2,
-                                     sticky="ew")
-        # Jede Spalte nur so breit wie IHR laengster Name — nicht alle gleich
-        # breit. Mit den Tab-Symbolen waeren gleich breite Knoepfe 945 px
-        # und wuerden beim 880-px-Minimum abgeschnitten; so sind es 706 px.
-        # Die zwei Reihen bleiben trotzdem sauber untereinander, weil sie
-        # sich dieselben Spalten teilen.
-        for col in range(per_row):
-            widest = max(self._font.measure(self._labels[n])
-                         for i, n in enumerate(self._name_list)
-                         if i % per_row == col)
-            self._bar.grid_columnconfigure(col, weight=1, uniform="",
-                                           minsize=widest + 16)
-        # Spalten einer frueheren, breiteren Aufteilung wieder freigeben
-        for col in range(per_row, len(self._name_list)):
-            self._bar.grid_columnconfigure(col, weight=0, uniform="",
-                                           minsize=0)
+            self._buttons[name].grid(row=i, column=0, padx=2, pady=2, sticky="ew")
+        self._bar.grid_columnconfigure(0, weight=1)
+
+    def set_counts(self, counts):
+        if counts == self._counts:
+            return
+        self._counts = dict(counts)
+        for name, button in self._buttons.items():
+            count = counts.get(name, 0)
+            suffix = f" · {count}" if count else ""
+            button.configure(text=self._labels[name] + suffix)
 
     # ----------------------------------------------------------- Zugriff
     def set(self, name: str) -> None:
@@ -2722,13 +2794,13 @@ class TabBar(ctk.CTkFrame):
                               hover_color=self._unsel_hover)
 
 
-class App(ctk.CTk):
+class App(WorkbenchMixin, ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
         # Hoehe passt dank Tabs auch auf kleinere/skalierte Bildschirme
-        self.geometry("1010x720")
-        self.minsize(880, 600)
+        self.geometry("1140x760")
+        self.minsize(1000, 600)
         self._set_icon()
         self.after(300, self._set_icon)  # CustomTkinter setzt sonst sein eigenes
 
@@ -2781,6 +2853,8 @@ class App(ctk.CTk):
         # Einzelruestungs-Overrides: {Item-SID: {param: faktor}} (nur != 1.0)
         # Dritter Baum, dritter strikt eigener Namensraum (_ir_*).
         self.armor_overrides: dict[str, dict[str, float]] = {}
+        self.armor_custom: dict[str, dict[str, float]] = {}
+        self._ir_custom_controls = {}
         self._ir_loading = False
         self._ir_groups: dict[str, str] = {}              # SID -> Body/Head
         self._ir_prot: dict[str, dict[str, float]] = {}   # SID -> Vanilla
@@ -2847,6 +2921,7 @@ class App(ctk.CTk):
         # faengt immer beim Standard an; _load_ui_settings schaltet danach
         # auf das gemerkte um.
         self.theme_name = theme.DEFAULT_NAME
+        self._wb_init()
 
         self._build_header()
         self._build_body()
@@ -2859,6 +2934,7 @@ class App(ctk.CTk):
         self._load_ui_settings()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._set_body_state(False)
+        self._wb_setup()
         try:
             output_dir().mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -2878,6 +2954,7 @@ class App(ctk.CTk):
         Tk meldet dann "invalid command name ..._blink_confirm", und in der
         Testbatterie (die mehrere Fenster nacheinander baut) hat genau das
         den Prozess abgeschossen, ohne eine Zeile Ausgabe zu hinterlassen."""
+        self._wb_close()
         job = getattr(self, "_blink_job", None)
         if job is not None:
             try:
@@ -3221,6 +3298,11 @@ class App(ctk.CTk):
             hover_color=PANEL2_HOVER, command=self._toggle_changed_only)
         self.btn_changed.pack(side="right", padx=4, pady=8)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
+        # Display and occasional actions live in More options.
+        self.btn_scroll.pack_forget()
+        self.btn_theme.pack_forget()
+        self.btn_changed.configure(text="My changes", command=lambda: (
+            self.tabs.set("Overview"), self._wb_choose_view("My changes")))
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(parent)
@@ -3235,6 +3317,7 @@ class App(ctk.CTk):
         self.sliders[key] = SliderRow(parent, label, from_, to, step, default,
                                       fmt, tooltip, log=log)
         self.slider_tabs[key] = self._current_tab
+        self._wb_register(("sliders", key), self.sliders[key], self._current_tab, tooltip)
 
     def _warning(self, parent, text: str, title: str = "Note") -> None:
         """Technische Warnbox: dunkles Panel, duenner Bernstein-Streifen
@@ -3607,6 +3690,8 @@ class App(ctk.CTk):
                 for row in rows.values():
                     row.set_state(self._ia_state)
                 self._isc_rows[sid] = rows
+                for param, row in rows.items():
+                    self._wb_register(("scope_overrides", sid, param), row)
         finally:
             self._isc_loading = prev
 
@@ -3843,6 +3928,14 @@ class App(ctk.CTk):
         }
         self._ir_labels = {sid: armor_label(sid) for sid in armors}
         self._ir_dlc = self.gd.dlc_armor_editions()
+        self._ir_custom_controls = {
+            sid: armor_extensions.available(self.gd, sid, slot, self._ir_dlc.get(sid))
+            for sid, (slot, _) in armors.items()}
+        self.armor_custom = {
+            sid: {key: value for key, value in armor_extensions.clean(values).items()
+                  if key in self._ir_custom_controls[sid]}
+            for sid, values in self.armor_custom.items() if sid in armors}
+        self.armor_custom = {sid: values for sid, values in self.armor_custom.items() if values}
         # Verwaiste Overrides verwerfen (Spiel-Update, andere Installation);
         # dazu Faktoren auf Schutzarten, die es an dieser Ruestung nicht
         # gibt (0 in Vanilla -> kein Regler, kein Patch).
@@ -3898,16 +3991,30 @@ class App(ctk.CTk):
         self._ir_update_info()
 
     def _ir_update_info(self):
-        if self.armor_overrides:
+        selected = set(self.armor_overrides) | set(self.armor_custom)
+        if selected:
             # armor_label als Fallback: VOR dem Laden der Spieldaten ist
             # _ir_labels leer, rohe SIDs sollen trotzdem nie erscheinen
             # (Gleichstand mit dem Ammo-Zwilling, der ammo_label nutzt).
             text = "Overrides set for: " + ", ".join(
                 self._ir_labels.get(sid) or armor_label(sid)
-                for sid in sorted(self.armor_overrides))
+                for sid in sorted(selected))
         else:
             text = "No per-armor overrides set."
         self.ir_info.configure(text=text)
+        self._ir_update_conflict_note()
+
+    def _ir_update_conflict_note(self):
+        if not hasattr(self, "ir_conflict_label"):
+            return
+        mods = self.mod_conflicts.get("tree:armor_custom", [])
+        if mods:
+            self.ir_conflict_label.configure(text="Mod scan: additional armor fields overlap with " + ", ".join(mods)
+                + ". This is a group warning; Avoid conflicts does not lock individual armor rows. "
+                  "Effect-list changes also depend on other mods' list order.")
+            self.ir_conflict_label.pack(fill="x", padx=12, pady=4, before=self.ir_info)
+        else:
+            self.ir_conflict_label.pack_forget()
 
     def _ir_refresh_all(self):
         """Alle GEBAUTEN Regler und Marker an armor_overrides angleichen.
@@ -3920,6 +4027,7 @@ class App(ctk.CTk):
 
     def _ir_clear_all(self):
         self.armor_overrides.clear()
+        self.armor_custom.clear()
         self._ir_refresh_all()
 
     def _ir_cancel_expand(self) -> None:
@@ -4377,6 +4485,15 @@ class App(ctk.CTk):
                               command=lambda k=key: self._update_check_dot(k))
         box.pack(side="left")
         self.checks[key] = box
+        self._wb_check_tabs[key] = self._current_tab
+        self._wb_meta[("checks", key)] = (label, self._current_tab, tooltip)
+        star = ctk.CTkButton(row, text="★" if ("checks", key) in self._wb_favorites else "☆",
+                      width=26, fg_color="transparent",
+                      command=lambda k=key: self._wb_toggle_favorite(("checks", k)))
+        star.pack(side="left", padx=4)
+        self._wb_check_stars[("checks", key)] = star
+        ctk.CTkButton(row, text="i", width=24, fg_color="transparent",
+                      command=lambda k=key: self._wb_details(("checks", k))).pack(side="left")
         dot = ctk.CTkLabel(row, text="", width=16)
         dot.pack(side="left")
         self.check_dots[key] = dot
@@ -4388,9 +4505,14 @@ class App(ctk.CTk):
         if tooltip:
             # wraplength seit 1.26.0: laengere Erklaerungen (Wachen, Karte)
             # wurden am Fensterrand abgeschnitten
-            ctk.CTkLabel(parent, text="      " + tooltip, anchor="w", justify="left",
-                         wraplength=780, font=ctk.CTkFont(size=12),
-                         text_color=MUTED).pack(fill="x", padx=12)
+            hint = ctk.CTkLabel(parent, text="      " + tooltip, anchor="w", justify="left",
+                         wraplength=680, font=ctk.CTkFont(size=12), text_color=MUTED)
+            hint.editor_row = row
+            if not hasattr(self, "_wb_check_hints"):
+                self._wb_check_hints = {}
+            self._wb_check_hints[key] = hint
+            if not self._wb_compact:
+                hint.pack(fill="x", padx=12)
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
@@ -5937,12 +6059,21 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Single armor overrides (advanced)")
+        self._check(f, "armor_sprint", "Remove armor sprint restrictions (experimental)",
+                    "Removes only the armor effect that blocks sprinting. Sprint speed is unchanged. "
+                    "Per-armor explicit Off keeps that armor's original restriction. Not play-tested.")
+        self._check(f, "armor_limp", "Body armor prevents limping (experimental)",
+                    "Enables each body armor's native anti-limp flag. Per-armor explicit values take priority. "
+                    "Separate from knockdown immunity. Not play-tested.")
+        self.ir_conflict_label = ctk.CTkLabel(f, text="", wraplength=680, justify="left", text_color=MARK_WARN)
         ctk.CTkLabel(
             f, text="   \u00d71 (vanilla) = no override \u2013 the global sliders "
                     "above apply to this armor. Any other value REPLACES the "
                     "global slider for that protection type on this piece "
-                    "\u2013 the two do not stack. Durability and carry bonuses "
-                    "stay global: they work through different game systems.",
+                    "\u2013 the two do not stack. Additional settings below each "
+                    "piece can set absolute values, including protection initially at zero. "
+                    "Inherit leaves existing controls in charge; explicit item values win. "
+                    "Difficulty and technician bonuses still apply.",
             anchor="w", justify="left", wraplength=780,
             font=ctk.CTkFont(size=12), text_color=MUTED).pack(fill="x", padx=12)
         ctk.CTkLabel(
@@ -6193,6 +6324,8 @@ class App(ctk.CTk):
                     "Every teleport effect (guides, quests) becomes instant "
                     "(like 'InstaTeleports'). Not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
+
+        extension_controls.build_controls(self, body, fmt_pct)
 
         f = self._section(body, "Loot in stashes & on bodies")
         ctk.CTkLabel(
@@ -6496,69 +6629,43 @@ class App(ctk.CTk):
     def _build_footer(self):
         foot = ctk.CTkFrame(self)
         foot.pack(fill="x", padx=10, pady=(4, 10))
-
         row1 = ctk.CTkFrame(foot, fg_color="transparent")
         row1.pack(fill="x", padx=8, pady=(8, 2))
         ctk.CTkLabel(row1, text="Mod name:").pack(side="left", padx=(4, 6))
-        self.name_entry = ctk.CTkEntry(row1, width=180)
+        self.name_entry = ctk.CTkEntry(row1, width=170)
         self.name_entry.insert(0, "S2Tweaker")
         self.name_entry.pack(side="left")
-        self.debug_check = ctk.CTkCheckBox(
-            row1, text="Debug: also export patch .cfg files")
-        self.debug_check.pack(side="left", padx=14)
-        ctk.CTkButton(row1, text="Reset all to vanilla ↺", width=150,
-                      command=self._reset_all).pack(side="right", padx=4)
-        ctk.CTkButton(row1, text="Load preset …", width=110,
-                      command=self._load_preset).pack(side="right", padx=4)
-        ctk.CTkButton(row1, text="Save preset …", width=110,
-                      command=self._save_preset).pack(side="right", padx=4)
-
+        self.wb_undo_btn = ctk.CTkButton(row1, text="↶ Undo", width=76, command=self._wb_undo)
+        self.wb_undo_btn.pack(side="left", padx=(12, 3))
+        self.wb_redo_btn = ctk.CTkButton(row1, text="↷ Redo", width=76, command=self._wb_redo)
+        self.wb_redo_btn.pack(side="left", padx=3)
+        for label, command in (("More options", self._wb_options),
+                               ("My mods", self._wb_mods), ("Profiles", self._wb_profiles)):
+            ctk.CTkButton(row1, text=label, width=100, command=command).pack(side="right", padx=3)
         row2 = ctk.CTkFrame(foot, fg_color="transparent")
-        row2.pack(fill="x", padx=8, pady=(2, 4))
-        self.btn_build = ctk.CTkButton(
-            row2, text="Build pak  →  output folder", height=36,
+        row2.pack(fill="x", padx=8, pady=4)
+        self.wb_preview_btn = ctk.CTkButton(row2, text="Preview changes", width=150, command=self._wb_preview)
+        self.wb_preview_btn.pack(side="left", padx=4)
+        self.btn_build = ctk.CTkButton(row2, text="Build pak → output", height=36,
             font=ctk.CTkFont(size=15, weight="bold"), command=self._generate_output)
         self.btn_build.pack(side="left", fill="x", expand=True, padx=4)
-        self.btn_install = ctk.CTkButton(row2, text="Install to ~mods", width=130,
-                                         command=self._generate_install)
+        self.btn_install = ctk.CTkButton(row2, text="Install to ~mods", width=150, command=self._generate_install)
         self.btn_install.pack(side="left", padx=4)
-        self.btn_open = ctk.CTkButton(row2, text="Open output", width=100,
-                                      command=self._open_output)
-        self.btn_open.pack(side="left", padx=4)
-        # In row2 statt row1: row1 ist mit Mod-Name + Debug + 3 Preset-
-        # Knoepfen schon voll — dort wuerde der Scan-Knopf beim
-        # 880-px-Minimum als erstes abgeschnitten. row2 hat den breiten
-        # Build-Knopf als Puffer (expand=True schrumpft zuerst).
-        self.btn_scan = ctk.CTkButton(row2, text="Scan ~mods", width=110,
-                                      state="disabled",
-                                      command=self._start_modscan)
-        self.btn_scan.pack(side="left", padx=4)
-        self.btn_remove = ctk.CTkButton(row2, text="Remove from ~mods", width=150,
-                                        fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
-                                        border_width=SYS_BORDER,
-                                        border_color=BAD_BORDER,
-                                        command=self._remove_mod)
-        self.btn_remove.pack(side="left", padx=4)
-
-        # Statuszeile links, rechts daneben das Zeichen des aktiven Designs
-        # (Besitzer 06.09.: "unter remove from mods ist Platz fuer jeweils
-        # ein Logo"). Bewusst KEIN Fraktionslogo aus dem Spiel — das ist
-        # GSC-Grafik; hier steht das Tab-Symbol plus der Name des Designs.
+        ctk.CTkButton(row2, text="Reset settings", width=130,
+            command=lambda: self._wb_action(self._reset_all)).pack(side="right", padx=4)
+        # Existing state and scan code keeps these controls; their visible actions
+        # are provided by More options instead of crowding the main toolbar.
+        self.debug_check = ctk.CTkCheckBox(foot, text="Debug export")
+        self.btn_scan = ctk.CTkButton(foot, text="Scan ~mods", state="disabled", command=self._start_modscan)
+        self.btn_open = ctk.CTkButton(foot, text="Open output", command=self._open_output)
+        self.btn_remove = ctk.CTkButton(foot, text="Remove from ~mods", command=self._remove_mod)
         status_row = ctk.CTkFrame(foot, fg_color="transparent")
-        status_row.pack(fill="x", padx=12, pady=(0, 2))
-        self.theme_mark = ctk.CTkLabel(
-            status_row, text="", anchor="e", width=150,
+        status_row.pack(fill="x", padx=12, pady=(0, 5))
+        self.theme_mark = ctk.CTkLabel(status_row, text="", anchor="e", width=150,
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"))
         self.theme_mark.pack(side="right")
-        self.status = ctk.CTkLabel(status_row, text="Starting ...", anchor="w",
-                                   text_color="gray70")
+        self.status = ctk.CTkLabel(status_row, text="Starting…", anchor="w", text_color="gray70", wraplength=770)
         self.status.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(
-            foot,
-            text="ℹ Only values you change are written to the pak. Sliders at "
-                 "(vanilla) are left untouched, so other mods keep working.",
-            anchor="w", font=ctk.CTkFont(size=12), text_color="gray55",
-        ).pack(fill="x", padx=12, pady=(0, 8))
         self._set_busy(True)
 
     # ------------------------------------------------------------ startup
@@ -6768,6 +6875,35 @@ class App(ctk.CTk):
         name = "".join(ch for ch in self.name_entry.get().strip() if ch.isalnum() or ch in "_-")
         return Settings(
             mod_name=name or "S2Tweaker",
+            stash_extra_chance_pct=s["stash_extra_chance_pct"].get(),
+            npc_armor_drop_chance_pct=s["npc_armor_drop_chance_pct"].get(),
+            npc_armor_drop_min_pct=s["npc_armor_drop_min_pct"].get(),
+            npc_armor_drop_max_pct=s["npc_armor_drop_max_pct"].get(),
+            npc_loaded_ammo_factor=s["npc_loaded_ammo_factor"].get() / 100.0,
+            npc_helmet_chance_factor=s["npc_helmet_chance_factor"].get() / 100.0,
+            vegetation_translucency_factor=s["vegetation_translucency_factor"].get() / 100.0,
+            npc_dispersion_distance_factor=s["npc_dispersion_distance_factor"].get() / 100.0,
+            mutant_loot_range_factor=s["mutant_loot_range_factor"].get() / 100.0,
+            mutant_loot_height_factor=s["mutant_loot_height_factor"].get() / 100.0,
+            mutant_cut_radius_factor=s["mutant_cut_radius_factor"].get() / 100.0,
+            mutant_trophy_weight_factor=s["mutant_trophy_weight_factor"].get() / 100.0,
+            mutant_trophy_value_factor=s["mutant_trophy_value_factor"].get() / 100.0,
+            decal_lifetime_factor=s["decal_lifetime_factor"].get() / 100.0,
+            decal_count_factor=s["decal_count_factor"].get() / 100.0,
+            field_repair_body_pct=s["field_repair_body_pct"].get(),
+            field_repair_head_pct=s["field_repair_head_pct"].get(),
+            field_repair_weapons_pct=s["field_repair_weapons_pct"].get(),
+            bolt_lifetime_factor=s["bolt_lifetime_factor"].get() / 100.0,
+            stash_extra_artifacts=bool(self.checks["stash_extra_artifacts"].get()),
+            stash_extra_weapons=bool(self.checks["stash_extra_weapons"].get()),
+            stash_extra_armor=bool(self.checks["stash_extra_armor"].get()),
+            stash_extra_attachments=bool(self.checks["stash_extra_attachments"].get()),
+            npc_equipment_variety=bool(self.checks["npc_equipment_variety"].get()),
+            mutant_loot_ground_access=bool(self.checks["mutant_loot_ground_access"].get()),
+            weird_flower_permanent=bool(self.checks["weird_flower_permanent"].get()),
+            surface_noise_overrides=extension_controls.collect_factors(s, "surface_noise:"),
+            weather_luminance_overrides=extension_controls.collect_factors(s, "weather_luminance:"),
+            mutant_loot_overrides=extension_controls.collect_mutant_loot(s),
             max_hp=s["hp"].get(),
             hp_regen=s["hp_regen"].get(),
             max_stamina=s["sp"].get(),
@@ -7124,6 +7260,9 @@ class App(ctk.CTk):
                             for sid, v in self.ammo_overrides.items()},
             armor_overrides={sid: dict(v)
                              for sid, v in self.armor_overrides.items()},
+            armor_custom={sid: dict(v) for sid, v in self.armor_custom.items()},
+            armor_free_sprint=bool(self.checks["armor_sprint"].get()),
+            armor_limp_protection=bool(self.checks["armor_limp"].get()),
             faction_relations=dict(self.faction_relations),
             relations_runtime=bool(self.checks["relations_runtime"].get()),
             relation_rollback_factor=s["rel_rollback"].get() / 100.0,
@@ -7260,6 +7399,7 @@ class App(ctk.CTk):
             self._apply_changed_only()
         elif not query:
             self._clear_changed_only_view()
+        self._wb_sync_search(query)
 
     # -------------------------------------------------------- Changed only
     # ------------------------------------------------------- Farbdesigns
@@ -7444,7 +7584,7 @@ class App(ctk.CTk):
         for blocks, overrides in (
                 (self._iw_blocks, self.weapon_overrides),
                 (self._ia_blocks, self.ammo_overrides),
-                (self._ir_blocks, self.armor_overrides),
+                (self._ir_blocks, {**self.armor_overrides, **self.armor_custom}),
                 (self._if_blocks, self.faction_relations),
                 (self._im_blocks, self.mutant_overrides)):
             for block in blocks.values():
@@ -7585,7 +7725,7 @@ class App(ctk.CTk):
                       command=lambda: answer("never")).pack(side="left", padx=6)
 
     def _start_modscan(self):
-        if self.gd is None or self.game_dir is None or self._scan_running:
+        if self.gd is None or self.game_dir is None or self._scan_running or self._wb_busy:
             return
         paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
                                      {self._out_name()})
@@ -7693,6 +7833,12 @@ class App(ctk.CTk):
             mods = [info.name for info in infos if info.pairs & pairs]
             if mods:
                 conflicts["tree:factions"] = mods
+        key = "tree:armor_custom"
+        if key not in self._footprints:
+            self._footprints[key] = armor_extensions.footprint(gd)
+        mods = [info.name for info in infos if info.pairs & self._footprints[key]]
+        if mods:
+            conflicts[key] = mods
         return conflicts
 
     def _faction_tree_footprint(self, gd) -> set:
@@ -7759,6 +7905,7 @@ class App(ctk.CTk):
             row.set_conflict(self.mod_conflicts.get(key), self._mods_after,
                              self._mods_unknown)
         self._if_update_conflict_note()
+        self._ir_update_conflict_note()
         self._apply_conflict_locks()
         self._refresh_check_dots()
 
@@ -7934,6 +8081,8 @@ class App(ctk.CTk):
                     labels.append(str(box.cget("text")))
             elif key == "tree:factions":
                 labels.append("Faction relations (Factions tab)")
+            elif key == "tree:armor_custom":
+                labels.append("Additional per-armor settings (Armor tab)")
             elif key in self.sliders:
                 labels.append(str(self.sliders[key].label.cget("text")))
         return labels
@@ -7991,6 +8140,8 @@ class App(ctk.CTk):
                     label = str(box.cget("text")) if box else key
                 elif key == "tree:factions":
                     label = "Faction relations (Factions tab)"
+                elif key == "tree:armor_custom":
+                    label = "Additional per-armor settings (Armor tab)"
                 else:
                     row = self.sliders.get(key)
                     label = str(row.label.cget("text")) if row else key
@@ -8000,7 +8151,11 @@ class App(ctk.CTk):
                     if info.name not in mods:
                         continue
                     overlap = sorted(pairs & info.pairs)
-                    shown = ", ".join(f"{a}.{b}" for a, b in overlap[:10])
+                    leaf_labels = {"@loot-layout": "loot list layout",
+                                   "@loot-weight": "loot selection weight",
+                                   "@effect-list": "item effect list"}
+                    shown = ", ".join(f"{a}.{leaf_labels.get(b, b)}"
+                                      for a, b in overlap[:10])
                     more = ("" if len(overlap) <= 10
                             else f" (+{len(overlap) - 10} more)")
                     lines.append(f"      {info.name}: {shown}{more}")
@@ -8153,6 +8308,7 @@ class App(ctk.CTk):
             "ammo_overrides": self.ammo_overrides,
             "scope_overrides": self.scope_overrides,
             "armor_overrides": self.armor_overrides,
+            "armor_custom": self.armor_custom,
             "mutant_overrides": self.mutant_overrides,
             "faction_relations": self.faction_relations,
         }
@@ -8171,7 +8327,7 @@ class App(ctk.CTk):
                 "modscan_unlocked": sorted(self.avoid_unlocked),
                 **self._ui_state(),
             }
-            SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            editor_state.write_json(SETTINGS_FILE, data)
         except OSError:
             pass
 
@@ -8184,8 +8340,8 @@ class App(ctk.CTk):
         if not path:
             return
         try:
-            Path(path).write_text(
-                json.dumps(self._ui_state(), indent=2), encoding="utf-8")
+            editor_state.save_profile(path, self._ui_state(), Path(path).stem,
+                                      mod_name=self.name_entry.get())
             self._status_write(f"Preset saved: {path}")
         except OSError:
             messagebox.showerror(APP_TITLE, traceback.format_exc())
@@ -8205,7 +8361,7 @@ class App(ctk.CTk):
             self._import_pak(Path(path))
             return
         try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            data = editor_state.read_profile(path).state
         except (OSError, ValueError):
             messagebox.showerror(APP_TITLE, "Could not read that preset file.")
             return
@@ -8248,9 +8404,7 @@ class App(ctk.CTk):
         # mit dem dann gueltigen Akzent.
         if data.get("theme"):
             self._set_theme(theme.resolve(data["theme"]))
-        if data.get("changed_only"):
-            # Ueber den Toggle, damit Knopf-Farbe und Tick-Loop stimmen
-            self.after(200, self._toggle_changed_only)
+        # The new Overview replaces the old dim-only Changed-only view.
         self.avoid_unlocked = {str(k) for k in
                                (data.get("modscan_unlocked") or [])}
         self._apply_ui_state(data)
@@ -8338,6 +8492,10 @@ class App(ctk.CTk):
                 continue
             if clean:
                 self.armor_overrides[sid] = clean
+        for sid, params in (data.get("armor_custom") or {}).items():
+            clean = armor_extensions.clean(params)
+            if clean:
+                self.armor_custom[sid] = clean
         for key, value in (data.get("faction_relations") or {}).items():
             # Vanilla-gleiche und unbekannte Paare fliegen erst in
             # _if_populate raus (dort sind die Vanilla-Werte bekannt).
@@ -8375,6 +8533,9 @@ class App(ctk.CTk):
 
     # ------------------------------------------------------------ actions
     def _generate(self, out_pak: Path) -> bool:
+        if self._wb_busy or self._scan_running:
+            self._status_write("Wait for the current operation to finish.")
+            return False
         if self.gd is None:
             messagebox.showwarning(APP_TITLE, "Game data is not loaded yet.")
             return False
@@ -8416,19 +8577,20 @@ class App(ctk.CTk):
         root_files = {MANIFEST_NAME: self._build_manifest(s, active)}
         if ini is not None:
             root_files["Stalker2/Config/UserInput.ini"] = ini
-        pakio.pack_mod(patches, out_pak, root_files=root_files)
+        backup = mod_library.build_safely(patches, out_pak, root_files,
+                                         app_dir() / "pak_history")
 
-        debug_note = ""
+        debug_note = (f"\n\nPrevious Pak retained: {backup.name}" if backup else "")
         if self.debug_check.get():
             debug_root = out_pak.parent / f"{s.mod_name}_cfg"
             # Der Export darf die schon gebaute Pak nie als Fehlschlag
             # erscheinen lassen (Issue #5: Traceback statt Erfolgsmeldung).
             try:
                 written = pakio.export_cfgs(patches, debug_root)
-                debug_note = (f"\n\nDebug: {len(written)} patch .cfg files "
+                debug_note += (f"\n\nDebug: {len(written)} patch .cfg files "
                               f"in\n{debug_root}")
             except OSError as exc:
-                debug_note = ("\n\nDebug export failed (the pak itself is "
+                debug_note += ("\n\nDebug export failed (the pak itself is "
                               f"fine): {exc}")
 
         self._save_ui_settings()
@@ -8489,7 +8651,10 @@ class App(ctk.CTk):
             messagebox.showerror(
                 APP_TITLE, "The manifest in this pak could not be read.")
             return
-        state = data.get("ui_state")
+        try:
+            state = editor_state.state_only(data.get("ui_state"))
+        except ValueError:
+            state = None
         if not isinstance(state, dict):
             messagebox.showerror(
                 APP_TITLE, "The manifest in this pak is incomplete.")
@@ -8557,12 +8722,15 @@ class App(ctk.CTk):
             messagebox.showinfo(APP_TITLE, f"Output folder:\n{out}")
 
     def _remove_mod(self):
+        if self._wb_busy or self._scan_running:
+            return
         if self.game_dir is None:
             return
         target = game.mods_dir(self.game_dir) / self._out_name()
         if target.is_file():
+            backup = mod_library.backup_pak(target, app_dir() / "pak_history")
             target.unlink()
-            self._status_write(f"Removed: {target}")
+            self._status_write(f"Removed: {target}; retained {backup.name}")
             messagebox.showinfo(APP_TITLE, f"Mod removed:\n{target}")
         else:
             messagebox.showinfo(APP_TITLE, f"No mod file found:\n{target}")

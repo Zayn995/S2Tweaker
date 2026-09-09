@@ -97,7 +97,7 @@ assert set(row.sliders) == set(row.params)
 row.sliders["strike"].set(2.0)
 app.update()
 assert app.armor_overrides == {sid: {"strike": 2.0}}, app.armor_overrides
-assert "1 of 6 factors changed" in row.btn.cget("text")
+assert "1 settings changed" in row.btn.cget("text")
 assert (f"1 of {42 + n_dlc_body} overridden"
         in body_block.btn.cget("text")), body_block.btn.cget("text")
 assert armor_label(sid) in app.ir_info.cget("text")

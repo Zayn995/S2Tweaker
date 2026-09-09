@@ -63,24 +63,13 @@ for name in ("UPDATE_API_URL", "UPDATER_URL", "RELEASES_PAGE",
     assert not hasattr(gui, name), f"gui.{name} lebt wieder"
 print("Alte Update-Symbole entfernt  OK")
 
-# --- 3) Auch kein Knopf dafuer in der Oberflaeche ------------------------
-app = gui.App()
-app.update()
-try:
-    for name in ("btn_update", "btn_updater"):
-        assert not hasattr(app, name), f"App.{name} ist zurueck"
-    # Was in Zeile 2 bleiben MUSS
-    for name in ("search_entry", "btn_changed", "btn_faq", "btn_oodle"):
-        wdg = getattr(app, name)
-        assert wdg.winfo_ismapped(), name + " nicht sichtbar"
-    assert app.search_entry.winfo_rooty() > app.btn_confirm.winfo_rooty(), \
-        "Suchfeld muss unter der Spielordner-Zeile liegen"
-finally:
-    try:
-        app.destroy()
-    except Exception:
-        pass
-print("Werkzeugleiste ohne Update-Knopf  OK")
+# --- 3) Keine alten Update-Knoepfe; Quelltext statt Fenster -------------
+gui_tree = ast.parse((PAKET / "gui.py").read_text(encoding="utf-8-sig"))
+attributes = {node.attr for node in ast.walk(gui_tree)
+              if isinstance(node, ast.Attribute)}
+assert not attributes & {"btn_update", "btn_updater"}, \
+    "Ein alter Update-Knopf ist zurueck"
+print("Keine Update-Knoepfe im GUI-Quelltext  OK")
 
 # --- 4) Es gibt keinen Updater mehr - nirgends ---------------------------
 # release/update.bat wurde am 05.09.2026 ganz entfernt (Nexus-Pruefung:

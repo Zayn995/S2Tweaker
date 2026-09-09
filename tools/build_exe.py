@@ -395,7 +395,8 @@ def verify(out: Path, selftest: bool = True) -> None:
     # 4) Keine Nutzerdaten, keine Reste, keine Heimpfade des Bau-Rechners.
     #    Ohne Ausnahme - seit 05.09.2026 gibt es kein repak.exe mehr, das
     #    Cargo-Pfade (und den Benutzernamen) des Bau-Rechners in sich trug.
-    for junk in ("settings.json", "cache", "output", "presets", f"{APP}_error.log"):
+    for junk in ("settings.json", "editor.json", "pak_history", "cache", "output",
+                 "presets", f"{APP}_error.log"):
         if (out / junk).exists():
             problems.append(f"gehoert nicht ins Paket: {junk}")
     homes = {str(Path.home()).lower()}

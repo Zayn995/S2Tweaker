@@ -4,12 +4,29 @@ A Windows GUI tool that builds a personal tweak mod (`.pak`) for
 **S.T.A.L.K.E.R. 2: Heart of Chornobyl** from sliders and checkboxes —
 no modding knowledge needed.
 
-**Open source (MIT).** Everything in this repo was written by Claude
-(Anthropic's AI) — the project owner can't code and considers this a working
+**Open source (MIT).** Developed with AI assistance — the project owner
+can't code and considers this a working
 **concept** for people who can: fork it, improve it, find bugs, build on it.
 Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
+
+Version 1.37.0 includes an [editor workspace](docs/EDITOR_WORKSPACE.md)
+with an editable changes overview, favorites, undo/redo, profile comparisons,
+own-Pak history, output preview, left navigation and display size/density options.
+These changes are in the separate Python application files. Release builds
+use the existing GitHub Actions process and check the signed starter. Interactive visual review is pending.
+
+The [additional armor settings](docs/ARMOR_EXTENSIONS.md) add per-piece weight,
+price, maximum durability, grid size, artifact slots and absolute protection,
+including protection that was previously zero. Optional sprint, limp, helmet,
+noise, fall and shielded-slot changes are marked experimental. Existing profiles
+keep their original factor behavior; new explicit values take priority.
+
+Version 1.37.0 also includes [18 optional loot and world additions](docs/OPTIONAL_EXTENSIONS.md):
+extra stash finds, NPC armor drops and equipment variety, surface/weather stealth,
+mutant trophy controls, decal persistence, Weird Flower, experimental Hercules
+field repair and bolt lifetime. These additions have not been play-tested.
 
 - Reads the **vanilla values from YOUR installed game version** (extracts the
   needed `.cfg.bin` GameData from `pakchunk0` and decodes it) — so multiplier
@@ -36,7 +53,7 @@ Everyone is free to use it. This README tells you everything you need.
   reading of the factions: the game files carry no faction colours, and no
   game artwork is shipped.
 
-~470 tweaks in 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI,
+Hundreds of tweaks in 14 categories plus Overview (Player, Vaulting, Weight & items, Combat, NPCs & AI,
 Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders), plus per-weapon overrides
 for 91 weapons (unique named guns and the Pre-order/Deluxe/Ultimate
 edition guns included), per-round overrides for 34
@@ -224,9 +241,9 @@ the signature. The tool stays portable: settings, cache, presets and output
 are created next to the exe.
 
 `tools/build_exe.py` verifies its own output (signatures, hash equality
-with `pythonw.exe`, forbidden files) and then starts a copy of the folder
-once as a self-test; `tests/test_build_layout.py` runs the whole build and
-checks the layout.
+with `pythonw.exe`, forbidden files) and then starts a copy in self-test mode to check all application imports
+and a Pak roundtrip without creating a window. `tests/run_ci.py` also runs
+without windows; visual layout and gameplay require separate review.
 
 Python 3.12+ recommended. For development, the GUI prefers a local
 `vanilla/Stalker2/Content/GameLite/GameData/` folder if present (create it by

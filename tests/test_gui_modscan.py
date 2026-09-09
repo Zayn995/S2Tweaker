@@ -40,10 +40,9 @@ print(f"Vollstaendigkeit: {len(SLIDER_FIELDS)} Regler + "
       f"{len(CHECK_FIELDS)} Checkboxen abgedeckt")
 
 # --- 2) Jeder Fussabdruck ist gueltig und NICHT leer ---------------------
-# Bewusste Ausnahme: npc_gear patcht nur Weight-Blaetter, die der
-# Scan-Vergleich absichtlich ausschliesst (Kollisions-Haertung) — der
-# Regler ist deklariert unmarkierbar wie die Baum-Regler.
-# Zweite bewusste Ausnahme (1.31.0): check:stat_bars spiegelt nur die
+# Lottery weights now have a dedicated scan marker, so npc_gear is
+# scannable without colliding with item mass in kg.
+# Bewusste Ausnahme (1.31.0): check:stat_bars spiegelt nur die
 # Waffenregler und erzeugt allein nichts - siehe footprint_settings.
 unscannable = {k for k in SLIDER_FIELDS if footprint_settings(k) is None}
 unscannable |= {"check:" + k for k in CHECK_FIELDS
@@ -54,7 +53,7 @@ unscannable |= {"check:" + k for k in CHECK_FIELDS
 # 1.36.0: der Laufzeit-Schalter der Fraktionsbeziehungen wirkt nur mit
 # verstellten Paaren; die Paare selbst deckt der Sammel-Fussabdruck
 # `tree:factions` ab (Begruendung in gui.footprint_settings).
-assert unscannable == {"npc_gear", "check:stat_bars",
+assert unscannable == {"check:stat_bars",
                        "check:no_mouse_smooth", "check:no_view_accel",
                        "check:relations_runtime"}, unscannable
 t0 = time.time()

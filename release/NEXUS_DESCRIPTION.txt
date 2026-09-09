@@ -1,26 +1,26 @@
 [center][size=6][b]S2Tweaker[/b][/size]
 [b]Build your own personal tweak mod - no modding knowledge needed.[/b]
 
-[i]~470 tweaks in 14 tabs · pick your values · one click builds your .pak[/i]
+[i]Hundreds of controls in 14 categories + Overview · pick your values · one click builds your .pak[/i]
 [i]For S.T.A.L.K.E.R. 2 patch 2.0.x[/i][/center]
 
 [line]
 
-Everything here was done by Claude (Anthropic's AI). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
+Developed with AI assistance (Claude and Codex). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
 Everyone is free to use this mod and the tool!
 
 The full source code is open under the MIT license. There is a public S2Tweaker repository on GitHub under my name (Zayn995), but [b]I am deliberately not linking it here[/b]: while a file of mine is under review, Nexus guidelines ask authors not to point at off-site downloads, and I would rather respect that than argue about where the line is. If you want the source, it is easy to find - or just ask in the comments. Bug reports, improvements and forks are very welcome.
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself (1.36.1): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
+[*]The tool ZIP (1.37.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
-Every release since 1.23.0 has been scanned as a whole ZIP before it went out. The list is here so you can check any of them yourself, not just the current file.
+These are historical ZIP reports for the listed releases. They do not establish the scan status of a newer ZIP.
 [list]
 [*][b]1.30.0[/b] - [url=https://www.virustotal.com/gui/file/9a47b3c00aa1b3257c5fa5bbb6be2c1074acff1ee0adef3c3c322fc9ce97ca1b]VirusTotal: 0 of 66[/url] (ZIP SHA-256 9a47b3c0...ca1b)
 [*][b]1.29.0[/b] - [url=https://www.virustotal.com/gui/file/98a25203e942ef02366f007059da6a4e899a6573d10d9593376132094aaa06bf]VirusTotal: 0 of 66[/url] (ZIP SHA-256 98a25203...06bf)
@@ -35,11 +35,11 @@ Every release since 1.23.0 has been scanned as a whole ZIP before it went out. T
 1.23.0 was the first version without the bundled repak.exe - since then the package contains exactly one executable, and that one is python.org's signed pythonw.exe.
 [/spoiler]
 
-[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files. Since 1.33.0 two players (Molkerr and craigduk76) have confirmed a whole set of them in the running game - stack sizes, magazine size, the ammunition swap, the weight and artifact sliders, sober-up speed among them - found real bugs, all fixed, and found three controls that did nothing at all; those are gone since 1.36.0. Most of the ~470 controls have still never been watched in action, and each tooltip says where it stands. Bug reports in the comments are very welcome![/quote]
+[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files. Since 1.33.0 two players (Molkerr and craigduk76) have confirmed a whole set of them in the running game - stack sizes, magazine size, the ammunition swap, the weight and artifact sliders, sober-up speed among them - found real bugs, all fixed, and found three controls that did nothing at all; those are gone since 1.36.0. Most controls have still never been watched in action, and each tooltip says where it stands. Bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]470 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Controls use multipliers, toggles or explicit values based on the data read from your game. [b]Hundreds of controls[/b], sorted into 14 categories plus an editable Overview (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -94,10 +94,11 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*]Only values that can actually be scaled get a slider: many rounds have armor piercing and cover penetration at 0 in vanilla, and 0 x anything is still 0
 [/list]
 
-[b]Armor - its own tab, two levels[/b]
+[b]Armor - global factors and individual settings[/b]
 [list]
 [*][b]Global[/b] protection sliders per damage type: physical, burn, shock, chemical, radiation, PSY - scales YOUR armor only, NPC armor stays vanilla, upgrade bonuses untouched
 [*][b]Per-armor overrides for all 57 armors and helmets[/b] incl. the edition pieces, listed under their real in-game names: open Body armor or Helmets, open the piece ("Cuirass Exoskeleton", "SEVA Suit" ...), set its protection factors - a piece's own factor beats the global slider, everything left at (vanilla) falls through. Only protection types the piece actually has get a slider
+[*][b]Additional individual settings:[/b] weight, price, maximum durability, inventory width/height, artifact slots and six absolute protection values, including protection that was originally zero. Optional sprint, limp, separate-helmet, noise/fall and shielded-slot controls are experimental. Explicit individual values take priority over protection factors
 [*]Armor durability (separate from weapon durability)
 [*]Armor & exoskeleton carry-weight bonuses 0-300% (0% = armor grants no extra carry weight)
 [*]Protection caps: the game's hidden 90 % ceiling on total protection (85 % radiation, physical 4.5), liftable to the maximum the game accepts
@@ -182,9 +183,12 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Tool features[/b]
 [list]
-[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions (their config part is read; only packed assets stay invisible, and the result says so) - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - guaranteed hands-off compatibility, with per-setting unlock buttons. A plain-text compatibility report can be exported from the results
+[*][b]Mod scan with Avoid-conflicts mode[/b]: on request the tool scans your OTHER installed mods - the ~mods folder AND your Steam Workshop subscriptions (their config part is read; only packed assets stay invisible, and the result says so) - and marks every slider they also change with a colored dot. One checkbox then resets and LOCKS all of them - with per-setting unlock buttons. The additional armor group reports warnings without locking individual rows; list order and overlapping assignments can still conflict. A plain-text compatibility report can be exported from the results
 [*][b]Every built pak is an editable preset[/b]: paks embed a manifest with the tool version, build date, game version and ALL settings - 'Load preset ...' accepts .pak files and restores everything
-[*][b]'Changed only' view[/b]: one header button dims everything still at (vanilla), so you see your whole mod at a glance
+[*][b]Overview:[/b] edit My changes, Favorites or Browse controls in one place. Left navigation shows changed-setting counts; display options adjust scale and explanation density
+[*][b]Undo/redo and profiles:[/b] restore whole selections, save named profiles with descriptions, duplicate and compare them
+[*][b]My mods / Pak history:[/b] inspect your generated Paks, compare exact config targets, load settings or restore a retained copy. Previous Paks are backed up before replacement/removal
+[*][b]Preview:[/b] inspect generated values and their resolved originals; unresolved values are labelled
 [*][b]Built-in searchable FAQ[/b] ("? FAQ" button): 69 questions, searchable by keywords like "health pack", "carry weight" or "antivirus"
 [*][b]DLC checker[/b]: the status line tells you which edition (DLC) content the tool found in your install ("Edition content found (Deluxe, Pre-order, Ultimate): 11 guns, 5 armor pieces.") - or honestly that there is none. Missing edition paks are harmless, the trees simply show base-game content only
 [*][b]No internet, at all[/b]: since 1.19.2 the tool contains no networking code - no update check, no downloads, nothing in the background. An indicator next to the FAQ button shows whether the one file you have to supply yourself (the Oodle library) is in place, and a setup window walks you through it
@@ -230,12 +234,24 @@ If the ~mods folder doesn't exist, create it.
 [*]Weapon fire rate, spread and recoil live in game data shared with NPCs - NPCs using those weapons are affected too (noted in the app)
 [*]Since game patch 2.0 the community reports that cfg-based movement-speed changes can desync from animations or partially not apply - the movement and carry-weight sliders carry an in-app warning until this settles
 [*]The fire-rate factor is reported to have the same animation limitation: firing animation and sound can desync from the actual shots. It stays available - test in-game and keep changes moderate
-[*]S2Tweaker.exe is the unmodified pythonw.exe from python.org, signed by the Python Software Foundation - that is why it shows the Python icon and Python's version info. If an antivirus tool still flags anything, it is a false positive; the scan links at the top of this page are for exactly the file you download here
+[*]S2Tweaker.exe is the unmodified pythonw.exe from python.org, signed by the Python Software Foundation - that is why it shows the Python icon and Python's version info. The signature covers the starter; each linked scan report applies only to its exact file hash
 [*]Reading the game's packed config files needs Oodle's oo2core_9_win64.dll (0.6 MB). It is proprietary, cannot be shipped with the tool, and the game does not ship it as a separate file either (Oodle is compiled into the game's own executable). Since 1.19.1 the tool does NOT download it - a program that fetches a library and then runs it is exactly what malware does, and that is one reason scanners flag tools like this one. Instead a setup window walks you through getting it once, with pictures, and shows you where to put it. It takes a minute, and afterwards the tool never asks again. You may already have the file: every Unreal Engine installation ships it
 [*]Debug checkbox: also exports the raw .cfg patch files to output\<ModName>_cfg so you can see exactly what the mod changes
 [/list]
 
 [heading]CHANGELOG[/heading]
+
+[b]v1.37.0 - editor workspace, expanded armor controls and optional loot/world additions[/b] (14 categories + Overview)
+[list]
+[*][b]Editor workspace:[/b] editable My changes, Favorites and Browse controls; undo/redo; named profiles with descriptions, duplication and comparison; generated-value preview; left navigation, changed counts and display scale/density.
+[*][b]My mods and Pak history:[/b] read your generated Paks, compare exact config targets, load their settings and restore retained copies. A verified backup is kept before replacing or removing a Pak.
+[*][b]Armor:[/b] up to 18 additional controls per eligible piece for weight, price, maximum durability, grid size, slots, absolute protection (including from zero), fall/noise, limp protection, helmet allowance, sprint and shielded slots. Two global switches cover armor sprint restrictions and limp protection. Explicit individual values take priority; old presets keep their original behavior.
+[*][b]18 optional loot/world additions:[/b] extra stash finds; NPC armor drops/condition, loaded ammo, equipment variety and helmet chance; surface/weather/vegetation stealth; NPC dispersion; mutant looting comfort and trophy controls; decal persistence; permanent Weird Flower, optional Hercules field repair and bolt lifetime.
+[*]Existing structures use selective bpatch changes; new generators/effects have their own namespaced structures. The general scan detects more loot/effect-list overlaps, but compatibility is not guaranteed and additional armor rows are warning-only.
+[*]The first load refreshes the extraction cache once for added stash data. Rebuild your Pak. Existing profiles remain readable; personal editor preferences and Pak history stay outside the release ZIP.
+[*][b]Validation limits:[/b] automated config/Pak/editor checks and the packaged import test run without windows. New gameplay effects and visual layout are unverified; experimental controls are labelled. Movement/fire-rate animation desynchronization remains unresolved. No native in-game menu is included.
+[*]The existing GitHub build process is retained. The release EXE is checked against v1.36.1 before publication. No new application network feature, injector or runtime binary is introduced. No scan result is claimed for the new ZIP.
+[/list]
 
 [b]v1.36.1 - the relation version counter is left alone, and a stale warning text[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
@@ -244,6 +260,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Nothing else changed: no new game file, so coming from 1.36.0 there is no re-extraction (coming from 1.35.0 or older still extracts once, as 1.36.0 did)
 [/list]
 
+[spoiler]
 [b]v1.36.0 - faction relations that reach a running save, the several-jobs switch rebuilt from what actually works, three dead controls removed[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Faction relations can now be applied to a save already in progress.[/b] Until now the Factions tab only wrote the baseline the game reads when a NEW game starts. (It also raised the game's relation version counter in the hope that old saves would notice - reading the big relations mod on Nexus showed that nobody does that; the counter belongs to the developers.) A new switch ships a tiny quest that sets your values on every game launch through the game's own relation-change node type - 1875 of them exist in the base game - started from its own on-launch script folder. That is the route the Nexus mod takes. Your own standing with a faction is the field-proven half; faction-versus-faction pairs use the same node, but no released mod does that
@@ -256,7 +273,6 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Under the hood:[/b] a new self-check holds every patch the tool can write against the game's own node names, so a quest node renamed by a game update can no longer fail silently
 [/list]
 
-[spoiler]
 [b]v1.35.0 - fourteen dials the key-family check dug up[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]NPC vs player damage, and NPC vs allies damage.[/b] Every weapon carries three separate scalers - NPC against NPC (70 %), NPC against you (100 %), NPC against friendlies (30 %). Until now only the first had a slider. All three do now, and they stack with the difficulty multiplier instead of replacing it

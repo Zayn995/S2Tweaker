@@ -59,7 +59,8 @@ with tempfile.TemporaryDirectory(prefix="s2t_modscan_test_") as tmp:
     # 1) Fake-Overhaul (bpatch, Standard-Layout)
     fake = build_patches(gd, Settings(
         mod_name="FakeOverhaul", player_damage_factor=2.0,
-        npc_hp_factor=1.5, quest_reward_factor=3.0, npc_vision_factor=0.5))
+        npc_hp_factor=1.5, quest_reward_factor=3.0, npc_vision_factor=0.5,
+        npc_gear_quality_factor=2.0))
     pakio.pack_mod(fake, mods / "zzz_FakeOverhaul_P.pak")
 
     # 2) Fake-Loot-Mod im UNTERORDNER (Review: OXA liegt in ~mods\oxa\)
@@ -181,6 +182,8 @@ with tempfile.TemporaryDirectory(prefix="s2t_modscan_test_") as tmp:
     assert marked_by("pdmg", "zzz_FakeOverhaul_P")
     assert marked_by("npchp", "zzz_FakeOverhaul_P")
     assert marked_by("npc_vision", "zzz_FakeOverhaul_P")
+    assert marked_by("npc_gear", "zzz_FakeOverhaul_P"), \
+        "lottery weights must be scannable independently of item mass"
     assert marked_by("loot_amount", "FakeLoot_P")
     assert marked_by("pdmg", "OfficialStyle_P"), "offizielles Schema ohne Treffer"
     assert marked_by("hp", "LegacyMod_P"), "Legacy-refkey ohne Treffer"

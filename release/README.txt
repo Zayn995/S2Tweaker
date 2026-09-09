@@ -7,9 +7,22 @@ version and generates a clean patch-based .pak mod from exactly the values
 you change. Everything left at "(vanilla)" is not touched, so it plays nice
 with your other mods.
 
-Around 470 tweaks in 14 tabs: Player, Vaulting, Weight & items, Combat,
+Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & items, Combat,
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
+
+NEW IN 1.37.0
+--------------
+Editable Overview and Favorites, undo/redo, named profiles with comparison,
+Pak history and restore, generated-value preview, left navigation and display
+size/density options. Up to 18 additional per-piece armor controls plus two
+global switches, and 18 optional loot/world additions.
+
+New gameplay effects and the redesigned visual layout have not been
+play-tested or interactively reviewed. Experimental options are labelled.
+The first game-data load refreshes the cache once. Rebuild your Pak to use
+new settings. Existing presets remain readable. There is no in-game menu;
+movement/fire-rate animation desynchronization remains unresolved.
 
 Ammunition stacks at 900 per slot in vanilla - the Ammo tab can raise that,
 globally or per round, and food and medicine have their own slider.
@@ -50,7 +63,9 @@ WHAT YOU CAN TWEAK (short tour)
 - Armor: global protection sliders per damage type, extra artifact slots
   on every body armor (capped at the game's 5), per-armor overrides
   for all 57 armors and helmets (edition pieces included, real in-game
-  names), armor durability, armor carry-weight bonuses
+  names), armor durability, armor carry-weight bonuses; additional per-piece
+  weight, price, grid size, durability, artifact slots and absolute protection,
+  plus experimental sprint, limp, helmet, noise/fall and shielded-slot options
 - NPCs & AI: damage, health, accuracy, vision & hearing range, grenade
   usage, reaction delay, "NPCs don't self-heal", NPC gear quality, NPC
   flashlights (brightness & reach, beam width, use in combat, on/off

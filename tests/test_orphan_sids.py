@@ -168,7 +168,8 @@ def scan(text):
 # MarkerPrototypes tragen LOKALISIERUNGS-Schluessel, die in keiner cfg als
 # Struct stehen — die wuerden sonst jede Runde falschen Alarm schlagen.
 REF_KEYS = {
-    "ItemPrototypeSID", "AgentPrototypeSID", "QuestSID", "EffectSID",
+    "ItemPrototypeSID", "ItemGeneratorPrototypeSID", "PrototypeSID",
+    "AgentPrototypeSID", "QuestSID", "EffectSID",
     "FalseEffectSID", "WeatherSID", "GlobalVariablePrototypeSID",
     "StickinessAimAssistConeSID", "SnappingAimAssistConeSID",
     "MovingTrackingAimAssistConeSID", "StationaryTrackingAimAssistConeSID",
@@ -220,7 +221,7 @@ def script_references(text):
 # Wetterlagen (`Cloudy`, `Fogy`, `Thundery` ...), auf die AIGlobals per
 # `WeatherSID` zeigt, stehen EINGERUECKT in WeatherSelectionPrototypes.
 # Mit Anker meldete der erste Lauf sie als Waisen - falscher Alarm.
-TOP_RE = re.compile(r"^\s*([A-Za-z_\[][^\s:]*)\s*:\s*struct\.begin", re.M)
+TOP_RE = re.compile(r"^\s*([A-Za-z0-9_\[][^\s:]*)\s*:\s*struct\.begin", re.M)
 SID_RE = re.compile(r"^\s*SID\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", re.M)
 
 # Die fuenf groessten Dateien machen 248 der 411 MB aus und deklarieren
@@ -278,7 +279,7 @@ def base_names(path: Path) -> set[str] | None:
             return None
         text = path.read_text(encoding="utf-8-sig", errors="replace")
         _base_cache[path] = {m.group(1) for m in
-                             re.finditer(r"^([A-Za-z_\[][^\s:]*)\s*:\s*struct\.begin",
+                             re.finditer(r"^([A-Za-z0-9_\[][^\s:]*)\s*:\s*struct\.begin",
                                          text, re.M)}
     return _base_cache[path]
 
