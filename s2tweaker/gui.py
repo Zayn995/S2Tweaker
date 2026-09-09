@@ -5426,14 +5426,16 @@ class App(ctk.CTk):
         body = self._tab("Factions")
         f = self._section(body, "Faction relations (living world)")
         self._warning(
-            f, "The "
-               "game copies relations into your save when a playthrough "
-               "starts. This tool also raises the game's internal "
-               "RelationVersion so existing saves should pick the new "
-               "values up – unverified until in-game testing. Quests and "
-               "scripted story characters can still override relations at "
-               "any time (that is by design), and local hostility slowly "
-               "rolls back on its own. Keep a backup save.",
+            f, "The game copies relations into your save when a playthrough "
+               "starts, so the sliders below are the baseline for NEW games. "
+               "To reach a save already in progress, tick 'Apply the "
+               "relations above to a running save' at the bottom of this "
+               "tab (1.36.0): it ships a tiny quest that sets your values "
+               "on every game launch, the route the big relations mod on "
+               "Nexus takes. Not play-tested yet – keep a backup save. "
+               "Quests and scripted story characters can still override "
+               "relations at any time (that is by design), and local "
+               "hostility slowly rolls back on its own.",
             title="Experimental — existing saves")
         ctk.CTkLabel(
             f, text="   Baseline stance between factions, on the game's own "
