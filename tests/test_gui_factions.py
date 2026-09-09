@@ -2,7 +2,8 @@
 
 Der vierte Baum (Beziehungspaare als direkte SliderRows). Prueft auch die
 Kernmechanik des Builders: nur abweichende Paare landen im Patch, und
-RelationVersion wird genau dann (+1) geschrieben."""
+RelationVersion wird NICHT mehr angefasst (der Bump aus 1.12.0 ist am
+09.09.2026 gestrichen - seine Begruendung war widerlegt)."""
 import json
 import sys
 from pathlib import Path
@@ -48,7 +49,7 @@ for key in app._if_vanilla:
 print(f"Baum: {len(app._if_blocks)} Bloecke, {len(app._if_vanilla)} Paare, "
       f"Player-Defaults = Vanilla, Story-Fraktionen draussen  OK")
 
-# --- 2) Wert aendern -> Patch mit RelationVersion-Bump ------------------
+# --- 2) Wert aendern -> Patch OHNE RelationVersion-Bump -----------------
 key = gd.relation_pair_key("Bandits", "Player")
 player.rows[key].set(800)
 app.update()
@@ -58,11 +59,11 @@ rel = [k for k in p if "RelationPrototypes" in k]
 assert len(rel) == 1 and len(p) == 1, list(p)
 text = p[rel[0]]
 assert "Bandits<->Player = 800" in text
-assert "RelationVersion = 8" in text, "Version-Bump fehlt"
+assert "RelationVersion" not in text, "der Bump ist seit 09.09.2026 gestrichen"
 assert "{bpatch}" in text
 assert any("Faction relations: 1 pair changed" in line
            for line in summarize(app._collect()))
-print("Bandits<->Player 800: Patch + RelationVersion 8  OK")
+print("Bandits<->Player 800: Patch, kein RelationVersion-Bump  OK")
 
 # --- 3) Zurueck auf Vanilla -> neutral; Rollback-only bumpt NICHT -------
 player.rows[key].set(pairs[key])
@@ -140,7 +141,7 @@ from s2tweaker import modscan
 assert "relations" in modscan._GD_TREES, "_GD_TREES ohne relations"
 fp = app._faction_tree_footprint(gd)
 assert ("Default", "Bandits<->Player") in fp, "Paar-Blatt fehlt im Fussabdruck"
-assert ("Default", "RelationVersion") in fp, "RelationVersion fehlt"
+assert ("Default", "RelationVersion") not in fp, "der Bump ist gestrichen - nicht mehr im Fussabdruck"
 assert len(fp) >= 90, f"nur {len(fp)} Blaetter im Sammel-Fussabdruck"
 # Fremde Mod, die dasselbe Paar patcht -> Pseudo-Schluessel im Ergebnis
 fake = modscan.ModInfo(name="FactionMod_Fake", path=Path("FactionMod_Fake.pak"),

@@ -7696,8 +7696,9 @@ class App(ctk.CTk):
         return conflicts
 
     def _faction_tree_footprint(self, gd) -> set:
-        """Vereinigter Fussabdruck aller kuratierten Beziehungspaare
-        (+ RelationVersion), gecacht wie die Regler-Fussabdruecke."""
+        """Vereinigter Fussabdruck aller kuratierten Beziehungspaare,
+        gecacht wie die Regler-Fussabdruecke. (Bis 1.36.0 lag auch die
+        RelationVersion darin - der Bump ist gestrichen.)"""
         key = "tree:factions"
         if key not in self._footprints:
             rel = gd.relation_pairs()

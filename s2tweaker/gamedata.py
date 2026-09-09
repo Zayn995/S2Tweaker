@@ -2728,9 +2728,11 @@ class GameData:
         return None
 
     def relation_version(self) -> int:
-        """Vanilla-RelationVersion (2.0.x: 7). Der Patch schreibt +1.
+        """Vanilla-RelationVersion (2.0.x: 7). Nur noch gelesen - der Patch
+        schrieb von 1.12.0 bis 1.36.0 Vanilla+1 hinein, seit 09.09.2026
+        nicht mehr (Besitzer-Entscheidung).
 
-        ⚠ **Die Begruendung dafuer ist widerlegt** (08.09.2026, beim
+        ⚠ **Die Begruendung des Bumps war widerlegt** (08.09.2026, beim
         Gegenlesen von "Relation System Overhaul", Nexus 2009): Der Zaehler
         gehoert GSC — RSO liefert in allen acht Varianten `0` aus, waehrend
         das Spiel auf `7` steht, also zaehlt keine Mod ihn hoch. Daneben
@@ -2739,8 +2741,8 @@ class GameData:
         Wirkung und markiert den Spielstand nur als 'schon auf Version N'.
         Der Weg, der bestehende Spielstaende wirklich erreicht, ist seit
         1.36.0 der Schalter `relations_runtime`
-        (`tweaks._relations_runtime_patch`). Der Bump bleibt vorerst drin —
-        ob er ersatzlos verschwindet, entscheidet der Besitzer."""
+        (`tweaks._relations_runtime_patch`). Der Accessor bleibt fuer den
+        Mod-Scan und die Tests."""
         d = self._relations_default()
         if d is None:
             return 0

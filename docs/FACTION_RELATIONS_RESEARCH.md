@@ -87,6 +87,18 @@ im gewünschten Level zu bleiben.
   Migration überspringen. Bewusst in Kauf genommen (GSC hat in 2 Jahren
   Patches genau 7 Versionen verbraucht); ins FAQ schreiben.
 
+> **Stand 09.09.2026 — Hypothese widerlegt, Bump gestrichen.** Das
+> Gegenlesen von RSO (Nexus 2009, alle acht Varianten) zeigte: niemand
+> zählt `RelationVersion` hoch, RSO liefert sogar `0` aus, während das
+> Spiel auf `7` steht; daneben liegt `RelationUpdateDeltas`, eine Liste
+> von Deltas je Version — ein Bump ohne passenden Delta-Eintrag wirkt
+> nicht. Der Patch schrieb von 1.12.0 bis 1.36.0 Vanilla+1; ab der
+> Version nach 1.36.0 bleibt der Zähler unangetastet. Bestehende
+> Spielstände erreicht seit 1.36.0 der RSO-Weg (Mini-Quest aus
+> `ChangeRelationships`-Knoten, gestartet aus `Scripts/OnGameLaunch/`;
+> siehe `tweaks._relations_runtime_patch` und
+> `tests/test_relations_runtime.py`).
+
 ## Runtime-Verhalten, das der Patch NICHT kontrolliert
 
 (belegt durch RSO-Erfahrungsbericht + Struktur der Datei)
@@ -149,8 +161,9 @@ Klammern = Anzeigename): `Neutrals` (Loners), `Bandits`, `Militaries`
    (`ReputationRollbackCooldown` ×25–400 %, inkl. der 19
    `FactionRollbackCooldowns` und beider Modifier), optional später:
    Handels-Schwelle, Reaktions-Stärke.
-4. Patch schreibt zusätzlich IMMER `RelationVersion = <vanilla+1>`,
-   sobald mindestens ein Beziehungswert abweicht.
+4. ~~Patch schreibt zusätzlich IMMER `RelationVersion = <vanilla+1>`,
+   sobald mindestens ein Beziehungswert abweicht.~~ (1.12.0–1.36.0;
+   gestrichen am 09.09.2026, siehe Stand-Notiz oben.)
 5. Datei in `NEEDED_FILES` aufnehmen ⇒ **CACHE_SCHEMA 10 → 11**.
 6. Disclaimer im Tab (englisch): quests/scripts override relations at
    any time; effect on existing saves is untested; changes are designed

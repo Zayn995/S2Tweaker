@@ -2,9 +2,9 @@
 
 Bis 1.35.0 schrieb der Fraktions-Tab nur die Baseline in
 RelationPrototypes.cfg — und die liest das Spiel beim ANLEGEN eines
-Spielstands. Der Zusatz `RelationVersion = Vanilla+1` sollte das
-ausgleichen; am 08.09.2026 hat das Gegenlesen von "Relation System
-Overhaul" (Nexus 2009) diese Annahme widerlegt.
+Spielstands. Der Zusatz `RelationVersion = Vanilla+1` (1.12.0 bis 1.36.0,
+seit 09.09.2026 gestrichen) sollte das ausgleichen; am 08.09.2026 hat das
+Gegenlesen von "Relation System Overhaul" (Nexus 2009) das widerlegt.
 
 Der Weg, der wirklich wirkt, ist RSOs: eine eigene Mini-Quest aus
 `EQuestNodeType::ChangeRelationships`-Knoten, angeworfen von einer Datei in

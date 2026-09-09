@@ -5675,16 +5675,18 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
 
     Beziehungspaare: nur Schluessel patchen, die es in Vanilla gibt (die
     Schreibrichtung "A<->B" ist je Paar fest; neue Paare anzulegen ist
-    ungetestet und bleibt tabu). Sobald mindestens ein Paar abweicht, wird
-    zusaetzlich RelationVersion = Vanilla+1 geschrieben.
+    ungetestet und bleibt tabu). Diese Baseline gilt fuer NEUE Spielstaende;
+    wer bestehende erreichen will, schaltet `relations_runtime` ein
+    (`_relations_runtime_patch`) - der Weg, den auch die einzige grosse
+    Beziehungs-Mod geht.
 
-    ⚠ **Zum Versions-Bump:** seine Begruendung ("bestehende Saves bemerken
-    die neue Baseline") ist am 08.09.2026 widerlegt worden — siehe
-    `GameData.relation_version`. Wer bestehende Spielstaende erreichen
-    will, schaltet `relations_runtime` ein
-    (`_relations_runtime_patch`); das ist der Weg, den auch die einzige
-    grosse Beziehungs-Mod geht. Diese Baseline hier gilt weiterhin fuer
-    NEUE Spielstaende.
+    ⚠ **`RelationVersion` wird NICHT mehr angefasst.** Von 1.12.0 bis 1.36.0
+    schrieb der Patch bei mindestens einem geaenderten Paar Vanilla+1
+    hinein - in der Hoffnung, bestehende Saves bemerkten so die neue
+    Baseline. Am 08.09.2026 widerlegt (siehe `GameData.relation_version`),
+    am 09.09.2026 auf Entscheidung des Besitzers gestrichen: der Zaehler
+    gehoert GSC, ein Bump ohne passenden Delta-Eintrag wirkt nicht und
+    koennte den Spielstand ein kuenftiges echtes Update ueberspringen lassen.
 
     Rollback: skaliert die Basis-Cooldown-Sekunden UND die 19
     fraktionsspezifischen Cooldowns; die Hub-/Lair-Modifier bleiben
@@ -5709,7 +5711,6 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
                 changed[key] = str(value)
         if changed:
             out["Relations"] = changed
-            out["RelationVersion"] = str(gd.relation_version() + 1)
 
     f = s.relation_rollback_factor
     if _neq(f, 1.0) and f > 0:
@@ -5727,8 +5728,7 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
             out["FactionRollbackCooldowns"] = cooldowns
 
     # Reaktionsstaerke: alle Reputations-Deltas der 2x8 Tabellen skalieren
-    # (vorzeichen-erhaltend, ganzzahlig; Nullen bleiben Null). Wie der
-    # Rollback ein Mechanik-Wert -> bewusst KEIN RelationVersion-Bump.
+    # (vorzeichen-erhaltend, ganzzahlig; Nullen bleiben Null).
     rf = s.relation_reaction_factor
     if _neq(rf, 1.0) and rf > 0:
         for table, idx, entry in gd.relation_reaction_tables():
@@ -5783,7 +5783,8 @@ def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dic
     zaehlt den Wert hoch, RSO liefert sogar `0` aus, waehrend das Spiel auf
     `7` steht. Der Zaehler gehoert GSC, und daneben steht
     `RelationUpdateDeltas` — eine Liste von DELTAS je Version. Ein Bump ohne
-    passenden Delta-Eintrag wirkt darum nicht.
+    passenden Delta-Eintrag wirkt darum nicht — seit 09.09.2026 wird er
+    nicht mehr geschrieben (Besitzer-Entscheidung, nach dem 1.36.0-Release).
 
     **Was stattdessen wirkt** (RSOs Weg, jede Behauptung gegen vanilla/
     nachgemessen):
