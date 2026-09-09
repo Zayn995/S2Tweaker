@@ -1012,6 +1012,7 @@ SLIDER_FIELDS: dict[str, str] = {
 }
 
 CHECK_FIELDS: dict[str, str] = {
+    "relations_runtime": "relations_runtime",
     "improved_vaulting": "improved_vaulting",
     "vault_sprint": "vault_sprint",
     "no_overweight": "no_overweight_penalty",
@@ -1151,6 +1152,13 @@ def footprint_settings(key: str) -> list[Settings] | None:
         # Scan vergleicht cfg-Blaetter - hier gibt es nichts zu
         # vergleichen, der Fussabdruck waere leer.
         if field_name in ("no_mouse_smoothing", "no_view_acceleration"):
+            return None
+        # 1.36.0: der Laufzeit-Schalter der Fraktionsbeziehungen wirkt nur
+        # ZUSAMMEN mit verstellten Paaren - allein schreibt er nichts. Eine
+        # Sonde mit einem Paar wuerde die Blaetter des Beziehungs-Baums
+        # erben und bei jeder fremden Fraktions-Mod falschen Alarm
+        # schlagen; die Paare selbst hat der Scan ueber `tree:factions`.
+        if field_name == "relations_runtime":
             return None
         return [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
@@ -5467,6 +5475,20 @@ class App(ctk.CTk):
                      "(wary) upward. 'Neutral' or 'Friend' = hardcore "
                      "reputation play; 'Enemy' = everyone trades with "
                      "anyone.")
+        self._check(f, "relations_runtime",
+                    "Apply the relations above to a running save (experimental)",
+                    "Without this, the values above are the baseline the game "
+                    "reads when a NEW game starts - an existing save keeps its "
+                    "own relations. Switch this on and the mod also ships a "
+                    "tiny quest that sets them on every game launch, using the "
+                    "game's own ChangeRelationships node type (1875 of them in "
+                    "the base game) and its own Scripts/OnGameLaunch folder. "
+                    "This is how 'Relation System Overhaul' (Nexus 2009) does "
+                    "it. Your standing with a faction is the field-proven half; "
+                    "faction-versus-faction rows use the same node but no "
+                    "released mod does that, so treat them as experimental. "
+                    "Not play-tested yet. Remove the pak and the script stops "
+                    "running - relations stay wherever they were last set.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Weapons")
@@ -7097,6 +7119,7 @@ class App(ctk.CTk):
             armor_overrides={sid: dict(v)
                              for sid, v in self.armor_overrides.items()},
             faction_relations=dict(self.faction_relations),
+            relations_runtime=bool(self.checks["relations_runtime"].get()),
             relation_rollback_factor=s["rel_rollback"].get() / 100.0,
             relation_reaction_factor=s["rel_reaction"].get() / 100.0,
             trade_min_level=s["rel_trade"].get(),

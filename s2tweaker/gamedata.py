@@ -2641,10 +2641,19 @@ class GameData:
         return None
 
     def relation_version(self) -> int:
-        """Vanilla-RelationVersion (2.0.x: 7). Der Patch schreibt +1,
-        damit bestehende Saves die neue Baseline bemerken (Hypothese,
-        siehe Recherche-Dokument — bis zum In-Game-Test als 'untested on
-        existing saves' beschriftet)."""
+        """Vanilla-RelationVersion (2.0.x: 7). Der Patch schreibt +1.
+
+        ⚠ **Die Begruendung dafuer ist widerlegt** (08.09.2026, beim
+        Gegenlesen von "Relation System Overhaul", Nexus 2009): Der Zaehler
+        gehoert GSC — RSO liefert in allen acht Varianten `0` aus, waehrend
+        das Spiel auf `7` steht, also zaehlt keine Mod ihn hoch. Daneben
+        steht `RelationUpdateDeltas`, eine Liste von DELTAS je Version; ein
+        Bump ohne passenden Delta-Eintrag hat darum vermutlich keine
+        Wirkung und markiert den Spielstand nur als 'schon auf Version N'.
+        Der Weg, der bestehende Spielstaende wirklich erreicht, ist seit
+        1.36.0 der Schalter `relations_runtime`
+        (`tweaks._relations_runtime_patch`). Der Bump bleibt vorerst drin —
+        ob er ersatzlos verschwindet, entscheidet der Besitzer."""
         d = self._relations_default()
         if d is None:
             return 0

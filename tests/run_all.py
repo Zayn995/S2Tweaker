@@ -70,6 +70,7 @@ ORDER = [
     "test_v135_tweaks.py",
     "test_key_families.py",
     "test_orphan_sids.py",
+    "test_relations_runtime.py",
     "test_upgrades.py",
     "test_alife_spawns.py",
     "test_v118_tweaks.py",

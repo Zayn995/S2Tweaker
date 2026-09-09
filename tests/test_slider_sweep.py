@@ -139,8 +139,11 @@ for key, field in CHECK_FIELDS.items():
     # es bewusst keinen Patch (Begruendung in gui.footprint_settings).
     # 1.35.0: no_mouse_smooth/no_view_accel erzeugen bewusst KEINE cfg,
     # sondern Stalker2/Config/UserInput.ini (tweaks.input_ini).
+    # 1.36.0: relations_runtime wirkt erst zusammen mit einem verstellten
+    # Beziehungs-Paar (eigene Suite test_relations_runtime.py).
     if (not build_patches(gd, s) and key not in
-            ("stat_bars", "no_mouse_smooth", "no_view_accel")):
+            ("stat_bars", "no_mouse_smooth", "no_view_accel",
+             "relations_runtime")):
         dead.append(f"check:{key}")
     if key in ("no_mouse_smooth", "no_view_accel"):
         assert input_ini(s), key

@@ -880,6 +880,10 @@ class Settings:
     # Zielwert als int}. Nur Abweichungen von Vanilla speichern; der
     # Builder prueft ohnehin gegen die live gelesenen Vanilla-Werte.
     faction_relations: dict = field(default_factory=dict)
+    # Beziehungen auch im LAUFENDEN Spielstand setzen (1.36.0, RSO-Weg):
+    # eine eigene Mini-Quest aus ChangeRelationships-Knoten, die ein
+    # Skript in Scripts/OnGameLaunch/ bei jedem Spielstart anwirft.
+    relations_runtime: bool = False
     relation_rollback_factor: float = 1.0    # Reputations-Rollback-Zeit
     relation_reaction_factor: float = 1.0    # Staerke der Reputations-Deltas
     trade_min_level: float = 1.0             # 0=Enemy 1=Disaffection(Van.) 2=Neutral 3=Friend
@@ -5539,9 +5543,15 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
     Beziehungspaare: nur Schluessel patchen, die es in Vanilla gibt (die
     Schreibrichtung "A<->B" ist je Paar fest; neue Paare anzulegen ist
     ungetestet und bleibt tabu). Sobald mindestens ein Paar abweicht, wird
-    zusaetzlich RelationVersion = Vanilla+1 geschrieben — GSCs eigener
-    Versionszaehler, ueber den bestehende Saves Beziehungs-Updates
-    bemerken (Details/Hypothese: docs/FACTION_RELATIONS_RESEARCH.md).
+    zusaetzlich RelationVersion = Vanilla+1 geschrieben.
+
+    ⚠ **Zum Versions-Bump:** seine Begruendung ("bestehende Saves bemerken
+    die neue Baseline") ist am 08.09.2026 widerlegt worden — siehe
+    `GameData.relation_version`. Wer bestehende Spielstaende erreichen
+    will, schaltet `relations_runtime` ein
+    (`_relations_runtime_patch`); das ist der Weg, den auch die einzige
+    grosse Beziehungs-Mod geht. Diese Baseline hier gilt weiterhin fuer
+    NEUE Spielstaende.
 
     Rollback: skaliert die Basis-Cooldown-Sekunden UND die 19
     fraktionsspezifischen Cooldowns; die Hub-/Lair-Modifier bleiben
@@ -5611,6 +5621,139 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
             out["MinRelationLevelToTrade"] = target
 
     return {"Default": out} if out else {}
+
+
+# Der Spieler als Ziel eines ChangeRelationships-Knotens. Gemessen am
+# 08.09.2026: in QuestNodePrototypes steht diese GUID 1436x als
+# `FirstTargetSID` und KEIN einziges Mal als `SecondTargetSID`; die Knoten,
+# die sie benutzen, heissen `..._SkifEnemy`, `..._KosoyEnemy` usw. Auch
+# RSO (Nexus 2009) adressiert den Spieler ausschliesslich so.
+PLAYER_TARGET_GUID = "A" * 32
+
+# Namen unserer Mini-Quest. Bewusst mit S2T-Praefix, damit nichts mit einer
+# Vanilla- oder Fremd-Quest kollidiert (test_orphan_sids prueft es).
+RELATIONS_QUEST_SID = "S2T_Relations"
+RELATIONS_START_SID = "S2T_Relations_Start"
+
+
+def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dict]:
+    """Fraktionsbeziehungen auch im LAUFENDEN Spielstand setzen.
+
+    (quest_nodes, quest_prototypes, launch_script)
+
+    **Warum es das gibt.** Die Baseline in RelationPrototypes.cfg liest das
+    Spiel nur beim Anlegen eines Spielstands; danach lebt der Wert im Save.
+    Seit 1.12.0 schrieb der Fraktions-Tab darum zusaetzlich
+    `RelationVersion = Vanilla+1` — in der Hoffnung, dass GSCs eigener
+    Versionszaehler bestehende Saves nachziehen laesst. **Am 08.09.2026
+    widerlegt** (RSO, Nexus 2009, alle acht Varianten gelesen): niemand
+    zaehlt den Wert hoch, RSO liefert sogar `0` aus, waehrend das Spiel auf
+    `7` steht. Der Zaehler gehoert GSC, und daneben steht
+    `RelationUpdateDeltas` — eine Liste von DELTAS je Version. Ein Bump ohne
+    passenden Delta-Eintrag wirkt darum nicht.
+
+    **Was stattdessen wirkt** (RSOs Weg, jede Behauptung gegen vanilla/
+    nachgemessen):
+
+    1. `EQuestNodeType::ChangeRelationships` — ein Vanilla-Knotentyp, **1875x**
+       im Spiel. Er setzt zur Laufzeit die Beziehung zwischen zwei Zielen.
+    2. `GameData/Scripts/OnGameLaunch/` — ein Vanilla-Ordner mit 333 Dateien,
+       der bei jedem Spielstart Skriptzeilen ausfuehrt; `XStartQuestNodeBySID`
+       benutzt das Spiel dort selbst. Eine zusaetzliche Datei mit eigenem
+       SID haengt sich an (207 der vorhandenen Dateien benutzen `[0]` als
+       Top-Level-Schluessel, mehrere `[*]` — wir nehmen `[*]`, den
+       Anhaenge-Index, damit gar nichts kollidieren kann).
+
+    Daraus wird: eine eigene Mini-Quest, ein Startknoten, je geaendertem
+    Paar ein ChangeRelationships-Knoten, und ein Startskript.
+
+    **Absolut statt Delta.** RSO verschiebt Werte (`UseDeltaValue = true`),
+    weil es Belohnungen umbaut. Unser Regler nennt einen ZIELwert, also
+    `UseDeltaValue = false` + `UsePreset = false`. Das ist keine Erfindung:
+    91 Vanilla-Knoten stehen genau so, und ihre Werte sind unsere Skala
+    (10x `-800`, dazu `-599`, `801`, `-199`).
+
+    ⚠ **Was gemessen ist und was nicht.** Spieler ↔ Fraktion macht RSO
+    genauso (44 Knoten) — das ist im Feld erprobt. Fraktion ↔ Fraktion
+    macht RSO NICHT; dass beide Ziele ein Fraktionsname sein duerfen, ist
+    aus Vanilla belegt (35 Knoten tragen einen Namen als `FirstTargetSID`,
+    darunter Varta, Spark, Monolith, Noon, Neutrals), aber nicht von einer
+    laufenden Mod. Steht so im Tooltip und im FAQ.
+
+    ⚠ Nichts davon liegt im Spielstand: Pak raus = das Skript laeuft nicht
+    mehr, die Beziehungen bleiben auf dem zuletzt gesetzten Stand."""
+    if not (s.relations_runtime and s.faction_relations):
+        return {}, {}, {}
+
+    vanilla_pairs = gd.relation_pairs()
+    nodes: dict = {}
+    n = 0
+    for key, target in sorted(s.faction_relations.items()):
+        vanilla = vanilla_pairs.get(key)
+        if vanilla is None or "<->" not in key:
+            continue
+        try:
+            value = int(round(float(target)))
+        except (TypeError, ValueError):
+            continue
+        value = max(-2000, min(2000, value))
+        if value == vanilla:
+            continue
+        first, second = key.split("<->", 1)
+        # Der Spieler wird ueber seine GUID adressiert, nicht ueber den
+        # Fraktionsnamen "Player" - so macht es RSO, und so stehen 1436
+        # Vanilla-Knoten da. Steht "Player" auf der zweiten Seite, drehen
+        # wir das Paar um, damit der Spieler immer das erste Ziel ist.
+        if second == "Player":
+            first, second = second, first
+        if first == "Player":
+            first = PLAYER_TARGET_GUID
+        n += 1
+        sid = f"S2T_Rel_{n:02d}"
+        nodes[sid] = {
+            "__new__": True,
+            "SID": sid,
+            "NodePrototypeVersion": "1",
+            "QuestSID": RELATIONS_QUEST_SID,
+            "NodeType": "EQuestNodeType::ChangeRelationships",
+            "Launchers": {"[0]": {
+                "Excluding": "false",
+                "Connections": {"[0]": {"SID": RELATIONS_START_SID, "Name": ""}}}},
+            "FirstTargetSID": first,
+            "SecondTargetSID": second,
+            "UseDeltaValue": "false",
+            "UsePreset": "false",
+            "RelationshipValue": str(value),
+            "SetFactionRelationshipAsPersonal": "false",
+            "ShouldLockPersonalRelationship": "false",
+        }
+
+    if not nodes:
+        return {}, {}, {}
+
+    # Startknoten. `LaunchOnQuestStart` UND das Startskript - beides wie bei
+    # RSO; die Verzoegerung gibt dem Spiel Zeit, den Spielstand zu laden.
+    nodes[RELATIONS_START_SID] = {
+        "__new__": True,
+        "SID": RELATIONS_START_SID,
+        "NodePrototypeVersion": "1",
+        "QuestSID": RELATIONS_QUEST_SID,
+        "NodeType": "EQuestNodeType::Technical",
+        "StartDelay": "3.0",
+        "LaunchOnQuestStart": "true",
+    }
+
+    # Die Quest selbst. Vanilla-Eintraege in QuestPrototypes tragen nur
+    # ihren SID (nachgesehen: 1304 Quests, die meisten sind zwei Zeilen).
+    quest = {RELATIONS_QUEST_SID: {"__new__": True, "SID": RELATIONS_QUEST_SID}}
+
+    # Das Startskript. `[*]` = anhaengen, damit kein Index kollidiert.
+    script = {"[*]": {
+        "__new__": True,
+        "SID": "S2T_OnGameLaunch_Relations",
+        "ScriptsArray": {"[*]": f"XStartQuestNodeBySID {RELATIONS_START_SID}"},
+    }}
+    return nodes, quest, script
 
 
 # Begegnungs-Arten (Director): Settings-Feld -> Squad-Token (siehe
@@ -6702,7 +6845,14 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(quest_patches, _quest_limit_patch(gd, s))
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     _merge_nested(quest_patches, _quest_multi_patch(gd, s))
+    # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien, die
+    # zusammengehoeren - die Knoten wandern in die vorhandene
+    # QuestNode-Patchdatei, Quest und Startskript bekommen eigene.
+    rel_nodes, rel_quest, rel_script = _relations_runtime_patch(gd, s)
+    _merge_nested(quest_patches, rel_nodes)
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
+    add(f"QuestPrototypes/QuestPrototypes_patch_{n}.cfg", rel_quest)
+    add(f"Scripts/OnGameLaunch/OnGameLaunchScripts_patch_{n}.cfg", rel_script)
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
         _emission_patch(gd, s))
     add(f"UpgradePrototypes/UpgradePrototypes_patch_{n}.cfg",
@@ -7302,6 +7452,8 @@ def summarize(s: Settings) -> list[str]:
         n_rel = len(s.faction_relations)
         lines.append(f"Faction relations: {n_rel} pair"
                      f"{'s' if n_rel != 1 else ''} changed")
+    if s.relations_runtime:
+        lines.append("Faction relations are also applied to a running save")
     f("Reputation rollback time", s.relation_rollback_factor)
     f("Reputation reaction strength", s.relation_reaction_factor)
     if int(round(s.trade_min_level)) != 1:

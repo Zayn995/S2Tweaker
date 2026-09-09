@@ -94,7 +94,9 @@ SPECIAL = {                      # Regler, deren Vanilla-Wert 0 oder Deckel ist
 # Bewusst wirkungslos ALLEIN (Begruendung jeweils im Code):
 #   stat_bars_follow spiegelt nur die Waffenregler
 #   no_mouse_smoothing/no_view_acceleration schreiben eine INI statt cfg
-ALONE_EMPTY = {"stat_bars_follow", "no_mouse_smoothing", "no_view_acceleration"}
+#   relations_runtime braucht mindestens ein verstelltes Beziehungs-Paar
+ALONE_EMPTY = {"stat_bars_follow", "no_mouse_smoothing", "no_view_acceleration",
+               "relations_runtime"}
 
 t0 = time.time()
 dead, no_line = [], []

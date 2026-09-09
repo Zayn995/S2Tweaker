@@ -105,6 +105,14 @@ _own = gd.weapon_caliber(_weapon)
 _other = sorted(c for c in _tables if c != _own and _tables[c])[0]
 kw["weapon_calibers"] = {_weapon: _other}
 
+# Fraktionsbeziehungen: ein Paar mit dem Spieler und eines zwischen zwei
+# Fraktionen - nur so entstehen die Laufzeit-Knoten (1.36.0) samt
+# Startskript, und genau die haengen an Namen, die ein Spiel-Update
+# umbenennen koennte.
+kw["faction_relations"] = {k: v for k, v in (
+    (gd.relation_pair_key("Duty", "Player"), 800),
+    (gd.relation_pair_key("Duty", "Freedom"), -800)) if k}
+
 t0 = time.time()
 PATCHES = build_patches(gd, Settings(mod_name="S2Tweaker", **kw))
 build_s = time.time() - t0
@@ -180,6 +188,24 @@ def references(refs):
             out.append((struct, key, value, line))
         elif key.startswith("[") and value:
             out.append((struct, key, value, line))
+    return out
+
+
+# Skriptzeilen in Scripts/OnGameLaunch sehen aus wie
+# `[*] = XStartQuestNodeBySID <Knoten>` - der Verweis ist das LETZTE Wort.
+# Ohne diese Sonderbehandlung faellt der Filter oben darauf herein (zwei
+# Woerter sind kein Bezeichner) und genau der wichtigste Verweis der
+# Laufzeit-Beziehungen bliebe ungeprueft.
+SCRIPT_CMDS = ("XStartQuestNodeBySID", "XStartQuestBySID",
+               "XExecuteAdditionalScript")
+
+
+def script_references(text):
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        m = re.match(r"^\s*\[[^\]]*\]\s*=\s*(\S+)\s+(\S+)\s*$", line)
+        if m and m.group(1) in SCRIPT_CMDS:
+            out.append(("ScriptsArray", m.group(1), m.group(2), n))
     return out
 
 
@@ -310,7 +336,7 @@ def audit(patches: dict[str, str]) -> list[str]:
                 bad.append(f"{path}:{line} SID = {value} in Struct {struct}")
 
         # (d) Waisen
-        for struct, key, value, line in references(raw):
+        for struct, key, value, line in references(raw) + script_references(text):
             if value in KNOWN or value in own:
                 continue
             if resolve_late(value):
@@ -324,7 +350,8 @@ t0 = time.time()
 findings = audit(PATCHES)
 audit_s = time.time() - t0
 n_tops = sum(len(scan(t)[0]) for t in PATCHES.values())
-n_refs = sum(len(references(scan(t)[1])) for t in PATCHES.values())
+n_refs = sum(len(references(scan(t)[1])) + len(script_references(t))
+             for t in PATCHES.values())
 
 check(not findings,
       f"{n_tops} Top-Level-Structs und {n_refs} SID-Verweise sind sauber"
@@ -354,9 +381,15 @@ check(not lost,
 quest_patch = next((t for p, t in PATCHES.items() if "QuestNode" in p), "")
 tops = scan(quest_patch)[0]
 new_nodes = {n for n, attrs, _l in tops if "bpatch" not in attrs}
-check(len(new_nodes) == 2 * len(givers),
-      f"der Patch legt je Geber genau zwei neue Knoten an "
-      f"({len(new_nodes)} Stueck: S2T_ClearAccept + S2T_ReArmDialog)")
+job_nodes = {n for n in new_nodes
+             if n.endswith(("_S2T_ClearAccept", "_S2T_ReArmDialog"))}
+check(len(job_nodes) == 2 * len(givers),
+      f"der Mehrfach-Job-Schalter legt je Geber genau zwei neue Knoten an "
+      f"({len(job_nodes)} Stueck: S2T_ClearAccept + S2T_ReArmDialog)")
+# Der Rest sind die Beziehungs-Knoten aus 1.36.0 (eigene Suite).
+check(new_nodes - job_nodes == {"S2T_Relations_Start", "S2T_Rel_01", "S2T_Rel_02"},
+      f"dazu die Laufzeit-Beziehungen der Sonde "
+      f"({sorted(new_nodes - job_nodes)})")
 # Diese zwei sind neu und duerfen darum NICHT schon im Spiel stehen -
 # sonst wuerden wir einen Vanilla-Knoten komplett ersetzen.
 collide = sorted(n for n in new_nodes if n in KNOWN)

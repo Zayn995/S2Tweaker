@@ -420,20 +420,20 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Do faction relation changes work on my existing save?",
-        "a": "Honest answer: not verified yet. The game copies relations "
-             "into the save when a playthrough starts, so a plain config "
-             "change would only affect NEW games. This tool additionally "
-             "raises the game's internal RelationVersion counter - the "
-             "mechanism built to push relation updates into existing "
-             "saves - but treat that as untested until play-testing "
-             "confirms it. New games start from the patched baseline. "
-             "Keep a backup save. Also: local hostility still rolls back "
-             "over time, scripted characters keep their fixed attitudes, "
-             "and a save stamped with our raised counter may skip ONE "
-             "future official relation update (rare - 7 versions in two "
-             "years); remove the mod before big game patches to be safe.",
+        "a": "Only if you tick 'Apply the relations above to a running "
+             "save' in the Factions tab. The game copies relations into "
+             "the save when a playthrough starts, so the sliders alone are "
+             "the baseline for NEW games. With the box ticked the mod also "
+             "ships a tiny quest that re-applies your values on every game "
+             "launch, using the game's own node type for it - the route "
+             "the big relations mod on Nexus takes. Your own standing is "
+             "the proven half; faction-versus-faction pairs use the same "
+             "node but no released mod does that. Not play-tested - keep a "
+             "backup save. Remove the pak and relations stay where they "
+             "were last set.",
         "k": "faction relations existing save new game relationversion "
-             "not working savegame old save version counter apply",
+             "not working savegame old save version counter apply running "
+             "ongoing playthrough runtime",
     },
     {
         "q": "Can I vault or climb over higher obstacles?",
