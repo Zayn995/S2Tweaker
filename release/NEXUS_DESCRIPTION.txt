@@ -13,10 +13,10 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The mod itself (1.35.0): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
+[*]The mod itself (1.36.0): the VirusTotal report for this exact ZIP is added here as soon as the scan is in. Every release before it came back clean - the list below lets you check any of them yourself
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.35.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -35,11 +35,11 @@ Every release since 1.23.0 has been scanned as a whole ZIP before it went out. T
 1.23.0 was the first version without the bundled repak.exe - since then the package contains exactly one executable, and that one is python.org's signed pythonw.exe.
 [/spoiler]
 
-[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files. Since 1.33.0 a player (Molkerr) has confirmed a whole set of them in the running game - stack sizes, magazine size, the ammunition swap, the weight and artifact sliders among them - and found two real bugs, both fixed. Most of the ~470 controls have still never been watched in action, and each tooltip says where it stands. Bug reports in the comments are very welcome![/quote]
+[quote][b]Honesty note:[/b] every patch the tool generates is cross-checked against the game's own config files. Since 1.33.0 two players (Molkerr and craigduk76) have confirmed a whole set of them in the running game - stack sizes, magazine size, the ammunition swap, the weight and artifact sliders, sober-up speed among them - found real bugs, all fixed, and found three controls that did nothing at all; those are gone since 1.36.0. Most of the ~470 controls have still never been watched in action, and each tooltip says where it stands. Bug reports in the comments are very welcome![/quote]
 
 [heading]WHAT IT DOES[/heading]
 
-A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]450 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
+A small Windows tool with sliders and checkboxes. You pick your values, it builds a ready-to-use .pak mod from them. Everything is a multiplier or toggle on top of the real values read from your game. Around [b]470 tweaks[/b], sorted into 14 tabs (Player, Vaulting, Weight & items, Combat, NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy, Traders):
 
 [b]Player[/b]
 [list]
@@ -129,7 +129,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 [*][b]Reputation rollback time[/b]: how long the game remembers local hostility before forgiving it (vanilla 60 min)
 [*][b]Reputation reaction strength[/b]: how hard your deeds hit your reputation - scales every gain and loss in the game's reaction tables (help a faction, kill their members ...) from 25 to 400 %
 [*][b]Trading requires standing[/b]: a four-step slider (Enemy / Disaffected / Neutral / Friend) for how much a faction has to like you before its traders deal with you - vanilla is Disaffected, Enemy means everyone trades even with their worst enemy
-[*]The tool also raises the game's internal RelationVersion counter - the developers' own mechanism for pushing relation updates into existing saves. [b]Honestly: not verified in-game yet[/b], treat existing saves as untested and keep a backup. Story, boss and arena factions are deliberately not listed, and quests can still override relations at any time (by design)
+[*][b]Apply to a running save[/b] (1.36.0): the values above are the baseline the game reads when a NEW game starts. A switch also ships a tiny quest that sets them on every game launch through the game's own relation-change node - the route the big relations mod on Nexus takes. Your own standing with a faction is the field-proven half; faction-versus-faction pairs use the same node but no released mod does that. [b]Not play-tested yet[/b], keep a backup. Story, boss and arena factions are deliberately not listed, and quests can still override relations at any time (by design)
 [/list]
 
 [b]Mutants - its own tab[/b]
@@ -237,6 +237,18 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.36.0 - faction relations that reach a running save, the several-jobs switch rebuilt from what actually works, three dead controls removed[/b] (~470 tweaks + ammo swap, 14 tabs)
+[list]
+[*][b]Faction relations can now be applied to a save already in progress.[/b] Until now the Factions tab only wrote the baseline the game reads when a NEW game starts. (It also raised the game's relation version counter in the hope that old saves would notice - reading the big relations mod on Nexus showed that nobody does that; the counter belongs to the developers.) A new switch ships a tiny quest that sets your values on every game launch through the game's own relation-change node type - 1875 of them exist in the base game - started from its own on-launch script folder. That is the route the Nexus mod takes. Your own standing with a faction is the field-proven half; faction-versus-faction pairs use the same node, but no released mod does that
+[*][b]"Accept several jobs in one conversation", third design.[/b] Two earlier versions added new quest nodes and did nothing in Molkerr's game. Reading the one mod where this works (Zone Borders / Contracts) settled why: saying yes switches the giver's dialog OFF through a launcher on that very node, and the dialog itself starts with "already said yes? then the cancel branch" - so nothing that merely re-opened it could ever show the menu again. This version edits those existing nodes instead of adding to them: the launcher is flipped so that saying yes re-opens the dialog, the dialog's first branch leads to the menu either way, and two small nodes per job - in a file of their own, like that mod's - take a job you accepted off the menu. Untested so far; the tooltip says what to expect, including what still can look odd
+[*][b]Talk distance fixed.[/b] Every one of the 1608 human NPCs carries its own dialog distance; the tool only ever wrote the player's copy, and craigduk76 found it did nothing. All of them get it now
+[*][b]Sober-up speed[/b] goes down to 1 % (was 25 %). Confirmed in-game by craigduk76 at 25 %, who then asked for a longer evening
+[*][b]Three controls removed[/b] because a player test proved they do nothing: "Free look on ladders" (the two ladder keys are dead while the key next to them works), "Dialog field of view" (no effect, and no second lever anywhere in the game files) and the switch "task giver's dialog opens while he still has jobs" (it cannot do what its name promised). Old presets still load
+[*][b]Confirmed in the game and marked so in the tooltips:[/b] artifacts visible without a detector, artifacts don't hop away, the bigger job menu, look straight down, sober-up speed
+[*][b]One more game file is read[/b] (the dialog file, for the several-jobs switch): the first start after updating extracts your game data once more
+[*][b]Under the hood:[/b] a new self-check holds every patch the tool can write against the game's own node names, so a quest node renamed by a game update can no longer fail silently
+[/list]
+
 [b]v1.35.0 - fourteen dials the key-family check dug up[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]NPC vs player damage, and NPC vs allies damage.[/b] Every weapon carries three separate scalers - NPC against NPC (70 %), NPC against you (100 %), NPC against friendlies (30 %). Until now only the first had a slider. All three do now, and they stack with the difficulty multiplier instead of replacing it
@@ -250,6 +262,7 @@ If the ~mods folder doesn't exist, create it.
 [*][b]Measured and not built:[/b] thirst. The counter exists on every character but sits at 0.0, and the word appears in exactly one file - nothing feeds or drains it, so there is nothing to scale
 [/list]
 
+[spoiler]
 [b]v1.34.0 - the several-jobs switch actually works now[/b] (~460 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]"Accept several jobs in one conversation" is repaired.[/b] Molkerr play-tested 1.33.0 and reported that it did nothing. Taking a task giver's quest apart node by node showed two mistakes: accepting a job does not merely end the conversation, it switches the dialogue node OFF (the accept node hangs on it as an excluding launcher), and the extra launcher this tool added carried a merge flag although it was a brand-new entry. Both are fixed, so the dialogue really does re-open a second after you say yes
@@ -273,7 +286,6 @@ If the ~mods folder doesn't exist, create it.
 [*]Upgrade strength now also covers the accuracy and movement-speed upgrade effects, which hung on no slider at all
 [/list]
 
-[spoiler]
 [b]v1.32.0 - 33 more dials, most of them found by taking other people's mods apart[/b] (~450 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Fix worth knowing about:[/b] the jam entry in the weapon data holds two keys - how likely a jam is, and how long clearing one takes. Since 1.26.0 the tool only ever wrote the second one into that entry. Depending on how the game merges partial entries that could have quietly wiped the jam coefficient. Both are written in full now

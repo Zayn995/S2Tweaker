@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.35.0
-File version:  1.35.0
+Name:          S2Tweaker 1.36.0
+File version:  1.36.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,32 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.36.0 - faction relations that reach a running save, the several-jobs
+switch rebuilt from what actually works, three dead controls removed
+
+- Faction relations can be applied to a save already in progress: a new
+  switch ships a tiny quest that sets your values on every game launch
+  through the game's own relation-change node, the route the big
+  relations mod on Nexus takes. Your own standing is the field-proven
+  half; faction-vs-faction pairs use the same node but no released mod
+  does that.
+- 'Accept several jobs in one conversation', third design: no new nodes
+  where it matters. The launcher that switches the giver's dialog off
+  after a yes is flipped so that it re-opens instead, the dialog's first
+  branch leads to the menu either way, and two small nodes per job take
+  an accepted job off the menu (copied from Zone Borders / Contracts).
+  Untested so far.
+- Talk distance fixed: all 1608 human NPCs carry their own dialog
+  distance and now get the new value too (found by craigduk76).
+- Sober-up speed goes down to 1 % (confirmed in-game at 25 %).
+- Removed because a player test proved them dead: Free look on ladders,
+  Dialog field of view, and the 'dialog opens while he still has jobs'
+  switch. Old presets still load.
+- Confirmed in the game: artifacts visible without a detector, artifacts
+  don't hop away, the bigger job menu, look straight down, sober-up speed.
+- One more game file is read (the dialog file): the first start after
+  updating extracts your game data once more.
+
 1.35.0 - fourteen dials the key-family check dug up
 
 - NPC vs player damage and NPC vs allies damage. Every weapon carries three separate
