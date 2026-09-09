@@ -27,6 +27,9 @@ launcher never creates a window. It imports every application module,
 proves that no networking module is present, writes and reads back a tiny
 pak in pure Python, and writes a report to <file>. tools/build_exe.py runs
 this against a copy of every build. Visual layout needs separate review.
+
+An explicitly requested S2TWEAKER_GUI_CHECK runs the single-window resource
+check in this exact portable runtime. It is separate from the headless selftest.
 """
 import os
 import sys
@@ -167,9 +170,21 @@ def _report_crash(text: str) -> None:
 def main() -> None:
     _prepare()
     report = os.environ.get("S2TWEAKER_SELFTEST")
+    gui_check = os.environ.get("S2TWEAKER_GUI_CHECK")
     try:
         if report:
             _selftest(Path(report))
+        elif gui_check:
+            import json
+            from types import SimpleNamespace
+            from s2tweaker.gui_diagnostics import measure
+            options = json.loads(gui_check)
+            report = options["report"]
+            args = SimpleNamespace(**{key: Path(options[key]) if options.get(key) else None
+                                      for key in ("report", "vanilla")})
+            args.visual_review = bool(options.get("visual_review", False))
+            args.design_review = bool(options.get("design_review", False))
+            os._exit(measure(args))
         else:
             from s2tweaker.gui import run
             run()

@@ -11,11 +11,18 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
-Version 1.37.0 includes an [editor workspace](docs/EDITOR_WORKSPACE.md)
+Version 1.37.1 repairs the black-window/startup failure in the withdrawn 1.37.0
+release. The interface uses fewer Windows handles, creates optional controls
+on demand and keeps Mousewheel and Design visible in the toolbar. All twelve
+palettes have improved text contrast. [Repair and verification details](docs/STARTUP_REPAIR.md).
+
+It includes an [editor workspace](docs/EDITOR_WORKSPACE.md)
 with an editable changes overview, favorites, undo/redo, profile comparisons,
 own-Pak history, output preview, left navigation and display size/density options.
 These changes are in the separate Python application files. Release builds
-use the existing GitHub Actions process and check the signed starter. Interactive visual review is pending.
+are assembled in GitHub Actions from the current source and a hash-pinned
+1.36.1 runtime. All existing EXE/DLL/PYD files remain byte-identical.
+The repaired interface has been checked in a real Windows window.
 
 The [additional armor settings](docs/ARMOR_EXTENSIONS.md) add per-piece weight,
 price, maximum durability, grid size, artifact slots and absolute protection,

@@ -488,9 +488,7 @@ def _stash_targets(gd):
 
 def _collect_stash_targets(gd):
     """Retain only vetted (spawn SID, rank key, rank) tuples, never a full parse."""
-    source = gd.dir / "SpawnActorPrototypes.cfg"
-    if not source.is_file():
-        raise FileNotFoundError("Extra stash finds require refreshed game data (SpawnActorPrototypes.cfg).")
+    source = gd.stash_spawn_source()
     targets = []
     suitability = {}
     for key, spawn in _stream_spawn_containers(source):

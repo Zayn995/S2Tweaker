@@ -13,6 +13,8 @@ import customtkinter as ctk
 
 from . import editor_state as state, mod_library, theme, armor_extensions
 
+OVERVIEW_PAGE_SIZE = 20
+
 TREE_TABS = {"weapon_overrides": "Weapons", "weapon_calibers": "Weapons",
              "ammo_overrides": "Ammo", "scope_overrides": "Ammo",
              "armor_overrides": "Armor", "armor_custom": "Armor", "mutant_overrides": "Mutants",
@@ -41,7 +43,8 @@ class WorkbenchMixin:
         self._wb_bindings = {}
         self._wb_meta = {}
         self._wb_check_tabs = {}
-        self._wb_check_stars = {}
+        self._wb_check_hints = {}
+        self._wb_menu = None
         self._wb_favorites = set()
         self._wb_compact = True
         self._wb_scale = 100
@@ -53,6 +56,8 @@ class WorkbenchMixin:
         self._wb_windows = {}
         self._wb_history = None
         self._wb_view = "My changes"
+        self._wb_page = 0
+        self._wb_page_filter = None
         self._wb_render_stamp = None
         self._wb_global_query = ""
         self._wb_preferences = ui().app_dir() / "editor.json"
@@ -67,6 +72,10 @@ class WorkbenchMixin:
                 self._wb_scale = prefs["scale"]
         except (OSError, ValueError, TypeError, AttributeError):
             pass
+        # Apply a saved non-default scale BEFORE constructing the controls.
+        # Calling this at 100% after construction redraws every CTk widget.
+        if self._wb_scale != 100:
+            ctk.set_widget_scaling(self._wb_scale / 100)
 
     def _wb_save_preferences(self):
         try:
@@ -89,7 +98,6 @@ class WorkbenchMixin:
         self.bind("<Control-Shift-Z>", lambda e: self._wb_redo(), add="+")
         self.bind("<Control-f>", lambda e: self.search_entry.focus_set(), add="+")
         self._wb_build_overview()
-        ctk.set_widget_scaling(self._wb_scale / 100)
         self.tabs.set("Overview")
         self._wb_tick()
 
@@ -190,24 +198,58 @@ class WorkbenchMixin:
                               tab or TREE_TABS.get(path[0], self._current_tab), help_text)
         row.editor_help = help_text
         row.editor_path = path
-        row.favorite_btn = ctk.CTkButton(
-            row.row, text="★" if path in self._wb_favorites else "☆", width=26,
-            fg_color="transparent", command=lambda: self._wb_toggle_favorite(path))
-        row.favorite_btn.pack(side="left", padx=(3, 0))
-        row.info_btn = ctk.CTkButton(row.row, text="i", width=24,
-                                    fg_color="transparent",
-                                    command=lambda: self._wb_details(path))
-        row.info_btn.pack(side="left", padx=(2, 0))
+        row.editor_label = row.label.cget("text")
+        self._wb_mark_favorite(path, row.label, row.editor_label)
+        row.label.bind("<Button-3>", lambda e: self._wb_context(e, path), add="+")
+        row.entry.bind("<Button-3>", lambda e: self._wb_context(e, path), add="+")
         self._wb_density_row(row)
 
+    def _wb_context(self, event, path):
+        # One native menu shared by all rows, allocated only when requested.
+        if self._wb_menu is None:
+            self._wb_menu = tk.Menu(self, tearoff=False)
+        menu = self._wb_menu
+        menu.delete(0, "end")
+        menu.add_command(label="Remove favorite" if path in self._wb_favorites else "Add favorite",
+                         command=lambda: self._wb_toggle_favorite(path))
+        menu.add_command(label="Details", command=lambda: self._wb_details(path))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def _wb_mark_favorite(self, path, widget, label):
+        widget.configure(text=("★ " if path in self._wb_favorites else "") + label)
+
     def _wb_density_row(self, row):
-        hint = getattr(row, "hint", None)
-        if hint is not None:
-            if self._wb_compact:
-                hint.pack_forget()
-            elif not hint.winfo_manager():
-                hint.pack(fill="x", padx=12, after=row.row)
-        row.row.pack_configure(pady=1 if self._wb_compact else 5)
+        tab = self._wb_meta.get(row.editor_path, (None, None))[1]
+        row.show_hint(not self._wb_compact and self.tabs.get() == tab)
+        if getattr(row, "_editor_compact", None) != self._wb_compact:
+            row.row.pack_configure(pady=1 if self._wb_compact else 5)
+            row._editor_compact = self._wb_compact
+
+    def _wb_tab_changed(self):
+        if not hasattr(self, "tabs"):
+            return
+        if self.tabs.get() != "Overview" and hasattr(self, "wb_rows"):
+            for widget in self.wb_rows.winfo_children():
+                widget.destroy()
+            self._wb_render_stamp = None
+        for row in list(self._wb_bindings.values()):
+            if row.row.winfo_exists():
+                self._wb_density_row(row)
+        for key, data in self._wb_check_hints.items():
+            parent, row, tip, hint = data
+            visible = not self._wb_compact and self.tabs.get() == self._wb_check_tabs[key]
+            if visible and hint is None:
+                hint = ctk.CTkLabel(parent, text="      " + tip, anchor="w", justify="left",
+                                    wraplength=680, font=ctk.CTkFont(size=12), text_color=ui().MUTED)
+                hint.pack(fill="x", padx=12, after=row)
+                data[3] = hint
+            elif not visible and hint is not None:
+                hint.destroy()
+                data[3] = None
 
     def _wb_toggle_favorite(self, path):
         if path in self._wb_favorites:
@@ -216,9 +258,9 @@ class WorkbenchMixin:
             self._wb_favorites.add(path)
         row = self._wb_bindings.get(path)
         if row is not None and row.row.winfo_exists():
-            row.favorite_btn.configure(text="★" if path in self._wb_favorites else "☆")
-        if path in self._wb_check_stars:
-            self._wb_check_stars[path].configure(text="★" if path in self._wb_favorites else "☆")
+            self._wb_mark_favorite(path, row.label, row.editor_label)
+        if path[0] == "checks" and path[1] in self.checks:
+            self._wb_mark_favorite(path, self.checks[path[1]], self._wb_meta[path][0])
         self._wb_save_preferences()
         self._wb_render_stamp = None
         if self.tabs.get() == "Overview":
@@ -283,7 +325,7 @@ class WorkbenchMixin:
         ctk.CTkLabel(header, text="Your workspace", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
         self.wb_overview_note = ctk.CTkLabel(header, text="", anchor="w", wraplength=680)
         self.wb_overview_note.pack(fill="x")
-        modes = ctk.CTkSegmentedButton(header, values=["My changes", "Favorites", "Browse controls"],
+        modes = theme.SegmentedButton(header, values=["My changes", "Favorites", "Browse controls", "Loot & world"],
                                       command=self._wb_choose_view)
         modes.set(self._wb_view)
         self.wb_modes = modes
@@ -291,13 +333,32 @@ class WorkbenchMixin:
         self.wb_search = ctk.CTkEntry(header, placeholder_text="Filter this list…")
         self.wb_search.pack(fill="x")
         self.wb_search.bind("<KeyRelease>", lambda e: self._wb_render_overview(force=True))
+        paging = ctk.CTkFrame(header, fg_color="transparent")
+        paging.pack(fill="x", pady=4)
+        self.wb_previous = ctk.CTkButton(paging, text="Previous", width=80,
+                                        command=lambda: self._wb_change_page(-1))
+        self.wb_previous.pack(side="left")
+        self.wb_page_label = ctk.CTkLabel(paging, text="")
+        self.wb_page_label.pack(side="left", padx=10)
+        self.wb_next = ctk.CTkButton(paging, text="Next", width=80,
+                                    command=lambda: self._wb_change_page(1))
+        self.wb_next.pack(side="left")
         self.wb_rows = ctk.CTkScrollableFrame(page, fg_color="transparent")
         self.wb_rows.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     def _wb_choose_view(self, value):
         self._wb_view = value
         self.wb_modes.set(value)
+        self.tabs.set("Overview")
         self._wb_render_overview(force=True)
+
+    def _wb_change_page(self, delta):
+        self._wb_page = max(0, self._wb_page + delta)
+        self._wb_render_overview(force=True)
+
+    def _wb_extra_controls(self):
+        self.wb_search.delete(0, "end")
+        self._wb_choose_view("Loot & world")
 
     def _wb_sync_search(self, query):
         if not hasattr(self, "wb_search") or not (query or self._wb_global_query):
@@ -310,31 +371,39 @@ class WorkbenchMixin:
             self.tabs.set("Overview")
 
     def _wb_render_overview(self, force=False):
-        if not hasattr(self, "wb_rows"):
+        if not hasattr(self, "wb_rows") or self.tabs.get() != "Overview":
             return
         query = self.wb_search.get().casefold().strip()
         catalog = self._wb_catalog()
         rows = [r for r in catalog if
                 (self._wb_view != "My changes" or not state.equal(r[3], r[4])) and
                 (self._wb_view != "Favorites" or r[0] in self._wb_favorites) and
+                (self._wb_view != "Loot & world" or r[0] in self._extension_paths) and
                 (not query or query in (r[1] + " " + r[2] + " " + "/".join(r[0])).casefold())]
+        page_filter = self._wb_view, query
+        if page_filter != self._wb_page_filter:
+            self._wb_page = 0
+            self._wb_page_filter = page_filter
+        pages = max(1, (len(rows) + OVERVIEW_PAGE_SIZE - 1) // OVERVIEW_PAGE_SIZE)
+        self._wb_page = min(self._wb_page, pages - 1)
         stamp = (repr(rows), self._wb_view, query, self._body_enabled_state(), self._wb_busy,
-                 tuple(sorted(self._wb_favorites)))
+                 tuple(sorted(self._wb_favorites)), self._wb_page)
         if not force and stamp == self._wb_render_stamp:
             return
         self._wb_render_stamp = stamp
+        self.wb_page_label.configure(text=f"Page {self._wb_page + 1} / {pages} · {len(rows)} settings")
+        self.wb_previous.configure(state="normal" if self._wb_page else "disabled")
+        self.wb_next.configure(state="normal" if self._wb_page + 1 < pages else "disabled")
         for widget in self.wb_rows.winfo_children():
             widget.destroy()
         changed = sum(not state.equal(r[3], r[4]) for r in catalog)
         self.wb_overview_note.configure(text=f"{changed} changed settings · {len(self._wb_favorites)} favorites. "
                                         "Values here are editor settings; Preview shows the generated result.")
         if not rows:
-            ctk.CTkLabel(self.wb_rows, text="No matching controls. Use Browse controls or star a setting in its category.",
+            ctk.CTkLabel(self.wb_rows, text="No matching controls. Use Browse controls or right-click a setting's label to add a favorite.",
                          wraplength=630).pack(pady=24)
-        # Bound widget count; the filter can reach every setting without building 1000 rows.
-        if len(rows) > 100:
-            ctk.CTkLabel(self.wb_rows, text=f"Showing 100 of {len(rows)} controls. Type a name to narrow the list.").pack()
-        for path, label, tab, default, value, description in rows[:100]:
+        start = self._wb_page * OVERVIEW_PAGE_SIZE
+        for path, label, tab, default, value, description in rows[start:start + OVERVIEW_PAGE_SIZE]:
             card = ctk.CTkFrame(self.wb_rows)
             card.pack(fill="x", padx=4, pady=3)
             card.grid_columnconfigure(1, weight=1)
@@ -352,6 +421,8 @@ class WorkbenchMixin:
             ctk.CTkButton(card, text="Details", width=62, command=lambda p=path: self._wb_details(p)).grid(row=0, column=4, padx=5)
 
     def _wb_find_row(self, path):
+        if path[0] == "sliders":
+            return self.sliders.get(path[1])
         row = self._wb_bindings.get(path)
         if row is not None and row.row.winfo_exists():
             return row
@@ -428,6 +499,12 @@ class WorkbenchMixin:
 
     def _wb_status(self, path):
         label, tab, description = self._wb_info(path)
+        if path in self._extension_paths and path[0] == "sliders":
+            row = self.sliders[path[1]]
+            if row.locked:
+                return "Locked by Avoid conflicts · see Details"
+            if row.conflict_mods:
+                return "Potential mod conflict · see Details"
         if path[0] == "armor_custom":
             spec = armor_extensions.CONTROLS.get(path[2])
             if spec and spec.experimental:
@@ -464,8 +541,21 @@ class WorkbenchMixin:
         elif path[0] == "sliders" and path[1].startswith("wcat_"):
             text += "\n\nWeapon priority: individual weapon > category > global. An individual override takes priority over this category value."
         text += "\n\nEditor default: " + value_text(self._wb_neutral(path))
-        self._wb_text_window(label, text, buttons=[("Open category", lambda: self.tabs.set(tab)),
-                                                  ("Toggle favorite", lambda: self._wb_toggle_favorite(path))])
+        buttons = [("Open category", lambda: self.tabs.set(tab)),
+                   ("Toggle favorite", lambda: self._wb_toggle_favorite(path))]
+        if path in self._extension_paths and path[0] == "sliders":
+            row = self.sliders[path[1]]
+            text += f"\nAllowed range: {row.lo:g}–{row.hi:g}. Whole percentage values."
+            if row.conflict_mods:
+                text += "\nConflicting mods: " + ", ".join(row.conflict_mods)
+            if row.locked:
+                text += "\nLocked by Avoid conflicts. Unlock explicitly to edit."
+                buttons.append(("Unlock setting", lambda: self._wb_unlock_control(row)))
+        self._wb_text_window(label, text, buttons=buttons)
+
+    def _wb_unlock_control(self, row):
+        if not self._wb_busy and self._body_enabled_state() == "normal":
+            self._wb_action(row._unlock)
 
     def _wb_window(self, title, size="780x600"):
         existing = self._wb_windows.get(title)
@@ -510,16 +600,14 @@ class WorkbenchMixin:
         body = ctk.CTkScrollableFrame(win)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         ctk.CTkLabel(body, text="Display", font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", pady=6)
-        density = ctk.CTkSegmentedButton(body, values=["Compact", "Detailed"], command=self._wb_set_density)
+        density = theme.SegmentedButton(body, values=["Compact", "Detailed"], command=self._wb_set_density)
         density.set("Compact" if self._wb_compact else "Detailed")
         density.pack(anchor="w", pady=6)
         scale = ctk.CTkOptionMenu(body, values=["85%", "100%", "115%", "130%"], command=self._wb_set_scale)
         scale.set(f"{self._wb_scale}%")
         scale.pack(anchor="w", pady=6)
         ctk.CTkLabel(body, text="More actions", font=ctk.CTkFont(size=18, weight="bold")).pack(anchor="w", pady=6)
-        for label, callback in (("Colour themes", self._show_theme_window),
-                                ("Toggle slider mouse wheel", self._toggle_wheel),
-                                ("Scan installed mods", self._start_modscan),
+        for label, callback in (("Scan installed mods", self._start_modscan),
                                 ("Open output folder", self._open_output),
                                 ("Load preset file…", lambda: self._wb_action(self._load_preset)),
                                 ("Save preset file…", self._save_preset),
@@ -533,18 +621,14 @@ class WorkbenchMixin:
 
     def _wb_set_density(self, value):
         self._wb_compact = value == "Compact"
-        for row in list(self._wb_bindings.values()):
-            if row.row.winfo_exists():
-                self._wb_density_row(row)
-        for hint in getattr(self, "_wb_check_hints", {}).values():
-            if self._wb_compact:
-                hint.pack_forget()
-            elif not hint.winfo_manager():
-                hint.pack(fill="x", padx=12, after=hint.editor_row)
+        self._wb_tab_changed()
         self._wb_save_preferences()
 
     def _wb_set_scale(self, value):
-        self._wb_scale = int(value.rstrip("%"))
+        scale = int(value.rstrip("%"))
+        if scale == self._wb_scale:
+            return
+        self._wb_scale = scale
         ctk.set_widget_scaling(self._wb_scale / 100)
         self._wb_save_preferences()
 

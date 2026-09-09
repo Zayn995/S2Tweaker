@@ -451,14 +451,18 @@ def read_binary_struct(reader: BinaryCursor, string_pool: List[str]) -> Node:
 
 
 def read_binary_cfg(data: bytes) -> List[Node]:
+    return list(iter_binary_cfg(data))
+
+
+def iter_binary_cfg(data: bytes):
+    """Decode one root at a time, retaining only the shared string pool."""
     reader = BinaryCursor(data)
     if reader.length < 12:
-        return []
+        return
 
     string_pool = read_binary_header(reader)
     skip_post_pool_padding(reader)
 
-    roots: List[Node] = []
     while reader.position < reader.length:
         if reader.position + 16 > reader.length:
             break
@@ -466,9 +470,7 @@ def read_binary_cfg(data: bytes) -> List[Node]:
         for _ in range(childs_count):
             root = read_binary_struct(reader, string_pool)
             root.__internal__.isRoot = True
-            roots.append(root)
-
-    return roots
+            yield root
 
 
 # --------------------------------------------------------------------------

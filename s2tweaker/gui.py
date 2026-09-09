@@ -439,6 +439,8 @@ class SliderRow:
         self.fmt = fmt
         self.on_change = on_change
         self.hint = None
+        self._hint_parent = parent
+        self._hint_text = tooltip
         self._value = float(default)
         # Wertebereich in WERT-Einheiten (auch im Log-Modus); get()/set()
         # sprechen immer Werte, nur die Schiene rechnet intern in log10.
@@ -487,7 +489,10 @@ class SliderRow:
                        and all(float(v).is_integer()
                                for v in (self.lo, self.hi, default)))
         self.slider.pack(side="left", fill="x", expand=True, padx=8)
-        self.value_label = ctk.CTkLabel(row, text="", width=110, anchor="e")
+        # Plain text needs one native window, not a CTk frame + canvas + label.
+        # Hundreds of these displays otherwise consume the menu/dialog reserve.
+        self.value_label = tk.Label(row, text="", width=17, anchor="e",
+                                    borderwidth=0, highlightthickness=0, padx=0, pady=0)
         self.value_label.pack(side="left")
         # Zahlenfeld fuer eigene Werte (Besitzer 06.09.: "boxen hinter den
         # slidern um custom zahlen einzugeben"). Komma und Punkt gelten
@@ -502,18 +507,31 @@ class SliderRow:
         self.reset_btn = ctk.CTkButton(row, text="↺", width=28, command=self.reset)
         self.reset_btn.pack(side="left", padx=(6, 0))
         self._orig_color = self.label.cget("text_color")
+        self._sync_value_label()
+        self.row.bind("<Configure>", lambda _e: self._sync_value_label(), add="+")
         SliderRow._instances.add(self)
         self._apply_wheel()
         self.set(default)
         if tooltip:
-            # wraplength wie bei Checkboxen und Warnhinweisen: die
-            # Erklaerzeilen der Regler waren als EINZIGE ohne Umbruch und
-            # wurden am rechten Rand mitten im Wort abgeschnitten.
-            hint = ctk.CTkLabel(parent, text="   " + tooltip, anchor="w",
-                                justify="left", wraplength=780,
-                                font=ctk.CTkFont(size=12), text_color=MUTED)
-            hint.pack(fill="x", padx=12)
-            self.hint = hint
+            HoverTip(self.label, lambda: self._hint_text)
+
+    def show_hint(self, visible):
+        """Allocate explanatory labels only for the visible detailed category."""
+        if visible and self._hint_text and self.hint is None:
+            self.hint = ctk.CTkLabel(self._hint_parent, text="   " + self._hint_text,
+                                    anchor="w", justify="left", wraplength=780,
+                                    font=ctk.CTkFont(size=12), text_color=MUTED)
+            self.hint.pack(fill="x", padx=12, after=self.row)
+        elif not visible and self.hint is not None:
+            self.hint.destroy()
+            self.hint = None
+
+    def _sync_value_label(self):
+        """Use the surrounding CTk row's current background and scaled font."""
+        self.value_label.configure(
+            background=self.row._apply_appearance_mode(self.row.cget("bg_color")),
+            foreground=self.label._apply_appearance_mode(self._orig_color),
+            font=self.label._apply_font_scaling(self.label.cget("font")))
 
     def _on_rail(self, _=None):
         """Die Schiene wurde gezogen — ihr Rastwert ist jetzt der Wert."""
@@ -531,6 +549,7 @@ class SliderRow:
         vanilla = "  (vanilla)" if abs(value - self.default) < 1e-9 else ""
         lock = "  \U0001f512" if self.locked else ""
         self.value_label.configure(text=self.fmt(value) + vanilla + lock)
+        self.value_label.configure(width=max(17, len(self.value_label.cget("text"))))
         self._entry_show()
         if self.conflict_mods:
             self._update_dot()
@@ -1995,6 +2014,12 @@ class IrArmorRow:
     def build(self):
         if self.body is not None:
             return
+        # Absolute armor settings add up to 18 rows per item. Keep only one
+        # item's editor alive; values already live in the app's dictionaries.
+        active = getattr(self.app, "_ir_active_row", None)
+        if active is not None and active is not self:
+            active.release_editor()
+        self.app._ir_active_row = self
         self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
         prot = self.app._ir_prot.get(self.sid, {})
         if prot:
@@ -2072,13 +2097,30 @@ class IrArmorRow:
     def toggle(self):
         self.app._ir_auto_opened.discard(self.group)
         if self.expanded:
-            self.body.pack_forget()
-            self.expanded = False
+            self.release_editor()
         else:
             self.build()
             self.body.pack(fill="x", padx=(36, 0), after=self.btn)
             self.expanded = True
         self.refresh()
+
+    def release_editor(self):
+        """Release native controls without changing saved item values."""
+        if self.body is not None:
+            for group, rows in (("armor_overrides", self.sliders), ("armor_custom", self.custom_sliders)):
+                for key in rows:
+                    self.app._wb_bindings.pop((group, self.sid, key), None)
+            if self.body.winfo_exists():
+                self.body.destroy()
+            self.body = None
+        self.sliders.clear()
+        self.custom_sliders.clear()
+        self.reset_btn = None
+        self.expanded = False
+        if getattr(self.app, "_ir_active_row", None) is self:
+            self.app._ir_active_row = None
+        if self.btn.winfo_exists():
+            self.refresh()
 
     # ------------------------------------------------------------- Werte
     def load_values(self):
@@ -2767,6 +2809,9 @@ class TabBar(ctk.CTkFrame):
         self._current_name = name
         self._tab_dict[name].pack(fill="both", expand=True)
         self._paint()
+        callback = getattr(self.master, "_wb_tab_changed", None)
+        if callback is not None:
+            callback()
 
     def get(self) -> str:
         return self._current_name
@@ -2792,6 +2837,7 @@ class TabBar(ctk.CTkFrame):
             else:
                 btn.configure(fg_color=self._unsel,
                               hover_color=self._unsel_hover)
+            theme.fix_button_text(btn)
 
 
 class App(WorkbenchMixin, ctk.CTk):
@@ -3265,8 +3311,6 @@ class App(WorkbenchMixin, ctk.CTk):
         tools.pack(fill="x", padx=10, pady=(0, 4))
         self.search_entry = ctk.CTkEntry(tools, width=230,
                                          placeholder_text="🔍 Find a slider, weapon or ammo …")
-        self.search_entry.pack(side="left", padx=(10, 4), pady=8,
-                               fill="x", expand=True)
         self.btn_faq = ctk.CTkButton(tools, text="? FAQ", width=70,
                                      fg_color=PANEL2, hover_color=PANEL2_HOVER,
                                      command=self._show_faq)
@@ -3282,25 +3326,28 @@ class App(WorkbenchMixin, ctk.CTk):
         # denselben Farben. Startet AUS (rot): das Rad blaettert dann nur,
         # niemand verstellt beim Scrollen aus Versehen einen Regler.
         self.btn_scroll = ctk.CTkButton(
-            tools, text="● Wheel scrolls only", width=168,
+            tools, text="● Mousewheel: OFF", width=156,
             fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
             border_width=SYS_BORDER, border_color=BAD_BORDER,
             command=self._toggle_wheel)
         self.btn_scroll.pack(side="right", padx=4, pady=8)
+        HoverTip(self.btn_scroll, lambda: (
+            "On: the mouse wheel changes slider values.\n"
+            "Off: the mouse wheel only scrolls the page."))
         # Farbdesigns (Fraktionen). Der Knopf traegt den Akzent des aktiven
         # Designs, damit man ohne Aufklappen sieht, worauf es steht.
         self.btn_theme = ctk.CTkButton(
-            tools, text="◐ Theme", width=86, fg_color=PANEL2,
+            tools, text="◐ Design", width=100, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._show_theme_window)
         self.btn_theme.pack(side="right", padx=4, pady=8)
         self.btn_changed = ctk.CTkButton(
             tools, text="Changed only", width=105, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._toggle_changed_only)
         self.btn_changed.pack(side="right", padx=4, pady=8)
+        # Give the visible controls room first; the search takes the remainder.
+        self.search_entry.pack(side="left", padx=(10, 4), pady=8,
+                               fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
-        # Display and occasional actions live in More options.
-        self.btn_scroll.pack_forget()
-        self.btn_theme.pack_forget()
         self.btn_changed.configure(text="My changes", command=lambda: (
             self.tabs.set("Overview"), self._wb_choose_view("My changes")))
 
@@ -3340,14 +3387,22 @@ class App(WorkbenchMixin, ctk.CTk):
         # Mittig (Besitzer 06.09.: "known issue Nachrichten mittig sieht
         # denke ich besser aus") — Ueberschrift und Text zentriert, der
         # Streifen bleibt links.
-        ctk.CTkLabel(
+        heading = ctk.CTkLabel(
             body, text="⚠   " + title.upper(), anchor="center",
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
-            text_color=WARN_AMBER).pack(fill="x")
-        ctk.CTkLabel(body, text=text, anchor="center", justify="center",
-                     wraplength=720, font=ctk.CTkFont(size=12),
-                     text_color=("gray25", "gray72")).pack(fill="x",
-                                                           pady=(4, 0))
+            text_color=WARN_AMBER)
+        heading._theme_static = True  # warning amber also equals Standard's text accent
+        heading.pack(fill="x")
+        message = ctk.CTkLabel(body, text=text, anchor="center", justify="center",
+                               wraplength=720, font=ctk.CTkFont(size=12), text_color=MUTED)
+        message.pack(fill="x", pady=(4, 0))
+
+        def fit_message(event):
+            width = max(120, int(message._reverse_widget_scaling(event.width)) - 8)
+            if message.cget("wraplength") != width:
+                message.configure(wraplength=width)
+
+        body.bind("<Configure>", fit_message, add="+")
 
     def _collapsible_category(self, parent, cat: str, label: str) -> None:
         """Aufklappbarer Block mit den 5 Parameter-Reglern einer Kategorie."""
@@ -4487,13 +4542,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self.checks[key] = box
         self._wb_check_tabs[key] = self._current_tab
         self._wb_meta[("checks", key)] = (label, self._current_tab, tooltip)
-        star = ctk.CTkButton(row, text="★" if ("checks", key) in self._wb_favorites else "☆",
-                      width=26, fg_color="transparent",
-                      command=lambda k=key: self._wb_toggle_favorite(("checks", k)))
-        star.pack(side="left", padx=4)
-        self._wb_check_stars[("checks", key)] = star
-        ctk.CTkButton(row, text="i", width=24, fg_color="transparent",
-                      command=lambda k=key: self._wb_details(("checks", k))).pack(side="left")
+        self._wb_mark_favorite(("checks", key), box, label)
+        box.bind("<Button-3>", lambda e: self._wb_context(e, ("checks", key)), add="+")
         dot = ctk.CTkLabel(row, text="", width=16)
         dot.pack(side="left")
         self.check_dots[key] = dot
@@ -4503,16 +4553,16 @@ class App(WorkbenchMixin, ctk.CTk):
                  lambda _e, k=key: (k in self._locked_checks
                                     and self._avoid_unlock("check:" + k)))
         if tooltip:
-            # wraplength seit 1.26.0: laengere Erklaerungen (Wachen, Karte)
-            # wurden am Fensterrand abgeschnitten
-            hint = ctk.CTkLabel(parent, text="      " + tooltip, anchor="w", justify="left",
-                         wraplength=680, font=ctk.CTkFont(size=12), text_color=MUTED)
-            hint.editor_row = row
-            if not hasattr(self, "_wb_check_hints"):
-                self._wb_check_hints = {}
-            self._wb_check_hints[key] = hint
-            if not self._wb_compact:
-                hint.pack(fill="x", padx=12)
+            HoverTip(box, lambda: tooltip)
+            self._wb_check_hints[key] = [parent, row, tooltip, None]
+
+    def _build_extension_link(self, body):
+        frame = self._section(body, "Additional loot & world settings")
+        ctk.CTkLabel(frame, text="Edit stash chances, NPC armor loot, mutant trophies, surface noise,\n"
+                                "weather visibility and field repair in the settings list.",
+                     anchor="w", justify="left", wraplength=680).pack(fill="x", **PAD)
+        ctk.CTkButton(frame, text="Edit loot & world settings", command=self._wb_extra_controls,
+                      width=240).pack(anchor="w", **PAD)
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
@@ -7418,7 +7468,6 @@ class App(WorkbenchMixin, ctk.CTk):
         pal = theme.get(name)
         theme.apply(self, name, previous)
         self.tabs.restyle(pal)          # nach dem allgemeinen Umfaerben
-        theme.apply_button_text(self)   # und danach die Knopfschrift
         ACCENT = pal["accent"]
         PANEL, PANEL2 = pal["panel"], pal["panel2"]
         PANEL2_HOVER, MUTED = pal["panel2_hover"], pal["secondary"]
@@ -7427,20 +7476,24 @@ class App(WorkbenchMixin, ctk.CTk):
         if mark is not None:
             glyph = THEME_MARKS.get(name, "◐")
             mark.configure(text=f"{glyph}  {name.upper()}", text_color=ACCENT)
-        # Der Design-Knopf traegt den neuen Akzent (Default: neutral grau)
+        # The design button previews the palette's button fill, not text accent.
         if name == theme.DEFAULT_NAME:
             self.btn_theme.configure(fg_color=PANEL2, hover_color=PANEL2_HOVER,
                                      text_color=self.btn_faq.cget("text_color"))
         else:
-            self.btn_theme.configure(fg_color=ACCENT,
-                                     hover_color=pal["bright"],
-                                     text_color="gray10")
+            self.btn_theme.configure(fg_color=pal["button"],
+                                     hover_color=pal["button_hover"])
         # "Changed only" ist im aktiven Zustand bernsteinfarben — mitziehen
         if self.changed_only:
             self.btn_changed.configure(fg_color=ACCENT, text_color="gray10")
+        theme.apply_button_text(self)
         for row in self.sliders.values():
             if row.conflict_mods:
                 row._update_dot()
+        for row in SliderRow._instances:
+            if row.row.winfo_exists():
+                row._orig_color = pal["text"]
+                row._sync_value_label()
 
     def _show_theme_window(self):
         """Kleines Fenster mit den Paletten. Klick faerbt sofort um, damit
@@ -7453,36 +7506,39 @@ class App(WorkbenchMixin, ctk.CTk):
             return
         win = ctk.CTkToplevel(self)
         self._theme_win = win
-        win.title("S2Tweaker — colour themes")
-        win.geometry("460x520")
-        win.minsize(420, 360)
+        win.title("S2Tweaker — designs")
+        win.geometry("540x650")
+        win.minsize(500, 420)
         win.transient(self)
         ctk.CTkLabel(
-            win, text="Colour themes", anchor="w",
-            font=ctk.CTkFont(size=17, weight="bold")).pack(
+            win, text="Choose your design", anchor="w",
+            font=ctk.CTkFont(size=20, weight="bold")).pack(
                 fill="x", padx=16, pady=(14, 0))
         ctk.CTkLabel(
-            win, anchor="w", justify="left", wraplength=410,
+            win, anchor="w", justify="left", wraplength=480,
             font=ctk.CTkFont(size=12), text_color=MUTED,
-            text="Cosmetic only — nothing about the mod you build changes. "
-                 "The colours are my own take on how the factions look "
-                 "in-game; the game files carry no faction palette. Green "
-                 "and red stay green and red: they mean ready, missing and "
-                 "off.").pack(fill="x", padx=16, pady=(2, 8))
+            text="Faction-inspired colours. Select a palette to apply it immediately. "
+                 "Your mod settings stay the same.").pack(fill="x", padx=16, pady=(4, 12))
         body = ctk.CTkScrollableFrame(win, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        marks: dict[str, ctk.CTkLabel] = {}
+        choices = {}
 
         def choose(name: str):
             self._set_theme(name)
-            for key, mark in marks.items():
-                mark.configure(text="✓" if key == name else "")
+            for key, (card, button) in choices.items():
+                active = key == name
+                card.configure(border_color=theme.get(key)["accent"] if active else
+                               theme.get(key)["panel2"])
+                button.configure(text="✓ Active" if active else "Apply")
 
         for name in theme.names():
             pal = theme.get(name)
-            row = ctk.CTkFrame(body, fg_color=PANEL,
-                               corner_radius=8)
-            row.pack(fill="x", padx=4, pady=3)
+            row = ctk.CTkFrame(body, fg_color=pal["panel"], corner_radius=8,
+                               border_width=2, border_color=pal["accent"] if
+                               name == self.theme_name else pal["panel2"])
+            # These are previews of other palettes, not live-theme surfaces.
+            row._theme_static = True
+            row.pack(fill="x", padx=4, pady=4)
             swatch = ctk.CTkFrame(row, width=34, height=34, corner_radius=6,
                                   fg_color=pal["accent"])
             swatch.pack(side="left", padx=(10, 4), pady=8)
@@ -7492,22 +7548,22 @@ class App(WorkbenchMixin, ctk.CTk):
             bar.pack(side="left", padx=(0, 10), pady=8)
             bar.pack_propagate(False)
             text = ctk.CTkFrame(row, fg_color="transparent")
-            text.pack(side="left", fill="both", expand=True, pady=6)
+            text.pack(side="left", fill="both", expand=True, pady=10)
             ctk.CTkLabel(text, text=name, anchor="w",
+                         text_color=pal["text"],
                          font=ctk.CTkFont(size=14, weight="bold")).pack(
                              fill="x")
             ctk.CTkLabel(text, text=pal.get("note", ""), anchor="w",
                          justify="left", wraplength=250,
                          font=ctk.CTkFont(size=12),
-                         text_color=MUTED).pack(fill="x")
-            mark = ctk.CTkLabel(row, width=26,
-                                text="✓" if name == self.theme_name else "",
-                                font=ctk.CTkFont(size=16, weight="bold"))
-            mark.pack(side="left", padx=(0, 6))
-            marks[name] = mark
-            ctk.CTkButton(row, text="Use", width=62,
-                          command=lambda n=name: choose(n)).pack(
-                              side="left", padx=(0, 10))
+                         text_color=pal["secondary"]).pack(fill="x")
+            button = ctk.CTkButton(row, text="✓ Active" if name == self.theme_name else "Apply",
+                                  width=82, fg_color=pal["button"],
+                                  hover_color=pal["button_hover"],
+                                  text_color=theme._readable(pal["button"], pal["button_hover"]),
+                                  command=lambda n=name: choose(n))
+            button.pack(side="right", padx=(8, 12))
+            choices[name] = row, button
         ctk.CTkButton(win, text="Close", width=100,
                       command=win.destroy).pack(pady=(0, 12))
 
@@ -7522,10 +7578,11 @@ class App(WorkbenchMixin, ctk.CTk):
         SliderRow.set_wheel_enabled(not SliderRow._wheel_enabled)
         on = SliderRow._wheel_enabled
         self.btn_scroll.configure(
-            text="● Wheel moves sliders" if on else "● Wheel scrolls only",
+            text="● Mousewheel: ON" if on else "● Mousewheel: OFF",
             fg_color=OK_GREEN if on else BAD_RED,
             hover_color=OK_GREEN_HOVER if on else BAD_RED_HOVER,
             border_color=OK_BORDER if on else BAD_BORDER)
+        theme.fix_button_text(self.btn_scroll)
 
     def _toggle_changed_only(self):
         """Alles dimmen, was auf Vanilla steht — S2Tweaker wird zur

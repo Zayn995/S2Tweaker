@@ -4,6 +4,7 @@ All widgets use the normal slider/check registry, so presets, reset, search,
 changed-only filtering and conflict avoidance share the existing mechanisms.
 No Tk import: collection and footprint probes can be checked without a window.
 """
+import math
 import re
 from .world_extensions import SURFACES, WEATHERS
 
@@ -68,30 +69,102 @@ def label(value):
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", value)
 
 
-def build_controls(app, body, fmt_pct):
-    sections = {}
+class ControlLabel:
+    """Text metadata for the existing search/conflict registry; no Tk object."""
+    def __init__(self, text):
+        self.text = text
+
+    def cget(self, key):
+        if key != "text":
+            raise KeyError(key)
+        return self.text
+
+
+class StoredControl:
+    """Integer percentage setting edited through the paged overview.
+
+    Presets, reset, export, history and conflict locks use the same registry as
+    SliderRow, without allocating a hidden slider for every optional setting.
+    """
+    def __init__(self, title, lo, hi, default):
+        self.label = ControlLabel(title)
+        self.lo, self.hi, self.default = lo, hi, default
+        self._value = float(default)
+        self._base_state = "normal"
+        self.locked = False
+        self._on_unlock = None
+        self.conflict_mods = []
+        self.conflict_after = set()
+        self.conflict_unknown = set()
+
+    def get(self):
+        return self._value
+
+    def set(self, value):
+        value = float(value)
+        if not math.isfinite(value):
+            raise ValueError("Enter a finite number.")
+        self._value = float(math.floor(min(self.hi, max(self.lo, value)) + .5))
+
+    def reset(self):
+        self.set(self.default)
+
+    def set_state(self, state):
+        self._base_state = state
+
+    def set_locked(self, locked, on_unlock=None):
+        self.locked = locked
+        self._on_unlock = on_unlock
+
+    def _unlock(self):
+        if self._on_unlock is not None:
+            self._on_unlock()
+
+    def set_highlight(self, mode):
+        # Search displays matching settings in the overview.
+        pass
+
+    def set_conflict(self, mods, loads_after=(), order_unknown=()):
+        self.conflict_mods = sorted(mods or [])
+        self.conflict_after = set(loads_after) & set(self.conflict_mods)
+        self.conflict_unknown = set(order_unknown) & set(self.conflict_mods)
+
+    def _update_dot(self):
+        # Theme changes refresh native rows; this setting is shown in Overview.
+        pass
+
+
+def control_specs():
+    """UI key, label, limits, default, help; all values are whole percentages."""
     for field, (section, title, lo, hi, step, default, divisor, tip) in SLIDERS.items():
-        if section not in sections:
-            sections[section] = app._section(body, section)
-        app._slider(sections[section], field, title, lo, hi, step, default, fmt_pct, tip)
+        yield field, title, lo, hi, default, tip
+    for material in SURFACES:
+        yield ("surface_noise:" + material, "Movement noise: " + label(material), 0, 300, 100,
+               "Scales the existing character noise coefficient on this physical surface. Combines with general movement noise. Not play-tested yet.")
+    for weather in WEATHERS:
+        yield ("weather_luminance:" + weather, "AI visibility: " + label(weather), 0, 200, 100,
+               "Scales the environment luminance contribution for this weather. Separate from weather hearing/visibility sliders; it does not change screen brightness. Not play-tested yet.")
+    for species in SPECIES:
+        for key, title in (("chance_factor", "drop chance"), ("amount_factor", "drop amount")):
+            yield (f"mutant_loot:{species}:{key}", f"{label(species)} {title}", 0, 400, 100,
+                   "Additional multiplier for this species' native trophies. Chance combines with the global mutant loot chance; amount combines with global loot amount. Chance is capped, counts are whole numbers. Not play-tested yet.")
+
+
+def build_controls(app, body, fmt_pct):
+    app._extension_paths = set()
+    for key, title, lo, hi, default, tip in control_specs():
+        app.sliders[key] = StoredControl(title, lo, hi, default)
+        app.slider_tabs[key] = app._current_tab
+        path = ("sliders", key)
+        app._extension_paths.add(path)
+        app._wb_meta[path] = (title, app._current_tab, tip)
+    sections = {}
     for field, (section, title, tip) in CHECKS.items():
         if section not in sections:
             sections[section] = app._section(body, section)
         app._check(sections[section], field, title, tip)
-    frame = app._section(body, "Movement noise by surface")
-    for material in SURFACES:
-        app._slider(frame, "surface_noise:" + material, label(material), 0, 300, 5, 100, fmt_pct,
-                    "Scales the existing character noise coefficient on this physical surface. Combines with general movement noise. Not play-tested yet.")
-    frame = app._section(body, "Weather luminance for AI visibility")
-    for weather in WEATHERS:
-        app._slider(frame, "weather_luminance:" + weather, label(weather), 0, 200, 5, 100, fmt_pct,
-                    "Scales the environment luminance contribution for this weather. Separate from weather hearing/visibility sliders; it does not change screen brightness. Not play-tested yet.")
-    frame = app._section(body, "Trophy drops by mutant species")
-    for species in SPECIES:
-        for key, title in (("chance_factor", "drop chance"), ("amount_factor", "drop amount")):
-            app._slider(frame, f"mutant_loot:{species}:{key}", f"{label(species)} {title}",
-                        0, 400, 5, 100, fmt_pct,
-                        "Additional multiplier for this species' native trophies. Chance combines with the global mutant loot chance; amount combines with global loot amount. Chance is capped, counts are whole numbers. Not play-tested yet.")
+        app._extension_paths.add(("checks", field))
+    app._build_extension_link(body)
 
 
 def collect_factors(sliders, prefix):

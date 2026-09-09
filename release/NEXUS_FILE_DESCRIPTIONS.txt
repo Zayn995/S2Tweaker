@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.37.0
-File version:  1.37.0
+Name:          S2Tweaker 1.37.1
+File version:  1.37.1
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,18 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.37.1 - startup repair and clearer designs
+
+- Repairs the mostly black window from the withdrawn 1.37.0 release:
+  fewer handles, paged Overview and armor editors released when closed.
+- Mousewheel and Design visible in the toolbar; red OFF / green ON.
+  Clearer text and previews across all 12 designs.
+- Optional loot/world controls are available without building every slider
+  at startup. Extra stash data uses a compact index only when needed.
+- Real Windows startup, armor/menu/navigation and twelve-design checks passed.
+  New gameplay effects remain unverified; animation desync is unresolved.
+- All existing runtime binaries, including the signed EXE, remain byte-identical.
+
 1.37.0 - editor workspace, armor, loot and world
 
 - Editable Overview/Favorites, undo/redo, named profiles and comparisons,

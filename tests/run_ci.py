@@ -18,6 +18,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_theme_palette.py",
+    "test_startup_resources.py",
+    "test_optional_spawn_cache.py",
     "test_wiring.py",
     "test_no_network.py",
     "test_pakfile.py",      # Pak-Roundtrip in reinem Python; der Spieldaten-Teil ueberspringt sich selbst

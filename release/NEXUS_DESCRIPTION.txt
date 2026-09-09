@@ -13,7 +13,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.37.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.37.1): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
@@ -241,7 +241,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
-[b]v1.37.0 - editor workspace, expanded armor controls and optional loot/world additions[/b] (14 categories + Overview)
+[b]v1.37.1 - startup repair and clearer designs[/b]
+[list]
+[*][b]Repairs the mostly black window from the withdrawn 1.37.0 release.[/b] Removed per-row extra buttons, limited Overview to 20 entries per page, and release individual armor editors when they close. Optional loot/world values stay available through World or Overview without building all their widgets at startup.
+[*][b]Mousewheel and Design are visible in the toolbar.[/b] Mousewheel starts red/OFF and becomes green/ON when enabled. All twelve palettes have clearer text, readable tab/selection captions and individual colour previews. Warning text stays amber and fits smaller windows.
+[*][b]Smaller normal cache.[/b] The large SpawnActor file is no longer extracted for every user. Extra stash finds request a compact container index only when needed. The first game-data load refreshes the cache once.
+[*][b]Real Windows checks:[/b] startup, category navigation, armor editors, paging, scaling and menus were checked. The complete repair check peaked at 7,481 USER handles; the later twelve-design check at 6,652, both below the tool's 8,000 limit. These are local measurements, not a performance guarantee for every PC.
+[*]The release is assembled on GitHub from current source and a hash-pinned 1.36.1 runtime. The EXE and all runtime DLL/PYD files stay byte-identical.
+[*]All editor, armor and loot additions from 1.37.0 remain included. New gameplay effects still have no play-test confirmation; animation desynchronization remains unresolved. No VirusTotal result is claimed for this ZIP.
+[/list]
+
+[b]v1.37.0 - withdrawn; editor workspace, expanded armor controls and optional loot/world additions[/b] (14 categories + Overview)
 [list]
 [*][b]Editor workspace:[/b] editable My changes, Favorites and Browse controls; undo/redo; named profiles with descriptions, duplication and comparison; generated-value preview; left navigation, changed counts and display scale/density.
 [*][b]My mods and Pak history:[/b] read your generated Paks, compare exact config targets, load their settings and restore retained copies. A verified backup is kept before replacing or removing a Pak.
@@ -253,6 +263,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The existing GitHub build process is retained. The release EXE is checked against v1.36.1 before publication. No new application network feature, injector or runtime binary is introduced. No scan result is claimed for the new ZIP.
 [/list]
 
+[spoiler]
 [b]v1.36.1 - the relation version counter is left alone, and a stale warning text[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]The Factions tab no longer raises the game's relation version counter.[/b] From 1.12.0 on, changing any faction pair also wrote "version 8" into the relation file, in the hope that an existing save would notice the new baseline. 1.36.0 already explained why that does nothing - the counter belongs to the developers and works with a list of deltas that no released mod touches - but still wrote it. A pak built with 1.36.1 leaves the counter at the game's own value. To reach a save in progress, use the switch from 1.36.0
@@ -260,7 +271,6 @@ If the ~mods folder doesn't exist, create it.
 [*]Nothing else changed: no new game file, so coming from 1.36.0 there is no re-extraction (coming from 1.35.0 or older still extracts once, as 1.36.0 did)
 [/list]
 
-[spoiler]
 [b]v1.36.0 - faction relations that reach a running save, the several-jobs switch rebuilt from what actually works, three dead controls removed[/b] (~470 tweaks + ammo swap, 14 tabs)
 [list]
 [*][b]Faction relations can now be applied to a save already in progress.[/b] Until now the Factions tab only wrote the baseline the game reads when a NEW game starts. (It also raised the game's relation version counter in the hope that old saves would notice - reading the big relations mod on Nexus showed that nobody does that; the counter belongs to the developers.) A new switch ships a tiny quest that sets your values on every game launch through the game's own relation-change node type - 1875 of them exist in the base game - started from its own on-launch script folder. That is the route the Nexus mod takes. Your own standing with a faction is the field-proven half; faction-versus-faction pairs use the same node, but no released mod does that

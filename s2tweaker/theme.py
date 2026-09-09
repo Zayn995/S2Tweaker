@@ -62,8 +62,8 @@ SYSTEM_BORDER_WIDTH = 2
 
 # Achtung, zwei verschiedene Dinge: "button" ist die Flaechenfarbe der
 # Knoepfe, "accent" die Hervorhebungsfarbe (Suchtreffer, Override-Marker).
-# Bei den Fraktionen sind beide gleich, im Standard-Design NICHT — dort sind
-# die Knoepfe blau und die Hervorhebung bernstein. Genau deshalb braucht es
+# Faction text accents are brighter than their button fills; Standard keeps
+# blue buttons and amber highlights. Genau deshalb braucht es
 # zwei Rollen; mit einer kam nach dem Zurueckschalten Blau als Suchfarbe an.
 ROLES = ("base", "panel", "panel2", "panel2_hover", "button", "button_hover",
          "progress", "bright", "bright_hover", "accent", "button_text",
@@ -78,29 +78,72 @@ def _shade(color: str, factor: float) -> str:
         max(0, min(255, int(round(c * factor)))) for c in rgb)
 
 
-def _readable(color: str) -> str:
-    """Schrift auf einer Flaeche: dunkel auf hellem Grund, hell auf dunklem.
+def _solid(value):
+    """Use the dark-mode component of a CTk colour pair."""
+    if isinstance(value, (list, tuple)):
+        return value[-1] if value else None
+    return value
 
-    Ohne das steht im Monolith-Design (Akzent #A8B59A, fast weiss) heller
-    Text auf hellem Knopf — "Build pak" war schlicht nicht mehr zu lesen.
-    Helligkeit nach der ueblichen Gewichtung 0.299/0.587/0.114."""
-    c = color.lstrip("#")
-    r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
-    return "#101010" if 0.299 * r + 0.587 * g + 0.114 * b > 140 else "#DCE4EE"
+
+def _rgb(color):
+    color = _solid(color)
+    if color.startswith("gray"):
+        return (round(255 * float(color[4:]) / 100),) * 3
+    return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def contrast(foreground, background):
+    """Relative luminance contrast, including Tk's grayNN notation."""
+    def luminance(color):
+        channels = [c / 255 for c in _rgb(color)]
+        linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4
+                  for c in channels]
+        return sum(c * weight for c, weight in zip(linear, (.2126, .7152, .0722)))
+    a, b = sorted((luminance(foreground), luminance(background)))
+    return (b + .05) / (a + .05)
+
+
+def _mix(color, target, amount):
+    return "#%02X%02X%02X" % tuple(round(a + (b - a) * amount)
+                                   for a, b in zip(_rgb(color), _rgb(target)))
+
+
+def _readable(color, hover=None):
+    """Choose text that remains readable on both normal and hover fills."""
+    backgrounds = (color, hover or color)
+    return max(("#101010", "#F5F7FA"),
+               key=lambda text: min(contrast(text, bg) for bg in backgrounds))
+
+
+def _lift_text(color, background):
+    for step in range(101):
+        result = _mix(color, "#F5F7FA", step / 100)
+        if contrast(result, background) >= 4.5:
+            return result
+    return result
 
 
 def _pal(base, panel, panel2, accent, bright, secondary, text, note):
-    """Eine Fraktionspalette. Die Hover-Stufen werden abgeleitet, damit
-    jede Rolle garantiert ihren EIGENEN Ton hat — sonst ist der Weg zurueck
-    zum Standard nicht mehr eindeutig."""
+    """Faction surfaces with brighter text accents and readable hover states."""
+    button = accent
+    if contrast(_readable(button), button) < 4.5:
+        button = _shade(button, .9)
+    button_text = _readable(button)
+    # Keep the hover recognisable without crossing into an unreadable fill.
+    hover = button
+    for step in range(35, -1, -1):
+        candidate = _mix(button, bright, step / 100)
+        if contrast(button_text, candidate) >= 4.5:
+            hover = candidate
+            break
     return {
         "base": base, "panel": panel,
         "panel2": panel2, "panel2_hover": _shade(panel2, 1.35),
-        "button": accent, "button_hover": bright, "progress": accent,
-        "button_text": _readable(accent),
+        "button": button, "button_hover": hover, "progress": accent,
+        "button_text": button_text,
         "bright": bright, "bright_hover": _shade(bright, 1.15),
-        "accent": accent,
-        "secondary": secondary, "text": text, "note": note,
+        "accent": _lift_text(bright, panel2),
+        "secondary": _lift_text(secondary, panel2), "text": text, "note": note,
     }
 
 
@@ -130,7 +173,7 @@ THEMES: dict[str, dict] = {
                     "deep jungle green — the anarchists of the Zone"),
     "Military": _pal("#111511", "#1B211B", "#242A23", "#526B43", "#718B58",
                      "#6A7063", "#D0D2C8",
-                     "desaturated military green, not Freedom's jungle"),
+                     "muted olive and field grey"),
     "Ward": _pal("#151713", "#20221C", "#292B23", "#71805A", "#9A9B68",
                  "#6F7765", "#D0D0C0",
                  "khaki, military green and grey"),
@@ -194,7 +237,25 @@ _ROLES = {
     ("CTkSlider", "button_hover_color"): ("bright_hover",),
     ("CTkCheckBox", "fg_color"): ("button",),
     ("CTkCheckBox", "hover_color"): ("button_hover",),
+    ("CTkCheckBox", "checkmark_color"): ("button_text",),
+    ("CTkCheckBox", "text_color"): ("text",),
     ("CTkEntry", "fg_color"): ("panel2",),
+    ("CTkEntry", "text_color"): ("text",),
+    ("CTkEntry", "placeholder_text_color"): ("secondary",),
+    ("CTkTextbox", "fg_color"): ("panel2",),
+    ("CTkTextbox", "text_color"): ("text",),
+    ("CTkOptionMenu", "fg_color"): ("button",),
+    ("CTkOptionMenu", "button_color"): ("button_hover",),
+    ("CTkOptionMenu", "button_hover_color"): ("button_hover",),
+    ("CTkOptionMenu", "text_color"): ("button_text",),
+    ("CTkOptionMenu", "dropdown_fg_color"): ("panel2",),
+    ("CTkOptionMenu", "dropdown_hover_color"): ("panel2_hover",),
+    ("CTkOptionMenu", "dropdown_text_color"): ("text",),
+    ("CTkSegmentedButton", "fg_color"): ("panel2",),
+    ("CTkSegmentedButton", "selected_color"): ("button",),
+    ("CTkSegmentedButton", "selected_hover_color"): ("button_hover",),
+    ("CTkSegmentedButton", "unselected_color"): ("panel2",),
+    ("CTkSegmentedButton", "unselected_hover_color"): ("panel2_hover",),
     ("CTkProgressBar", "progress_color"): ("progress",),
     ("CTkLabel", "text_color"): ("secondary", "accent", "text"),
 }
@@ -236,19 +297,25 @@ def _theme_defaults(pal: dict) -> None:
     t["CTkSlider"]["button_hover_color"] = pal["bright_hover"]
     t["CTkCheckBox"]["fg_color"] = pal["button"]
     t["CTkCheckBox"]["hover_color"] = pal["button_hover"]
+    t["CTkCheckBox"]["text_color"] = pal["text"]
     t["CTkEntry"]["fg_color"] = pal["panel2"]
+    t["CTkEntry"]["text_color"] = pal["text"]
+    t["CTkEntry"]["placeholder_text_color"] = pal["secondary"]
+    t["CTkTextbox"]["fg_color"] = pal["panel2"]
+    t["CTkTextbox"]["text_color"] = pal["text"]
+    t["CTkOptionMenu"]["fg_color"] = pal["button"]
+    t["CTkOptionMenu"]["button_color"] = pal["button_hover"]
+    t["CTkOptionMenu"]["button_hover_color"] = pal["button_hover"]
+    t["CTkOptionMenu"]["text_color"] = pal["button_text"]
+    t["DropdownMenu"]["fg_color"] = pal["panel2"]
+    t["DropdownMenu"]["hover_color"] = pal["panel2_hover"]
+    t["DropdownMenu"]["text_color"] = pal["text"]
     t["CTkLabel"]["text_color"] = pal["text"]
+    t["CTkSegmentedButton"]["fg_color"] = pal["panel2"]
     t["CTkSegmentedButton"]["selected_color"] = pal["button"]
     t["CTkSegmentedButton"]["selected_hover_color"] = pal["button_hover"]
     t["CTkSegmentedButton"]["unselected_color"] = pal["panel2"]
     t["CTkSegmentedButton"]["unselected_hover_color"] = pal["panel2_hover"]
-
-
-def _solid(value):
-    """Aus einer Farbangabe die im Dunkelmodus wirksame machen."""
-    if isinstance(value, (list, tuple)):
-        return value[-1] if value else None
-    return value
 
 
 def fix_button_text(widget) -> int:
@@ -259,14 +326,17 @@ def fix_button_text(widget) -> int:
     entgegengesetzte Schrift. Im Monolith-Design (fast weisser Akzent) stand
     sonst entweder heller Text auf hellem Knopf oder dunkler auf dunklem —
     beides unlesbar, beides erst im Bild aufgefallen."""
+    if getattr(widget, "_theme_static", False):
+        return 0
     n = 0
     if widget.__class__.__name__ == "CTkButton":
         try:
             fg = _solid(widget.cget("fg_color"))
-            if isinstance(fg, str) and fg.startswith("#") and len(fg) == 7:
-                dark_text = _readable(fg) == "#101010"
+            hover = _solid(widget.cget("hover_color"))
+            if isinstance(fg, str) and (fg.startswith("#") or fg.startswith("gray")):
+                color = _readable(fg, hover)
                 widget.configure(
-                    text_color=_readable(fg),
+                    text_color=color,
                     # GESPERRTE Schrift = normale Schrift. "Build pak",
                     # "Install to ~mods", "Scan ~mods" und "Remove from
                     # ~mods" sind vor dem Laden der Spieldaten gesperrt und
@@ -276,7 +346,7 @@ def fix_button_text(widget) -> int:
                     # genommen: die Schrift zeigt nicht mehr an, dass ein
                     # Knopf noch wartet — dafuer pulst jetzt "Confirm & load
                     # game data" orange und sagt, was zuerst dran ist.
-                    text_color_disabled=_readable(fg))
+                    text_color_disabled=color)
                 n = 1
         except Exception:
             pass
@@ -285,12 +355,22 @@ def fix_button_text(widget) -> int:
     return n
 
 
+class SegmentedButton(ctk.CTkSegmentedButton):
+    """Keep selected and unselected captions readable after every selection."""
+    def set(self, *args, **kwargs):
+        super().set(*args, **kwargs)
+        fix_button_text(self)
+
+
 def _repaint(widget, old: dict, new: dict) -> int:
     """Alles umfaerben, was noch EXAKT die alte Farbe seiner Rolle traegt.
     Ein Knopf mit eigener Farbe (die Systemfarben) faellt damit von selbst
     durch das Raster."""
+    if getattr(widget, "_theme_static", False):
+        return 0
     n = 0
-    cls = widget.__class__.__name__
+    cls = "CTkSegmentedButton" if isinstance(widget, SegmentedButton) else widget.__class__.__name__
+    changes = {}
     for (klass, attr), roles in _ROLES.items():
         if klass != cls:
             continue
@@ -304,12 +384,11 @@ def _repaint(widget, old: dict, new: dict) -> int:
                 continue
             if cur != str(was):
                 continue
-            try:
-                widget.configure(**{attr: now})
-                n += 1
-            except Exception:
-                pass
+            changes[attr] = now
             break                      # eine Rolle je Farbfeld genuegt
+    if changes:
+        widget.configure(**changes)
+        n += len(changes)
     for child in widget.winfo_children():
         n += _repaint(child, old, new)
     return n
@@ -329,17 +408,10 @@ def apply(root, name: str, previous: str = DEFAULT_NAME) -> int:
     except Exception:
         pass
     painted += _repaint(root, old, new)
-    for win in root.winfo_children():      # offene Nebenfenster (FAQ, Design)
-        if isinstance(win, ctk.CTkToplevel):
-            painted += _repaint(win, old, new)
     return painted
 
 
 def apply_button_text(root) -> int:
     """Nach dem Umfaerben (und nach TabBar.restyle) die Knopfschrift
     nachziehen — siehe fix_button_text."""
-    n = fix_button_text(root)
-    for win in root.winfo_children():
-        if isinstance(win, ctk.CTkToplevel):
-            n += fix_button_text(win)
-    return n
+    return fix_button_text(root)

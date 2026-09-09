@@ -15,6 +15,8 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import tempfile
+import threading
 from functools import cached_property
 from pathlib import Path
 
@@ -48,7 +50,6 @@ NEEDED_FILES = [
     "MeleeWeaponPrototypes.cfg.bin",
     "WeatherSelectionPrototypes.cfg.bin",
     "StashPrototypes.cfg.bin",
-    "SpawnActorPrototypes.cfg.bin",  # world-stash attachment scan, streamed lazily
     "ItemGeneratorPrototypes.cfg.bin",
     "RelationPrototypes.cfg.bin",
     "QuestNodePrototypes.cfg.bin",
@@ -89,7 +90,8 @@ NEEDED_FILES = [
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 24   # optional world-stash additions need SpawnActorPrototypes
+CACHE_SCHEMA = 25   # large spawn data is optional and stored as a compact stash index
+OPTIONAL_SPAWN = "SpawnActorPrototypes.cfg.bin"
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -232,10 +234,61 @@ def _launcher_link(node: CfgStruct,
 
 
 class GameData:
-    def __init__(self, gamedata_dir: Path):
+    def __init__(self, gamedata_dir: Path, *, source_pak=None, progress=None):
         """gamedata_dir: Ordner, der die cfg-TEXT-Dateien enthaelt
         (.../Stalker2/Content/GameLite/GameData)."""
         self.dir = Path(gamedata_dir)
+        self._source_pak = Path(source_pak) if source_pak else None
+        self._source_stamp = self._pak_stamp() if source_pak else None
+        self._progress = progress
+        self._optional_lock = threading.Lock()
+
+    def _pak_stamp(self):
+        stat = self._source_pak.stat()
+        return stat.st_size, stat.st_mtime_ns
+
+    def stash_spawn_source(self):
+        """Load the large spawn file only for enabled extra stash finds.
+
+        The optional index is deliberately separate from the full vanilla cfg:
+        conflict scans must never mistake a selective index for complete data.
+        Extraction and binary decoding happen in the existing export worker.
+        """
+        full = self.dir / "SpawnActorPrototypes.cfg"
+        if full.is_file():
+            return full  # existing developer data; never rewrite it
+        with self._optional_lock:
+            if self._source_pak is None:
+                raise FileNotFoundError("Extra stash finds need the game installation. Reload game data before building.")
+            if self._pak_stamp() != self._source_stamp:
+                raise RuntimeError("Game files changed. Reload game data before building extra stash finds.")
+            optional = self.dir / ".optional"
+            size, modified = self._source_stamp
+            target = optional / f"stash-spawns-{size}-{modified}.cfg"
+            if target.is_file():
+                return target
+            if self._progress:
+                self._progress("Preparing extra stash finds for the first time (large optional game file) ...")
+            optional.mkdir(parents=True, exist_ok=True)
+            # TemporaryDirectory also cleans up the 175 MB binary on failure.
+            with tempfile.TemporaryDirectory(prefix="stash-", dir=optional) as temp:
+                temp = Path(temp)
+                pakio.unpack(self._source_pak, temp,
+                             include=f"{GAMEDATA_REL}/{OPTIONAL_SPAWN}", progress=self._progress)
+                binary = (temp / GAMEDATA_REL / OPTIONAL_SPAWN).read_bytes()
+                compact = temp / "containers.cfg"
+                seen = 0
+                with compact.open("w", encoding="utf-8") as output:
+                    for root in vendor_bin2cfg.iter_binary_cfg(binary):
+                        seen += 1
+                        if root.get("SpawnType") == "ESpawnType::ItemContainer":
+                            output.write(root.to_string() + "\n")
+                if not seen:
+                    raise ValueError("The optional spawn file contains no readable game data.")
+                if self._pak_stamp() != self._source_stamp:
+                    raise RuntimeError("Game files changed during extraction. Reload game data and retry.")
+                compact.replace(target)
+            return target
 
     # ---------------------------------------------------------------- setup
     @classmethod
@@ -327,7 +380,7 @@ class GameData:
             for old in cache_root.glob("vanilla-*"):
                 if old.is_dir() and not old.name.endswith(f"-s{CACHE_SCHEMA}"):
                     shutil.rmtree(old, ignore_errors=True)
-        return cls(gd)
+        return cls(gd, source_pak=pak, progress=progress)
 
     # ---------------------------------------------------------------- parsing
     def _parse(self, name: str) -> CfgStruct:

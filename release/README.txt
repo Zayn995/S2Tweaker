@@ -11,15 +11,26 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.37.0
+NEW IN 1.37.1
 --------------
+Repairs the black-window/startup failure in the withdrawn 1.37.0 release.
+Fewer Windows handles, paged Overview, armor editors released when closed,
+and optional loot/world controls loaded on demand. Mousewheel and Design
+are visible in the toolbar; OFF is red, ON is green. All 12 designs have
+clearer text and previews. The interface has been checked in a real window.
+
+SpawnActor data is no longer part of every startup cache. Extra stash finds
+request a compact container index only when needed. The first game-data load
+after updating refreshes the cache once. All runtime binaries stay unchanged.
+
+ALSO INCLUDED FROM 1.37.0
+-------------------------
 Editable Overview and Favorites, undo/redo, named profiles with comparison,
 Pak history and restore, generated-value preview, left navigation and display
 size/density options. Up to 18 additional per-piece armor controls plus two
 global switches, and 18 optional loot/world additions.
 
-New gameplay effects and the redesigned visual layout have not been
-play-tested or interactively reviewed. Experimental options are labelled.
+New gameplay effects have not been play-tested. Experimental options are labelled.
 The first game-data load refreshes the cache once. Rebuild your Pak to use
 new settings. Existing presets remain readable. There is no in-game menu;
 movement/fire-rate animation desynchronization remains unresolved.
@@ -29,7 +40,7 @@ globally or per round, and food and medicine have their own slider.
 
 Every slider has a number box for exact values (dot and comma both work),
 the mouse wheel only scrolls the page unless you switch it over, and the
-Theme button offers 12 colour themes in the style of the game's factions -
+Design button offers 12 colour themes in the style of the game's factions -
 all purely cosmetic, the .pak you build is identical.
 
 WHAT YOU CAN TWEAK (short tour)

@@ -1,6 +1,10 @@
 # Optional loot and world controls (v1.37.0)
 
-The following additions are available in the World tab. They use the installed
+The following additions are available through **World → Edit loot & world settings**
+or **Overview → Loot & world**. Their values are edited in a paged list so the
+application does not allocate 85 additional hidden sliders at startup. Search,
+favorites, presets, undo/redo and conflict avoidance use the same settings.
+They use the installed
 game's current configuration data. All switches start off; multipliers start
 at 100%. Leaving the tool at its defaults produces no patch.
 
@@ -36,8 +40,11 @@ target to merge into. No foreign full configuration files are bundled.
 Extra stash generators attach to vetted spawn instances; shared GamePass stash
 pools are not replaced. Quest/edition restrictions, unsafe nested generators,
 currency and unique items are checked against current game data. The large spawn
-file is streamed once and the relevant results are cached for the current data
-session. The extraction cache schema increases to 24 for this added source.
+file is extracted only when building with extra stash finds enabled. Binary roots
+are decoded one at a time; only container records are retained in a separate
+optional index. The temporary binary is removed on success or failure. Schema 25
+removes this source from the normal startup cache. The index is never presented
+to conflict scanning as a complete vanilla SpawnActorPrototypes configuration.
 
 The mod scan now checks loot identities at their actual array positions and
 distinguishes selection weights from item weight. This catches changes such as

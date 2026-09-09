@@ -39,7 +39,7 @@ def refresh(base, output, expected_starter_sha):
         skip = {name for name in names if name == "__pycache__" or name.endswith(".pyc")}
         directory = Path(directory).resolve()
         if directory == base:
-            skip |= {"settings.json", "editor.json", "cache", "output", "pak_history", "presets", "error.log"}
+            skip |= {"settings.json", "editor.json", "cache", "output", "pak_history", "presets", "error.log", "README.txt"}
         if directory == base / "_internal":
             skip.add("s2tweaker")
         return skip

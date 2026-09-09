@@ -9,12 +9,11 @@
 # Seit 1.21.0 (05.09.2026) gibt es keinen PyInstaller mehr: S2Tweaker.exe
 # ist die unveraenderte, von der Python Software Foundation signierte
 # pythonw.exe der python.org-Installation, und der Python-Code liegt lesbar
-# daneben. Die Bau-Anweisung steht NICHT hier, sondern in tools/build_exe.py
-# (dasselbe Skript, das build.bat lokal aufruft) — sonst haetten wir zwei
-# Kopien, die auseinanderlaufen. Das Skript prueft seinen Ordner selbst
-# (Signaturen, Hash-Gleichheit mit pythonw.exe, verbotene Dateien) und
-# startet ihn einmal probeweise. Der Schritt "Gegenprobe" unten wiederholt
-# die wichtigsten Punkte unabhaengig davon mit Windows-Bordmitteln.
+# daneben. Seit 1.37.1 wird die Laufzeit aus dem per SHA-256 festgelegten
+# Release 1.36.1 uebernommen: tools/refresh_portable.py setzt den aktuellen
+# Quellcode ein und vergleicht alle EXE/DLL/PYD. So kann ein Runner-Update
+# den signierten Starter nicht austauschen. Der fensterlose Selbsttest und
+# die Signaturpruefung laufen danach gegen genau diesen Programmordner.
 name: build
 
 on:
@@ -46,12 +45,33 @@ jobs:
         # hier nur, was ohne sie auskommt; der Rest vor jedem Release lokal.
         run: python tests/run_ci.py
 
-      - name: Programmordner bauen (inkl. Gegenprobe und Selbsttest)
-        run: python tools/build_exe.py
+      - name: Bisherige Laufzeit per festem Release-Hash laden
+        shell: pwsh
+        run: |
+          $archive = "baseline.zip"
+          Invoke-WebRequest -Uri "https://github.com/Zayn995/S2Tweaker/releases/download/v1.36.1/S2Tweaker_v1.36.1.zip" -OutFile $archive
+          $expected = "0B2E9F1ECB6B95DA788D8DE72625C58F2784CEB1E4B00878EE81F518AFEB7CB8"
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw "Baseline-ZIP stimmt nicht mit 1.36.1 ueberein" }
+          Expand-Archive -LiteralPath $archive -DestinationPath baseline
+
+      - name: Aktuellen Quellcode mit unveraenderter Laufzeit zusammenstellen
+        run: python tools/refresh_portable.py --base baseline --output dist/S2Tweaker --expected-starter-sha D72294FB338BC2FC8896D25A7395A4DB466425427E1559E77185D5135A830681
+
+      - name: Portable-Selbsttest ohne Fenster
+        shell: pwsh
+        run: |
+          $env:S2TWEAKER_SELFTEST = Join-Path $PWD "dist/selftest.txt"
+          try {
+            $process = Start-Process -FilePath (Join-Path $PWD "dist/S2Tweaker/S2Tweaker.exe") -WindowStyle Hidden -PassThru
+            if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Portable-Selbsttest Timeout" }
+            Get-Content $env:S2TWEAKER_SELFTEST
+            if ($process.ExitCode -ne 0) { throw "Portable-Selbsttest fehlgeschlagen: $($process.ExitCode)" }
+            if ((Get-Content $env:S2TWEAKER_SELFTEST -Tail 1) -ne "OK") { throw "Selbsttest nicht abgeschlossen" }
+          } finally { Remove-Item Env:S2TWEAKER_SELFTEST -ErrorAction SilentlyContinue }
 
       - name: Gegenprobe — signierter Starter, keine Netzmodule
         # Unabhaengig vom Bau-Skript, mit Windows-Bordmitteln: der Starter
-        # muss Byte fuer Byte die pythonw.exe des Runners sein und von der
+        # muss Byte fuer Byte der Starter aus 1.36.1 sein und von der
         # Python Software Foundation signiert; jede DLL/PYD muss gueltig
         # signiert sein - ohne Ausnahme (seit 05.09.2026 gibt es kein repak.exe
         # mehr; Paks liest und schreibt s2tweaker/pakfile.py in reinem Python);
@@ -61,12 +81,12 @@ jobs:
           $dist = "dist/S2Tweaker"
           $exe = "$dist/S2Tweaker.exe"
           if (-not (Test-Path $exe)) { throw "EXE fehlt: $exe" }
-          $py = Join-Path $env:pythonLocation "pythonw.exe"
+          $py = "baseline/S2Tweaker.exe"
           $h1 = (Get-FileHash $exe -Algorithm SHA256).Hash
           $h2 = (Get-FileHash $py -Algorithm SHA256).Hash
           "S2Tweaker.exe : $h1"
-          "pythonw.exe   : $h2"
-          if ($h1 -ne $h2) { throw "S2Tweaker.exe ist nicht die unveraenderte pythonw.exe" }
+          "1.36.1 starter: $h2"
+          if ($h1 -ne $h2) { throw "S2Tweaker.exe ist nicht der unveraenderte 1.36.1-Starter" }
           $sig = Get-AuthenticodeSignature $exe
           "Signatur      : $($sig.Status) / $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
@@ -82,6 +102,15 @@ jobs:
           }
           if (-not (Test-Path "$dist/_internal/sitecustomize.py")) { throw "Starter-Modul fehlt" }
           "Groesse       : $((Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum).Sum) Bytes"
+
+      - name: Pruefberichte als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-${{ github.sha }}
+          path: |
+            dist/runtime_integrity.json
+            dist/selftest.txt
+          if-no-files-found: error
 
       - name: Programmordner als Artefakt
         uses: actions/upload-artifact@v4
