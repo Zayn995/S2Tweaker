@@ -73,8 +73,11 @@ def build(**kw):
 print("\n1) Accept several jobs in one conversation")
 check(build() == {}, "Vanilla-Stellung erzeugt nichts")
 
+MENU = "DialogPrototypes/DialogPrototypes_patch_S2Tweaker.cfg"
+JOBS = "QuestNodePrototypes/S2Tweaker_Jobs.cfg"
 p = build(repeatable_jobs_multi=True)
-check(list(p) == [QUESTS], f"genau eine Patchdatei: {list(p)}")
+check(set(p) == {QUESTS, MENU, JOBS},
+      f"drei Patchdateien - Wachen, Menue-Boden, Taken/Clear: {sorted(p)}")
 raw = p[QUESTS]
 nodes = cfgparse.parse(raw).children
 givers = gd.repeatable_quest_givers()
@@ -176,7 +179,85 @@ only_limit = build(repeatable_jobs_per_round=6)
 if only_limit:
     assert "ExcludeAllNodesInContainer" not in only_limit.get(QUESTS, "")
     assert "Excluding" not in only_limit.get(QUESTS, "")
-check(True, "ohne den Schalter fasst nichts den Dialog oder den End-Knoten an")
+    assert MENU not in only_limit and JOBS not in only_limit
+check(True, "ohne den Schalter fasst nichts den Dialog, den End-Knoten oder das Menue an")
+
+# 1g) Teil 2 - der Menue-Boden in DialogPrototypes ({bpatch}, erste
+#     Patchdatei des Werkzeugs dort). Jede Kette beginnt mit einem If:
+#     Zusage noch nicht erfolgt -> Menue, sonst -> Abbruch-Zweig. Der
+#     False-Zweig zeigt jetzt auf dasselbe Ziel wie der True-Zweig.
+menu = cfgparse.parse(p[MENU]).children
+check(len(menu) == 8, f"{len(menu)} If-Knoten, einer je Dialogkette")
+for giver in givers:
+    chain = giver["dialog_node"].values["DialogChainPrototypeSID"].strip()
+    if_sid, menu_target, cancel_target = gd.job_menu_switch(chain, giver["accept"])
+    node = menu[if_sid]
+    assert not node.values and list(node.children) == ["NextDialogOptions"], if_sid
+    branches = node.children["NextDialogOptions"].children
+    assert list(branches) == ["False"], (if_sid, list(branches))
+    assert branches["False"].values == {"NextDialogSID": menu_target}, if_sid
+    assert menu_target != cancel_target, if_sid
+    # Ziel und If-Knoten existieren in Vanilla; Vanilla-False fuehrt woandershin
+    vanilla_if = gd.dialogs.children[if_sid]
+    assert menu_target in gd.dialogs.children and cancel_target in gd.dialogs.children, if_sid
+    v_false = vanilla_if.children["NextDialogOptions"].children["False"].values["NextDialogSID"].strip()
+    assert v_false == cancel_target, (if_sid, v_false)
+check(True, "je Kette zeigt nur der False-Zweig um - auf das Vanilla-Ziel des True-Zweigs")
+check(raw.count(" : struct.begin") == raw.count("{bpatch}") and
+      p[MENU].count(" : struct.begin") == p[MENU].count("{bpatch}"),
+      "auch im Menue-Boden traegt jeder Struct {bpatch}")
+
+# 1h) Teil 3 - Taken/Clear je Job in einer EIGENEN Datei ohne {bpatch},
+#     Knoten fuer Knoten wie bei der Vorlage.
+jobs = cfgparse.parse(p[JOBS]).children
+slots = {g["quest_sid"]: gd.repeatable_job_slots(g["quest_sid"]) for g in givers}
+n_slots = sum(len(v) for v in slots.values())
+check(n_slots == 69 and all(len(slots[g["quest_sid"]]) == g["pool"] for g in givers),
+      f"{n_slots} Auftrags-Behaelter, je Geber genau so viele wie sein Pool")
+check(len(jobs) == 2 * n_slots and "{bpatch}" not in p[JOBS],
+      f"{len(jobs)} neue Knoten (Taken + Clear je Behaelter), kein {{bpatch}}")
+
+
+def _conn(node):
+    return node.children["Launchers"].children["[0]"].children["Connections"].children["[0]"].values["SID"]
+
+
+for g in givers:
+    for slot in slots[g["quest_sid"]]:
+        tag = slot["container"].rsplit("_", 1)[-1]
+        taken = jobs[f"S2T_{g['quest_sid']}_Taken_{tag}"]
+        clear = jobs[f"S2T_{g['quest_sid']}_Clear_{tag}"]
+        assert taken.values["NodeType"] == "EQuestNodeType::Technical" and taken.values["StartDelay"] == "3.0"
+        assert taken.values["Repeatable"] == "true" and clear.values["Repeatable"] == "true"
+        assert _conn(taken) == slot["pin"], (taken.values["SID"], _conn(taken))
+        assert _conn(clear) == taken.values["SID"]
+        assert clear.values["NodeType"] == "EQuestNodeType::BridgeCleanUp"
+        cleaned = list(clear.children["NodesToCleanUpResults"].values.values())
+        assert cleaned == [slot["add"], g["accept"]], (clear.values["SID"], cleaned)
+        for sid in (slot["pin"], slot["add"], slot["container"]):
+            assert sid in gd.questnodes.children, sid
+        assert taken.values["SID"] not in gd.questnodes.children
+check(True, "jeder Taken-Knoten haengt am Pin seines Behaelters, jeder Clear loescht "
+            "GENAU Add_C0x + Zusage - alle Ziele existieren, keiner der Namen kollidiert")
+
+# Vanilla-Gegenprobe zur Menue-Steuerung: die Optionen der Warlock-Kette
+# haengen per Bridge-Bedingung an den sechs Add_C0x - darum blendet das
+# Loeschen den Job aus.
+warlock = next(g for g in givers if g["quest"] == "RSQ01")
+adds = {s["add"] for s in slots[warlock["quest_sid"]]}
+chain = warlock["dialog_node"].values["DialogChainPrototypeSID"].strip()
+linked = set()
+for node in gd.dialogs.children.values():
+    if (node.values.get("DialogChainPrototypeSID") or "").strip() != chain:
+        continue
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        v = (cur.values.get("LinkedNodePrototypeSID") or "").strip()
+        if v in adds:
+            linked.add(v)
+        stack.extend(cur.children.values())
+check(linked == adds, f"das Warlock-Menue haengt an allen {len(adds)} Add_C0x ({len(linked)} gefunden)")
 
 # Zusammenspiel mit den zwei aelteren Reglern derselben Familie
 both = build(repeatable_jobs_multi=True, repeatable_jobs_per_round=6,

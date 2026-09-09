@@ -73,6 +73,12 @@ def suspicious() -> dict[str, dict]:
     # NEEDED_FILES traegt teils Pfade ("WeaponData/..."), verglichen wird
     # aber der reine Dateiname - sonst faellt die halbe Waffendatei raus.
     wanted = {Path(gd_mod._cfg_name(n)).name.lower() for n in gd_mod.NEEDED_FILES}
+    # 1.36.0: DialogPrototypes (31,6 MB) wird nur fuer EINEN If-Knoten je
+    # Job-Dialogkette gelesen. Seine Schluessel sind Gespraechs-STRUKTUR
+    # (NextDialogSID, Terminate, AnswerTo, MainReply ...), keine
+    # Stellschrauben - als Nachbarn waeren sie nur Rauschen, und die Datei
+    # wuerde den Lauf um ein Drittel verlaengern.
+    wanted -= {"dialogprototypes.cfg"}
     found: dict[str, dict] = defaultdict(
         lambda: {"structs": 0, "known": set(), "example": None})
     for path in sorted(VANILLA.rglob("*.cfg")):

@@ -84,10 +84,11 @@ NEEDED_FILES = [
     "SingletonConstants.cfg",                # Nacht/Himmel (1.28.0 P6, unbinarisiert)
     "PackOfItemsGroupPrototypes.cfg.bin",    # Welt-Loot-Haufen (1.28.0 P7)
     "NPCPrototypes.cfg.bin",                 # Haendler auf NPC-Ebene (1.28.0 P8, 1.8 MB - lazy geparst)
+    "DialogPrototypes.cfg.bin",              # Job-Dialogketten der Auftraggeber (1.36.0, 31.6 MB - lazy geparst, nur mit dem Mehrfach-Job-Schalter)
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 22
+CACHE_SCHEMA = 23   # 1.36.0: DialogPrototypes.cfg.bin kommt dazu
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
 # AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
@@ -405,6 +406,13 @@ class GameData:
         anfassen — d.h. erst, wenn der Quest-Cooldown-Regler wirklich
         nicht auf 100 % steht (dasselbe Muster wie itemgenerators)."""
         return self._parse("QuestNodePrototypes.cfg")
+
+    @cached_property
+    def dialogs(self) -> CfgStruct:
+        """ACHTUNG: 31.6-MB-Datei (DialogPrototypes). NUR lazy anfassen -
+        einzig der Mehrfach-Job-Schalter braucht sie (1.36.0), um den
+        If-Knoten am Anfang jeder Job-Dialogkette zu finden."""
+        return self._parse("DialogPrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:
@@ -2604,6 +2612,85 @@ class GameData:
                 "next_launcher": next_launcher,
             })
         return givers
+
+    def repeatable_job_slots(self, quest_sid: str) -> list[dict]:
+        """Die Auftrags-Behaelter EINES Gebers: [{container, add, pin}].
+
+        Semantisch, nicht ueber Namen: ein Container-Knoten der Quest,
+        dessen Launcher genau zwei Verbindungen hat - einen
+        Technical-Knoten (das "Add", gesetzt beim Auffuellen des Pools) und
+        einen Condition-Knoten (der "Pin", der auf die Zusage-Phrase des
+        Dialogs wartet). Beide muessen erfuellt sein, erst dann startet der
+        Job. Gemessen 09.09.2026: 6/10/8/9/9/9/9/9 = 69 Slots, deckungsgleich
+        mit den Pool-Groessen der acht Geber. Parst die 75-MB-Datei - nur
+        lazy anfassen (wie questnodes)."""
+        nodes = self.questnodes.children
+        slots: list[dict] = []
+        for key, node in nodes.items():
+            if (node.values.get("QuestSID") or "").strip() != quest_sid:
+                continue
+            if (node.values.get("NodeType") or "").strip() != "EQuestNodeType::Container":
+                continue
+            launchers = node.children.get("Launchers")
+            if launchers is None:
+                continue
+            for entry in launchers.children.values():
+                conns = entry.children.get("Connections")
+                if conns is None:
+                    continue
+                sources = [(c.values.get("SID") or "").strip()
+                           for c in conns.children.values()]
+                if len(sources) != 2:
+                    continue
+                kinds = {}
+                for src in sources:
+                    ref = nodes.get(src)
+                    kinds[src] = (ref.values.get("NodeType") or "").strip() if ref is not None else ""
+                adds = [x for x, k in kinds.items() if k == "EQuestNodeType::Technical"]
+                pins = [x for x, k in kinds.items() if k == "EQuestNodeType::Condition"]
+                if len(adds) == 1 and len(pins) == 1:
+                    slots.append({"container": (node.values.get("SID") or "").strip() or key,
+                                  "add": adds[0], "pin": pins[0]})
+        slots.sort(key=lambda d: d["container"])
+        return slots
+
+    def job_menu_switch(self, chain_sid: str, accept_sid: str):
+        """(If-Knoten, Menue-Ziel, Abbruch-Ziel) am Anfang der
+        Job-Dialogkette eines Gebers - oder None.
+
+        Gemessen 09.09.2026 an allen acht Ketten: der erste Knoten ist ein
+        If mit `NextDialogOptions.True/False`; der True-Zweig traegt eine
+        Bridge-Bedingung `NotEqual` auf die Zusage (`Technical_GetQuest`)
+        und fuehrt ins Job-Menue, der False-Zweig in den Abbruch-Zweig.
+        Solange das Ergebnis der Zusage steht, landet ein wieder
+        geoeffneter Dialog also NICHT im Menue. Erkennung ueber genau diese
+        Bedingung, nicht ueber den Namen (`_If` bei sieben Gebern, `_If_1`
+        bei Warlock). Parst die 31.6-MB-Datei - nur lazy anfassen."""
+        def _mentions(node, sid: str) -> bool:
+            for value in node.values.values():
+                if (value or "").strip() == sid:
+                    return True
+            return any(_mentions(child, sid) for child in node.children.values())
+
+        for key, node in self.dialogs.children.items():
+            if (node.values.get("DialogChainPrototypeSID") or "").strip() != chain_sid:
+                continue
+            options = node.children.get("NextDialogOptions")
+            if options is None:
+                continue
+            true = options.children.get("True")
+            false = options.children.get("False")
+            if true is None or false is None:
+                continue
+            conditions = true.children.get("Conditions")
+            if conditions is None or not _mentions(conditions, accept_sid):
+                continue
+            if not _mentions(conditions, "EConditionComparance::NotEqual"):
+                continue
+            return ((node.values.get("SID") or "").strip() or key,
+                    (true.values.get("NextDialogSID") or "").strip(),
+                    (false.values.get("NextDialogSID") or "").strip())
+        return None
 
     # ------------------------------------------------- Fraktionsbeziehungen
     # Recherche: docs/FACTION_RELATIONS_RESEARCH.md (582 Paare, Stand 2.0.x)

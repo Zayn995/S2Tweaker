@@ -172,6 +172,7 @@ REF_KEYS = {
     "FalseEffectSID", "WeatherSID", "GlobalVariablePrototypeSID",
     "StickinessAimAssistConeSID", "SnappingAimAssistConeSID",
     "MovingTrackingAimAssistConeSID", "StationaryTrackingAimAssistConeSID",
+    "NextDialogSID",               # 1.36.0: der Menue-Boden in DialogPrototypes
 }
 # Listen, deren `[N] = <SID>`-Eintraege ebenfalls Referenzen sind.
 REF_LISTS = {"NodesToCleanUpResults", "AmmoTypeProjectiles"}
@@ -247,14 +248,21 @@ check(len(KNOWN) > 100_000,
       f"({index_s:.1f}s)")
 
 
+_big_texts: dict[Path, str] = {}
+
+
 def resolve_late(name: str) -> bool:
     """Zweite Chance fuer einen Namen: in den uebersprungenen Riesen
-    nachsehen. Laeuft nur bei einer Beanstandung, im gruenen Fall nie."""
+    nachsehen. Laeuft nur, wenn der Index den Namen nicht kennt - seit
+    1.36.0 regelmaessig fuer die acht Dialog-Ziele des Menue-Bodens, darum
+    werden die Riesen beim ersten Mal gelesen und dann behalten."""
     needle = re.compile(rf"^\s*{re.escape(name)}\s*:\s*struct\.begin|"
                         rf"^\s*SID\s*=\s*{re.escape(name)}\s*$", re.M)
     for big in INDEX_SKIP:
         for f in GAMELITE.rglob(big):
-            if needle.search(f.read_text(encoding="utf-8-sig", errors="replace")):
+            if f not in _big_texts:
+                _big_texts[f] = f.read_text(encoding="utf-8-sig", errors="replace")
+            if needle.search(_big_texts[f]):
                 KNOWN.add(name)
                 return True
     return False

@@ -5476,10 +5476,15 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
     wenn kein Job mehr gehalten wird - Stufe 2, falls Stufe 1 im Spiel
     bestaetigt wird.
 
-    **Ehrliche Grenzen von Stufe 1:** ein angenommener Job bleibt im Menue
-    stehen (die Vorlage blendet ihn mit Zusatzknoten aus); ihn ein zweites
-    Mal zu waehlen ist ungetestet - nicht tun. Nichts liegt im Spielstand,
-    Pak raus = alles wie vorher."""
+    **Die zwei Begleiter (Besitzer: "gleich Stufe 2"):** `_quest_menu_patch`
+    biegt per {bpatch} den If-Knoten am Anfang der Dialogkette so, dass der
+    wieder geoeffnete Dialog ins Menue fuehrt statt in den Abbruch-Zweig -
+    ohne das zeigte er nach einer Zusage nur die Abbruch-Zeile (genau
+    Molkerrs Beobachtung). `_quest_taken_patch` nimmt genommene Jobs aus dem
+    Menue (neue Knoten, eigene Datei; laden sie nicht, bleibt der Job
+    einfach stehen). Was bleibt: die Abbruch-Zeile kann nach dem Rundenende
+    stehen bleiben (End `false`). Nichts liegt im Spielstand, Pak raus =
+    alles wie vorher."""
     if not s.repeatable_jobs_multi:
         return {}
     patches: dict = {}
@@ -5526,6 +5531,115 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
         if end_sid and (giver.get("end_exclude") or "").strip().lower() == "true":
             patches.setdefault(end_sid, {})["ExcludeAllNodesInContainer"] = "false"
     return patches
+
+def _quest_menu_patch(gd: GameData, s: Settings) -> dict:
+    """Job-Menue statt Abbruch-Zweig, wenn schon ein Job gehalten wird
+    (DialogPrototypes; Teil 2 des Mehrfach-Job-Schalters, 1.36.0).
+
+    Gemessen 09.09.2026: jede der acht Job-Dialogketten beginnt mit einem
+    If-Knoten, dessen True-Zweig eine Bridge-Bedingung `NotEqual` auf die
+    Zusage (`Technical_GetQuest`) traegt - Zusage noch nicht erfolgt: Job-
+    Menue; erfolgt: Abbruch-Zweig. Solange das Ergebnis der Zusage steht,
+    fuehrt der wieder geoeffnete Dialog also in den Abbruch-Zweig. Genau das
+    hat Molkerr auf 1.35.0 gesehen ("nur noch die Abbruch-Zeile").
+
+    Zone Contracts loest das mit einem Zusatzknoten, der das Ergebnis der
+    Zusage drei Sekunden nach der Annahme loescht (`_quest_taken_patch` tut
+    dasselbe). Dieser Builder ist der BODEN darunter, der auch dann haelt,
+    wenn neue Knoten nicht geladen werden: der False-Zweig des If-Knotens
+    zeigt per {bpatch} auf dasselbe Ziel wie der True-Zweig, das Menue.
+    Abbrechen geht weiter ueber den eigenen "Auftrag abbrechen"-Dialog, den
+    die Zusage scharf macht. Nur der eine Schluessel wird geschrieben,
+    `Terminate` und alles andere bleibt. Erkennung datengetrieben (siehe
+    GameData.job_menu_switch).
+
+    ⚠ Erste Patchdatei des Werkzeugs in DialogPrototypes: neue Datei in
+    NEEDED_FILES (31.6 MB, lazy), CACHE_SCHEMA 23. Dieselbe Regel wie bei
+    QuestNodePrototypes - eine Datei je Familie, Patch als
+    `DialogPrototypes/DialogPrototypes_patch_<Mod>.cfg`; RSO legt dort
+    eigene Dateien ab, die Familie nimmt also Patches an."""
+    if not s.repeatable_jobs_multi:
+        return {}
+    patches: dict = {}
+    for giver in gd.repeatable_quest_givers():
+        accept = giver.get("accept")
+        dialog = giver.get("dialog_node")
+        if not (accept and dialog is not None):
+            continue
+        chain = (dialog.values.get("DialogChainPrototypeSID") or "").strip()
+        if not chain:
+            continue
+        found = gd.job_menu_switch(chain, accept)
+        if found is None:
+            continue
+        if_sid, menu_target, cancel_target = found
+        if not menu_target or cancel_target == menu_target:
+            continue
+        patches[if_sid] = {"NextDialogOptions": {"False": {"NextDialogSID": menu_target}}}
+    return patches
+
+
+def _quest_taken_patch(gd: GameData, s: Settings) -> dict:
+    """Genommene Jobs verschwinden aus dem Menue (Teil 3 des Mehrfach-Job-
+    Schalters, 1.36.0) - NEUE Knoten, eigene Datei.
+
+    Das Menue zeigt je Job eine Option, die per Bridge-Bedingung am
+    Ergebnis von `<Q>_Add_C0x` haengt (gemessen 09.09.2026 in
+    DialogPrototypes, `VisibleOnFailedCondition = false`). Solange das
+    Ergebnis steht, steht der Job im Menue - auch nach der Annahme. Zone
+    Contracts loescht es darum je Job drei Sekunden nach der Zusage, und
+    dazu das Ergebnis der Zusage selbst: ein Technical-Knoten mit StartDelay
+    3.0, gestartet vom Pin des Behaelters (der auf die Zusage-Phrase
+    wartet), und dahinter ein BridgeCleanUp mit `Add_C0x` +
+    `Technical_GetQuest`. Genau so, Knoten fuer Knoten, auch hier - je
+    Behaelter zwei, 69 Behaelter an acht Gebern (GameData.repeatable_job_slots).
+
+    Warum eine EIGENE Datei (`QuestNodePrototypes/<Mod>_Jobs.cfg`, kein
+    `{bpatch}`): die zwei Mods, deren neue Quest-Knoten nachweislich laufen
+    (RSO, Living Zone), legen sie genau so ab; unsere ersten zwei Entwuerfe
+    hatten neue Knoten in die `{bpatch}`-Datei gemischt und taten nichts.
+
+    Fehlerfall, bewusst harmlos: laden diese Knoten nicht, bleibt ein
+    genommener Job im Menue stehen - sonst passiert nichts. Und weil
+    `_quest_menu_patch` das Menue unabhaengig davon offen haelt, ist genau
+    das die Frage, die Molkerrs naechster Test nebenbei beantwortet: werden
+    unsere neuen Knoten ueberhaupt geladen?"""
+    if not s.repeatable_jobs_multi:
+        return {}
+    patches: dict = {}
+    for giver in gd.repeatable_quest_givers():
+        quest_sid = giver.get("quest_sid")
+        accept = giver.get("accept")
+        if not (quest_sid and accept):
+            continue
+        for slot in gd.repeatable_job_slots(quest_sid):
+            tag = slot["container"].rsplit("_", 1)[-1]        # RSQ01_C01 -> C01
+            taken = f"S2T_{quest_sid}_Taken_{tag}"
+            clear = f"S2T_{quest_sid}_Clear_{tag}"
+            patches[taken] = {
+                "__new__": True,
+                "SID": taken,
+                "NodePrototypeVersion": "1",
+                "Repeatable": "true",
+                "QuestSID": quest_sid,
+                "NodeType": "EQuestNodeType::Technical",
+                "Launchers": {"[0]": {"Excluding": "false",
+                                      "Connections": {"[0]": {"SID": slot["pin"], "Name": ""}}}},
+                "StartDelay": "3.0",
+            }
+            patches[clear] = {
+                "__new__": True,
+                "SID": clear,
+                "NodePrototypeVersion": "1",
+                "Repeatable": "true",
+                "QuestSID": quest_sid,
+                "NodeType": "EQuestNodeType::BridgeCleanUp",
+                "Launchers": {"[0]": {"Excluding": "false",
+                                      "Connections": {"[0]": {"SID": taken, "Name": ""}}}},
+                "NodesToCleanUpResults": {"[0]": slot["add"], "[1]": accept},
+            }
+    return patches
+
 
 def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
     """Der Auftraggeber bietet den naechsten Job sofort an (Issue #8).
@@ -6867,6 +6981,11 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     _merge_nested(quest_patches, _quest_multi_patch(gd, s))
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
+    # Mehrfach-Jobs, Teil 2 + 3 (1.36.0): der Menue-Boden in DialogPrototypes
+    # ({bpatch}, erste Patchdatei dort) und die Taken/Clear-Knoten in einer
+    # EIGENEN Datei ohne {bpatch} - Begruendung in den zwei Buildern.
+    add(f"DialogPrototypes/DialogPrototypes_patch_{n}.cfg", _quest_menu_patch(gd, s))
+    add(f"QuestNodePrototypes/{n}_Jobs.cfg", _quest_taken_patch(gd, s))
     # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien. Die neuen
     # Knoten bekommen bewusst eine EIGENE Datei statt in die {bpatch}-Datei
     # oben zu wandern: die zwei Mods, deren neue Quest-Knoten nachweislich

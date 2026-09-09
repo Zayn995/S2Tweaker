@@ -6409,24 +6409,27 @@ class App(ctk.CTk):
                      "switch below.")
         self._check(f, "rq_jobs_multi",
                     "Accept several jobs in one conversation (experimental, 3rd design)",
-                    "Saying yes to a job switches the giver's job dialog OFF "
-                    "through a launcher on that dialog node. This flips that "
-                    "launcher (and the per-job 'quest started' watchers next "
-                    "to it) so that saying yes re-opens the dialog a second "
-                    "later instead - the same thing 'Zone Borders / "
-                    "Contracts' does by deleting them. Nothing new is added: "
-                    "every edit is a {bpatch} on an existing node, the kind "
-                    "of change that provably reaches the game. It also "
-                    "keeps the giver's round-end node from shutting down "
-                    "jobs you still carry when you hand one in (634 of the "
-                    "game's 1395 end nodes use that value). Two earlier "
-                    "designs added new nodes and did nothing in Molkerr's "
-                    "tests (1.33.0, 1.34.0) - this one is untested in the "
-                    "game so far. Known rough edges: a job you already took "
-                    "stays on the menu (don't pick it twice), and the "
+                    "Three layers, each on its own. (1) Saying yes switches "
+                    "the giver's job dialog OFF through a launcher on that "
+                    "node; this flips it (and the per-job 'quest started' "
+                    "watchers next to it) so that saying yes re-opens the "
+                    "dialog a second later instead - what 'Zone Borders / "
+                    "Contracts' does by deleting them. (2) The dialog itself "
+                    "starts with an if: 'already said yes? then the cancel "
+                    "branch, not the menu' - both branches now lead to the "
+                    "menu (cancelling still works through the separate "
+                    "'cancel job' line). Both are {bpatch} edits on existing "
+                    "nodes, the kind of change that provably reaches the "
+                    "game. (3) Two small new nodes per job take a job you "
+                    "accepted off the menu, exactly as that mod does - if "
+                    "the game ignores them, the job simply stays listed. "
+                    "Also keeps the round-end node from shutting down jobs "
+                    "you still carry when you hand one in. Two earlier "
+                    "designs did nothing in Molkerr's tests (1.33.0, "
+                    "1.34.0); this one is untested so far. Rough edge: the "
                     "'cancel job' line can linger after a round ends. "
-                    "Nothing is stored in the save; remove the pak and all "
-                    "is vanilla again.")
+                    "Reads one more game file (first start re-extracts). "
+                    "Nothing is stored in the save.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,

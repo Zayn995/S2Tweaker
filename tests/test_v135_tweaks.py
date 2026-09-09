@@ -301,8 +301,12 @@ check(not [n for n in gd_mod.NEEDED_FILES if "ImpactPhysicalMaterial" in n],
       "MaterialCoefficient sitzt dort zwischen Niagara-Partikeln, Decals und "
       "Decal-Groessen - die Bedeutung ist unbelegt, und die Datei waere ein "
       "CACHE_SCHEMA-Bump fuer jeden Nutzer")
-check(gd_mod.CACHE_SCHEMA == 22,
-      f"CACHE_SCHEMA bleibt {gd_mod.CACHE_SCHEMA} - 1.35.0 liest keine neue Spieldatei")
+# 1.35.0 las keine neue Spieldatei (Schema 22). 1.36.0 liest mit
+# DialogPrototypes wieder eine - bewusst, fuer den Menue-Boden des
+# Mehrfach-Job-Schalters (Schema 23). Die MaterialCoefficient-Entscheidung
+# oben bleibt davon unberuehrt.
+check(gd_mod.CACHE_SCHEMA >= 22,
+      f"CACHE_SCHEMA {gd_mod.CACHE_SCHEMA} - 1.35.0 selbst las keine neue Spieldatei")
 
 # --- 13) Tweak-Liste -----------------------------------------------------
 print("\n13) Tweak-Liste")

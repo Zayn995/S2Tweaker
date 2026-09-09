@@ -250,7 +250,7 @@ BOSSES = ("BossCoverEvaluator", "StrelokCoverEvaluator", "ScarCoverEvaluator", "
 
 # --- P3.0) Dateien, Schema bleibt 22, Mod-Scan, Live == Default -----------------
 assert "EnemyEvaluatorPrototypes.cfg.bin" in NEEDED_FILES and "CoverEvaluatorPrototypes.cfg.bin" in NEEDED_FILES
-assert CACHE_SCHEMA == 22, "Schema 22 gilt fuer das ganze 1.28.0-Release"
+assert CACHE_SCHEMA >= 22, "Schema 22 galt fuer das ganze 1.28.0-Release (1.36.0: 23, DialogPrototypes)"
 assert "enemyevaluators" in _GD_TREES and "coverevaluators" in _GD_TREES
 for key, field in (("ChanceToGetHealOverTimeWhenWounded", "wounded_heal_chance"),
                    ("CooldownOnFallingWounded", "wounded_cooldown_s"),
@@ -327,7 +327,7 @@ FL = "AIPrototypes/FlairSensorPrototypes/FlairSensorPrototypes_patch_S2Tweaker.c
 TARGET = ["BlindDogFlairSensor", "ChimeraFlairSensor", "FleshFlairSensor", "PoltergeistFlairSensor"]
 
 # --- P4.0) Datei, Schema 22, Mod-Scan, Sensorliste live: 6 aktive, 2 Tabu ---------
-assert "AIPrototypes/FlairSensorPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+assert "AIPrototypes/FlairSensorPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
 assert "flairsensors" in _GD_TREES
 active = sorted(sid for sid, n in gd.flairsensors.children.items()
                 if n.values.get("IsActive", "").strip() == "true")
@@ -399,7 +399,7 @@ FAC = ("ALifePrototypes/ALifePopulationManagerFactionPrototypes/"
 for name in ("NPCNeedsPresetPrototypes.cfg.bin", "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",
              "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin"):
     assert name in NEEDED_FILES, name
-assert CACHE_SCHEMA == 22 and all(t in _GD_TREES for t in ("needspresets", "alifepolicy", "alifefactions"))
+assert CACHE_SCHEMA >= 22 and all(t in _GD_TREES for t in ("needspresets", "alifepolicy", "alifefactions"))
 pol_live = gd.alifepolicy.children["Default"].values
 assert pol_live["FullWipeRefillCooldown"] == "360.f" and pol_live["MinRefillDistance"] == "20000"
 assert int(pol_live["MaxCorpsePerRadius"]) == Settings().corpse_budget
@@ -510,7 +510,7 @@ for name in ("BarbedWirePrototypes.cfg.bin", "DestructibleObjectPrototypes.cfg.b
              "PhysicsInteractionPrototypes.cfg.bin", "WeatherChainPrototypes.cfg.bin",
              "SingletonConstants.cfg"):
     assert name in NEEDED_FILES, name
-assert CACHE_SCHEMA == 22
+assert CACHE_SCHEMA >= 22
 for tree in ("barbedwire", "destructibles", "physicsinteractions", "weatherchains", "singletonconstants"):
     assert tree in _GD_TREES, tree
 assert not build_patches(gd, S(radiation_dose_factor=1.0, barbed_wire_factor=1.0, explosive_container_factor=1.0,
@@ -663,7 +663,7 @@ ITEMS = "ItemPrototypes/ItemPrototypes_patch_S2Tweaker.cfg"
 POI = "PackOfItemsGroupPrototypes/PackOfItemsGroupPrototypes_patch_S2Tweaker.cfg"
 
 # --- P7.0) Live-Bestand der Artefakt-Schluessel ------------------------------------
-assert "PackOfItemsGroupPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+assert "PackOfItemsGroupPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
 assert "packofitems" in _GD_TREES
 arts = {sid: n for sid, n in gd.items.children.items() if "#" not in sid and "Strafe" in n.values}
 assert len(arts) == 154, len(arts)
@@ -761,7 +761,7 @@ TRADERS9 = ["Eger", "Guron", "Koldun", "KoldunM", "Sinak", "drabadan", "sulc",
             "supack_trader_selma_0", "trader_assistent_medulin_0"]
 
 # --- P8.0) Datei, Schema 22, Mod-Scan bewusst OHNE NPCPrototypes ------------------
-assert "NPCPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA == 22
+assert "NPCPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
 # Bewusste Ausnahme: die 1.8-MB-Datei bleibt aus dem Vanilla-Index des
 # Mod-Scans draussen (wie QuestNodePrototypes) - sie wuerde jeden Scan
 # spuerbar verlangsamen, ohne dass dort Regler haengen.
