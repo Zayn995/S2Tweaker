@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.36.0
-File version:  1.36.0
+Name:          S2Tweaker 1.36.1
+File version:  1.36.1
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,19 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.36.1 - the relation version counter is left alone
+
+- The Factions patch no longer raises the game's relation version
+  counter. From 1.12.0 on, changing any faction pair also wrote
+  "version 8" into the relation file, hoping an existing save would
+  notice; the counter belongs to the developers and works with a list
+  of deltas that no released mod touches. A pak built with 1.36.1
+  leaves it at the game's own value. To reach a save in progress, use
+  the switch from 1.36.0.
+- The warning box in the Factions tab claimed the opposite; the text
+  now describes what actually happens.
+- No new game file - coming from 1.36.0 there is no re-extraction.
+
 1.36.0 - faction relations that reach a running save, the several-jobs
 switch rebuilt from what actually works, three dead controls removed
 
