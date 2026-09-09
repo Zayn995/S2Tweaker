@@ -581,7 +581,12 @@ class Settings:
     no_aim_assist_mouse: bool = False        # AimAssist-Presets *Mouse*: Kegel auf Empty
     no_aim_assist_gamepad: bool = False      # AimAssist-Presets *Gamepad*: Kegel auf Empty
     # --- 1.25.0 (06.09.2026) ---
-    dialog_fov: float = 70.0                 # CoreVariables DialogFOVDefault
+    # ZURUECKGEZOGEN 1.36.0 (GitHub #10, craigduk76): DialogFOVDefault hat im
+    # Spiel keine Wirkung, und es gibt keinen zweiten cfg-Hebel dafuer
+    # (EffectPrototypes, DialogPrototypes, AIGlobals durchsucht). Feld
+    # bleibt, damit alte Presets/settings.json weiter laden; kein Regler,
+    # kein Patch mehr.
+    dialog_fov: float = 70.0
     cutscene_fov: float = 90.0               # CoreVariables CutsceneFOVDefault
     default_fov: float = 90.0                # CoreVariables FOVDefault
     hud_compass: int = 0                     # 0 vanilla, 1 immer an, 2 immer aus
@@ -602,7 +607,11 @@ class Settings:
     # stalker-world / sdwvit-S2Mods; docs/ROADMAP.md "Vierte Datenrecherche") ---
     no_knockdown: bool = False               # Player.CanBeKnockedDown -> false
     no_water_slowdown: bool = False          # Player.WaterContactInfo Kurven-Effekte -> empty
-    ladder_free_look: bool = False           # CoreVariables ClimbViewYaw/PitchLimit 30/40 -> 90
+    # ZURUECKGEZOGEN 1.36.0 (GitHub #11, craigduk76): ClimbViewYaw/PitchLimit
+    # 30/40 -> 90 taten im Spiel nichts, waehrend ViewPitchDownLimit aus
+    # demselben Struct derselben Pak wirkte - die Schluessel sind tot.
+    # Feld bleibt fuer alte Presets; kein Schalter, kein Patch mehr.
+    ladder_free_look: bool = False
     look_straight_down: bool = False         # CoreVariables ViewPitchDownLimit -80 -> -90
     handless_zoom_factor: float = 1.0        # HandlessFOVAimModifier (0.8; kleiner = mehr Zoom)
     crouch_vignette_factor: float = 1.0      # PostEffectProcessor CrouchEffectProcessor.Intensity (0.6)
@@ -914,7 +923,13 @@ class Settings:
     # Limit-Knotens: der Geber bietet sofort den naechsten Job an,
     # statt erst wenn er leer ist.
     repeatable_jobs_instant: bool = False
-    repeatable_jobs_multi: bool = False       # 1.33.0: mehrere Jobs je Gespraech
+    # ZURUECKGEZOGEN 1.36.0 (GitHub #9, Molkerr): der Schalter hat im Spiel
+    # zweimal nicht gewirkt (1.33.0 und die 1.34.0-Reparatur, gespielt auf
+    # 1.35.0) und liess zuletzt sogar die Abbruch-Zeile stehen. Die Builder
+    # `_quest_multi_patch`/`_quest_dialog_patch` bleiben im Code - eine
+    # Hypothese ist offen (neue Knoten in einer gemischten {bpatch}-Datei,
+    # siehe HANDOVER 09.09.) -, aber kein Bedienelement setzt die Felder mehr.
+    repeatable_jobs_multi: bool = False
 
     # --- 1.35.0: die kleinen Kandidaten der neunten Datenrecherche und des
     # Familien-Waechters, alle am 08.09.2026 live nachgemessen ------------
@@ -2066,6 +2081,38 @@ def _npc_stagger_patch(gd: GameData, s: Settings) -> dict:
         if raw is None or parse_number(raw) <= 0:
             continue
         patches[sid] = {"CriticalDamageThreshold": _scale_literal(raw, f)}
+    return patches
+
+
+def _npc_dialog_patch(gd: GameData, s: Settings) -> dict:
+    """Gespraechsabstand auch an den NPCs (1.36.0, GitHub #10).
+
+    craigduk76 hat auf 1.35.0 gemessen: Min/MaxDialogInteractDistance am
+    SPIELER (75/130 -> 112.5/195) aendert nichts, er musste genauso nah an
+    die NPCs heran. Nachgezaehlt: die zwei Schluessel stehen an **1659**
+    Prototypen - jeder der 1608 menschlichen NPCs deklariert sie selbst
+    (1530x 75/130, 62x 85.f/250.f bei Haendlern und Wichtigen, ein paar
+    Sonderwerte). Das Spiel liest den Abstand also offenbar am
+    Gespraechspartner, nicht am Spieler. Darum jetzt beide Seiten: der
+    Spieler-Teil bleibt in `_player_patch`, hier kommen die Menschen dazu;
+    Mutanten reden nicht und bleiben draussen. Literalform bleibt
+    (`85.f` -> `127.5f`). Nicht im Spiel getestet."""
+    f = s.dialog_range_factor
+    if not _neq(f, 1.0) or f <= 0:
+        return {}
+    patches: dict = {}
+    for sid in gd.human_npc_sids():
+        values = gd.obj.children[sid].values
+        cfg: dict = {}
+        for key in ("MinDialogInteractDistance", "MaxDialogInteractDistance"):
+            raw = values.get(key)
+            if raw is None or parse_number(raw) <= 0:
+                continue
+            scaled = _scale_literal(raw, f)
+            if scaled is not None:
+                cfg[key] = scaled
+        if cfg:
+            patches[sid] = cfg
     return patches
 
 
@@ -4457,10 +4504,11 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if vanilla > 0:
                 cfg[key] = _num(vanilla * s.interaction_range_factor)
 
-    # Sichtfeld (06.09.2026): DialogFOVDefault 70 (Zoom im Gespraech),
-    # CutsceneFOVDefault 90, FOVDefault 90 - Absolutwerte, live verglichen.
-    for key, wanted in (("DialogFOVDefault", s.dialog_fov),
-                        ("CutsceneFOVDefault", s.cutscene_fov),
+    # Sichtfeld (06.09.2026): CutsceneFOVDefault 90, FOVDefault 90 -
+    # Absolutwerte, live verglichen. DialogFOVDefault stand hier bis 1.35.0
+    # mit dabei und ist zurueckgezogen: im Spiel ohne Wirkung (GitHub #10).
+    # Die zwei uebrigen sind unverifiziert und sitzen im selben Struct.
+    for key, wanted in (("CutsceneFOVDefault", s.cutscene_fov),
                         ("FOVDefault", s.default_fov)):
         live = gd.corevar(key, 0.0)
         if live > 0 and _neq(wanted, live):
@@ -4509,16 +4557,13 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if ranks:
                 cfg["FlashlightCombatUseChance"] = ranks
 
-    # 1.26.0 (Ace's CoreVariables-Liste, Shay's Distant Horizons): auf
-    # Leitern umschauen (ClimbViewYaw/PitchLimit 30/40 -> 90), gerade nach
-    # unten (ViewPitchDownLimit -80 -> -90), Zoom mit leeren Haenden
-    # (HandlessFOVAimModifier 0.8, kleiner = mehr Zoom, Deckel 0.2..1.0) und
-    # die Sichtweite des A-Life-Rasters (8500 / 7500 cm).
-    if s.ladder_free_look:
-        for key in ("ClimbViewYawLimit", "ClimbViewPitchLimit"):
-            live = gd.corevar(key, 0.0)
-            if live > 0 and _neq(live, 90.0):
-                cfg[key] = "90.0"
+    # 1.26.0 (Ace's CoreVariables-Liste, Shay's Distant Horizons): gerade
+    # nach unten (ViewPitchDownLimit -80 -> -90, im Spiel bestaetigt durch
+    # craigduk76 auf 1.35.0), Zoom mit leeren Haenden (HandlessFOVAimModifier
+    # 0.8, kleiner = mehr Zoom, Deckel 0.2..1.0) und die Sichtweite des
+    # A-Life-Rasters (8500 / 7500 cm). "Auf Leitern umschauen"
+    # (ClimbViewYaw/PitchLimit) stand bis 1.35.0 hier und ist
+    # zurueckgezogen: dieselbe Pak, dasselbe Struct, keine Wirkung (GitHub #11).
     if s.look_straight_down:
         live = gd.corevar("ViewPitchDownLimit", 0.0)
         if live != 0 and _neq(live, -90.0):
@@ -6697,6 +6742,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         obj_patches.setdefault(sid, {}).update(cfg)
     for sid, cfg in _npc_body_patch(gd, s).items():
         _merge_nested(obj_patches.setdefault(sid, {}), cfg)
+    for sid, cfg in _npc_dialog_patch(gd, s).items():          # 1.36.0
+        _merge_nested(obj_patches.setdefault(sid, {}), cfg)
     add(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", obj_patches)
 
     ability_patches = _mutant_abilities_patch(gd, s)
@@ -6845,12 +6892,16 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(quest_patches, _quest_limit_patch(gd, s))
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     _merge_nested(quest_patches, _quest_multi_patch(gd, s))
-    # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien, die
-    # zusammengehoeren - die Knoten wandern in die vorhandene
-    # QuestNode-Patchdatei, Quest und Startskript bekommen eigene.
-    rel_nodes, rel_quest, rel_script = _relations_runtime_patch(gd, s)
-    _merge_nested(quest_patches, rel_nodes)
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
+    # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien. Die neuen
+    # Knoten bekommen bewusst eine EIGENE Datei statt in die {bpatch}-Datei
+    # oben zu wandern: die zwei Mods, deren neue Quest-Knoten nachweislich
+    # laufen (RSO, Living Zone), legen sie genau so ab - und unser einziger
+    # Versuch, neue Knoten in eine gemischte {bpatch}-Datei zu schreiben
+    # (der Mehrfach-Job-Schalter), hat im Spiel zweimal nicht gewirkt.
+    # Ob die Ablage der Grund war, ist unbewiesen; sie kostet nichts.
+    rel_nodes, rel_quest, rel_script = _relations_runtime_patch(gd, s)
+    add(f"QuestNodePrototypes/{n}_Relations.cfg", rel_nodes)
     add(f"QuestPrototypes/QuestPrototypes_patch_{n}.cfg", rel_quest)
     add(f"Scripts/OnGameLaunch/OnGameLaunchScripts_patch_{n}.cfg", rel_script)
     add(f"EmissionPrototypes/EmissionPrototypes_patch_{n}.cfg",
@@ -7031,8 +7082,7 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Aim assist off (mouse)")
     if s.no_aim_assist_gamepad:
         lines.append("Aim assist off (gamepad)")
-    for label, value, vanilla in (("Dialog FOV", s.dialog_fov, 70.0),
-                                  ("Cutscene FOV", s.cutscene_fov, 90.0),
+    for label, value, vanilla in (("Cutscene FOV", s.cutscene_fov, 90.0),
                                   ("Default FOV", s.default_fov, 90.0)):
         if _neq(value, vanilla):
             lines.append(f"{label} {value:g}")
@@ -7064,8 +7114,6 @@ def summarize(s: Settings) -> list[str]:
         lines.append("Skif can't be knocked down")
     if s.no_water_slowdown:
         lines.append("No slowdown in water")
-    if s.ladder_free_look:
-        lines.append("Free look on ladders")
     if s.look_straight_down:
         lines.append("Look straight down")
     f("Hands-free zoom", s.handless_zoom_factor)

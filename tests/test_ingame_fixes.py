@@ -1,6 +1,20 @@
-"""Was Molkerrs erster In-Game-Test ergeben hat (GitHub #9, 07.09.2026).
+"""Was die In-Game-Tests der Spieler ergeben haben (GitHub #9 bis #12).
 
-Sein Bericht, Punkt fuer Punkt:
+Nachtrag 09.09.2026 - ein zweiter Tester, craigduk76, drei Berichte auf
+1.35.0, dazu Molkerrs dritter Bericht:
+  #12 Ausnuechtern bei 25 % wirkt (erste Bestaetigung); Wunsch: 1 %.
+      -> Untergrenze 1 %, der Regler schreibt saubere Fliesskommawerte.
+  #11 "Free look on ladders" wirkt nicht, "Look straight down" schon -
+      dieselbe Pak, dasselbe Struct. Die zwei Leiter-Schluessel sind tot.
+      -> Schalter zurueckgezogen, Feld bleibt fuer alte Presets.
+  #10 Gespraechsabstand und Dialog-Zoom wirken nicht. Nachgezaehlt:
+      Min/MaxDialogInteractDistance deklariert JEDER der 1608 Menschen
+      selbst, wir schrieben nur den Spieler -> jetzt beide Seiten.
+      DialogFOVDefault hat keinen zweiten Hebel -> Regler zurueckgezogen.
+  #9  Der Mehrfach-Job-Schalter wirkt auch nach der 1.34.0-Reparatur
+      nicht -> beide Job-Schalter zurueckgezogen, Builder bleiben.
+
+Molkerrs erster Bericht (07.09.2026), Punkt fuer Punkt:
   1. Stapelgroessen wirken  -> bestaetigt, nichts zu tun
   2. "Accepting multiple quests doesn't work" -> stimmt: der Limit-Regler
      aus 1.31.0 erhoeht nur den VORRAT je Runde. Neu in 1.33.0: ein
@@ -243,5 +257,57 @@ check(hits > 0, f"{hits} Editions-Gegenstaende folgen den Gewichts-Reglern")
 check(not dlc_files(build(item_weight_factor=0.5, item_weight_categories={"consumable"})),
       "eine Kategorie ohne Editions-Stuecke erzeugt dort auch nichts")
 check(not dlc_files(build()), "Vanilla-Stellung ruehrt den DLC-Zweig nicht an")
+
+# --- craigduk76, 1.35.0 (GitHub #10, #11, #12) ---------------------------
+print("\n--- craigduk76 (#10/#11/#12) ---")
+OBJ = "ObjPrototypes/ObjPrototypes_patch_S2Tweaker.cfg"
+CORE = "CoreVariables.cfg_patch_S2Tweaker.cfg"
+
+# #10 Gespraechsabstand: bis 1.35.0 nur am Spieler - und der Tester musste
+# genauso nah heran. Jeder Mensch traegt beide Schluessel selbst.
+humans = gd.human_npc_sids()
+carriers = [sid for sid in humans
+            if gd.obj.children[sid].values.get("MaxDialogInteractDistance")]
+check(len(carriers) == len(humans) and len(humans) > 1500,
+      f"alle {len(humans)} menschlichen NPCs deklarieren den Gespraechsabstand selbst")
+obj = cfgparse.parse(build_patches(gd, Settings(dialog_range_factor=1.5))[OBJ])
+touched = {sid for sid, node in obj.children.items()
+           if "MaxDialogInteractDistance" in node.values}
+check("Player" in touched and len(touched & set(humans)) == len(humans),
+      f"1.36.0: Spieler UND alle {len(humans)} Menschen bekommen den neuen Abstand")
+check(not touched - set(humans) - {"Player"},
+      "Mutanten bleiben draussen (sie reden nicht)")
+check(obj.children["Player"].values["MinDialogInteractDistance"] == "112.5"
+      and obj.children["Player"].values["MaxDialogInteractDistance"] == "195.0",
+      "Spieler: 75/130 -> 112.5/195.0 (wie im Debug-Export des Testers)")
+sample = next(sid for sid in humans
+              if gd.obj.children[sid].values.get("MaxDialogInteractDistance", "").strip() == "250.f")
+check(obj.children[sample].values["MaxDialogInteractDistance"] == "375.0f",
+      f"Literalform bleibt: {sample} 250.f -> 375.0f")
+check(OBJ not in build_patches(gd, Settings(dialog_range_factor=1.0)),
+      "Vanilla-Stellung schreibt keinen einzigen NPC")
+
+# #10 Dialog-Zoom / #11 Leiter: die Felder gibt es noch (alte Presets),
+# aber sie schreiben nichts mehr - im Spiel nachweislich ohne Wirkung.
+core = build_patches(gd, Settings(dialog_fov=105, ladder_free_look=True,
+                                  look_straight_down=True)).get(CORE, "")
+check("DialogFOVDefault" not in core and "ClimbView" not in core,
+      "zurueckgezogen: Dialog-Zoom und Leiter-Umschauen schreiben nichts mehr")
+check("ViewPitchDownLimit = -90.0" in core,
+      "'Look straight down' bleibt - vom Tester bestaetigt")
+
+# #12 Ausnuechtern: 25 % bestaetigt, Wunsch 1 % - kein Rundungsloch.
+for factor, want in ((0.25, "0.25"), (0.01, "0.01")):
+    obj = cfgparse.parse(build_patches(gd, Settings(sober_up_factor=factor))[OBJ])
+    check(obj.children["Player"].children["VitalParams"].values["DegenDrunknessPoints"] == want,
+          f"Ausnuechtern {factor:.0%} -> DegenDrunknessPoints = {want}")
+
+# #9/#10/#11: was die Oberflaeche NICHT mehr anbietet (statisch, kein Fenster)
+from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
+gone = {"dialog_fov"} & set(SLIDER_FIELDS) | {"ladder_look", "rq_jobs_instant",
+                                              "rq_jobs_multi"} & set(CHECK_FIELDS)
+check(not gone, f"die vier zurueckgezogenen Bedienelemente sind weg{sorted(gone)}")
+check("sober" in SLIDER_FIELDS and "rq_jobs" in SLIDER_FIELDS and "look_down" in CHECK_FIELDS,
+      "die bestaetigten Nachbarn bleiben")
 
 print(f"\n=== {ok} Pruefungen gruen ===")

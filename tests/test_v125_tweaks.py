@@ -49,9 +49,13 @@ print("Neutral: keine 1.25.0-Schluessel  OK")
 # --- 1) FOV ----------------------------------------------------------------
 assert (gd.corevar("DialogFOVDefault"), gd.corevar("CutsceneFOVDefault"), gd.corevar("FOVDefault")) == (70.0, 90.0, 90.0)
 core = parsed(build_patches(gd, S(dialog_fov=90, cutscene_fov=100, default_fov=110)), CORE).children["DefaultConfig"].values
-assert (core["DialogFOVDefault"], core["CutsceneFOVDefault"], core["FOVDefault"]) == ("90.0", "100.0", "110.0"), core
+# 1.36.0: "Dialog field of view" ist zurueckgezogen (GitHub #10, craigduk76:
+# DialogFOVDefault 105 im Spiel ohne Wirkung, kein zweiter cfg-Hebel). Das
+# Feld existiert noch, schreibt aber nichts; die zwei Nachbarn bleiben.
+assert "DialogFOVDefault" not in core, core
+assert (core["CutsceneFOVDefault"], core["FOVDefault"]) == ("100.0", "110.0"), core
 assert "FOV" not in build_patches(gd, S(dialog_fov=70, cutscene_fov=90, default_fov=90)).get(CORE, "")
-print("FOV: 70/90/90 -> 90/100/110, Vanilla-Werte erzeugen nichts  OK")
+print("FOV: Dialog zurueckgezogen, 90/90 -> 100/110, Vanilla-Werte erzeugen nichts  OK")
 
 # --- 2) HUD-Schalter: je Grad nur die Abweichung -------------------------
 levels = [sid for sid in gd.difficulty.children if sid != "[0]" and "#" not in sid]
@@ -165,7 +169,7 @@ joined = "\n".join(summarize(S(dialog_fov=80, hud_crosshair=2, corpse_time_facto
                                weather_duration_factor=0.5, bullet_drop_factor=0.0, bullet_speed_factor=2.0,
                                pistol_slot_level=3, mutant_protection_factor=0.0, sleep_anytime=True,
                                min_sleep_hours=3, sleep_in_emission=True)))
-for needle in ("Dialog FOV 80", "Crosshair always hidden", "Bodies stay", "Max bodies near you 20",
+for needle in ("Crosshair always hidden", "Bodies stay", "Max bodies near you 20",
                "Weather duration", "Bullet drop", "Bullet speed", "Pistol slot accepts any weapon",
                "Mutant physical protection", "Sleep whenever you like", "Minimum sleep 3 h",
                "Sleeping during emissions allowed"):

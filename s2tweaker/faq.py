@@ -273,25 +273,26 @@ FAQ_ENTRIES = [
         "q": "Do I need a detector to see artifacts?",
         "a": "In vanilla, yes for 147 of the 154 artifacts. World tab, "
              "'Artifacts are visible without a detector' (1.35.0) clears that "
-             "requirement. Whether the game then draws them from any distance "
-             "or still uses each artifact's own visibility radius is untested "
-             "- if you want them visible from further away, 'Detector & "
-             "scanner range' is the setting with proven effect.",
+             "requirement - confirmed in the game by Molkerr. Whether they "
+             "then show from any distance or still within each artifact's "
+             "own radius is not measured; if you want them visible from "
+             "further away, 'Detector & scanner range' is the setting with "
+             "proven effect.",
         "k": "artifact detector required visible without see artifacts "
              "veles bear echo svarog no detector",
     },
     {
         "q": "Can I take several repeatable jobs at once?",
-        "a": "Economy tab: tick 'Accept several jobs in one conversation' "
-             "and raise 'Repeatable jobs per round'. Saying yes switches the "
-             "giver's dialog off, so the switch clears that and re-opens it "
-             "a second later (1.34.0; the 1.33.0 version only re-opened it "
-             "and did nothing, found by Molkerr in-game). Handing in one job "
-             "normally shuts the giver's whole quest down, which would take "
-             "the jobs you still carry with it, so one more key is flipped "
-             "to keep them running - a value 634 of the game's 1395 end "
-             "nodes already use. That part is untested and the riskiest "
-             "thing here: please report back if a held job breaks.",
+        "a": "Not in one conversation - and this tool no longer claims it "
+             "can. Two switches that tried it (1.33.0, reworked in 1.34.0) "
+             "did nothing in Molkerr's in-game tests and were withdrawn in "
+             "1.36.0. What does work, confirmed by him: 'Repeatable jobs "
+             "per round' in the Economy tab. The giver then offers a bigger "
+             "pool and you can come back for the next job right after "
+             "handing one in, instead of waiting for the cooldown after "
+             "three. If you want the real thing, 'Zone Borders / Contracts' "
+             "on Nexus is a full rewrite of those quests; its author "
+             "reports it breaks when you hand jobs in out of order.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",

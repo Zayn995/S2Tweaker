@@ -113,6 +113,11 @@ kw["faction_relations"] = {k: v for k, v in (
     (gd.relation_pair_key("Duty", "Player"), 800),
     (gd.relation_pair_key("Duty", "Freedom"), -800)) if k}
 
+# Der Mehrfach-Job-Schalter ist seit 1.36.0 kein Bedienelement mehr
+# (GitHub #9), sein Builder lebt aber weiter - und er haengt an den
+# empfindlichsten Namen im ganzen Werkzeug. Darum hier ausdruecklich an.
+kw["repeatable_jobs_multi"] = True
+
 t0 = time.time()
 PATCHES = build_patches(gd, Settings(mod_name="S2Tweaker", **kw))
 build_s = time.time() - t0
@@ -283,7 +288,13 @@ def base_file(patch_path: str) -> Path:
         p = GAMELITE.parent / patch_path[2:]
     else:
         p = VANILLA / patch_path
-    stem = PATCH_NAME.match(p.name).group(1)
+    m = PATCH_NAME.match(p.name)
+    if m is None:
+        # Dritte Form (1.36.0, wie RSO): eine Datei mit FREIEM Namen im
+        # Ordner des Prototyps, z.B. QuestNodePrototypes/<Mod>_Relations.cfg.
+        # Der Ordner sagt, welche Familie sie erweitert.
+        return p.parent.with_suffix(".cfg")
+    stem = m.group(1)
     if p.parent.name == stem:
         return p.parent.with_suffix(".cfg")
     return p.parent / f"{stem}.cfg"
@@ -378,19 +389,25 @@ check(not lost,
       f"alle {len(givers) * len(ANCHOR_KEYS)} Quest-Anker der acht Geber "
       f"stehen in den Spieldaten" + (f" - FEHLT: {lost}" if lost else ""))
 
-quest_patch = next((t for p, t in PATCHES.items() if "QuestNode" in p), "")
+quest_patch = next((t for p, t in PATCHES.items()
+                    if p.endswith("QuestNodePrototypes_patch_S2Tweaker.cfg")), "")
 tops = scan(quest_patch)[0]
 new_nodes = {n for n, attrs, _l in tops if "bpatch" not in attrs}
 job_nodes = {n for n in new_nodes
              if n.endswith(("_S2T_ClearAccept", "_S2T_ReArmDialog"))}
-check(len(job_nodes) == 2 * len(givers),
-      f"der Mehrfach-Job-Schalter legt je Geber genau zwei neue Knoten an "
-      f"({len(job_nodes)} Stueck: S2T_ClearAccept + S2T_ReArmDialog)")
-# Der Rest sind die Beziehungs-Knoten aus 1.36.0 (eigene Suite).
-check(new_nodes - job_nodes == {"S2T_Relations_Start", "S2T_Rel_01", "S2T_Rel_02"},
-      f"dazu die Laufzeit-Beziehungen der Sonde "
-      f"({sorted(new_nodes - job_nodes)})")
-# Diese zwei sind neu und duerfen darum NICHT schon im Spiel stehen -
+check(len(job_nodes) == 2 * len(givers) and new_nodes == job_nodes,
+      f"der Mehrfach-Job-Builder legt je Geber genau zwei neue Knoten an "
+      f"({len(job_nodes)} Stueck: S2T_ClearAccept + S2T_ReArmDialog), sonst nichts")
+# Die Laufzeit-Beziehungen (1.36.0) liegen in einer EIGENEN Datei ohne
+# ein einziges {bpatch} - so, wie die zwei Mods es tun, deren neue Knoten
+# nachweislich laufen.
+rel_patch = next((t for p, t in PATCHES.items() if p.endswith("_Relations.cfg")), "")
+rel_nodes = {n for n, attrs, _l in scan(rel_patch)[0]}
+check(rel_nodes == {"S2T_Relations_Start", "S2T_Rel_01", "S2T_Rel_02"}
+      and "{bpatch}" not in rel_patch,
+      f"die Laufzeit-Beziehungen stehen fuer sich, ohne {{bpatch}} ({sorted(rel_nodes)})")
+new_nodes |= rel_nodes
+# Diese Knoten sind neu und duerfen darum NICHT schon im Spiel stehen -
 # sonst wuerden wir einen Vanilla-Knoten komplett ersetzen.
 collide = sorted(n for n in new_nodes if n in KNOWN)
 check(not collide, "keiner der neuen Knoten kollidiert mit einem Vanilla-Knoten"

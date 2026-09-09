@@ -126,10 +126,15 @@ check(not [p for p in files(relations_runtime=True,
 # --- 4) An, mit zwei Paaren ---------------------------------------------
 out = files(relations_runtime=True,
             faction_relations={duty_player: 800, duty_freedom: -800})
-quest_patch = next(t for p, t in out.items() if "QuestNodePrototypes" in p)
+quest_patch = next(t for p, t in out.items() if p.endswith("_Relations.cfg"))
 proto_patch = next(t for p, t in out.items() if "QuestPrototypes" in p)
 script_patch = next(t for p, t in out.items() if "OnGameLaunch" in p)
 check(True, "Knoten, Quest und Startskript werden erzeugt")
+# Die Knoten bekommen eine EIGENE Datei im QuestNode-Ordner (wie RSO und
+# Living Zone es tun) - nicht die {bpatch}-Datei der uebrigen Quest-Regler.
+check(not any(p.endswith("QuestNodePrototypes_patch_S2Tweaker.cfg") for p in out)
+      and "{bpatch}" not in quest_patch,
+      "die neuen Knoten liegen fuer sich, ohne ein einziges {bpatch}")
 
 nodes = re.findall(r"^(S2T_Rel_\d+) : struct\.begin(.*)$", quest_patch, re.M)
 check(len(nodes) == 2, f"je verstelltem Paar genau ein Knoten ({len(nodes)})")
@@ -198,7 +203,8 @@ pak = Path(tempfile.mkdtemp()) / "zzz_RelRuntimeTest_P.pak"
 pakio.pack_mod(out, pak)
 names = pakio.list_pak(pak)
 base = "Stalker2/Content/GameLite/GameData/"
-for want in ("QuestPrototypes/QuestPrototypes_patch_S2Tweaker.cfg",
+for want in ("QuestNodePrototypes/S2Tweaker_Relations.cfg",
+             "QuestPrototypes/QuestPrototypes_patch_S2Tweaker.cfg",
              "Scripts/OnGameLaunch/OnGameLaunchScripts_patch_S2Tweaker.cfg"):
     check(base + want in names, f"liegt in der Pak unter {want}")
 

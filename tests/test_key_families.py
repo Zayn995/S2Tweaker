@@ -181,6 +181,13 @@ IGNORED = {
     # ganzen Spiel NUR in ObjPrototypes vor - kein Effekt, kein Getraenk,
     # kein Schwierigkeitsgrad-Schluessel fuettert ihn. Nichts zu skalieren.
     "RegenThirstPoints",
+    # 09.09.2026 IM SPIEL WIDERLEGT (craigduk76, GitHub #10/#11, 1.35.0):
+    # die zwei Leiter-Schluessel und der Dialog-Zoom standen bis 1.35.0 im
+    # Werkzeug. Sein Debug-Export beweist, dass der Patch ankam
+    # (ViewPitchDownLimit aus demselben Struct wirkte) - diese drei tun
+    # nichts. Zurueckgezogen; nie wieder bauen, es sei denn jemand findet,
+    # was sie ueberhaupt liest.
+    "ClimbViewYawLimit", "ClimbViewPitchLimit", "DialogFOVDefault",
     # 08.09.2026, aufgetaucht als 1.35.0 das Blicktempo baute:
     # AimLookUpCoef/AimTurnCoef (0.8) sitzen an 47 MUTANTEN-Prototypen,
     # der Player ist NICHT dabei - das ist KI-Drehtempo beim Anvisieren,

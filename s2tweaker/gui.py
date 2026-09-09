@@ -842,7 +842,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "climb": "climb_speed_factor", "start_money": "starting_money",
     "art_slots": "artifact_slots_bonus", "shoot_shake": "shooting_shake_factor",
     "ads_zoom": "ads_zoom_factor",
-    "dialog_fov": "dialog_fov", "cutscene_fov": "cutscene_fov", "default_fov": "default_fov",
+    "cutscene_fov": "cutscene_fov", "default_fov": "default_fov",
     "hud_compass": "hud_compass", "hud_crosshair": "hud_crosshair",
     "hud_bodies": "hud_body_markers", "hud_stashes": "hud_stash_markers",
     "corpse_time": "corpse_time_factor", "corpse_max": "corpse_max_count",
@@ -1030,7 +1030,7 @@ CHECK_FIELDS: dict[str, str] = {
     "sleep_emission": "sleep_in_emission",
     # 1.26.0
     "no_knockdown": "no_knockdown", "no_water_slow": "no_water_slowdown",
-    "ladder_look": "ladder_free_look", "look_down": "look_straight_down",
+    "look_down": "look_straight_down",
     "mut_anomalies": "mutants_trigger_anomalies", "guards_normal": "guards_no_instakill",
     "psy_phantoms": "psy_phantoms_only", "npc_no_loot": "npcs_no_corpse_loot",
     "map_regions": "map_all_regions", "teleports_instant": "instant_teleports",
@@ -1048,9 +1048,9 @@ CHECK_FIELDS: dict[str, str] = {
     "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
     # 1.28.0 (Kern-Sweep P8)
     "repair_no_rep": "repair_cost_reputation",
-    # 1.31.0 (GitHub Issue #8)
-    "rq_jobs_instant": "repeatable_jobs_instant",
-    "rq_jobs_multi": "repeatable_jobs_multi",
+    # 1.31.0 (GitHub Issue #8): rq_jobs_instant und rq_jobs_multi standen
+    # hier bis 1.35.0 - zurueckgezogen nach zwei gescheiterten In-Game-Tests
+    # (GitHub #9), Begruendung in tweaks.Settings.
     "stat_bars": "stat_bars_follow",
     "chamber_round": "chamber_round",
 }
@@ -1086,8 +1086,6 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
                     frozenset({"InGameHours"})),
     "rq_jobs": ("QuestNodePrototypes",
                 frozenset({"VariableValue"})),
-    "check:rq_jobs_instant": ("QuestNodePrototypes",
-                              frozenset({"Name"})),
     "loot_amount": ("ItemGeneratorPrototypes",
                     frozenset({"MinCount", "MaxCount"})),
     "drop_cond": ("ItemGeneratorPrototypes",
@@ -4506,7 +4504,11 @@ class App(ctk.CTk):
         self._slider(f, "dialog_range", "Talk distance (NPC dialog)", 50, 300, 10, 100, fmt_pct,
                      "How close you have to be to start a conversation "
                      "(vanilla 1.3 m). The 'Social Distancing' idea from "
-                     "Nexus. Not play-tested yet.")
+                     "Nexus. Up to 1.35.0 only Skif carried the new distance "
+                     "and a player found it did nothing (GitHub #10) - every "
+                     "one of the 1608 human NPCs carries its own copy, and "
+                     "the game evidently reads theirs. Since 1.36.0 they all "
+                     "get it too. Not play-tested in that form yet.")
         self._slider(f, "climb", "Ladder climb speed", 50, 300, 10, 100, fmt_pct,
                      "How fast Skif climbs ladders (vanilla coefficient "
                      "0.6) - since 1.28.0 including the five ladder "
@@ -4524,17 +4526,17 @@ class App(ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Camera & HUD")
-        self._slider(f, "dialog_fov", "Dialog field of view", 50, 110, 5, 70, fmt_fov,
-                     "The camera zooms in during conversations (vanilla 70). "
-                     "Set it to your normal FOV to stop the zoom. Not "
-                     "play-tested yet.")
-        self._slider(f, "cutscene_fov", "Cutscene field of view", 50, 120, 5, 90, fmt_fov,
-                     "Vanilla 90. Not play-tested yet.")
-        self._slider(f, "default_fov", "Default field of view", 50, 120, 5, 90, fmt_fov,
-                     "The game's default gameplay FOV (vanilla 90). If you use "
-                     "the FOV setting in the game's own options, that setting "
-                     "most likely wins; this only changes the default. Not "
-                     "play-tested yet.")
+        self._slider(f, "cutscene_fov", "Cutscene field of view (unverified)", 50, 120, 5, 90, fmt_fov,
+                     "Vanilla 90. Not play-tested yet - and its sibling "
+                     "'Dialog field of view' was removed in 1.36.0 after a "
+                     "player found it had no effect (GitHub #10); this key "
+                     "sits right next to it, so expect the same until "
+                     "someone reports otherwise.")
+        self._slider(f, "default_fov", "Default field of view (unverified)", 50, 120, 5, 90, fmt_fov,
+                     "The game's default gameplay FOV (vanilla 90). The FOV "
+                     "setting in the game's own options most likely wins; "
+                     "this only changes the default. Not play-tested yet, "
+                     "and see the cutscene slider above for the caveat.")
         ctk.CTkLabel(
             f, text="   HUD elements: the Master difficulty hides all four, the "
                     "other difficulties show them. These force one state on "
@@ -4640,12 +4642,12 @@ class App(ctk.CTk):
                     "Removes the turn-rate and movement penalties while wading "
                     "(like 'NoSluggishWater'). Stamina drain in deep water "
                     "stays. Not play-tested yet.")
-        self._check(f, "ladder_look", "Free look on ladders",
-                    "Look around while climbing (vanilla 30° sideways, 40° "
-                    "up/down; this sets 90°). Not play-tested yet.")
         self._check(f, "look_down", "Look straight down",
                     "Vanilla stops the camera at 80° below the horizon; this "
-                    "allows 90°. Not play-tested yet.")
+                    "allows 90°. Confirmed in-game by craigduk76 on 1.35.0 "
+                    "(GitHub #11). Its former neighbour 'Free look on "
+                    "ladders' was removed in 1.36.0 in the same test: the "
+                    "two ladder keys sit in the same file and did nothing.")
         self._slider(f, "back_speed", "Backward & sideways speed", 50, 200, 10, 100, fmt_pct,
                      "Walking backwards is 50 % of forward speed in vanilla, "
                      "running backwards 43 %, crouched 47-54 %, diagonal 72-75 %. "
@@ -4700,9 +4702,12 @@ class App(ctk.CTk):
         self._slider(f, "psy_recover", "Psy recovery", 25, 500, 10, 100, fmt_pct,
                      "How fast psy damage recovers (vanilla 1 per second). Not "
                      "play-tested yet.")
-        self._slider(f, "sober", "Sober-up speed", 25, 500, 10, 100, fmt_pct,
+        self._slider(f, "sober", "Sober-up speed", 1, 500, 1, 100, fmt_pct,
                      "How fast drunkenness wears off (vanilla 1 per second). "
-                     "Not play-tested yet.")
+                     "Confirmed in-game by craigduk76 at 25 % on 1.35.0 "
+                     "(GitHub #12) - and at his request the floor is 1 % "
+                     "since 1.36.0: a bottle then lasts a hundred times "
+                     "longer than vanilla.")
         self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 5, 100, fmt_pct,
                      "How many energy drinks Skif takes before overuse and "
                      "tolerance effects kick in (vanilla overuse 1000, "
@@ -6313,7 +6318,7 @@ class App(ctk.CTk):
                     "146 of the 154 artifacts jump away when you get close; "
                     "this switches that off. The eight that already stay put "
                     "(the weird DLC ones and two quest artifacts) are left "
-                    "alone. Not play-tested yet.")
+                    "alone. Confirmed in-game by Molkerr on 1.35.0 (GitHub #9).")
         self._slider(f, "art_keepaway", "Artifact keep-away distance (experimental)", 25, 300, 5, 100, fmt_pct,
                      "How far a hopping artifact tries to stay away from you "
                      "(vanilla 10 m, plus the 6 m at which hopping starts at "
@@ -6334,12 +6339,13 @@ class App(ctk.CTk):
                      "(vanilla 3, 5, 7 or 9 depending on the artifact; the "
                      "two that never hop stay at zero). Whole numbers, never "
                      "below one. Not play-tested yet.")
-        self._check(f, "art_no_detector", "Artifacts are visible without a detector (experimental)",
+        self._check(f, "art_no_detector", "Artifacts are visible without a detector",
                     "147 of the 154 artifacts require a detector to be shown "
                     "at all; this clears that flag on those 147 and leaves "
-                    "the seven that already don't need one alone. Whether "
-                    "the game then draws them at any distance or still uses "
-                    "the visibility radius is untested.")
+                    "the seven that already don't need one alone. Confirmed "
+                    "in-game by Molkerr on 1.35.0 (GitHub #9). Whether they "
+                    "then show from any distance or still within each "
+                    "artifact's own radius is not measured.")
         self._check(f, "art_caches", "Uncommon artifact caches actually drop (experimental)",
                     "One world loot group, 'ArtifactUncommon', has nine places "
                     "on the map but all 20 of its entries carry weight 0 - so "
@@ -6392,38 +6398,13 @@ class App(ctk.CTk):
                      "How many jobs a task giver hands out before he runs "
                      "dry and the cooldown above has to pass (vanilla 3). "
                      "Each giver is capped at the number of different jobs "
-                     "he actually has (6 to 10, depending on the giver) - "
-                     "asking for more would only repeat them. Pair it with "
-                     "the switch below, or the extra jobs only show up "
-                     "after the cooldown. Not play-tested yet.")
-        self._check(f, "rq_jobs_instant",
-                    "Task giver's dialog opens while he still has jobs",
-                    "Vanilla arms the job dialog only once the giver has "
-                    "finished stocking up. This arms it while he is still "
-                    "below the limit above. ⚠ Play-tested by Molkerr on "
-                    "1.31.0 (GitHub #9): on its own this does NOT let you "
-                    "take a second job in the same conversation - for that "
-                    "use the switch below. Kept because it re-arms the "
-                    "dialog earlier after a round resets.")
-        self._check(f, "rq_jobs_multi",
-                    "Accept several jobs in one conversation (experimental)",
-                    "Accepting a job switches the giver's dialog off, so this "
-                    "adds two nodes per giver: one clears that result, the "
-                    "other re-opens the dialog a second later. You can then "
-                    "keep taking jobs until the round limit above is reached. "
-                    "It also flips one key on the giver's round-end node: "
-                    "vanilla shuts down everything in his quest as soon as "
-                    "any one job is handed in, which would take the jobs you "
-                    "are still carrying with it. (634 of the game's 1395 end "
-                    "nodes already ship with that key off, so it is a normal "
-                    "value, not a hack.) Play-tested by Molkerr on 1.33.0 "
-                    "(GitHub #9) - that is how the first two bugs here were "
-                    "found. WARNING: the hand-in case is the riskiest thing "
-                    "this tool does and is still untested; the author of "
-                    "'Zone Borders / Contracts' (Nexus 2638) failed at the "
-                    "same spot with a much bigger rewrite. We add no save "
-                    "variables and clear nothing the game does not clear "
-                    "itself, so removing the pak leaves no trace.")
+                     "he actually has (6 to 10, depending on the giver). "
+                     "Confirmed in-game by Molkerr on 1.35.0 (GitHub #9): "
+                     "the giver really offers the bigger pool. You still "
+                     "take ONE job per conversation and come back for the "
+                     "next - the two switches that tried to change that "
+                     "were withdrawn in 1.36.0 after they failed twice in "
+                     "his tests.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,
@@ -6888,7 +6869,6 @@ class App(ctk.CTk):
             ads_zoom_factor=s["ads_zoom"].get() / 100.0,
             no_aim_assist_mouse=bool(self.checks["no_aim_mouse"].get()),
             no_aim_assist_gamepad=bool(self.checks["no_aim_gamepad"].get()),
-            dialog_fov=float(s["dialog_fov"].get()),
             cutscene_fov=float(s["cutscene_fov"].get()),
             default_fov=float(s["default_fov"].get()),
             hud_compass=int(s["hud_compass"].get()),
@@ -6908,7 +6888,6 @@ class App(ctk.CTk):
             # 1.26.0
             no_knockdown=bool(self.checks["no_knockdown"].get()),
             no_water_slowdown=bool(self.checks["no_water_slow"].get()),
-            ladder_free_look=bool(self.checks["ladder_look"].get()),
             look_straight_down=bool(self.checks["look_down"].get()),
             handless_zoom_factor=s["hands_zoom"].get() / 100.0,
             crouch_vignette_factor=s["crouch_vignette"].get() / 100.0,
@@ -7171,8 +7150,6 @@ class App(ctk.CTk):
             quest_reward_factor=s["questreward"].get(),
             repeatable_quest_factor=s["rq_cooldown"].get() / 100.0,
             repeatable_jobs_per_round=int(s["rq_jobs"].get()),
-            repeatable_jobs_instant=bool(self.checks["rq_jobs_instant"].get()),
-            repeatable_jobs_multi=bool(self.checks["rq_jobs_multi"].get()),
             weapon_price_factor=s["price_weapon"].get(),
             armor_price_factor=s["price_armor"].get(),
             ammo_price_factor=s["price_ammo"].get(),

@@ -69,7 +69,10 @@ assert (gd.corevar("ClimbViewYawLimit"), gd.corevar("ClimbViewPitchLimit"), gd.c
         gd.corevar("GenericModelGridVisionRadius")) == (30.0, 40.0, -80.0, 0.8, 8500.0, 7500.0)
 core = parsed(build_patches(gd, S(ladder_free_look=True, look_straight_down=True, handless_zoom_factor=0.5,
                                   alife_vision_factor=2.0)), CORE).children["DefaultConfig"].values
-assert core["ClimbViewYawLimit"] == "90.0" and core["ClimbViewPitchLimit"] == "90.0"
+# 1.36.0: "Free look on ladders" ist zurueckgezogen (GitHub #11, craigduk76:
+# dieselbe Pak, dasselbe Struct, ViewPitchDownLimit wirkte, die zwei
+# Leiter-Schluessel nicht). Das Feld existiert noch, schreibt aber nichts.
+assert "ClimbViewYawLimit" not in core and "ClimbViewPitchLimit" not in core, core
 assert core["ViewPitchDownLimit"] == "-90.0" and core["HandlessFOVAimModifier"] == "0.4"
 assert core["ALifeGridVisionRadius"] == "17000.0" and core["GenericModelGridVisionRadius"] == "15000.0"
 core = parsed(build_patches(gd, S(handless_zoom_factor=0.1)), CORE).children["DefaultConfig"].values
@@ -233,7 +236,7 @@ joined = "\n".join(summarize(S(no_knockdown=True, no_water_slowdown=True, ladder
                                map_reveal_factor=2.0, map_all_regions=True, fast_travel_lock=0, guide_delay_factor=0.0,
                                instant_teleports=True, protection_cap_factor=1.5, weird_artifact_factor=2.0,
                                skip_intro=True, traders_no_gear_buy=True, clicker_factor=0.0)))
-for needle in ("knocked down", "water", "ladders", "straight down", "Hands-free zoom", "Crouch vignette", "Butt-strike",
+for needle in ("knocked down", "water", "straight down", "Hands-free zoom", "Crouch vignette", "Butt-strike",
                "trigger anomalies", "Base guards", "Explosion radius", "Explosion damage to NPCs", "Pseudodog phantom",
                "Psy fields", "Reload speed", "Jam clearing", "Mutant trophy", "Stash clues", "loot bodies",
                "visibility distance", "reveal distance", "region names", "overweight: allowed", "Guide delay",
