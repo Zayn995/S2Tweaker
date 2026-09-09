@@ -1048,9 +1048,10 @@ CHECK_FIELDS: dict[str, str] = {
     "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
     # 1.28.0 (Kern-Sweep P8)
     "repair_no_rep": "repair_cost_reputation",
-    # 1.31.0 (GitHub Issue #8): rq_jobs_instant und rq_jobs_multi standen
-    # hier bis 1.35.0 - zurueckgezogen nach zwei gescheiterten In-Game-Tests
-    # (GitHub #9), Begruendung in tweaks.Settings.
+    # 1.31.0 (GitHub Issue #8): rq_jobs_instant (Pin-Schalter) stand hier
+    # bis 1.35.0 - zurueckgezogen, er kann laut Quest-Graph nichts bewirken.
+    # rq_jobs_multi ist seit 09.09.2026 der dritte Entwurf (nur {bpatch}).
+    "rq_jobs_multi": "repeatable_jobs_multi",
     "stat_bars": "stat_bars_follow",
     "chamber_round": "chamber_round",
 }
@@ -1086,6 +1087,8 @@ EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
                     frozenset({"InGameHours"})),
     "rq_jobs": ("QuestNodePrototypes",
                 frozenset({"VariableValue"})),
+    "check:rq_jobs_multi": ("QuestNodePrototypes",
+                            frozenset({"Excluding", "ExcludeAllNodesInContainer"})),
     "loot_amount": ("ItemGeneratorPrototypes",
                     frozenset({"MinCount", "MaxCount"})),
     "drop_cond": ("ItemGeneratorPrototypes",
@@ -6395,16 +6398,35 @@ class App(ctk.CTk):
                      "save finishes at its old pace first.")
         self._slider(f, "rq_jobs", "Repeatable jobs per round", 1, 10, 1, 3,
                      fmt_int,
-                     "How many jobs a task giver hands out before he runs "
-                     "dry and the cooldown above has to pass (vanilla 3). "
-                     "Each giver is capped at the number of different jobs "
-                     "he actually has (6 to 10, depending on the giver). "
-                     "Confirmed in-game by Molkerr on 1.35.0 (GitHub #9): "
-                     "the giver really offers the bigger pool. You still "
-                     "take ONE job per conversation and come back for the "
-                     "next - the two switches that tried to change that "
-                     "were withdrawn in 1.36.0 after they failed twice in "
-                     "his tests.")
+                     "How many jobs a task giver puts on the menu each "
+                     "round (vanilla 3). Each giver is capped at the number "
+                     "of different jobs he actually has (6 to 10). Confirmed "
+                     "in-game by Molkerr on 1.35.0 (GitHub #9): the menu "
+                     "really grows. On its own this is a bigger CHOICE, not "
+                     "more jobs: vanilla lets you take one, and handing it "
+                     "in (or cancelling it) ends the round and starts the "
+                     "cooldown above. To actually take several, use the "
+                     "switch below.")
+        self._check(f, "rq_jobs_multi",
+                    "Accept several jobs in one conversation (experimental, 3rd design)",
+                    "Saying yes to a job switches the giver's job dialog OFF "
+                    "through a launcher on that dialog node. This flips that "
+                    "launcher (and the per-job 'quest started' watchers next "
+                    "to it) so that saying yes re-opens the dialog a second "
+                    "later instead - the same thing 'Zone Borders / "
+                    "Contracts' does by deleting them. Nothing new is added: "
+                    "every edit is a {bpatch} on an existing node, the kind "
+                    "of change that provably reaches the game. It also "
+                    "keeps the giver's round-end node from shutting down "
+                    "jobs you still carry when you hand one in (634 of the "
+                    "game's 1395 end nodes use that value). Two earlier "
+                    "designs added new nodes and did nothing in Molkerr's "
+                    "tests (1.33.0, 1.34.0) - this one is untested in the "
+                    "game so far. Known rough edges: a job you already took "
+                    "stays on the menu (don't pick it twice), and the "
+                    "'cancel job' line can linger after a round ends. "
+                    "Nothing is stored in the save; remove the pak and all "
+                    "is vanilla again.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,
@@ -7150,6 +7172,7 @@ class App(ctk.CTk):
             quest_reward_factor=s["questreward"].get(),
             repeatable_quest_factor=s["rq_cooldown"].get() / 100.0,
             repeatable_jobs_per_round=int(s["rq_jobs"].get()),
+            repeatable_jobs_multi=bool(self.checks["rq_jobs_multi"].get()),
             weapon_price_factor=s["price_weapon"].get(),
             armor_price_factor=s["price_armor"].get(),
             ammo_price_factor=s["price_ammo"].get(),

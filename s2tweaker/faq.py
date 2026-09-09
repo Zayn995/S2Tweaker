@@ -283,16 +283,19 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I take several repeatable jobs at once?",
-        "a": "Not in one conversation - and this tool no longer claims it "
-             "can. Two switches that tried it (1.33.0, reworked in 1.34.0) "
-             "did nothing in Molkerr's in-game tests and were withdrawn in "
-             "1.36.0. What does work, confirmed by him: 'Repeatable jobs "
-             "per round' in the Economy tab. The giver then offers a bigger "
-             "pool and you can come back for the next job right after "
-             "handing one in, instead of waiting for the cooldown after "
-             "three. If you want the real thing, 'Zone Borders / Contracts' "
-             "on Nexus is a full rewrite of those quests; its author "
-             "reports it breaks when you hand jobs in out of order.",
+        "a": "Economy tab: raise 'Repeatable jobs per round' for a bigger "
+             "menu (confirmed in-game), and tick 'Accept several jobs in "
+             "one conversation' to actually take more than one. In vanilla, "
+             "saying yes switches the giver's job dialog off; the switch "
+             "flips that switch-off so that saying yes re-opens the dialog "
+             "a second later - the route 'Zone Borders / Contracts' takes. "
+             "This is the third design (1.36.0): the first two added new "
+             "quest nodes and did nothing in Molkerr's tests, this one "
+             "only edits existing ones, the kind of change that provably "
+             "reaches the game. Untested so far. Known rough edges: a job "
+             "you took stays on the menu (don't take it twice), and the "
+             "'cancel job' line may linger after a round. Nothing is "
+             "stored in the save.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",

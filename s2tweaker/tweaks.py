@@ -923,12 +923,10 @@ class Settings:
     # Limit-Knotens: der Geber bietet sofort den naechsten Job an,
     # statt erst wenn er leer ist.
     repeatable_jobs_instant: bool = False
-    # ZURUECKGEZOGEN 1.36.0 (GitHub #9, Molkerr): der Schalter hat im Spiel
-    # zweimal nicht gewirkt (1.33.0 und die 1.34.0-Reparatur, gespielt auf
-    # 1.35.0) und liess zuletzt sogar die Abbruch-Zeile stehen. Die Builder
-    # `_quest_multi_patch`/`_quest_dialog_patch` bleiben im Code - eine
-    # Hypothese ist offen (neue Knoten in einer gemischten {bpatch}-Datei,
-    # siehe HANDOVER 09.09.) -, aber kein Bedienelement setzt die Felder mehr.
+    # 1.33.0, dritter Entwurf 1.36.0 (GitHub #9): nur noch {bpatch} an den
+    # vorhandenen Abschalt-Launchern des Dialogs, kein neuer Knoten - siehe
+    # _quest_multi_patch. `repeatable_jobs_instant` (Pin-Schalter) ist
+    # dagegen zurueckgezogen: er kann laut Graph nichts bewirken.
     repeatable_jobs_multi: bool = False
 
     # --- 1.35.0: die kleinen Kandidaten der neunten Datenrecherche und des
@@ -5436,122 +5434,98 @@ def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
 def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
     """Mehrere wiederholbare Auftraege in EINEM Gespraech annehmen.
 
-    1.33.0 gebaut, 1.34.0 repariert. Ausloeser war Molkerrs In-Game-Test
-    (GitHub #9): der Limit-Regler aus 1.31.0 erhoeht nur, wie viele Jobs ein
-    Geber je Runde VORBEREITET; nach der ersten Zusage bietet der Dialog
-    keinen zweiten an. Die erste Fassung haengte darum einen neuen
-    Technical-Knoten an die Zusage, der den Dialog wieder scharf macht - und
-    wirkte nicht. Am 08.09. habe ich den Vanilla-Graphen komplett
-    auseinandergenommen; zwei Gruende, beide hier behoben:
+    Dritter Entwurf (09.09.2026) - und der erste, der ausschliesslich aus
+    Aenderungen besteht, die nachweislich im Spiel ankommen: `{bpatch}` an
+    VORHANDENEN Knoten. Kein einziger neuer Knoten.
 
-    1. **Die Zusage schaltet den Dialog aktiv AB.** Der SetDialog-Knoten hat
-       einen Launcher mit `Excluding = true`, der von `Technical_GetQuest`
-       kommt. Ein zweiter Launcher allein macht ihn darum nicht wieder
-       scharf, solange das Ergebnis der Zusage stehen bleibt. Das Spiel hat
-       fuer genau das einen eigenen Knotentyp: `EQuestNodeType::BridgeCleanUp`
-       mit einer Liste `NodesToCleanUpResults`. Jeder der acht Geber hat so
-       einen Knoten in Vanilla - er raeumt beim Rundenende Dialog, Zusage,
-       alle `Add_C0x` und `If_1` weg. Wir bauen den kleinstmoeglichen davon:
-       einen Aufraeum-Knoten, der NUR das Ergebnis der Zusage loescht.
-       Gemessen (08.09.): KEINE einzige Bedingung im ganzen 77-MB-File liest
-       dieses Ergebnis (`LinkedNodePrototypeSID` = 0 Treffer), es haengen nur
-       zwei Launcher daran - der Abschalter am Job-Dialog und der
-       "Auftrag abbrechen"-Dialog. Loeschen ist also gefahrlos. Die
-       `Add_C0x` fassen wir bewusst NICHT an (genau daran scheitert das
-       Vorbild Nexus 2638, siehe unten).
-    2. **Neue Array-Eintraege duerfen kein `{bpatch}` tragen.** Der
-       zusaetzliche Launcher am Dialog steht auf einem Index, den es in
-       Vanilla nicht gibt; `{bpatch}` heisst aber "fuehre mit dem
-       vorhandenen Eintrag zusammen". Er geht jetzt als neuer Eintrag raus
-       (`__new__`), wie die neuen Knoten selbst.
+    **Warum die ersten zwei Entwuerfe nichts taten** (Molkerr, GitHub #9:
+    1.33.0, dann die 1.34.0-Reparatur, gespielt auf 1.35.0). Beide haengten
+    NEUE Knoten an, die den abgeschalteten Dialog wieder starten sollten.
+    Der Dialog wird aber von der Zusage (`Technical_GetQuest`) ueber einen
+    Launcher mit `Excluding = true` abgeschaltet - und ein abgeschalteter
+    Knoten nimmt offenbar keinen Start mehr an, gleich woher er kommt. Ob
+    die neuen Knoten ueberhaupt geladen wurden, ist bis heute unbewiesen.
+    Die eine `{bpatch}`-Aenderung derselben Datei (der End-Knoten, s.u.)
+    kam dagegen nachweislich an: Molkerr sah ihre Nebenwirkung.
 
-    Ablauf danach: Zusage -> Aufraeum-Knoten (loescht ihr Ergebnis) ->
-    Wieder-scharf-Knoten (1 s Verzoegerung) -> zusaetzlicher Launcher am
-    Dialog. Alle drei Bausteine sind Vanilla-Knotentypen in
-    Vanilla-Verdrahtung; nichts davon liegt im Spielstand, Pak raus = alles
-    wie vorher.
+    **Die Vorlage, bei der das Annehmen funktioniert** - "Zone Borders /
+    Contracts" (Nexus 2638), RSQ01.cfg am 09.09. gelesen: sie ENTFERNT am
+    Dialog-Knoten genau die Abschalt-Launcher, den von der Zusage und die
+    von den `OnJournalQuestEvent_<Job>_Start`-Wachen, und startet den Dialog
+    nach jeder Zusage ueber einen Launcher neu. Alles Weitere dort
+    (Held-Zaehler, Taken/Clear-Knoten) dient nur dazu, genommene Jobs aus
+    dem Menue zu nehmen und den Rundenaufraeumer zu verzoegern.
 
-    **Das Abgeben (Besitzer 08.09.: "dann bau den aufraeumer um").** Der
-    Vanilla-Aufraeumer des Gebers haengt an den `_End`-Ausgaengen ALLER
-    seiner Auftragsbehaelter - er feuert also, sobald EIN Auftrag abgegeben
-    ist. Der Aufraeumer selbst ist harmlos, er loescht nur Buchhaltung
-    (Ergebnisse von Dialog, `Add_C0x`, `If_1`, Zusage). Was die anderen,
-    noch laufenden Auftraege mitreisst, ist der `End`-Knoten dahinter:
-    `ExcludeAllNodesInContainer = true` schaltet beim Rundenende ALLES in
-    der Quest ab, auch die Behaelter der Jobs, die man noch traegt. Genau
-    dieser eine Schluessel geht darum auf `false` - die Runde endet
-    unveraendert, nimmt die laufenden Auftraege aber nicht mit. Das ist kein
-    Sonderwert: **634 der 1395 End-Knoten des Spiels stehen selbst auf
-    `false`** (gemessen). Wir raeumen weiterhin nichts weg, was das Spiel
-    nicht selbst wegraeumt, und legen keine Variable an.
+    **Was wir tun:** dieselben Launcher-Eintraege bleiben stehen und
+    bekommen `Excluding = false`. Damit STARTET die Zusage den Dialog eine
+    Sekunde spaeter neu (GetQuest traegt StartDelay 1.0), statt ihn
+    abzuschalten - dieselbe Wirkung, die die Vorlage mit einem eigenen
+    Launcher erreicht. Array-Eintraege gehen komplett raus (Excluding und
+    alle Verbindungen mit SID und Name). Die `_Finish`-Wachen bleiben, wie
+    bei der Vorlage. Gemessen 09.09.: alle acht Geber haben genau diesen
+    Aufbau (eine Zusage-Wache plus ein bis drei `_Start`-Wachen).
 
-    ⚠ **Ungetestet, und die Stelle mit dem hoechsten Risiko im ganzen
-    Werkzeug.** Ob das Spiel die uebrigen Behaelter wirklich weiterlaufen
-    laesst, klaert nur ein Test im Spiel - der Autor von "Zone Borders /
-    Contracts" (Nexus 2638) ist an derselben Stelle gescheitert
-    ("Once you take a set of quests you must complete all of them before
-    turning in or the mod breaks. I couldn't fix this"), allerdings mit
-    einem ganz anderen Ansatz (kompletter Neuschrieb der acht Quest-Dateien
-    plus eigene Save-Variablen). Tooltip und FAQ sagen das so; Pak raus =
-    alles wie vorher."""
+    **Das Abgeben:** wie seit 1.34.0 geht `ExcludeAllNodesInContainer` am
+    End-Knoten auf `false`, damit die erste Abgabe die anderen gehaltenen
+    Auftraege nicht mitreisst (634 der 1395 End-Knoten des Spiels stehen
+    selbst so). ⚠ Bekannte Nebenwirkung, von Molkerr gesehen: in Vanilla
+    schaltet der End-Knoten beim Rundenende auch den "Auftrag abbrechen"-
+    Dialog ab - mit `false` bleibt der stehen, bis die naechste Zusage ihn
+    neu setzt. Kosmetisch, aber sichtbar; steht im Tooltip. Die Vorlage
+    vermeidet das mit einem Zaehler, der den Aufraeumer erst laufen laesst,
+    wenn kein Job mehr gehalten wird - Stufe 2, falls Stufe 1 im Spiel
+    bestaetigt wird.
+
+    **Ehrliche Grenzen von Stufe 1:** ein angenommener Job bleibt im Menue
+    stehen (die Vorlage blendet ihn mit Zusatzknoten aus); ihn ein zweites
+    Mal zu waehlen ist ungetestet - nicht tun. Nichts liegt im Spielstand,
+    Pak raus = alles wie vorher."""
     if not s.repeatable_jobs_multi:
         return {}
     patches: dict = {}
     for giver in gd.repeatable_quest_givers():
         accept = giver.get("accept")
-        quest_sid = giver.get("quest_sid")
         dialog_sid = giver.get("dialog_sid")
-        if not (accept and quest_sid and dialog_sid):
+        dialog = giver.get("dialog_node")
+        if not (accept and dialog_sid and dialog is not None):
             continue          # Geber ohne erkennbare Zusage bleibt vanilla
-        clear_sid = f"{quest_sid}_S2T_ClearAccept"
-        node_sid = f"{quest_sid}_S2T_ReArmDialog"
-        # 1. Ergebnis der Zusage wegraeumen (sonst bleibt der Dialog aus)
-        patches[clear_sid] = {
-            "__new__": True,
-            "SID": clear_sid,
-            "NodePrototypeVersion": "1",
-            # Vanilla-Aufraeumknoten tragen kein Repeatable - sie laufen je
-            # Runde genau einmal, weil der End-Knoten die Quest neu startet.
-            # Unserer muss bei JEDER Zusage feuern.
-            "Repeatable": "true",
-            "QuestSID": quest_sid,
-            "NodeType": "EQuestNodeType::BridgeCleanUp",
-            "Launchers": {"[0]": {"Excluding": "false",
-                                  "Connections": {"[0]": {"SID": accept, "Name": ""}}}},
-            "NodesToCleanUpResults": {"[0]": accept},
-        }
-        # 2. Dialog wieder scharf machen - haengt am Aufraeum-Knoten, damit
-        #    die Reihenfolge feststeht (erst raeumen, dann oeffnen).
-        patches[node_sid] = {
-            "__new__": True,
-            "SID": node_sid,
-            "NodePrototypeVersion": "1",
-            "Repeatable": "true",
-            "QuestSID": quest_sid,
-            "NodeType": "EQuestNodeType::Technical",
-            "Launchers": {"[0]": {"Excluding": "false",
-                                  "Connections": {"[0]": {"SID": clear_sid, "Name": ""}}}},
-            "StartDelay": "1.0",
-        }
-        # 3. Zusaetzlicher Launcher am Dialog, auf dem naechsten FREIEN Index
-        idx = int(giver.get("next_launcher", 0))
-        patches.setdefault(dialog_sid, {}).setdefault("Launchers", {})[f"[{idx}]"] = {
-            "__new__": True,
-            "Excluding": "false",
-            "Connections": {"[0]": {"SID": node_sid, "Name": ""}},
-        }
-        # 4. Der End-Knoten hinter dem Rundenaufraeumer: EIN Schluessel, der
-        #    darueber entscheidet, ob die uebrigen Auftraege eine Abgabe
-        #    ueberleben. Vanilla `true` = beim Rundenende wird ALLES in der
-        #    Quest abgeschaltet, also auch die Behaelter der Jobs, die man
-        #    noch traegt. Auf `false` endet die Runde genauso, reisst die
-        #    laufenden Behaelter aber nicht mit. Kein exotischer Wert:
-        #    634 der 1395 End-Knoten des Spiels stehen selbst auf `false`.
+        launchers = dialog.children.get("Launchers")
+        if launchers is None:
+            continue
+        flipped: dict = {}
+        for idx, entry in launchers.children.items():
+            if (entry.values.get("Excluding") or "").strip() != "true":
+                continue
+            conns = entry.children.get("Connections")
+            if conns is None:
+                continue
+            sources = [(c.values.get("SID") or "").strip()
+                       for c in conns.children.values()]
+            if not sources:
+                continue
+            # Zusage-Wache oder Job-Start-Wache: umdrehen. Finish-Wache und
+            # alles andere: unangetastet, wie bei der Vorlage.
+            is_accept = accept in sources
+            is_start = all("OnJournalQuestEvent" in src and src.endswith("_Start")
+                           for src in sources)
+            if not (is_accept or is_start):
+                continue
+            complete: dict = {}
+            for cidx, c in conns.children.items():
+                one = {"SID": (c.values.get("SID") or "").strip()}
+                if "Name" in c.values:
+                    one["Name"] = (c.values.get("Name") or "").strip()
+                complete[cidx] = one
+            flipped[idx] = {"Excluding": "false", "Connections": complete}
+        if flipped:
+            patches.setdefault(dialog_sid, {})["Launchers"] = flipped
+        # Der End-Knoten hinter dem Rundenaufraeumer: EIN Schluessel, der
+        # darueber entscheidet, ob die uebrigen Auftraege eine Abgabe
+        # ueberleben (Details oben).
         end_sid = giver.get("end_sid")
         if end_sid and (giver.get("end_exclude") or "").strip().lower() == "true":
             patches.setdefault(end_sid, {})["ExcludeAllNodesInContainer"] = "false"
     return patches
-
 
 def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
     """Der Auftraggeber bietet den naechsten Job sofort an (Issue #8).

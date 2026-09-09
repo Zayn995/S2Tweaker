@@ -113,9 +113,9 @@ kw["faction_relations"] = {k: v for k, v in (
     (gd.relation_pair_key("Duty", "Player"), 800),
     (gd.relation_pair_key("Duty", "Freedom"), -800)) if k}
 
-# Der Mehrfach-Job-Schalter ist seit 1.36.0 kein Bedienelement mehr
-# (GitHub #9), sein Builder lebt aber weiter - und er haengt an den
-# empfindlichsten Namen im ganzen Werkzeug. Darum hier ausdruecklich an.
+# Der Mehrfach-Job-Schalter (dritter Entwurf 1.36.0) haengt an den
+# empfindlichsten Namen im ganzen Werkzeug - die Sonde schaltet ihn ein
+# (CHECK_FIELDS tut das ohnehin; hier steht es, damit es niemand entfernt).
 kw["repeatable_jobs_multi"] = True
 
 t0 = time.time()
@@ -393,11 +393,10 @@ quest_patch = next((t for p, t in PATCHES.items()
                     if p.endswith("QuestNodePrototypes_patch_S2Tweaker.cfg")), "")
 tops = scan(quest_patch)[0]
 new_nodes = {n for n, attrs, _l in tops if "bpatch" not in attrs}
-job_nodes = {n for n in new_nodes
-             if n.endswith(("_S2T_ClearAccept", "_S2T_ReArmDialog"))}
-check(len(job_nodes) == 2 * len(givers) and new_nodes == job_nodes,
-      f"der Mehrfach-Job-Builder legt je Geber genau zwei neue Knoten an "
-      f"({len(job_nodes)} Stueck: S2T_ClearAccept + S2T_ReArmDialog), sonst nichts")
+# Dritter Entwurf des Mehrfach-Job-Schalters (09.09.2026): KEIN neuer
+# Knoten mehr in der {bpatch}-Datei - nur Aenderungen an vorhandenen.
+check(not new_nodes and len(tops) >= 8 * 3,
+      f"die Quest-Patchdatei traegt {len(tops)} vorhandene Knoten und keinen neuen")
 # Die Laufzeit-Beziehungen (1.36.0) liegen in einer EIGENEN Datei ohne
 # ein einziges {bpatch} - so, wie die zwei Mods es tun, deren neue Knoten
 # nachweislich laufen.

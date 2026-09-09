@@ -12,7 +12,11 @@ Nachtrag 09.09.2026 - ein zweiter Tester, craigduk76, drei Berichte auf
       selbst, wir schrieben nur den Spieler -> jetzt beide Seiten.
       DialogFOVDefault hat keinen zweiten Hebel -> Regler zurueckgezogen.
   #9  Der Mehrfach-Job-Schalter wirkt auch nach der 1.34.0-Reparatur
-      nicht -> beide Job-Schalter zurueckgezogen, Builder bleiben.
+      nicht. Sein "seltsames" Symptom (Abbruch-Zeile bleibt stehen) ist
+      die Nebenwirkung unseres End-Knoten-Schluessels - der EINZIGE
+      {bpatch} des Schalters, und der kam an. -> Dritter Entwurf, nur
+      noch {bpatch} an vorhandenen Knoten (Block 1); der Pin-Schalter
+      ist zurueckgezogen.
 
 Molkerrs erster Bericht (07.09.2026), Punkt fuer Punkt:
   1. Stapelgroessen wirken  -> bestaetigt, nichts zu tun
@@ -60,101 +64,71 @@ def build(**kw):
     return build_patches(gd, Settings(mod_name="S2Tweaker", **kw))
 
 
-# --- 1) Mehrere Jobs je Gespraech ---------------------------------------
+# --- 1) Mehrere Jobs je Gespraech (dritter Entwurf, 09.09.2026) -----------
+# Die ersten zwei Entwuerfe haengten neue Knoten an und taten im Spiel
+# nichts. Dieser besteht nur aus {bpatch} an vorhandenen Knoten - der Art
+# Aenderung, die nachweislich ankommt (der Pool-Regler, der End-Knoten).
+# Vorlage: Zone Borders / Contracts (Nexus 2638) entfernt genau die
+# Abschalt-Launcher am Dialog; wir drehen dieselben auf Excluding = false.
 print("\n1) Accept several jobs in one conversation")
 check(build() == {}, "Vanilla-Stellung erzeugt nichts")
 
 p = build(repeatable_jobs_multi=True)
 check(list(p) == [QUESTS], f"genau eine Patchdatei: {list(p)}")
-nodes = cfgparse.parse(p[QUESTS]).children
+raw = p[QUESTS]
+nodes = cfgparse.parse(raw).children
 givers = gd.repeatable_quest_givers()
 check(len(givers) == 8, f"{len(givers)} Auftraggeber erkannt")
 
-rearm = [s for s in nodes if s.endswith("_S2T_ReArmDialog")]
-clear = [s for s in nodes if s.endswith("_S2T_ClearAccept")]
-check(len(rearm) == 8 and len(clear) == 8,
-      f"{len(clear)} Aufraeum- und {len(rearm)} Wieder-scharf-Knoten, je einer pro Geber")
-check(not [s for s in rearm + clear if s in gd.questnodes.children],
-      "keiner der neuen Namen existiert in Vanilla (wird also angehaengt)")
+# 1a) KEIN neuer Knoten: jeder Top-Level-Struct existiert in Vanilla und
+#     alles traegt {bpatch} - es wird nur zusammengefuehrt, nie angehaengt.
+new = [sid for sid in nodes if sid not in gd.questnodes.children]
+check(not new, f"kein einziger neuer Knoten{new}")
+check(raw.count(" : struct.begin") == raw.count("{bpatch}"),
+      "jeder Struct und jeder Array-Eintrag traegt {bpatch}")
 
-raw = p[QUESTS]
-for sid in rearm + clear:
-    start = raw.index(f"{sid} : struct.begin")
-    end = raw.index("\nstruct.end", start)
-    assert "{bpatch}" not in raw[start:end], f"{sid} traegt bpatch"
-check(True, "kein neuer Knoten traegt {bpatch} (nichts zum Zusammenfuehren)")
-
-by_quest = {g["quest_sid"]: g for g in givers}
-
-# 1a) Der Aufraeum-Knoten haengt an der Zusage und loescht GENAU deren
-#     Ergebnis - der Grund, warum die 1.33.0-Fassung nicht wirkte: der
-#     SetDialog-Knoten wird von der Zusage per Excluding-Launcher
-#     abgeschaltet und bleibt es, solange das Ergebnis steht.
-for sid in clear:
-    node = nodes[sid]
-    giver = by_quest[node.values["QuestSID"]]
-    assert node.values["NodeType"] == "EQuestNodeType::BridgeCleanUp", sid
-    assert node.values["Repeatable"] == "true", sid
-    conn = node.children["Launchers"].children["[0]"].children["Connections"].children["[0]"]
-    assert conn.values["SID"] == giver["accept"], (sid, conn.values["SID"])
-    cleaned = list(node.children["NodesToCleanUpResults"].values.values())
-    assert cleaned == [giver["accept"]], (sid, cleaned)
-check(True, "jeder Aufraeum-Knoten loescht NUR das Ergebnis der Zusage seines Gebers")
-
-# 1b) Die Add_C0x-Knoten bleiben unberuehrt. Genau die raeumt das Vorbild
-#     (Nexus 2638) mit weg - und genau daran zerbricht es laut seinem Autor.
-adds = {k for k in gd.questnodes.children if "_Add_C" in k}
-for sid in clear:
-    cleaned = set(nodes[sid].children["NodesToCleanUpResults"].values.values())
-    assert not (cleaned & adds), (sid, cleaned & adds)
-check(True, "kein Auftragsbehaelter (Add_C0x) wird aufgeraeumt")
-
-# 1c) Kette Zusage -> Aufraeumen -> Dialog wieder scharf
-for sid in rearm:
-    node = nodes[sid]
-    quest = node.values["QuestSID"]
-    conn = node.children["Launchers"].children["[0]"].children["Connections"].children["[0]"]
-    assert conn.values["SID"] == f"{quest}_S2T_ClearAccept", (sid, conn.values["SID"])
-    assert node.values["NodeType"] == "EQuestNodeType::Technical"
-    assert node.values["Repeatable"] == "true"
-    assert node.values["StartDelay"] == "1.0"
-check(True, "der Wieder-scharf-Knoten haengt hinter dem Aufraeumen, nicht direkt an der Zusage")
-
+# 1b) Je Geber: die Zusage-Wache und die Job-Start-Wachen des Dialogs
+#     stehen auf Excluding = false, jeder Eintrag KOMPLETT (alle
+#     Verbindungen mit SID), auf seinem Vanilla-Index. Die Finish-Wache
+#     bleibt unangetastet - wie bei der Vorlage.
+total_flipped, total_starts = 0, 0
 for giver in givers:
     dlg = nodes[giver["dialog_sid"]]
-    launchers = dlg.children["Launchers"].children
-    idx = f"[{giver['next_launcher']}]"
-    assert list(launchers) == [idx], (giver["quest"], list(launchers))
-    conn = launchers[idx].children["Connections"].children["[0]"]
-    assert conn.values["SID"] == f"{giver['quest_sid']}_S2T_ReArmDialog"
-    # der Index muss FREI gewesen sein - sonst haetten wir Vanilla ueberschrieben
-    vanilla_launchers = gd.questnodes.children[giver["dialog_sid"]].children["Launchers"].children
-    assert idx not in vanilla_launchers, (giver["quest"], idx)
-check(True, "der Dialog bekommt genau EINEN zusaetzlichen Launcher auf einem freien Index")
+    vanilla = gd.questnodes.children[giver["dialog_sid"]].children["Launchers"].children
+    flipped = dlg.children["Launchers"].children
+    assert list(dlg.children) == ["Launchers"] and not dlg.values, giver["quest"]
+    for idx, entry in flipped.items():
+        assert idx in vanilla, (giver["quest"], idx)
+        assert entry.values == {"Excluding": "false"}, (giver["quest"], idx, entry.values)
+        v_conns = vanilla[idx].children["Connections"].children
+        p_conns = entry.children["Connections"].children
+        assert list(p_conns) == list(v_conns), (giver["quest"], idx)
+        for cidx in v_conns:
+            assert p_conns[cidx].values["SID"] == v_conns[cidx].values["SID"].strip()
+    sources = {c.values["SID"] for e in flipped.values()
+               for c in e.children["Connections"].children.values()}
+    assert giver["accept"] in sources, giver["quest"]
 
-# 1d) Der neue Launcher-Eintrag ist NEU - er darf kein {bpatch} tragen
-#     (zweiter Grund, warum 1.33.0 nicht wirkte: bpatch heisst
-#     "zusammenfuehren", und es gibt nichts, womit man ihn zusammenfuehren
-#     koennte). Seine Eltern muessen es dagegen tragen.
-for giver in givers:
-    head = raw.index(f"{giver['dialog_sid']} : struct.begin")
-    block = raw[head:raw.index("\nstruct.end\n", head)]
-    idx = f"[{giver['next_launcher']}] : struct.begin"
-    assert "Launchers : struct.begin {bpatch}" in block, giver["quest"]
-    assert idx + "\n" in block + "\n", (giver["quest"], idx)
-    assert idx + " {bpatch}" not in block, (giver["quest"], idx)
-check(True, "der neue Launcher-Eintrag geht ohne {bpatch} raus, seine Eltern mit")
+    def _sources(entry):
+        return [c.values.get("SID", "").strip()
+                for c in entry.children["Connections"].children.values()]
 
-# 1e) Gegenprobe an den Spieldaten: der Dialog wird von der Zusage wirklich
-#     per Excluding-Launcher abgeschaltet (die Messung, auf der der Umbau
-#     beruht), und kein einziger Bedingungsknoten liest das Ergebnis der
-#     Zusage - deshalb ist Aufraeumen gefahrlos.
-def _walk(node, path=""):
-    for k, v in node.values.items():
-        yield path, k, v
-    for k, ch in node.children.items():
-        yield from _walk(ch, f"{path}/{k}")
+    excluding = {i: e for i, e in vanilla.items()
+                 if e.values.get("Excluding", "").strip() == "true"}
+    finish = [i for i, e in excluding.items() if any(s.endswith("_Finish") for s in _sources(e))]
+    starts = [i for i, e in excluding.items()
+              if all("OnJournalQuestEvent" in s and s.endswith("_Start") for s in _sources(e))]
+    assert finish and not (set(finish) & set(flipped)), (giver["quest"], finish)
+    assert set(starts) <= set(flipped), (giver["quest"], starts, list(flipped))
+    assert len(flipped) == 1 + len(starts), (giver["quest"], len(flipped), len(starts))
+    total_flipped += len(flipped)
+    total_starts += len(starts)
+check(total_flipped == 8 + total_starts and total_starts == 22,
+      f"{total_flipped} Wachen gedreht: 8 Zusagen + {total_starts} Job-Start-Wachen; "
+      f"die 8 Finish-Wachen bleiben")
 
+# 1c) Gegenprobe an den Spieldaten: in Vanilla schaltet die Zusage den
+#     Dialog wirklich per Excluding ab - die Messung, auf der alles beruht.
 excluded = 0
 for giver in givers:
     dlg = gd.questnodes.children[giver["dialog_sid"]]
@@ -166,12 +140,16 @@ for giver in givers:
                 excluded += 1
 check(excluded == 8, f"bei allen {excluded} Gebern schaltet die Zusage den Dialog per Excluding ab")
 
-readers = [k for k, n in gd.questnodes.children.items()
-           for _p, key, val in _walk(n)
-           if key == "LinkedNodePrototypeSID" and "Technical_GetQuest" in (val or "")]
-check(not readers, "keine Bedingung im Spiel liest das Ergebnis eines Zusage-Knotens")
+# 1d) Die Zusage selbst wartet eine Sekunde (StartDelay 1.0) und ist
+#     wiederholbar - darum reicht das Umdrehen: sie startet den Dialog
+#     danach selbst neu.
+for giver in givers:
+    acc = gd.questnodes.children[giver["accept"]]
+    assert acc.values.get("Repeatable", "").strip() == "true", giver["quest"]
+    assert acc.values.get("StartDelay", "").strip() == "1.0", giver["quest"]
+check(True, "jede Zusage ist wiederholbar und wartet 1 s - der Dialog kommt nach ihr zurueck")
 
-# 1f) Das Abgeben: der End-Knoten hinter dem Rundenaufraeumer raeumt in
+# 1e) Das Abgeben: der End-Knoten hinter dem Rundenaufraeumer raeumt in
 #     Vanilla ALLES in der Quest ab - auch die Behaelter der Auftraege, die
 #     man noch traegt. Genau dieser eine Schluessel geht auf false.
 vanilla_ends = {k: n for k, n in gd.questnodes.children.items()
@@ -181,32 +159,30 @@ falses = [k for k, n in vanilla_ends.items()
 check(len(falses) >= 500,
       f"false ist kein Sonderwert: {len(falses)} von {len(vanilla_ends)} End-Knoten "
       f"stehen in Vanilla selbst darauf")
-
 for giver in givers:
     end_sid = giver["end_sid"]
-    assert end_sid, giver["quest"]
-    assert giver["end_exclude"] == "true", (giver["quest"], giver["end_exclude"])
-    assert nodes[end_sid].values == {"ExcludeAllNodesInContainer": "false"}, \
-        (end_sid, nodes[end_sid].values)
+    assert end_sid and giver["end_exclude"] == "true", giver["quest"]
+    assert nodes[end_sid].values == {"ExcludeAllNodesInContainer": "false"}, end_sid
     assert not nodes[end_sid].children, end_sid
 check(True, "jeder der acht End-Knoten bekommt GENAU diesen einen Schluessel auf false")
 
-# der Aufraeumer selbst bleibt vanilla - wir loeschen nichts zusaetzlich
+# 1f) Der Aufraeumer, die Zusage und der Abbruch-Dialog bleiben vanilla.
 for giver in givers:
-    assert giver["cleanup_sid"] not in nodes, giver["cleanup_sid"]
-check(True, "der Vanilla-Aufraeumer wird nicht angefasst")
+    assert giver["cleanup_sid"] not in nodes and giver["accept"] not in nodes, giver["quest"]
+check(True, "Aufraeumer und Zusage werden nicht angefasst")
 
-# Gegenprobe: ohne den Schalter bleibt der End-Knoten unberuehrt
+# Gegenprobe: ohne den Schalter bleiben Dialog und End-Knoten unberuehrt
 only_limit = build(repeatable_jobs_per_round=6)
 if only_limit:
     assert "ExcludeAllNodesInContainer" not in only_limit.get(QUESTS, "")
-check(True, "ohne den Schalter fasst nichts den End-Knoten an")
+    assert "Excluding" not in only_limit.get(QUESTS, "")
+check(True, "ohne den Schalter fasst nichts den Dialog oder den End-Knoten an")
 
 # Zusammenspiel mit den zwei aelteren Reglern derselben Familie
 both = build(repeatable_jobs_multi=True, repeatable_jobs_per_round=6,
              repeatable_quest_factor=0.04)
 txt = both[QUESTS]
-check("_S2T_ReArmDialog" in txt and "VariableValue = 6" in txt and "InGameHours = 1" in txt,
+check("Excluding = false" in txt and "VariableValue = 6" in txt and "InGameHours = 1" in txt,
       "Schalter, Rundenlimit und Cooldown landen zusammen in einer Datei")
 check("Accept several repeatable jobs" in "\n".join(summarize(Settings(repeatable_jobs_multi=True))),
       "die Tweak-Liste nennt den Schalter")
@@ -304,10 +280,10 @@ for factor, want in ((0.25, "0.25"), (0.01, "0.01")):
 
 # #9/#10/#11: was die Oberflaeche NICHT mehr anbietet (statisch, kein Fenster)
 from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
-gone = {"dialog_fov"} & set(SLIDER_FIELDS) | {"ladder_look", "rq_jobs_instant",
-                                              "rq_jobs_multi"} & set(CHECK_FIELDS)
-check(not gone, f"die vier zurueckgezogenen Bedienelemente sind weg{sorted(gone)}")
-check("sober" in SLIDER_FIELDS and "rq_jobs" in SLIDER_FIELDS and "look_down" in CHECK_FIELDS,
-      "die bestaetigten Nachbarn bleiben")
+gone = {"dialog_fov"} & set(SLIDER_FIELDS) | {"ladder_look", "rq_jobs_instant"} & set(CHECK_FIELDS)
+check(not gone, f"die drei zurueckgezogenen Bedienelemente sind weg{sorted(gone)}")
+check("sober" in SLIDER_FIELDS and "rq_jobs" in SLIDER_FIELDS and "look_down" in CHECK_FIELDS
+      and "rq_jobs_multi" in CHECK_FIELDS,
+      "die bestaetigten Nachbarn bleiben, der Mehrfach-Job-Schalter ist als dritter Entwurf da")
 
 print(f"\n=== {ok} Pruefungen gruen ===")
