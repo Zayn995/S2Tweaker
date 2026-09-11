@@ -1,6 +1,7 @@
 """Binary localization, lazy extraction, cache invalidation and atomic Pak output."""
 from pathlib import Path
 import json
+import os
 import struct
 import sys
 import tempfile
@@ -98,7 +99,11 @@ class GameResources(unittest.TestCase):
         self.assertFalse(list(self.gd.dir.glob('.optional/*.json')))
         reader=loc.read_resource
         def changed(raw):
-            self.pak.touch()
+            # touch() can keep the same timestamp on fast Windows runners.
+            # Advance it explicitly so the test always simulates a changed Pak.
+            stamp=self.pak.stat()
+            os.utime(self.pak, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
+            self.assertNotEqual(self.gd._pak_stamp(), self.gd._source_stamp)
             return reader(raw)
         with patch.object(loc,'read_resource',side_effect=changed), self.assertRaisesRegex(RuntimeError,'changed'):
             self.gd.job_localization_files(ALIASES)
