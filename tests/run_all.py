@@ -76,6 +76,7 @@ ORDER = [
     "test_stack_size.py",
     "test_repeatable_jobs.py",
     "test_job_isolation.py",
+    "test_job_story_cleanup.py",
     "test_mod_harvest.py",
     "test_mod_audit.py",
     "test_ingame_fixes.py",

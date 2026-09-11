@@ -35,8 +35,60 @@ def _remap(node, journal, replacement, stages):
     return patch
 
 
+def _external_cancellations(gd, journal_jobs, job_quests, reserved):
+    """Mirror story-owned cancellation gates for the isolated journals.
+
+    These nodes belong to the story quest, not the job container it shuts
+    down. Share the original inputs rather than relying on cancellation of
+    the now-unused old journal to emit a completion event.
+    """
+    from .tweaks import _struct_dict
+
+    nodes = {}
+    for source in gd.questnodes.children.values():
+        values = source.values
+        original = values.get("JournalQuestSID", "").strip()
+        owner = values.get("QuestSID", "").strip()
+        if (original not in journal_jobs or owner in job_quests
+                or values.get("NodeType", "").strip() != "EQuestNodeType::SetJournal"
+                or values.get("JournalEntity", "").strip() != "EJournalEntity::Quest"
+                or values.get("JournalAction", "").strip() != "EJournalAction::Cancel"):
+            continue
+        if not owner or (not source.children.get("Launchers")
+                         and values.get("LaunchOnQuestStart", "").strip() != "true"):
+            raise ValueError(f"Unsupported external job cancellation: {source.name}")
+        template = _struct_dict(source)
+        for journal in journal_jobs[original]:
+            guard_sid = f"S2T_StoryCancel_{source.name}_{journal}_Active"
+            cancel_sid = f"S2T_StoryCancel_{source.name}_{journal}_Cancel"
+            for sid in (guard_sid, cancel_sid):
+                if sid in gd.questnodes.children or sid in reserved or sid in nodes:
+                    raise ValueError(f"Quest node namespace collision: {sid}")
+            guard = {key: deepcopy(value) for key, value in template.items()
+                     if not key.startswith("Journal")}
+            guard.update(__new__=True, SID=guard_sid, NodePrototypeVersion="1",
+                         NodeType="EQuestNodeType::If", Conditions={
+                             "ConditionCheckType": "EConditionCheckType::And", "[0]": {"[0]": {
+                                 "ConditionType": "EQuestConditionType::JournalState",
+                                 "ConditionComparance": "EConditionComparance::Equal",
+                                 "JournalEntity": "EJournalEntity::Quest",
+                                 "JournalState": "EJournalState::Active",
+                                 "JournalQuestSID": journal}}})
+            cancel = deepcopy(template)
+            # Activation and delay are already handled by the guard. The
+            # action must run only on True, never automatically at quest start.
+            cancel.pop("LaunchOnQuestStart", None)
+            cancel.pop("StartDelay", None)
+            cancel.update(__new__=True, SID=cancel_sid, JournalQuestSID=journal,
+                          Launchers={"[0]": {"Excluding": "false", "Connections": {
+                              "[0]": {"SID": guard_sid, "Name": "True"}}}})
+            nodes[guard_sid] = guard
+            nodes[cancel_sid] = cancel
+    return nodes
+
+
 def build_job_isolation(gd):
-    """Return (existing-node patches, new guard nodes, new journals).
+    """Return (existing-node patches, new nodes, new journals).
 
     No held-job counter: the engine's native JournalState condition also
     sees accepted jobs after saving/loading. Do not install this over jobs
@@ -48,7 +100,8 @@ def build_job_isolation(gd):
     by_quest = defaultdict(list)
     for key, node in gd.questnodes.children.items():
         by_quest[node.values.get("QuestSID", "").strip()].append((key, node))
-    existing, guards, journals = {}, {}, {}
+    existing, new_nodes, journals = {}, {}, {}
+    journal_jobs, job_quests = defaultdict(list), set()
     givers = gd.repeatable_quest_givers()
     if not givers:
         raise ValueError("Cannot identify repeatable job givers for journal isolation.")
@@ -90,6 +143,7 @@ def build_job_isolation(gd):
         for index, slot in enumerate(slots):
             container = gd.questnodes.children[slot["container"]]
             subquest = container.values["ContaineredQuestPrototypeSID"].strip()
+            job_quests.add(subquest)
             job_nodes = by_quest[subquest]
             refs = {node.values["JournalQuestSID"].strip()
                     for _, node in job_nodes
@@ -130,6 +184,7 @@ def build_job_isolation(gd):
             if not journal.get("Name") and titles:
                 journal["Name"] = titles[0]
             journals[journal_sid] = journal
+            journal_jobs[original].append(journal_sid)
             for key, node in job_nodes:
                 patch = _remap(node, original, journal_sid, stages)
                 if patch:
@@ -141,7 +196,7 @@ def build_job_isolation(gd):
                 "JournalState": "EJournalState::Active",
                 "JournalQuestSID": journal_sid,
             }}
-        guards[guard_sid] = {
+        new_nodes[guard_sid] = {
             "__new__": True, "SID": guard_sid, "NodePrototypeVersion": "1",
             "Repeatable": "true", "QuestSID": quest,
             "NodeType": "EQuestNodeType::If",
@@ -156,4 +211,5 @@ def build_job_isolation(gd):
                 next(iter(entry.children["Connections"].children)):
                     {"SID": guard_sid, "Name": "True"}}}
             for idx, entry in launchers.children.items()}}
-    return existing, guards, journals
+    new_nodes.update(_external_cancellations(gd, journal_jobs, job_quests, new_nodes))
+    return existing, new_nodes, journals

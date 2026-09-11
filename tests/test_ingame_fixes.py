@@ -200,8 +200,8 @@ slots = {g["quest_sid"]: gd.repeatable_job_slots(g["quest_sid"]) for g in givers
 n_slots = sum(len(v) for v in slots.values())
 check(n_slots == 69 and all(len(slots[g["quest_sid"]]) == g["pool"] for g in givers),
       f"{n_slots} Auftrags-Behaelter, je Geber genau so viele wie sein Pool")
-check(len(jobs) == 2 * n_slots + len(givers) and "{bpatch}" not in p[JOBS],
-      f"{len(jobs)} neue Knoten (Taken + Clear je Behaelter), kein {{bpatch}}")
+check(len(jobs) == 2 * n_slots + len(givers) + 12 and "{bpatch}" not in p[JOBS],
+      f"{len(jobs)} neue Knoten (Taken/Clear, Runden-Guards, Story-Abbruch), kein {{bpatch}}")
 
 
 def _conn(node):

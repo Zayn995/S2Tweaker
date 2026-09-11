@@ -11,7 +11,12 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
-Version 1.37.2 includes an [experimental multi-job hand-in repair](docs/REPEATABLE_JOBS_REPAIR.md),
+Version 1.37.3 corrects a missed story cancellation in the experimental multi-job
+repair: Zalissya's story cleanup now also targets active Warlock job journals.
+Completed and never-accepted jobs are left alone. Rebuild your generated pak;
+this does not promise recovery of saves that have already passed the event.
+
+Version 1.37.2 introduced the [experimental multi-job hand-in repair](docs/REPEATABLE_JOBS_REPAIR.md),
 NPC search time up to 1000%, and [new community test reports](docs/COMMUNITY_TESTS_2026_09_10.md).
 The multi-job repair has not been play-tested. Use a save from before accepting
 jobs; old active jobs cannot be migrated. Keep the generated pak while its jobs are active.

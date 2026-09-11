@@ -11,8 +11,15 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.37.2
+NEW IN 1.37.3
 --------------
+Fixes a missed story cancellation in the experimental multi-job repair.
+Zalissya's story cleanup now also cancels active Warlock job journals.
+Finished and never-accepted jobs stay untouched. Rebuild your generated pak.
+NOT PLAY-TESTED; recovery of saves already past the event is not promised.
+
+INCLUDED FROM 1.37.2
+-------------------
 Experimental multi-job repair: each accepted job gets its own journal, and
 round cleanup waits until none is active. NOT PLAY-TESTED. Use a save from
 before accepting jobs: old active jobs cannot be migrated. Keep the generated

@@ -8,7 +8,7 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]Multiple-job repair in 1.37.2 (experimental):[/b] Molkerr reported that the previous design could remove a second job without its reward. Version 1.37.2 separates journals and guards round cleanup. This repair is NOT play-tested. Use a save from before accepting jobs; old active jobs cannot be migrated. Keep the generated pak while its jobs are active. The shared cancel line cancels all current jobs from that giver. Interact again to accept another job; the conversation does not open automatically. Earlier statements below that removal leaves no save trace were too strong: quest state is saved by the game.
+[b]Multiple-job repair in 1.37.3 (experimental):[/b] Molkerr reported that the previous design could remove a second job without its reward. Version 1.37.2 separates journals and guards round cleanup. Version 1.37.3 also connects Zalissya's story cancellation to active Warlock job journals; finished and never-accepted jobs stay untouched. This repair is NOT play-tested. Use a save from before accepting jobs; old active jobs cannot be migrated. Keep the generated pak while its jobs are active. The shared cancel line cancels all current jobs from that giver. Interact again to accept another job; the conversation does not open automatically. Earlier statements below that removal leaves no save trace were too strong: quest state is saved by the game.
 
 Developed with AI assistance (Claude and Codex). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
 Everyone is free to use this mod and the tool!
@@ -17,7 +17,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.37.2): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.37.3): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
@@ -245,6 +245,13 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.37.3 - story cancellation for isolated job journals[/b]
+[list]
+[*]Corrects a missed story cleanup: Zalissya's existing story event now also cancels active Warlock job journals. Completed and never-accepted jobs are left untouched
+[*]Regression failed on 1.37.2 and passes with the correction; covers the emitted story inputs and 4096 journal-state combinations. This is NOT an engine test; the feature remains experimental and not play-tested
+[*]Rebuild your generated pak. Recovery of saves already past the story event is not promised. No new controls or extraction inputs
+[/list]
+
 [b]v1.37.2 - community fixes and experimental multi-job repair[/b]
 [list]
 [*]Each repeatable job gets an independent journal and stages. Round cleanup waits until none is active. This addresses the shared journal and cleanup found after Molkerr's hand-in report, but the repair is not play-tested.
@@ -254,6 +261,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Cache schema 26 adds journal prototypes. All 19 runtime binaries remain unchanged. No new VirusTotal result is claimed.
 [/list]
 
+[spoiler]
 [b]v1.37.1 - startup repair and clearer designs[/b]
 [list]
 [*][b]Repairs the mostly black window from the withdrawn 1.37.0 release.[/b] Removed per-row extra buttons, limited Overview to 20 entries per page, and release individual armor editors when they close. Optional loot/world values stay available through World or Overview without building all their widgets at startup.
@@ -264,7 +272,6 @@ If the ~mods folder doesn't exist, create it.
 [*]All editor, armor and loot additions from 1.37.0 remain included. New gameplay effects still have no play-test confirmation; animation desynchronization remains unresolved. No VirusTotal result is claimed for this ZIP.
 [/list]
 
-[spoiler]
 [b]v1.37.0 - withdrawn; editor workspace, expanded armor controls and optional loot/world additions[/b] (14 categories + Overview)
 [list]
 [*][b]Editor workspace:[/b] editable My changes, Favorites and Browse controls; undo/redo; named profiles with descriptions, duplication and comparison; generated-value preview; left navigation, changed counts and display scale/density.
