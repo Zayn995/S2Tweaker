@@ -40,7 +40,21 @@ from collections import Counter as _C
 print("Spieler-Waffen:", len(weapons), dict(_C(c for c, _ in weapons.values())))
 
 s = Settings(
+    detail_overrides={
+        "detail_edit:special:AArtifactWeirdNut:healing_drawback": 50,
+        "detail_edit:special:AArtifactWeirdWater:strength": 150,
+        "detail_edit:medicine:Medkit:healing": 125,
+        "detail_edit:medicine:Hercules:duration": 200,
+        "detail_edit:weapon_item:GunPM_HG:Weight": .3,
+        "detail_edit:weapon_item:Deluxe_GunAK74_ST:Cost": 1234,
+        "detail_edit:weather:Rainy:HearingDistanceCoef": 150,
+        "detail_edit:camp:Ordinary faction camps:Guitar": 150,
+        "detail_edit:grenade:Army:Veteran": 50,
+        "detail_edit:upgrade:Technician bonuses:ArmorPiercing": 150,
+        "detail_edit:scanner:PlayerDetector:DetectorRadius": 800,
+    },
     npc_equipment_overrides={
+        "npc_helmet:GeneralNPC_Bandit_CloseCombat:GeneralNPC_Bandit_Armor:[2]:[0]": 50,
         "npc_equipment:GeneralNPC_Neutral_CloseCombat:GeneralNPC_Neutral_CloseCombat_ItemGenerator:[0]:[0]": 200,
     },
     artifact_stat_labels_follow=True,

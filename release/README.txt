@@ -11,7 +11,24 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.40.1 — JOB REPAIRS NOT PLAY-TESTED
+NEW IN 1.41.0 — ADDITIONAL DETAIL SETTINGS
+------------------------------------------
+- 486 additional supported values on the checked game 2.0.5 data, including editions.
+- Weird Nut/Water, individual medicine/buff strength and ongoing buff duration.
+- Individual weight, base price and inventory size for 84 weapon items.
+- Per-weather sight/hearing/scent, camp activity needs and ranked grenade budgets.
+- Optional helmet chances by faction/role/player rank, selective upgrade bonuses
+  and separate passive scanner radii.
+- World -> Additional detail settings; helmets in the existing NPC equipment editor.
+- Profiles, undo/redo, reset, conflict protection and sparse Pak exports supported.
+- Medical effect identities preserve native Master difficulty modifiers.
+- No new movement, reload or animation-timing changes; no UE4SS or Dev Kit needed.
+- 57 local suites, portable GUI workflow and Pak readback checked. NOT play-tested.
+- The 19 signed runtime binaries are unchanged; no scan result for this new ZIP yet.
+
+Rebuild your personal Pak to apply your choices. Values are read from your game.
+
+INCLUDED FROM 1.40.1 — JOB REPAIRS NOT PLAY-TESTED
 -----------------------------------------
 Candidate repair for missing multi-job text and disappearing return markers.
 All installed languages are discovered dynamically (18 checked, 208 aliases each).

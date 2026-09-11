@@ -11,12 +11,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions, npc_equipment
+from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions, npc_equipment, detail_controls
 
 OVERVIEW_PAGE_SIZE = 20
 
 TREE_TABS = {"weapon_overrides": "Weapons", "weapon_calibers": "Weapons",
-             "ammo_overrides": "Ammo", "scope_overrides": "Ammo",
+             "ammo_overrides": "Ammo", "scope_overrides": "Upgrades",
              "armor_overrides": "Armor", "armor_custom": "Armor", "mutant_overrides": "Mutants",
              "faction_relations": "Factions", "cats": "Weight & items"}
 # Recorded user reports in the existing control descriptions, not inferred tests.
@@ -299,7 +299,16 @@ class WorkbenchMixin:
                     label += " (inactive)"
                     description = "Inactive in this game data. Reset to 100% to remove the saved change. " + description
                 else:
-                    description = f"Loaded native weight: {data[path[1]]:g}. " + description
+                    kind = npc_equipment.CONTROLS[path[1]].kind.lower()
+                    description = f"Loaded native {kind}: {data[path[1]]:g}. " + description
+            if path[0] == "sliders" and path[1] in detail_controls.CONTROLS:
+                gd = getattr(self, "gd", None)
+                spec = detail_controls.CONTROLS[path[1]]
+                if path[1] not in detail_controls.available(gd):
+                    label += " (inactive)"
+                    description = f"Inactive in this game data. Reset to {spec.default:g} to inherit. " + description
+                else:
+                    description = "Loaded baseline: " + detail_controls.baseline(gd, path[1]) + ". " + description
             return label, tab, description
         group, key, *param = path
         if group == "checks" and key in self.checks:
@@ -339,6 +348,7 @@ class WorkbenchMixin:
         weather_keys = regional_weather.available_keys(gd.regional_weather) if gd else set()
         artifact_keys = artifact_extensions.available(gd)
         equipment_keys = npc_equipment.available(gd)
+        detail_keys = detail_controls.available(gd)
         result = []
         for path in paths:
             default = self._wb_neutral(path)
@@ -352,6 +362,9 @@ class WorkbenchMixin:
                 if state.equal(default, value) and path not in self._wb_favorites:
                     continue
             if path[0] == "sliders" and path[1] in npc_equipment.CONTROLS and path[1] not in equipment_keys:
+                if state.equal(default, value) and path not in self._wb_favorites:
+                    continue
+            if path[0] == "sliders" and path[1] in detail_controls.CONTROLS and path[1] not in detail_keys:
                 if state.equal(default, value) and path not in self._wb_favorites:
                     continue
             result.append((path, label, tab, default, value, description))
@@ -416,6 +429,39 @@ class WorkbenchMixin:
         self.wb_search.insert(0, f"Regional weather: {label} /")
         self._wb_choose_view("Loot & world")
 
+    def _wb_build_detail_editor(self, body):
+        frame = self._section(body, "Additional detail settings (experimental)")
+        ctk.CTkLabel(frame, text="Special artifacts, individual medicine and weapon item values, weather senses, camp activities, "
+                    "grenade budgets, upgrade bonuses and passive scanners. Inherit keeps your existing global settings. "
+                    "These additions do not change movement, reload or animation timing.",
+                    justify="left", anchor="w", wraplength=660).pack(fill="x", padx=12, pady=6)
+        self.detail_group = ctk.CTkOptionMenu(frame, values=list(detail_controls.GROUPS.values()), width=300,
+                                             command=self._wb_detail_targets)
+        self.detail_group.pack(anchor="w", padx=12, pady=4)
+        self.detail_target = ctk.CTkOptionMenu(frame, values=["Load game data first"], width=360)
+        self.detail_target.pack(anchor="w", padx=12, pady=4)
+        ctk.CTkButton(frame, text="Edit selected detail settings", command=self._wb_detail_open).pack(anchor="w", padx=12, pady=6)
+        self._wb_detail_targets(self.detail_group.get())
+
+    def _wb_detail_targets(self, label):
+        group = next((key for key, name in detail_controls.GROUPS.items() if name == label), None)
+        gd = getattr(self, "gd", None)
+        data = detail_controls.available(gd)
+        targets = sorted({c.target for key, c in detail_controls.CONTROLS.items()
+                          if c.group == group and (gd is None or key in data)})
+        self.detail_target.configure(values=targets or ["Unavailable in this game data"])
+        if self.detail_target.get() not in targets:
+            self.detail_target.set(targets[0] if targets else "Unavailable in this game data")
+
+    def _wb_detail_open(self):
+        if getattr(self, "gd", None) is None:
+            messagebox.showinfo("Detail settings", "Load the game data first.", parent=self)
+            return
+        self._wb_detail_targets(self.detail_group.get())
+        self.wb_search.delete(0, "end")
+        self.wb_search.insert(0, f"{self.detail_group.get()} / {self.detail_target.get()} /")
+        self._wb_choose_view("Loot & world")
+
     def _wb_build_artifact_editor(self, body):
         frame = self._section(body, "Artifact editor & related settings (experimental)")
         self._check(frame, "art_stat_labels", "Artifact bonus labels follow your changes",
@@ -467,7 +513,7 @@ class WorkbenchMixin:
         frame = self._section(body, "NPC equipment by faction & player progression (experimental)")
         self.equipment_frame = frame
         ctk.CTkLabel(frame, text=("Choose a faction, role and native equipment group. Edit the relative frequency of existing weapons, pistols and body armor. "
-                                + npc_equipment.NOTE), justify="left", anchor="w", wraplength=660).pack(fill="x", padx=12, pady=6)
+                                "Optional helmet groups have separate generation chances. " + npc_equipment.NOTE), justify="left", anchor="w", wraplength=660).pack(fill="x", padx=12, pady=6)
         choices = ctk.CTkFrame(frame, fg_color="transparent")
         choices.pack(fill="x", padx=12, pady=4)
         ctk.CTkLabel(choices, text="Faction").pack(side="left", padx=(0, 6))
@@ -569,7 +615,7 @@ class WorkbenchMixin:
                          anchor="w", font=ctk.CTkFont(size=11)).grid(row=1, column=1, sticky="w", pady=(0, 5))
             entry = ctk.CTkEntry(card, width=86)
             entry.insert(0, armor_extensions.format_value(path[2], value) if path[0] == "armor_custom" else
-                         "Inherit" if path[0] == "sliders" and path[1] in artifact_extensions.CONTROLS and value == -1 else value_text(value))
+                         "Inherit" if path[0] == "sliders" and (path[1] in artifact_extensions.CONTROLS or path[1] in detail_controls.CONTROLS) and value == -1 else value_text(value))
             entry.grid(row=0, column=2, padx=5)
             entry.bind("<Return>", lambda e, p=path, w=entry: self._wb_edit(p, w.get()))
             ctk.CTkButton(card, text="Apply", width=52, command=lambda p=path, w=entry: self._wb_edit(p, w.get()),
@@ -636,8 +682,8 @@ class WorkbenchMixin:
                     if value is None:
                         value = float(raw)
                     armor_extensions.clean({param[0]: value})
-                elif group == "sliders" and (key in artifact_extensions.CONTROLS or key in npc_equipment.CONTROLS):
-                    editor = npc_equipment if key in npc_equipment.CONTROLS else artifact_extensions
+                elif group == "sliders" and (key in artifact_extensions.CONTROLS or key in npc_equipment.CONTROLS or key in detail_controls.CONTROLS):
+                    editor = npc_equipment if key in npc_equipment.CONTROLS else detail_controls if key in detail_controls.CONTROLS else artifact_extensions
                     spec = editor.CONTROLS[key]
                     value = {"inherit": spec.default, "default": spec.default, "off": 0}.get(raw.lower())
                     if value is None:
@@ -716,8 +762,8 @@ class WorkbenchMixin:
                    ("Toggle favorite", lambda: self._wb_toggle_favorite(path))]
         if path in self._extension_paths and path[0] == "sliders":
             row = self.sliders[path[1]]
-            if path[1] in artifact_extensions.CONTROLS:
-                spec = artifact_extensions.CONTROLS[path[1]]
+            if path[1] in artifact_extensions.CONTROLS or path[1] in detail_controls.CONTROLS:
+                spec = artifact_extensions.CONTROLS.get(path[1]) or detail_controls.CONTROLS[path[1]]
                 text += f"\nAllowed range: {spec.minimum:g}–{spec.maximum:g}; reset: {spec.default:g}. Up to {spec.decimals} decimal places."
             else:
                 text += f"\nAllowed range: {row.lo:g}–{row.hi:g}. Whole percentage values."

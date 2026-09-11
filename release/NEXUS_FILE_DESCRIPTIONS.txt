@@ -11,16 +11,31 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.40.1
-File version:  1.40.1
+Name:          S2Tweaker 1.41.0
+File version:  1.41.0
 File category: Main Files
 ==================================================================
 
---- File description (214 Zeichen) ---
-Extract the entire ZIP, run S2Tweaker.exe and rebuild your Pak. Includes experimental job text and return-marker repairs, NOT play-tested. All installed languages supported; Game.locres mods can conflict. No UE4SS.
+--- File description (224 Zeichen) ---
+486 additional detail values: artifacts, medicine, weapon items, weather, camps, grenades, helmets, upgrades and scanners. Extract the entire ZIP and run S2Tweaker.exe. Rebuild your Pak. NOT play-tested. No UE4SS or Dev Kit.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.41.0 - additional detail settings
+
+- 486 additional supported values on the checked game 2.0.5 data, including editions.
+- Weird Nut/Water, individual medicine/buff strength and ongoing buff duration.
+- Individual weight, base price and inventory size for 84 weapon items.
+- Per-weather sight/hearing/scent, camp activity needs and ranked grenade budgets.
+- Optional helmet chances by faction/role/player rank, selective upgrade bonuses
+  and separate passive scanner radii.
+- World -> Additional detail settings; helmets in the existing NPC equipment editor.
+- Profiles, undo/redo, reset, conflict protection and sparse Pak exports supported.
+- Medical effect identities preserve native Master difficulty modifiers.
+- No new movement, reload or animation-timing changes; no UE4SS or Dev Kit needed.
+- 57 local suites, portable GUI workflow and Pak readback checked. NOT play-tested.
+- The 19 signed runtime binaries are unchanged; no scan result for this new ZIP yet.
+
 1.40.1 - job text and return-marker repairs
 
 - Experimental job repairs NOT PLAY-TESTED; game confirmation remains open.

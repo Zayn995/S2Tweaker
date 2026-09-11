@@ -220,7 +220,8 @@ class LiveEquipment(unittest.TestCase):
 
     def test_live_scope_neutral_and_exclusions(self):
         data = e.available(self.gd)
-        self.assertEqual(len(data), 1028)
+        self.assertEqual(sum(e.CONTROLS[k].kind == "Weight" for k in data), 1028)
+        self.assertEqual(sum(e.CONTROLS[k].kind == "Chance" for k in data), 76)
         self.assertEqual(len({e.CONTROLS[k].obj for k in data}), 50)
         self.assertEqual(len({e.CONTROLS[k].faction for k in data}), 12)
         self.assertEqual(build_patches(self.gd, Settings()), {})

@@ -21,7 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
-from . import extension_controls, regional_weather, artifact_extensions, npc_equipment
+from . import extension_controls, regional_weather, artifact_extensions, npc_equipment, detail_controls
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions
 from .tweaks import (
@@ -6420,6 +6420,7 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         extension_controls.build_controls(self, body, fmt_pct)
+        self._wb_build_detail_editor(body)
         self._wb_build_artifact_editor(body)
         self._wb_build_equipment_editor(body)
 
@@ -6831,6 +6832,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     self._if_populate()
                     self._im_populate()
                     self._wb_artifact_targets(self.artifact_editor_group.get())
+                    self._wb_detail_targets(self.detail_group.get())
                     self._wb_equipment_choices()
                     self._set_busy(False)
                     self._set_body_state(True)
@@ -6999,6 +7001,7 @@ class App(WorkbenchMixin, ctk.CTk):
             weather_luminance_overrides=extension_controls.collect_factors(s, "weather_luminance:"),
             regional_weather_overrides=regional_weather.collect(s),
             artifact_overrides=artifact_extensions.collect(s),
+            detail_overrides=detail_controls.collect(s),
             artifact_stat_labels_follow=bool(self.checks["art_stat_labels"].get()),
             mutant_loot_overrides=extension_controls.collect_mutant_loot(s),
             npc_equipment_overrides=npc_equipment.collect(s),
@@ -7895,6 +7898,9 @@ class App(WorkbenchMixin, ctk.CTk):
         (Top-Level-Struct, Blattname)-Paare patcht er? Vereinigung der
         Sonden aus footprint_settings (x2 UND x0.5)."""
         if key not in self._footprints:
+            if key in detail_controls.CONTROLS:
+                self._footprints[key] = detail_controls.footprint(gd, key)
+                return self._footprints[key]
             if key in npc_equipment.CONTROLS:
                 self._footprints[key] = npc_equipment.footprint(gd, key)
                 return self._footprints[key]

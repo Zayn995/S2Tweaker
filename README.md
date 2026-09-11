@@ -11,6 +11,13 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.41.0** adds experimental
+[data-only detail options](docs/DETAIL_OPTIONS.md): special artifacts, individual
+medicine/buffs and weapon item values, weather senses, camp activities,
+grenade budgets, selective helmets, upgrade bonuses and passive scanners.
+Movement, reload and animation-timing extensions are deferred. No UE4SS or Dev
+Kit is required. See the linked guide for supported values and gameplay limits.
+
 **1.40.1 adds repairs for job texts and return markers.**
 These experimental job changes still need confirmation in the game.
 See [test instructions and limitations](release/NOTES_v1.40.1.md).

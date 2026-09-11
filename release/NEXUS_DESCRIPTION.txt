@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.40.1: job texts and return markers — NOT PLAY-TESTED.[/b] Extends native translations for every installed language and attempts to restore remaining ready-job markers after a hand-in. 18 languages checked. Multi-job Paks now include full language resources (about 147 MiB here); other Game.locres mods can conflict. Use separate saves and report game results. No UE4SS.
+[b]New in 1.41.0: additional detail settings — NOT PLAY-TESTED.[/b] 486 additional supported values on the checked 2.0.5 data: special artifacts, medicine/buffs, individual weapon weight/price/inventory size, weather senses, camp needs, ranked grenades, optional helmets, selective upgrades and passive scanners. Open World -> Additional detail settings; helmet chances are in the existing NPC equipment editor. Profiles, undo/redo, reset and Pak previews supported. Animation-dependent extensions remain deferred. No UE4SS or Dev Kit needed.
+
+[b]Included from 1.40.1: job texts and return markers — NOT PLAY-TESTED.[/b] Extends native translations for every installed language and attempts to restore remaining ready-job markers after a hand-in. 18 languages checked. Multi-job Paks now include full language resources (about 147 MiB here); other Game.locres mods can conflict. Use separate saves and report game results. No UE4SS.
 
 [b]Included from 1.40.0: extra artifact bonuses, job texts and NPC equipment.[/b] Add missing bonuses such as fire protection on Liquid Stone, optionally adapt displayed strength tiers, and edit NPC equipment choices by faction and player progression. Version 1.40.1 changes job localization loading as described above. New effects and game-side loading are experimental and NOT play-tested. Marker checks remain open. No UE4SS.
 
@@ -29,7 +31,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.40.1): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.41.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
@@ -258,6 +260,21 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.41.0 - additional detail settings[/b]
+[list]
+[*]486 additional supported values on the checked game 2.0.5 data, including editions.
+[*]Weird Nut/Water, individual medicine/buff strength and ongoing buff duration.
+[*]Individual weight, base price and inventory size for 84 weapon items.
+[*]Per-weather sight/hearing/scent, camp activity needs and ranked grenade budgets.
+[*]Optional helmet chances by faction/role/player rank, selective upgrade bonuses and separate passive scanner radii
+[*]World -> Additional detail settings; helmets in the existing NPC equipment editor.
+[*]Profiles, undo/redo, reset, conflict protection and sparse Pak exports supported.
+[*]Medical effect identities preserve native Master difficulty modifiers.
+[*]No new movement, reload or animation-timing changes; no UE4SS or Dev Kit needed.
+[*]57 local suites, portable GUI workflow and Pak readback checked. NOT play-tested.
+[*]The 19 signed runtime binaries are unchanged; no scan result for this new ZIP yet.
+[/list]
+
 [b]v1.40.1 - job text and return-marker repairs[/b]
 [list]
 [*]NOT PLAY-TESTED. Experimental repairs for issue 9; game confirmation remains open
@@ -268,6 +285,7 @@ If the ~mods folder doesn't exist, create it.
 [*]No game translations/Oodle DLL shipped, no UE4SS. The 19 signed runtime binaries remain unchanged; no new VirusTotal result claimed
 [/list]
 
+[spoiler]
 [b]v1.40.0 - extra artifact bonuses, job texts and NPC equipment[/b]
 [list]
 [*]Add missing artifact bonuses such as fire protection on Liquid Stone: nine families, 518 additional choices, 871 total artifact-editor controls on 2.0.5. 0 off, 100% native Low, up to 1000%; global strength applies
@@ -279,7 +297,6 @@ If the ~mods folder doesn't exist, create it.
 [*]No UE4SS. Existing signed runtime binaries unchanged; no new VirusTotal result claimed for this ZIP
 [/list]
 
-[spoiler]
 [b]v1.39.0 - artifact editor, detectors and related world settings[/b]
 [list]
 [*]World editor: individual weight/base price for 69 ordinary artifact candidates, isolated existing bonuses and native radiation tiers. Availability of every candidate in ordinary gameplay is not confirmed

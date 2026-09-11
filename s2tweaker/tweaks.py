@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 import math
 import re
 
-from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions, npc_equipment
+from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions, npc_equipment, detail_controls
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import CATEGORY_TEMPLATES, GameData
@@ -601,6 +601,7 @@ class Settings:
     weather_duration_factor: float = 1.0     # WeatherSelection WeatherDurationMin/Max
     regional_weather_overrides: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict)
     artifact_overrides: dict[str, float] = field(default_factory=dict)  # deferred individual artifact/world controls
+    detail_overrides: dict[str, float] = field(default_factory=dict)  # data-only optional detail controls
     artifact_stat_labels_follow: bool = False  # cosmetic native tiers for edited ordinary bonuses
     bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
     bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
@@ -5257,6 +5258,7 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 if cfg:
                     dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
     armor_extensions.apply(gd, s, patches, dlc_patches)
+    detail_controls.apply_weapon_items(gd, s, patches, dlc_patches)
     return patches, dlc_patches
 
 
@@ -6515,7 +6517,8 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
     ein Regler. Nur die Bonus-Richtung wird skaliert (Malus-Effekte wie
     RecoilNeg20 bleiben), Prozent-Boni deckeln bei -100 bzw. Schutz bei 100."""
     factors = {fam: getattr(s, fam) for fam in UPGRADE_FAMILIES}
-    if not any(_neq(f, 1.0) and f >= 0 for f in factors.values()):
+    if not any(_neq(f, 1.0) and f >= 0 for f in factors.values()) and not any(
+            c.group == "upgrade" for c, _value in detail_controls.changes(s.detail_overrides)):
         return {}
     by_type: dict[str, tuple[str, str]] = {}
     for fam, types in UPGRADE_FAMILIES.items():
@@ -6535,7 +6538,7 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
         if typ not in by_type:
             continue
         fam, direction = by_type[typ]
-        factor = factors[fam]
+        factor = detail_controls.upgrade_factor(s, typ, factors[fam])
         if not (_neq(factor, 1.0) and factor >= 0):      # 0 = Upgrades wirken nicht
             continue
         cfg: dict = {}
@@ -6590,7 +6593,7 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
             ktyp = ((knode.values.get("Type") or "").replace("EEffectType::", "").strip()
                     if knode is not None else "")
             fam_dir = by_type.get(ktyp)
-            kid_factors.add(factors[fam_dir[0]] if fam_dir else 1.0)
+            kid_factors.add(detail_controls.upgrade_factor(s, ktyp, factors[fam_dir[0]]) if fam_dir else 1.0)
         if len(kid_factors) != 1:
             continue
         factor = kid_factors.pop()
@@ -6820,6 +6823,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     n = s.mod_name
     out: dict[str, str] = {}
     list(artifact_extensions.changes(s.artifact_overrides))  # validate before emitting any file
+    list(detail_controls.changes(s.detail_overrides))
 
     extensions: dict[str, dict] = {}
     for module in (world_extensions, loot_extensions, repair_extensions):
@@ -6846,6 +6850,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     def add(path: str, patches: dict):
         _merge_nested(patches, extensions.pop(path, {}))
         artifact_extensions.apply(gd, s, path.split("/", 1)[0], patches)
+        source = path.split("/", 1)[0].split(".cfg_patch_", 1)[0]
+        detail_controls.apply(gd, s, source, patches)
         # A combined factor of one must leave other mods' values alone.
         # Remove the earlier global patch instead of writing vanilla back.
         def drop(parts):
@@ -7093,6 +7099,7 @@ def summarize(s: Settings) -> list[str]:
     """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
     lines = extension_controls.regional_weather.summarize(s.regional_weather_overrides)
     lines.extend(artifact_extensions.summarize(s.artifact_overrides))
+    lines.extend(detail_controls.summarize(s.detail_overrides))
     if s.artifact_stat_labels_follow:
         lines.append("Artifact bonus labels follow edited strength (nearest native tier; zero bonuses hidden; experimental)")
     lines.extend(npc_equipment.summarize(s.npc_equipment_overrides))

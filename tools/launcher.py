@@ -189,6 +189,7 @@ def main() -> None:
             args.artifact_editor = bool(options.get("artifact_editor", False))
             args.source_pak = Path(options["source_pak"]) if options.get("source_pak") else None
             args.npc_equipment = bool(options.get("npc_equipment", False))
+            args.detail_editor = bool(options.get("detail_editor", False))
             os._exit(measure(args))
         else:
             from s2tweaker.gui import run

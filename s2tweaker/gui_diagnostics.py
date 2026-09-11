@@ -66,6 +66,76 @@ def measure(args):
             app = gui.App()
             app.geometry("1280x850")
             sample("startup")
+            if getattr(args, "detail_editor", False):
+                from s2tweaker import detail_controls as details, npc_equipment, editor_state, cfgparse, pakio
+                from s2tweaker.tweaks import build_patches
+                if not args.vanilla:
+                    raise ValueError("Detail editor diagnostics require --vanilla.")
+                app.gd = GameData(args.vanilla)
+                app._set_body_state(True)
+                assert build_patches(app.gd, app._collect()) == {}
+                expected = {details.PREFIX + suffix: value for suffix, value in {
+                    "special:AArtifactWeirdNut:healing_drawback": 50,
+                    "special:AArtifactWeirdWater:minimum": 3.75,
+                    "medicine:Medkit:healing": 125,
+                    "weapon_item:GunPM_HG:Weight": .25,
+                    "weather:Rainy:HearingDistanceCoef": 150,
+                    "camp:Ordinary faction camps:Guitar": 150,
+                    "grenade:Army:Veteran": 50,
+                    "upgrade:Technician bonuses:ArmorPiercing": 150,
+                    "scanner:PlayerDetector:DetectorRadius": 800}.items()}
+                for key, value in expected.items():
+                    spec = details.CONTROLS[key]
+                    app.tabs.set("World")
+                    app.detail_group.set(details.GROUPS[spec.group])
+                    app._wb_detail_targets(app.detail_group.get())
+                    app.detail_target.set(spec.target)
+                    app._wb_detail_open()
+                    app.update()
+                    assert app.tabs.get() == "Overview"
+                    assert 0 < len(app.wb_rows.winfo_children()) <= OVERVIEW_PAGE_SIZE
+                    app._wb_edit(("sliders", key), str(value))
+                assert app._collect().detail_overrides == expected
+                app._wb_undo()
+                assert key not in app._collect().detail_overrides
+                app._wb_redo()
+                assert app._collect().detail_overrides == expected
+                helmet = next(c for k, c in npc_equipment.CONTROLS.items()
+                              if c.kind == "Chance" and k in npc_equipment.available(app.gd))
+                app._wb_edit(("sliders", helmet.key), "50")
+                assert app._collect().npc_equipment_overrides == {helmet.key: 50}
+                profile = temp / "detail-profile.json"
+                editor_state.save_profile(profile, app._ui_state(), "Detail settings")
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                app._apply_ui_state(editor_state.read_profile(profile).state)
+                assert app._collect().detail_overrides == expected
+                assert app._collect().npc_equipment_overrides == {helmet.key: 50}
+                patches = build_patches(app.gd, app._collect())
+                pakio.pack_mod(patches, args.report.parent / "detail_gui_test.pak")
+                assert patches
+                assert all(cfgparse.parse(text).children for text in patches.values())
+                # Keep one concrete screen for visual review without repeated windows.
+                app.detail_group.set(details.GROUPS['medicine'])
+                app._wb_detail_targets(app.detail_group.get())
+                app.detail_target.set("Medkit")
+                app._wb_detail_open()
+                sample("all detail families and helmet edited, profile restored, Pak exported")
+                # The unchanged portable runtime intentionally has no Pillow.
+                # An external diagnostic host may capture this exact app window.
+                report['capture_rect'] = [app.winfo_rootx(), app.winfo_rooty(), app.winfo_rootx() + app.winfo_width(), app.winfo_rooty() + app.winfo_height()]
+                sample("detail screenshot")
+                time.sleep(2)
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                sample("detail reset")
+                report['available_detail_controls'] = len(details.available(app.gd))
+                report['helmet_controls'] = sum(c.kind == 'Chance' for k, c in npc_equipment.CONTROLS.items() if k in npc_equipment.available(app.gd))
+                report['profile_undo_redo_reset_export'] = True
+                report['passed'] = True
+                app.destroy()
+                app = None
+                return 0
             if getattr(args, "npc_equipment", False):
                 from s2tweaker import npc_equipment as equipment, editor_state, cfgparse
                 from s2tweaker.tweaks import build_patches

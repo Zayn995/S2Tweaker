@@ -25,6 +25,7 @@ def main():
     parser.add_argument("--dialog-range", action="store_true", help="check the maximum-only talk distance using --vanilla")
     parser.add_argument("--artifact-editor", action="store_true", help="check all five artifact editor families using --vanilla")
     parser.add_argument("--npc-equipment", action="store_true", help="check faction equipment choices using --vanilla")
+    parser.add_argument("--detail-editor", action="store_true", help="check the additional data-only detail controls using --vanilla")
     parser.add_argument("--portable", type=Path, help="check this existing portable S2Tweaker.exe with its own runtime")
     parser.add_argument("--visual-review", action="store_true", help="hold the Player page for 60 seconds for visual inspection instead of the resource sweep")
     parser.add_argument("--design-review", action="store_true", help="check palettes and toolbar, then hold the design chooser within the time budget")
@@ -52,6 +53,7 @@ def main():
                 "dialog_range": args.dialog_range,
                 "artifact_editor": args.artifact_editor,
                 "npc_equipment": args.npc_equipment,
+                "detail_editor": args.detail_editor,
                 "source_pak": str(args.source_pak.resolve()) if args.source_pak else None,
                 "vanilla": str(args.vanilla.resolve()) if args.vanilla else None})
         else:

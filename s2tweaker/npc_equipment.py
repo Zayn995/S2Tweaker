@@ -9,11 +9,14 @@ import math
 from .cfgparse import parse_number
 from .npc_equipment_scope import OBJECTS, SOURCES, LINKS, POOLS
 from .names import WEAPON_ALIASES, ARMOR_ALIASES
+from .detail_scope import HELMET_POOLS
 
 PREFIX = "npc_equipment:"
 RANKS = ("Newbie", "Experienced", "Veteran", "Master")
 DIFFICULTIES = ("Easy", "Medium", "Hard", "Stalker")
 CATEGORIES = {"WeaponPrimary": "Primary weapon", "WeaponPistol": "Pistol", "BodyArmor": "Body armor"}
+CONTROL_POOLS = {**POOLS, **{key: ("EItemGenerationCategory::Head", rank, diff, ((row, item),))
+                           for key, (rank, diff, row, item) in HELMET_POOLS.items()}}
 NOTE = ("Ordinary faction/role profiles, including their use as generic enemies in missions. "
         "Rank means player progression; shared rank groups stay together. Existing NPC inventories may not refresh. "
         "New generator loading and gameplay effects are not play-tested yet.")
@@ -50,7 +53,12 @@ class Control:
 
     @property
     def key(self):
-        return f"{PREFIX}{self.obj}:{self.source}:{self.slot}:{self.row}"
+        prefix = "npc_helmet:" if self.kind == "Chance" else PREFIX
+        return f"{prefix}{self.obj}:{self.source}:{self.slot}:{self.row}"
+
+    @property
+    def kind(self):
+        return "Chance" if (self.source, self.slot) in HELMET_POOLS else "Weight"
 
     @property
     def faction(self):
@@ -62,7 +70,7 @@ class Control:
 
     @property
     def pool(self):
-        category = CATEGORIES[POOLS[self.source, self.slot][0].split("::")[-1]]
+        category = "Optional helmet" if self.kind == "Chance" else CATEGORIES[POOLS[self.source, self.slot][0].split("::")[-1]]
         # Helper variants can have identical masks; keep their identity visible.
         variant = "" if self.source == OBJECTS[self.obj][2] else " / " + self.source.removeprefix("GeneralNPC_")
         return f"{category} / {self.context}{variant} / {self.slot}"
@@ -74,7 +82,7 @@ class Control:
     @property
     def title(self):
         name = ARMOR_ALIASES.get(self.item) or WEAPON_ALIASES.get(self.item) or WEAPON_ALIASES.get(self.item + "_GS") or self.item
-        return name + " relative weight (%)"
+        return name + (" generation chance (%)" if self.kind == "Chance" else " relative weight (%)")
 
     @property
     def label(self):
@@ -82,6 +90,10 @@ class Control:
 
     @property
     def help(self):
+        if self.kind == "Chance":
+            return (f"Item identifier: {self.item}. 100% inherits the globally adjusted helmet chance; "
+                    "this extra factor multiplies the resulting chance, capped at 100%. 0% disables this optional roll. "
+                    "Shared native rank groups stay together. This is generated head equipment, not armor drop chance or night vision. " + NOTE)
         return (f"Item identifier: {self.item}. "
                 "100% inherits global gear quality; 0% disables this choice if another final choice remains. "
                 "Weights are relative, not drop chances. Scaling every choice equally keeps the same ratios. "
@@ -98,7 +110,7 @@ def _controls():
     for obj, (_faction, _npc, root) in OBJECTS.items():
         contexts = {}
         for source, ranks, diffs in _routes(root):
-            for (pool_source, slot), (_cat, rank, diff, rows) in POOLS.items():
+            for (pool_source, slot), (_cat, rank, diff, rows) in CONTROL_POOLS.items():
                 if source != pool_source:
                     continue
                 rs = ranks & _mask(rank, "ERank::", RANKS)
@@ -108,7 +120,7 @@ def _controls():
                     dlabel = " + ".join(d for d in DIFFICULTIES if d in ds)
                     contexts.setdefault((source, slot), set()).add(rlabel + " / " + dlabel)
         for (source, slot), labels in contexts.items():
-            for row, item in POOLS[source, slot][3]:
+            for row, item in CONTROL_POOLS[source, slot][3]:
                 yield Control(obj, source, slot, row, item, " or ".join(sorted(labels)))
 
 
@@ -197,12 +209,34 @@ def _pool(gd, source, slot):
     return result
 
 
+def _helmet_pool(gd, source, slot):
+    from .loot_extensions import _item_ok
+    if not _source_ok(gd, source):
+        return None
+    rank, diff, row, item = HELMET_POOLS[source, slot]
+    group = gd.itemgenerators.children[source].children["ItemGenerator"].children.get(slot)
+    if (group is None or group.attrs or group.values.get("Category") != "EItemGenerationCategory::Head"
+            or group.values.get("PlayerRank", "") != rank or group.values.get("Diff", "") != diff):
+        return None
+    possible = group.children.get("PossibleItems")
+    if possible is None or possible.attrs or possible.values or set(possible.children) != {row}:
+        return None
+    node = possible.children[row]
+    chance = parse_number(node.values.get("Chance"), math.nan)
+    if (node.attrs or node.children or "Weight" in node.values or "ItemGeneratorPrototypeSID" in node.values
+            or node.values.get("ItemPrototypeSID") != item or not math.isfinite(chance) or not 0 <= chance <= 1
+            or not _item_ok(gd, item) or gd.item_category(item) != "armor"):
+        return None
+    return {row: chance}
+
+
 def catalog(gd):
     children = {}
     for sid, node in gd.obj.children.items():
         children.setdefault(node.attr_dict().get("refkey"), []).append(sid)
     objects = {obj for obj in OBJECTS if _object_ok(gd, obj, children)}
     pools = {key: _pool(gd, *key) for key in POOLS}
+    pools.update({key: _helmet_pool(gd, *key) for key in HELMET_POOLS})
     return {k: pools[c.source, c.slot][c.row] for k, c in CONTROLS.items()
             if c.obj in objects and pools[c.source, c.slot] is not None}
 
@@ -265,14 +299,17 @@ def apply(gd, settings, generators):
             touched = set()
             for c, value in edits.get(source, ()):
                 row = cfg["ItemGenerator"][c.slot]["PossibleItems"][c.row]
-                old = parse_number(row["Weight"], math.nan)
+                old = parse_number(row[c.kind], math.nan)
                 new = old * value / 100
                 if not math.isfinite(new) or new < 0:
                     raise ValueError("NPC equipment has an invalid effective weight.")
+                if c.kind == "Chance":
+                    new = min(1, new)
                 if not math.isclose(new, old, rel_tol=1e-12, abs_tol=0):
-                    row["Weight"] = _fmt(new)
+                    row[c.kind] = _fmt(new)
                     changed = True
-                touched.add(c.slot)
+                if c.kind == "Weight":
+                    touched.add(c.slot)
             for slot in touched:
                 weights = [parse_number(row.get("Weight"), math.nan)
                            for row in cfg["ItemGenerator"][slot]["PossibleItems"].values() if isinstance(row, dict)]

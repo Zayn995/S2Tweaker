@@ -766,6 +766,12 @@ class GameData:
         from .npc_equipment import catalog
         return catalog(self)
 
+    @cached_property
+    def detail_editor(self) -> dict:
+        """Available data-only detail settings for this installed snapshot."""
+        from .detail_controls import catalog
+        return catalog(self)
+
     # --- 1.26.0 ---
     @cached_property
     def posteffects(self) -> CfgStruct:
