@@ -249,7 +249,7 @@ class GameData:
         return stat.st_size, stat.st_mtime_ns
 
     def job_localization_files(self, aliases):
-        """Optional, compact cache; no localization work during normal loading."""
+        """Optional native resources; no localization work during normal loading."""
         from .job_localization import resources
         return resources(self, aliases)
 

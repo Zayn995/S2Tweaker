@@ -10,17 +10,26 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 
 ==================================================================
-DATEI — Main Files
-Name:          S2Tweaker 1.40.0
-File version:  1.40.0
-File category: Main Files
+DATEI — Optional Files (Testrelease)
+Name:          S2Tweaker 1.40.1-rc.1 - TEST RELEASE
+File version:  1.40.1-rc.1
+File category: Optional Files
 ==================================================================
 
---- File description (251 Zeichen) -------------------------------
-Unzip everything into one folder, keep the DLLs and _internal next to the exe, run S2Tweaker.exe. The exe is the signed python.org launcher (hence the Python icon). One extra file is needed to read your game - the tool shows where. No internet access.
+--- File description (228 Zeichen) ---
+TEST RELEASE, NOT PLAY-TESTED. Candidate job text/return-marker repair. Native translations for all installed languages; conflicts with Game.locres mods. Use separate saves. Extract the entire ZIP and rebuild your Pak. No UE4SS.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.40.1-rc.1 - job text and return-marker TEST RELEASE
+
+- NOT PLAY-TESTED. 1.40.0 remains the regular release.
+- Native language-resource aliases for all installed languages (18 checked).
+- Guarded reapplication of remaining active return-stage markers.
+- Full language resources enlarge multi-job Paks; Game.locres mods can conflict.
+- 56 local suites and Pak readback passed. In-game confirmation still needed.
+- Test separate hand-ins and save/reload on separate saves. No UE4SS.
+
 1.40.0 - extra artifact bonuses, job texts and NPC equipment
 
 - Nine extra artifact bonus families; 518 additional item/bonus choices.

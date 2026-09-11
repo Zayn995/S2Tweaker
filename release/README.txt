@@ -1,4 +1,4 @@
-﻿S2Tweaker - S.T.A.L.K.E.R. 2 Mod Generator
+S2Tweaker - S.T.A.L.K.E.R. 2 Mod Generator
 ==========================================
 
 Build your own personal tweak mod with sliders and checkboxes - no modding
@@ -11,7 +11,28 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.40.0
+TEST RELEASE 1.40.1-rc.1 — NOT PLAY-TESTED
+-----------------------------------------
+Candidate repair for missing multi-job text and disappearing return markers.
+All installed languages are discovered dynamically (18 checked, 208 aliases each).
+Native Game.locres resources are extended; generated multi-job Paks grow by
+about 147 MiB on the checked installation. Other Game.locres replacement mods
+can conflict; the config conflict scan cannot identify these language conflicts.
+No game translations or Oodle DLL ship inside this tool. No UE4SS is needed.
+
+After one job ends, remaining return markers are reapplied only when their
+job and return stage are active. Game-side loading and marker behavior remain
+unconfirmed. 56 local test suites passed; this does not replace a game test.
+
+Use a separate tool folder and save from before accepting jobs. Rebuild your
+personal Pak, with the game closed before replacing it. Keep original saves
+and the old Pak. Test translated job titles/objectives, two completed jobs handed
+in separately, reverse order and save/reload. Both rewards should be paid once;
+the other job's journal/marker/dialogue should remain after the first hand-in.
+Keep the same Pak until test jobs end. Reverting requires the matching original
+save and Pak together. Version 1.40.0 remains the regular release.
+
+INCLUDED FROM 1.40.0
 --------------
 Extra artifact bonuses: World -> Artifact editor & related settings.
 Add missing ordinary bonus types, including fire protection on Liquid Stone.
@@ -21,8 +42,8 @@ artifact strength also applies. Existing bonus controls retain their meanings.
 Optional Artifact bonus labels follow your changes selects the nearest native
 tier and hides zero-strength rows. Labels remain approximate. Re-equip artifacts.
 
-Multi-job exports automatically include supplemental title/objective translations
-from the installed game: 18 languages and 208 aliases each checked locally.
+Multi-job exports include title/objective translations from the installed game.
+The native-resource repair and compatibility limits are described above.
 Existing journal/stage IDs are preserved. First preparation after a game update
 may need Oodle to read compressed resources; see the tool's Oodle help.
 

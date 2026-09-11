@@ -447,7 +447,7 @@ class WorkbenchMixin:
         self.artifact_editor_note.configure(text=(
             "Rarity weights are normalized per rank. These shared profiles also affect quest placements, including E06_MQ01. Not play-tested yet."
             if group == "rarity" else
-            "Choose an item or profile, then edit its values. Add-bonus rows: 0 off, 100% of native Low strength. Existing bonuses: 100% inherits. Artifact names use game-data identifiers. Not play-tested yet."))
+            "Choose an item or profile, then edit its values. Add-bonus rows: 0 off, 100% of native Low strength. Existing bonuses: 100% inherits. Artifact names use game-data identifiers. Limited player confirmation: extra bonuses on Liquid Stone; other combinations remain experimental."))
 
     def _wb_artifact_editor(self, label, target):
         gd = getattr(self, "gd", None)

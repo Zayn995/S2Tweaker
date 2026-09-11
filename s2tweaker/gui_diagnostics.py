@@ -216,9 +216,11 @@ def measure(args):
                         paths = [path for path in pak.files() if path.endswith(".locres")]
                         assert paths
                         for path in paths:
+                            assert path.endswith("/Game.locres")
                             entries = localization.read_resource(pak.read(path))
                             assert (job_localization.NAMESPACE, "sid_journal_S2T_Job_RSQ04_C02_Name") in entries
-                            assert all("S2T_Job_" in key for _ns, key in entries)
+                            assert sum("S2T_Job_" in key for _ns, key in entries) == 208
+                            assert any("S2T_Job_" not in key for _ns, key in entries)
                     report["exported_job_languages"] = len(paths)
                     app._reset_all()
                     assert build_patches(app.gd, app._collect()) == {}

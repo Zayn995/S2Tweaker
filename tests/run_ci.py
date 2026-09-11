@@ -20,6 +20,7 @@ HERE = Path(__file__).resolve().parent
 ORDER = [
     "test_artifact_additions.py",
     "test_job_localization.py",
+    "test_job_return_markers.py",
     "test_npc_equipment.py",
     "test_artifact_extensions.py",
     "test_dialog_range.py",

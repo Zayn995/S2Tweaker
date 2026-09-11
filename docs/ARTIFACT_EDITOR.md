@@ -9,8 +9,18 @@ manifests, undo/redo and reset.
 
 Version 1.40.0 extends the 353 controls introduced in 1.39.0 with 518
 extra-bonus choices (871 controls in the current 2.0.5 snapshot) and an optional
-display checkbox. The new additions are experimental and not play-tested. No UE4SS, injector, Blueprint package
+display checkbox. The additions remain experimental, with limited player feedback below. No UE4SS, injector, Blueprint package
 or new extraction input is required; cache schema remains unchanged.
+
+## Player feedback, 11 September 2026
+
+[Molkerr reports extra bonuses working in 1.40.0](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5639882302).
+His screenshot was inspected: Liquid Stone displays nine rows, including added
+durability, carry weight, bleeding resistance, stamina, fire, electric and
+physical protection. This confirms that a long list can appear on that item;
+his report also supports effects working in his test. It does not measure each
+magnitude, verify every artifact/combination, or test inherited fake/quest
+protection. Those checks remain open.
 
 | Family | Controls and scope |
 | --- | --- |

@@ -326,11 +326,13 @@ FAQ_ENTRIES = [
              "open. The original design could lose a sibling on hand-in. "
              "The experimental repair gives each job an independent journal "
              "and delays round cleanup until none is active. Molkerr reports "
-             "separate hand-ins and save/load working in 1.39, but titles and "
-             "objectives show internal keys; marker behavior still needs checks "
-             "(GitHub #9). The development version now adds translations from "
-             "the installed languages when building this option; game-side "
-             "loading is still unverified. Start from a save before accepting jobs: "
+             "separate hand-ins and save/load working in 1.39. His 1.40 test still "
+             "shows internal text keys and a completed sibling's marker disappearing "
+             "after hand-in (GitHub #9). This experimental revision reapplies "
+             "remaining ready-to-return markers and extends the original Game.locres "
+             "for every installed language. Both repairs still need a game test. "
+             "This produces a larger pak and conflicts with other mods replacing "
+             "the same translation files. Start from a save before accepting jobs: "
              "old active jobs cannot be migrated. Keep the pak until all "
              "jobs are finished or cancelled. The giver's shared cancel "
              "line cancels all his current jobs; journal state is saved.",
@@ -348,9 +350,10 @@ FAQ_ENTRIES = [
              "stamina, bleeding reduction, carry capacity and experimental maximum "
              "durability. Carry capacity also adds a hidden penalty-free weight "
              "bonus. Enable the bonus-label checkbox to update the displayed tier. "
-             "Re-equip after changing the mod. Extra bonuses, long lists and "
-             "protection of inherited fake/quest variants still need game tests. "
-             "This development feature needs no UE4SS.",
+             "Re-equip after changing the mod. Molkerr reports extra bonuses "
+             "working in 1.40 and shows Liquid Stone with nine bonus rows. "
+             "Exact magnitudes, every combination and inherited fake/quest "
+             "protection still need game tests. No UE4SS is required.",
         "k": "artifact add extra new bonus bonuses fire burn protection liquid "
              "stone additional effects strength carry stamina radiation",
     },

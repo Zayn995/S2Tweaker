@@ -87,6 +87,76 @@ def _external_cancellations(gd, journal_jobs, job_quests, reserved):
     return nodes
 
 
+def _return_marker_reapplication(gd, parent, job, job_nodes, original,
+                                journal, stages, parent_guard, reserved):
+    """Experimental post-hand-in recovery for an already active return stage.
+
+    Native quests reapply Start/Markers to active stages. Use separate nodes
+    so none of the original return-start node's dialog/reward consumers run.
+    See docs/JOB_COMPLETED_MARKER_FOLLOWUP.md for the native evidence and
+    remaining in-game checks; this does not force journal tracking.
+    """
+    from .tweaks import _struct_dict
+
+    returns = [node for _, node in job_nodes
+               if node.values.get("NodeType", "").strip() == "EQuestNodeType::SetJournal"
+               and node.values.get("JournalEntity", "").strip() == "EJournalEntity::QuestStage"
+               and node.values.get("JournalAction", "").strip() == "EJournalAction::Start"
+               and node.values.get("JournalQuestSID", "").strip() == original
+               and node.values.get("JournalQuestStageSID", "").strip().endswith("_Finish")]
+    if len(returns) != 1:
+        raise ValueError(f"Unsupported job return-stage layout: {job}")
+    source = returns[0]
+    old_stage = source.values["JournalQuestStageSID"].strip()
+    markers = source.children.get("Markers")
+    marker = markers.children.get("[0]") if markers else None
+    allowed = {"SID", "NodePrototypeVersion", "Repeatable", "QuestSID", "NodeType",
+               "JournalEntity", "JournalAction", "JournalQuestSID", "JournalQuestStageSID"}
+    if (old_stage not in stages or source.attrs or set(source.values) - allowed
+            or set(source.children) != {"Launchers", "Markers"}
+            or not markers or markers.attrs or markers.values or set(markers.children) != {"[0]"}
+            or not marker or marker.attrs or marker.children
+            or set(marker.values) != {"MarkerTargetQuestGuid", "AddOnCondition", "RemoveOnCondition"}
+            or marker.values["AddOnCondition"].strip() != "false"
+            or marker.values["RemoveOnCondition"].strip() != "false"
+            or not marker.values["MarkerTargetQuestGuid"].strip()):
+        raise ValueError(f"Unsupported job return-marker layout: {job}")
+    # Reapplication can emit a stage event. Do not silently activate newly
+    # introduced native listeners when a future game version changes a job.
+    if any(node.values.get("NodeType", "").strip() == "EQuestNodeType::OnJournalQuestEvent"
+           and node.values.get("JournalQuestSID", "").strip() == original
+           and node.values.get("JournalQuestStageSID", "").strip() == old_stage
+           for _, node in job_nodes):
+        raise ValueError(f"Unsupported job return-stage listener: {job}")
+
+    ready_sid = f"S2T_ReturnMarker_{job}_Ready"
+    reapply_sid = f"S2T_ReturnMarker_{job}_Reapply"
+    for sid in (ready_sid, reapply_sid):
+        if sid in gd.questnodes.children or sid in reserved:
+            raise ValueError(f"Quest node namespace collision: {sid}")
+
+    def launcher(sid, pin):
+        return {"[0]": {"Excluding": "false", "Connections": {
+            "[0]": {"SID": sid, "Name": pin}}}}
+
+    active = {"ConditionType": "EQuestConditionType::JournalState",
+              "ConditionComparance": "EConditionComparance::Equal",
+              "JournalEntity": "EJournalEntity::Quest",
+              "JournalState": "EJournalState::Active", "JournalQuestSID": journal}
+    ready = {"__new__": True, "SID": ready_sid, "NodePrototypeVersion": "1",
+             "Repeatable": "true", "QuestSID": parent, "NodeType": "EQuestNodeType::If",
+             "Launchers": launcher(parent_guard, "False"), "Conditions": {
+                 "ConditionCheckType": "EConditionCheckType::And",
+                 "[0]": {"[0]": active}, "[1]": {"[0]": {
+                     **active, "JournalEntity": "EJournalEntity::QuestStage",
+                     "JournalQuestStageSID": stages[old_stage]}}}}
+    reapply = _struct_dict(source)
+    reapply.update(__new__=True, SID=reapply_sid, Repeatable="true", QuestSID=parent,
+                   JournalQuestSID=journal, JournalQuestStageSID=stages[old_stage],
+                   Launchers=launcher(ready_sid, "True"))
+    return {ready_sid: ready, reapply_sid: reapply}
+
+
 def build_job_isolation(gd, *, localization_aliases=None):
     """Return (existing-node patches, new nodes, new journals).
 
@@ -193,6 +263,9 @@ def build_job_isolation(gd, *, localization_aliases=None):
                 patch = _remap(node, original, journal_sid, stages)
                 if patch:
                     existing[key] = patch
+            new_nodes.update(_return_marker_reapplication(
+                gd, quest, subquest, job_nodes, original, journal_sid, stages,
+                guard_sid, new_nodes))
             conditions[f"[{index}]"] = {"[0]": {
                 "ConditionType": "EQuestConditionType::JournalState",
                 "ConditionComparance": "EConditionComparance::NotEqual",
