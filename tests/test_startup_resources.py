@@ -84,7 +84,8 @@ class StartupResources(unittest.TestCase):
         app = Registry()  # no _slider method: eager creation fails this test
         specs = list(ext.control_specs())
         self.assertEqual(len(specs), len(ext.SLIDERS) + len(ext.SURFACES) + len(ext.WEATHERS)
-                         + 2 * len(ext.SPECIES) + len(list(ext.regional_weather.control_specs())))
+                         + 2 * len(ext.SPECIES) + len(list(ext.regional_weather.control_specs()))
+                         + len(ext.artifact_extensions.CONTROLS))
         self.assertEqual(len(app.sliders), len(specs))
         self.assertEqual(len(app._extension_paths), len(specs) + len(ext.CHECKS))
         self.assertFalse(app._wb_bindings)

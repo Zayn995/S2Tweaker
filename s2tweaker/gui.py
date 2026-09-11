@@ -21,7 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
-from . import extension_controls, regional_weather
+from . import extension_controls, regional_weather, artifact_extensions
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions
 from .tweaks import (
@@ -863,6 +863,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "magazine": "magazine_factor",
     "melee": "melee_damage_factor", "melee_range": "melee_range_factor",
     "interact": "interaction_range_factor", "dialog_range": "dialog_range_factor",
+    "dialog_max_range": "dialog_max_range_factor",
     "climb": "climb_speed_factor", "start_money": "starting_money",
     "art_slots": "artifact_slots_bonus", "shoot_shake": "shooting_shake_factor",
     "ads_zoom": "ads_zoom_factor",
@@ -1086,6 +1087,7 @@ CHECK_FIELDS.update({key: key for key in extension_controls.CHECKS})
 
 # Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
 FOOTPRINT_PROBES: dict[str, float] = {
+    "dialog_max_range_factor": 2.0,  # Extension-only control: factors below 1 are invalid.
     "fall_damage_pct": 50.0,
     "fast_travel_lock": 0.0,
     "slow_run_threshold_pct": 25.0,
@@ -4676,7 +4678,7 @@ class App(WorkbenchMixin, ctk.CTk):
                      "0.65 m, scaled the same way) - since 1.28.0 plus the "
                      "wide-trace, auto-interaction, mutant-harvest and "
                      "body-drag ranges. Not play-tested yet.")
-        self._slider(f, "dialog_range", "Talk distance (NPC dialog)", 50, 300, 10, 100, fmt_pct,
+        self._slider(f, "dialog_range", "Talk distance (minimum & maximum)", 50, 300, 10, 100, fmt_pct,
                      "How close you have to be to start a conversation "
                      "(vanilla 1.3 m). The 'Social Distancing' idea from "
                      "Nexus. Up to 1.35.0 only Skif carried the new distance "
@@ -4685,7 +4687,18 @@ class App(WorkbenchMixin, ctk.CTk):
                      "the game evidently reads theirs. Since 1.36.0 they all "
                      "get it too. Confirmed by craigduk76 on 1.37.1 at "
                      "200 % (GitHub #10). Both minimum and maximum distance "
-                     "scale: standing too close can prevent interaction.")
+                     "scale: standing too close can prevent interaction. "
+                     "Leave this at 100 % and use Maximum talk distance only "
+                     "to extend reach while keeping the minimum unchanged.")
+        self._slider(f, "dialog_max_range", "Maximum talk distance only", 100, 300, 10, 100, fmt_pct,
+                     "Extends only the maximum conversation distance on the "
+                     "player and human NPCs, using each one's installed value. "
+                     "100 % = unchanged. Leave Talk distance (minimum & maximum) "
+                     "at 100 % to keep the vanilla minimum; if both controls "
+                     "are changed, their maximum-distance factors multiply. "
+                     "Existing profiles retain their previous behavior. "
+                     "Requested in GitHub #10; this separate maximum-only "
+                     "setting has not been play-tested.")
         self._slider(f, "climb", "Ladder climb speed", 50, 300, 10, 100, fmt_pct,
                      "How fast Skif climbs ladders (vanilla coefficient "
                      "0.6) - since 1.28.0 including the five ladder "
@@ -6405,6 +6418,7 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         extension_controls.build_controls(self, body, fmt_pct)
+        self._wb_build_artifact_editor(body)
 
         f = self._section(body, "Loot in stashes & on bodies")
         ctk.CTkLabel(
@@ -6809,6 +6823,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     self._ir_populate()
                     self._if_populate()
                     self._im_populate()
+                    self._wb_artifact_targets(self.artifact_editor_group.get())
                     self._set_busy(False)
                     self._set_body_state(True)
                     # Laufende Suche auf den frisch gebauten Baum anwenden
@@ -6973,6 +6988,7 @@ class App(WorkbenchMixin, ctk.CTk):
             surface_noise_overrides=extension_controls.collect_factors(s, "surface_noise:"),
             weather_luminance_overrides=extension_controls.collect_factors(s, "weather_luminance:"),
             regional_weather_overrides=regional_weather.collect(s),
+            artifact_overrides=artifact_extensions.collect(s),
             mutant_loot_overrides=extension_controls.collect_mutant_loot(s),
             max_hp=s["hp"].get(),
             hp_regen=s["hp_regen"].get(),
@@ -7091,6 +7107,7 @@ class App(WorkbenchMixin, ctk.CTk):
             melee_range_factor=s["melee_range"].get() / 100.0,
             interaction_range_factor=s["interact"].get() / 100.0,
             dialog_range_factor=s["dialog_range"].get() / 100.0,
+            dialog_max_range_factor=s["dialog_max_range"].get() / 100.0,
             manual_save_slots=int(s["save_manual"].get()),
             quick_save_slots=int(s["save_quick"].get()),
             auto_save_slots=int(s["save_auto"].get()),
@@ -7866,6 +7883,9 @@ class App(WorkbenchMixin, ctk.CTk):
         (Top-Level-Struct, Blattname)-Paare patcht er? Vereinigung der
         Sonden aus footprint_settings (x2 UND x0.5)."""
         if key not in self._footprints:
+            if key in artifact_extensions.CONTROLS:
+                self._footprints[key] = artifact_extensions.footprint(gd, key)
+                return self._footprints[key]
             probes = footprint_settings(key)
             if probes is None:
                 self._footprints[key] = None

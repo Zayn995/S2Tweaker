@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather
+from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions
 
 OVERVIEW_PAGE_SIZE = 20
 
@@ -277,6 +277,22 @@ class WorkbenchMixin:
                     label += " (inactive)"
                     description = ("Inactive: this weather is unavailable in the loaded game data. "
                                    "Reset to 100% to remove the saved change. " + description)
+            if path[0] == "sliders" and path[1] in artifact_extensions.CONTROLS:
+                gd = getattr(self, "gd", None)
+                data = artifact_extensions.available(gd)
+                spec = artifact_extensions.CONTROLS[path[1]]
+                if path[1] not in data:
+                    label += " (inactive)"
+                    description = f"Inactive in this game data. Reset to {spec.default:g} to remove the saved change. " + description
+                elif gd is not None:
+                    source, paths = data[path[1]]
+                    if spec.group == "item" and artifact_extensions.effect_family(spec.param):
+                        baseline = gd.resolve(gd.effects, spec.param, "ValueMin")
+                    else:
+                        root = {"ItemPrototypes": gd.items, "AnomalyPrototypes": gd.anomalies,
+                                "ArtifactSpawnerPrototypes": gd.artifactspawners}[source]
+                        baseline = gd.resolve(root, spec.target, paths[0])
+                    description = f"Loaded baseline: {baseline}. " + description
             return label, tab, description
         group, key, *param = path
         if group == "checks" and key in self.checks:
@@ -314,6 +330,7 @@ class WorkbenchMixin:
         paths = current.keys() | self._wb_favorites
         gd = getattr(self, "gd", None)
         weather_keys = regional_weather.available_keys(gd.regional_weather) if gd else set()
+        artifact_keys = artifact_extensions.available(gd)
         result = []
         for path in paths:
             default = self._wb_neutral(path)
@@ -323,6 +340,9 @@ class WorkbenchMixin:
                 if path[1] not in weather_keys:
                     if state.equal(default, value) and path not in self._wb_favorites:
                         continue
+            if path[0] == "sliders" and path[1] in artifact_extensions.CONTROLS and path[1] not in artifact_keys:
+                if state.equal(default, value) and path not in self._wb_favorites:
+                    continue
             result.append((path, label, tab, default, value, description))
         return sorted(result, key=lambda row: (row[2], row[1].casefold(), row[0]))
 
@@ -385,6 +405,48 @@ class WorkbenchMixin:
         self.wb_search.insert(0, f"Regional weather: {label} /")
         self._wb_choose_view("Loot & world")
 
+    def _wb_build_artifact_editor(self, body):
+        frame = self._section(body, "Artifact editor & related settings (experimental)")
+        self.artifact_editor_note = ctk.CTkLabel(frame, text="", justify="left", anchor="w", wraplength=660)
+        self.artifact_editor_note.pack(fill="x", padx=12, pady=6)
+        self.artifact_editor_group = ctk.CTkOptionMenu(frame, values=list(artifact_extensions.GROUPS.values()),
+                                                      width=260, command=self._wb_artifact_targets)
+        self.artifact_editor_group.pack(anchor="w", padx=12, pady=4)
+        self.artifact_editor_target = ctk.CTkOptionMenu(frame, values=["Load game data first"], width=360)
+        self.artifact_editor_target.pack(anchor="w", padx=12, pady=4)
+        self.artifact_editor_edit = ctk.CTkButton(frame, text="Edit selected settings",
+                                                command=lambda: self._wb_artifact_editor(self.artifact_editor_group.get(), self.artifact_editor_target.get()))
+        self.artifact_editor_edit.pack(anchor="w", padx=12, pady=6)
+        self._wb_artifact_targets(self.artifact_editor_group.get())
+
+    def _wb_artifact_targets(self, label):
+        group = next((key for key, name in artifact_extensions.GROUPS.items() if name == label), None)
+        gd = getattr(self, "gd", None)
+        data = artifact_extensions.available(gd)
+        targets = sorted({c.target for k, c in artifact_extensions.CONTROLS.items()
+                          if c.group == group and (gd is None or k in data)})
+        self.artifact_editor_target.configure(values=targets or ["Unavailable in this game data"])
+        if self.artifact_editor_target.get() not in targets:
+            self.artifact_editor_target.set(targets[0] if targets else "Unavailable in this game data")
+        self.artifact_editor_note.configure(text=(
+            "Rarity weights are normalized per rank. These shared profiles also affect quest placements, including E06_MQ01. Not play-tested yet."
+            if group == "rarity" else
+            "Choose an item or profile, then edit its available values. Inherit restores global behavior. Artifact names use their game-data identifiers. Not play-tested yet."))
+
+    def _wb_artifact_editor(self, label, target):
+        gd = getattr(self, "gd", None)
+        if gd is None:
+            messagebox.showinfo("Artifact editor", "Load the game data first.", parent=self)
+            return
+        group = next((key for key, name in artifact_extensions.GROUPS.items() if name == label), None)
+        if not any(c.group == group and c.target == target and k in artifact_extensions.available(gd)
+                   for k, c in artifact_extensions.CONTROLS.items()):
+            self._wb_artifact_targets(label)
+            return
+        self.wb_search.delete(0, "end")
+        self.wb_search.insert(0, f"{label} / {target} /")
+        self._wb_choose_view("Loot & world")
+
     def _wb_sync_search(self, query):
         if not hasattr(self, "wb_search") or not (query or self._wb_global_query):
             return
@@ -438,7 +500,8 @@ class WorkbenchMixin:
             ctk.CTkLabel(card, text=tab + " · " + self._wb_status(path), text_color=theme.get(self.theme_name)["secondary"],
                          anchor="w", font=ctk.CTkFont(size=11)).grid(row=1, column=1, sticky="w", pady=(0, 5))
             entry = ctk.CTkEntry(card, width=86)
-            entry.insert(0, armor_extensions.format_value(path[2], value) if path[0] == "armor_custom" else value_text(value))
+            entry.insert(0, armor_extensions.format_value(path[2], value) if path[0] == "armor_custom" else
+                         "Inherit" if path[0] == "sliders" and path[1] in artifact_extensions.CONTROLS and value == -1 else value_text(value))
             entry.grid(row=0, column=2, padx=5)
             entry.bind("<Return>", lambda e, p=path, w=entry: self._wb_edit(p, w.get()))
             ctk.CTkButton(card, text="Apply", width=52, command=lambda p=path, w=entry: self._wb_edit(p, w.get()),
@@ -505,6 +568,14 @@ class WorkbenchMixin:
                     if value is None:
                         value = float(raw)
                     armor_extensions.clean({param[0]: value})
+                elif group == "sliders" and key in artifact_extensions.CONTROLS:
+                    spec = artifact_extensions.CONTROLS[key]
+                    value = {"inherit": spec.default, "default": spec.default, "off": 0}.get(raw.lower())
+                    if value is None:
+                        value = float(raw)
+                    value = spec.validate(value)
+                    if value != spec.default and key not in artifact_extensions.available(getattr(self, "gd", None)):
+                        raise ValueError(f"This control is unavailable in the loaded game data. Reset to {spec.default:g}.")
                 else:
                     value = float(raw)
                 if not math.isfinite(value):
@@ -576,7 +647,11 @@ class WorkbenchMixin:
                    ("Toggle favorite", lambda: self._wb_toggle_favorite(path))]
         if path in self._extension_paths and path[0] == "sliders":
             row = self.sliders[path[1]]
-            text += f"\nAllowed range: {row.lo:g}–{row.hi:g}. Whole percentage values."
+            if path[1] in artifact_extensions.CONTROLS:
+                spec = artifact_extensions.CONTROLS[path[1]]
+                text += f"\nAllowed range: {spec.minimum:g}–{spec.maximum:g}; reset: {spec.default:g}. Up to {spec.decimals} decimal places."
+            else:
+                text += f"\nAllowed range: {row.lo:g}–{row.hi:g}. Whole percentage values."
             if row.conflict_mods:
                 text += "\nConflicting mods: " + ", ".join(row.conflict_mods)
             if row.locked:

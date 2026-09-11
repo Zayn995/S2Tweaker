@@ -39,6 +39,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_artifact_extensions.py",
+    "test_dialog_range.py",
     "test_regional_weather.py",
     "test_binary_cfg.py",
     "test_theme_palette.py",

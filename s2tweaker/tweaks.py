@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import math
 import re
 
-from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions
+from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import CATEGORY_TEMPLATES, GameData
@@ -561,7 +562,8 @@ class Settings:
     melee_range_factor: float = 1.0          # deren Reichweite (HitDetectionDistance)
     # --- Reichweiten (Nexus-Recherche 05.09.2026) ---
     interaction_range_factor: float = 1.0    # Aufheben/Behaelter (CoreVariables) + Leichen (Player)
-    dialog_range_factor: float = 1.0         # Gespraechsabstand zu NPCs (Player)
+    dialog_range_factor: float = 1.0         # Min/Max-Gespraechsabstand (Player + Menschen)
+    dialog_max_range_factor: float = 1.0     # Nur Maximum zusaetzlich erweitern, Minimum bleibt
     # --- NPC-Taschenlampen (FlashlightPrototypes/CoreVariables/AIGlobals) ---
     npc_flashlight_factor: float = 1.0       # Intencity + AttenuationRadius der NPC-Lampe
     npc_flashlight_cone_factor: float = 1.0  # OuterConeAngle (Deckel 170 Grad)
@@ -598,6 +600,7 @@ class Settings:
     corpse_max_count: int = 10               # CoreVariables CorpseConditionOnlineCount
     weather_duration_factor: float = 1.0     # WeatherSelection WeatherDurationMin/Max
     regional_weather_overrides: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict)
+    artifact_overrides: dict[str, float] = field(default_factory=dict)  # deferred individual artifact/world controls
     bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
     bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
     pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 alle
@@ -1324,18 +1327,9 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if stealth:
         player["StealthParams"] = stealth
 
-    # Reichweiten (Nexus "Exi's Social Distancing", Recherche 05.09.2026):
-    # Gespraechsabstand (Player.Min/MaxDialogInteractDistance, Vanilla
-    # 75/130, beide gemeinsam skaliert, damit ihr Verhaeltnis bleibt) und
-    # Leichen pluendern (ProcessCorpseObjectFeatureData.
-    # CorpseInteractionDistance, Vanilla 65). Werte in cm.
-    if _neq(s.dialog_range_factor, 1.0) and s.dialog_range_factor > 0:
-        for key in ("MinDialogInteractDistance", "MaxDialogInteractDistance"):
-            raw = gd.resolve(gd.obj, "Player", key)
-            if raw is not None and parse_number(raw) > 0:
-                scaled = _scale_literal(raw, s.dialog_range_factor)
-                if scaled is not None:
-                    player[key] = scaled
+    # Reichweiten: alter Faktor skaliert beide Dialoggrenzen; der neue
+    # Max-only-Faktor erweitert zusaetzlich nur die Obergrenze (GitHub #10).
+    player.update(_dialog_distance_values(gd, s, "Player"))
     if _neq(s.interaction_range_factor, 1.0) and s.interaction_range_factor > 0:
         raw = gd.resolve(gd.obj, "Player",
                          "ProcessCorpseObjectFeatureData.CorpseInteractionDistance")
@@ -2118,33 +2112,38 @@ def _npc_stagger_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 
-def _npc_dialog_patch(gd: GameData, s: Settings) -> dict:
-    """Gespraechsabstand auch an den NPCs (1.36.0, GitHub #10).
+def _dialog_distance_values(gd: GameData, s: Settings, sid: str) -> dict:
+    """Resolve each participant's own baseline; old presets still scale both."""
+    maximum = s.dialog_max_range_factor
+    if not math.isfinite(maximum) or maximum < 1.0:
+        raise ValueError("Maximum talk distance only must be at least 100% and finite.")
+    shared = s.dialog_range_factor if s.dialog_range_factor > 0 else 1.0
+    factors = {"MinDialogInteractDistance": shared,
+               "MaxDialogInteractDistance": shared * maximum}
+    cfg: dict = {}
+    for key, factor in factors.items():
+        if not _neq(factor, 1.0):
+            continue
+        raw = gd.resolve(gd.obj, sid, key)
+        if raw is not None and parse_number(raw) > 0:
+            scaled = _scale_literal(raw, factor)
+            if scaled is not None:
+                cfg[key] = scaled
+    return cfg
 
-    craigduk76 hat auf 1.35.0 gemessen: Min/MaxDialogInteractDistance am
-    SPIELER (75/130 -> 112.5/195) aendert nichts, er musste genauso nah an
-    die NPCs heran. Nachgezaehlt: die zwei Schluessel stehen an **1659**
-    Prototypen - jeder der 1608 menschlichen NPCs deklariert sie selbst
-    (1530x 75/130, 62x 85.f/250.f bei Haendlern und Wichtigen, ein paar
-    Sonderwerte). Das Spiel liest den Abstand also offenbar am
-    Gespraechspartner, nicht am Spieler. Darum jetzt beide Seiten: der
-    Spieler-Teil bleibt in `_player_patch`, hier kommen die Menschen dazu;
-    Mutanten reden nicht und bleiben draussen. Literalform bleibt
-    (`85.f` -> `127.5f`). Nicht im Spiel getestet."""
-    f = s.dialog_range_factor
-    if not _neq(f, 1.0) or f <= 0:
+
+def _npc_dialog_patch(gd: GameData, s: Settings) -> dict:
+    """Talk distance on human NPCs as well as the player (GitHub #10).
+
+    The shared factor was confirmed by craigduk76 on 1.37.1. The additional
+    maximum-only factor preserves the minimum and still needs a game test.
+    Mutants are excluded; installed values and their literal form are retained.
+    """
+    if not _neq(s.dialog_range_factor, 1.0) and not _neq(s.dialog_max_range_factor, 1.0):
         return {}
     patches: dict = {}
     for sid in gd.human_npc_sids():
-        values = gd.obj.children[sid].values
-        cfg: dict = {}
-        for key in ("MinDialogInteractDistance", "MaxDialogInteractDistance"):
-            raw = values.get(key)
-            if raw is None or parse_number(raw) <= 0:
-                continue
-            scaled = _scale_literal(raw, f)
-            if scaled is not None:
-                cfg[key] = scaled
+        cfg = _dialog_distance_values(gd, s, sid)
         if cfg:
             patches[sid] = cfg
     return patches
@@ -6803,6 +6802,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
     out: dict[str, str] = {}
+    list(artifact_extensions.changes(s.artifact_overrides))  # validate before emitting any file
 
     extensions: dict[str, dict] = {}
     for module in (world_extensions, loot_extensions, repair_extensions):
@@ -6816,6 +6816,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 
     def add(path: str, patches: dict):
         _merge_nested(patches, extensions.pop(path, {}))
+        artifact_extensions.apply(gd, s, path.split("/", 1)[0], patches)
         # A combined factor of one must leave other mods' values alone.
         # Remove the earlier global patch instead of writing vanilla back.
         def drop(parts):
@@ -7066,6 +7067,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 def summarize(s: Settings) -> list[str]:
     """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
     lines = extension_controls.regional_weather.summarize(s.regional_weather_overrides)
+    lines.extend(artifact_extensions.summarize(s.artifact_overrides))
     defaults = Settings()
     for field_name, (_, title, _lo, _hi, _step, _default, divisor, _tip) in extension_controls.SLIDERS.items():
         value = getattr(s, field_name)
@@ -7213,6 +7215,7 @@ def summarize(s: Settings) -> list[str]:
     f("Melee range (knife & butt strike)", s.melee_range_factor)
     f("Interaction reach (pick up, loot, containers)", s.interaction_range_factor)
     f("Talk distance (NPC dialog)", s.dialog_range_factor)
+    f("Maximum talk distance only", s.dialog_max_range_factor)
     f("NPC flashlight brightness & reach", s.npc_flashlight_factor)
     f("NPC flashlight beam width", s.npc_flashlight_cone_factor)
     f("NPC flashlight use in combat", s.npc_flashlight_combat_factor)

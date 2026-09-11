@@ -66,6 +66,115 @@ def measure(args):
             app = gui.App()
             app.geometry("1280x850")
             sample("startup")
+            if getattr(args, "artifact_editor", False):
+                from s2tweaker import artifact_extensions as artifacts, editor_state
+                from s2tweaker.tweaks import build_patches
+                if not args.vanilla:
+                    raise ValueError("Artifact editor diagnostics require --vanilla.")
+                app.gd = GameData(args.vanilla)
+                app._set_body_state(True)
+                assert build_patches(app.gd, app._collect()) == {}
+                selections = (("item", "EArtifactFlash"), ("detector", "Echo"),
+                              ("ball", "AArtifactWeirdBall"), ("anomaly", "FireBallAnomaly"),
+                              ("rarity", "UniversalArtifactSpawner"))
+                def show(group, target):
+                    label = artifacts.GROUPS[group]
+                    app.tabs.set("World")
+                    app.artifact_editor_group.set(label)
+                    app._wb_artifact_targets(label)
+                    app.artifact_editor_target.set(target)
+                    app.artifact_editor_edit.invoke()
+                    assert app.tabs.get() == "Overview"
+                    assert app.wb_search.get() == f"{label} / {target} /"
+                    assert 0 < len(app.wb_rows.winfo_children()) <= OVERVIEW_PAGE_SIZE
+                for group, target in selections:
+                    show(group, target)
+                expected = {artifacts.PREFIX + k: v for k, v in {
+                    "item:EArtifactFlash:weight": .125,
+                    "item:EArtifactFlash:ArtifactProtectionShock1": 150,
+                    "item:EArtifactFlash:radiation": 2,
+                    "detector:Echo:reveal": 500,
+                    "ball:AArtifactWeirdBall:MaxWeight": 3.75,
+                    "anomaly:FireBallAnomaly:speed": 50,
+                    "rarity:UniversalArtifactSpawner:Experienced.Rare": 200}.items()}
+                for key, value in expected.items():
+                    app._wb_edit(("sliders", key), str(value))
+                assert app._collect().artifact_overrides == expected
+                app._wb_undo()
+                assert len(app._collect().artifact_overrides) == len(expected) - 1
+                app._wb_redo()
+                assert app._collect().artifact_overrides == expected
+                profile = temp / "artifact-profile.json"
+                editor_state.save_profile(profile, app._ui_state(), "Artifact editor")
+                app._reset_all()
+                assert not app._collect().artifact_overrides
+                app._apply_ui_state(editor_state.read_profile(profile).state)
+                assert app._collect().artifact_overrides == expected
+                patches = build_patches(app.gd, app._collect())
+                assert len(patches) == 4
+                sample("five artifact families edited, restored and exported")
+                report["screenshots"] = []
+                for group, target in (selections[0], selections[1], selections[4]):
+                    show(group, target)
+                    app.update()
+                    shot = args.report.with_name("artifact_editor_" + group + ".png")
+                    report["screenshots"].append(str(shot))
+                    # An external diagnostic host can capture this exact window.
+                    # The portable player package intentionally has no Pillow.
+                    sample("artifact screenshot " + group)
+                    time.sleep(.7)
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                sample("artifact editor reset")
+                report["families_checked"] = len(selections)
+                report["available_controls"] = len(app.gd.artifact_editor)
+                report["passed"] = True
+                app.destroy()
+                app = None
+                return 0
+            if getattr(args, "dialog_range", False):
+                from s2tweaker import editor_state, cfgparse
+                from s2tweaker.tweaks import build_patches
+                if not args.vanilla:
+                    raise ValueError("Talk-distance diagnostics require --vanilla.")
+                app.gd = GameData(args.vanilla)
+                app._set_body_state(True)
+                app.tabs.set(app.slider_tabs["dialog_max_range"])
+                control = app.sliders["dialog_max_range"]
+                assert control.get() == 100
+                app._wb_edit(("sliders", "dialog_max_range"), "180")
+                settings = app._collect()
+                assert settings.dialog_range_factor == 1
+                assert settings.dialog_max_range_factor == 1.8
+                app._wb_undo()
+                assert control.get() == 100
+                app._wb_redo()
+                assert control.get() == 180
+                profile = temp / "talk-distance.json"
+                editor_state.save_profile(profile, app._ui_state(), "Maximum talk distance")
+                app._reset_all()
+                app._apply_ui_state(editor_state.read_profile(profile).state)
+                assert app._collect().dialog_max_range_factor == 1.8
+                patches = build_patches(app.gd, app._collect())
+                assert len(patches) == 1
+                tree = cfgparse.parse(next(iter(patches.values())))
+                assert all(set(n.values) == {"MaxDialogInteractDistance"}
+                           for n in tree.children.values())
+                app.update_idletasks()
+                frame = control._scroll_frame()
+                canvas = frame._parent_canvas
+                bounds = canvas.bbox("all")
+                top = canvas.canvasy(0) + control.row.winfo_rooty() - canvas.winfo_rooty()
+                canvas.yview_moveto(max(0, top - 110) / max(1, bounds[3]))
+                sample("maximum talk distance edited, restored and exported")
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                sample("maximum talk distance reset")
+                report["participants_checked"] = len(tree.children)
+                report["passed"] = True
+                app.destroy()
+                app = None
+                return 0
             if getattr(args, "regional_weather", False):
                 from s2tweaker import regional_weather as weather, editor_state
                 from s2tweaker.tweaks import build_patches

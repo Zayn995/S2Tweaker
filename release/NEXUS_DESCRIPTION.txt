@@ -8,7 +8,11 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.38.0: regional weather.[/b] Open World -> Regional weather to adjust ordinary weather selection weights and duration across 18 regions. Uses your installed game values; supports profiles, undo/redo and reset. Experimental and NOT play-tested. No UE4SS.
+[b]New in 1.39.0: artifact editor and related settings.[/b] World -> Artifact editor & related settings: individual artifact values and bonuses, native radiation tiers, separate detector radii, Weird Ball, moving lightning/fire-ball speed and pursuit, and rank-based rarity weights. 353 supported settings on game 2.0.5. Profiles, undo/redo and reset supported. Experimental and NOT play-tested. Universal rarity also affects a quest placement. No UE4SS.
+
+[b]Also new: maximum talk distance only.[/b] Vaulting -> Interaction reach: leave the existing minimum/maximum control at 100% and raise the new maximum-only control. Old profiles retain their behavior. This new setting is NOT play-tested.
+
+[b]Included from 1.38.0: regional weather.[/b] Open World -> Regional weather to adjust ordinary weather selection weights and duration across 18 regions. Uses your installed game values; supports profiles, undo/redo and reset. Experimental and NOT play-tested. No UE4SS.
 
 [b]Game patch 2.0.5 support (included since 1.37.4).[/b] Fixes game-data conversion for the new binary format. The cache rebuilds once; load the data again after updating. No UE4SS is needed.
 
@@ -21,7 +25,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.38.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.39.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
@@ -152,6 +156,7 @@ A small Windows tool with sliders and checkboxes. You pick your values, it build
 
 [b]Artifacts & detectors[/b]
 [list]
+[*]Individual artifact weight, base price, bonuses and native radiation tiers; separate detector radii; Weird Ball, moving anomalies and rank-based rarity profiles (experimental, not play-tested)
 [*]Artifact effect strength, radiation side-effect (0% = clean artifacts), spawn chance
 [*]Rare artifact bias: shift rarity rolls toward Uncommon/Rare/Epic at Common's expense
 [*][b]Artifacts per anomaly field[/b] (vanilla 1, up to 5 per spawn) and [b]artifact respawn speed[/b]
@@ -249,6 +254,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.39.0 - artifact editor, detectors and related world settings[/b]
+[list]
+[*]World editor: individual weight/base price for 69 ordinary artifact candidates, isolated existing bonuses and native radiation tiers. Availability of every candidate in ordinary gameplay is not confirmed
+[*]Separate Echo/Bear/Gilka/Veles radii; seven Weird Ball parameters; speed and pursuit for four ordinary lightning/fire-ball variants
+[*]Two rank-based rarity profiles with normalized weights. Universal also affects E06_MQ01 quest placements; disabled tiers and explicit-list spawners are excluded
+[*]353 supported settings on game 2.0.5. Profiles, favorites, undo/redo, reset and conflict scans. Neutral settings emit no patch
+[*]Maximum talk distance only (100-300%) in Vaulting -> Interaction reach; keep the existing minimum/maximum control at 100% to preserve its minimum
+[*]52 local headless suites, 13 CI suites, Windows interface checks and generated-Pak readback. New gameplay behavior NOT play-tested; multiple-job and individual A-Life game checks remain open
+[*]No UE4SS. Existing signed runtime binaries unchanged; no new VirusTotal result claimed for this ZIP
+[/list]
+
 [b]v1.38.0 - regional weather controls[/b]
 [list]
 [*]World -> Regional weather: choose from 18 regions and edit ordinary weather selection weights (0-400%) and duration (25-400%) using your installed game's values
@@ -258,6 +274,7 @@ If the ~mods folder doesn't exist, create it.
 [*]No UE4SS. Includes the 1.37.4 game-data fix. Existing runtime binaries unchanged; no new VirusTotal result claimed
 [/list]
 
+[spoiler]
 [b]v1.37.4 - game patch 2.0.5 data-loading fix[/b]
 [list]
 [*]Reads the new binary cfg format 2 alongside format 1. Fixes conversion failures and incorrect structures after game patch 2.0.5
@@ -266,7 +283,6 @@ If the ~mods folder doesn't exist, create it.
 [*]No new controls or UE4SS. Existing signed runtime binaries are unchanged. No VirusTotal result is claimed for this ZIP
 [/list]
 
-[spoiler]
 [b]v1.37.3 - story cancellation for isolated job journals[/b]
 [list]
 [*]Corrects a missed story cleanup: Zalissya's existing story event now also cancels active Warlock job journals. Completed and never-accepted jobs are left untouched

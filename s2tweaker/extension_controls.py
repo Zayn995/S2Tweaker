@@ -7,7 +7,7 @@ No Tk import: collection and footprint probes can be checked without a window.
 import math
 import re
 from .world_extensions import SURFACES, WEATHERS
-from . import regional_weather
+from . import regional_weather, artifact_extensions
 
 SPECIES = ("Tushkan", "Flesh", "Boar", "Blinddog", "Snork", "Cat", "Bloodsucker",
            "Pseudodog", "Poltergeist", "Burer", "Controller", "Chimera", "Deer", "Pseudogiant")
@@ -135,9 +135,20 @@ class StoredControl:
         pass
 
 
+class ArtifactControl(StoredControl):
+    """Deferred control with validated decimals or explicit native tiers."""
+    def __init__(self, spec):
+        self.spec = spec
+        super().__init__(spec.label, spec.lo, spec.maximum, spec.default)
+
+    def set(self, value):
+        self._value = self.spec.validate(value)
+
+
 def control_specs():
     """UI key, label, limits, default, help; all values are whole percentages."""
     yield from regional_weather.control_specs()
+    yield from artifact_extensions.control_specs()
     for field, (section, title, lo, hi, step, default, divisor, tip) in SLIDERS.items():
         yield field, title, lo, hi, default, tip
     for material in SURFACES:
@@ -155,7 +166,8 @@ def control_specs():
 def build_controls(app, body, fmt_pct):
     app._extension_paths = set()
     for key, title, lo, hi, default, tip in control_specs():
-        app.sliders[key] = StoredControl(title, lo, hi, default)
+        spec = artifact_extensions.CONTROLS.get(key)
+        app.sliders[key] = ArtifactControl(spec) if spec else StoredControl(title, lo, hi, default)
         app.slider_tabs[key] = app._current_tab
         path = ("sliders", key)
         app._extension_paths.add(path)
@@ -183,6 +195,9 @@ def collect_mutant_loot(sliders):
 
 
 def dict_probe(key):
+    artifact = artifact_extensions.probe(key)
+    if artifact is not None:
+        return artifact
     regional = regional_weather.probe(key)
     if regional is not None:
         return regional

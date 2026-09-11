@@ -40,6 +40,14 @@ from collections import Counter as _C
 print("Spieler-Waffen:", len(weapons), dict(_C(c for c, _ in weapons.values())))
 
 s = Settings(
+    artifact_overrides={
+        "artifact_edit:item:EArtifactFlash:weight": .15,
+        "artifact_edit:item:EArtifactFlash:ArtifactProtectionShock1": 150,
+        "artifact_edit:item:EArtifactFlash:radiation": 2,
+        "artifact_edit:detector:Echo:reveal": 500,
+        "artifact_edit:ball:AArtifactWeirdBall:MaxWeight": 3.75,
+        "artifact_edit:anomaly:FireBallAnomaly:speed": 50,
+        "artifact_edit:rarity:UniversalArtifactSpawner:Experienced.Rare": 200},
     armor_free_sprint=True, armor_limp_protection=True,
     armor_custom={"Exoskeleton_Neutral_Armor": {
         "weight": 6, "durability": 1800, "artifact_slots": 5,
@@ -112,6 +120,7 @@ s = Settings(
     bloodsucker_cloak_factor=2.0, bloodsucker_uncloak_factor=10.0,
     ads_speed_factor=1.2, magazine_factor=2.0, melee_damage_factor=2.0,
     melee_range_factor=1.5, interaction_range_factor=2.0, dialog_range_factor=2.0,
+    dialog_max_range_factor=1.5,
     npc_flashlight_factor=2.0, npc_flashlight_cone_factor=1.5,
     npc_flashlight_combat_factor=0.5, npc_flashlight_on_hour=20,
     npc_flashlight_off_hour=6,

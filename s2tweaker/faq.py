@@ -15,6 +15,43 @@ Regeln fuer neue Eintraege:
 """
 
 FAQ_ENTRIES = [
+    {
+        "q": "Can I edit one artifact or detector without changing all the others?",
+        "a": "Open World > Artifact editor & related settings, select a family and "
+             "item, then Edit selected settings. Details shows the loaded baseline. "
+             "Absolute values use -1 or Inherit to restore global behavior; bonus "
+             "percentages use 100%. Artifact bonuses multiply global artifact strength. "
+             "Radiation uses native tiers: -1 inherit, 0 off, 1-4 tier. Stronger "
+             "radiation tiers need stronger lead containers. Detector reveal and "
+             "near radii must fit within its work radius. This development addition "
+             "has not been play-tested; re-equip artifacts after updating a mod.",
+        "k": "artifact individual editor detector echo bear gilka veles radiation "
+             "lead shield weight price strength bonus range reveal inherit",
+    },
+    {
+        "q": "Do the new artifact rarity profiles affect quests?",
+        "a": "They can. UniversalArtifactSpawner is also used in E06_MQ01 quest "
+             "logic. The editor's rarity profiles are shared prototype settings, "
+             "not isolated ordinary-world placements. Weights combine with the "
+             "global rare bias and are normalized per rank; disabled tiers stay "
+             "unavailable. Existing artifacts may not refresh immediately. "
+             "This feature is experimental and has not been play-tested.",
+        "k": "artifact rarity spawn probability percentage rank quest E06_MQ01 "
+             "universal shared distribution",
+    },
+    {
+        "q": "Can I talk from farther away without increasing the minimum distance?",
+        "a": "Yes. In Vaulting > Interaction reach, leave Talk distance "
+             "(minimum & maximum) at 100% and raise Maximum talk distance "
+             "only (100-300%). The new control extends each human NPC's and "
+             "the player's installed maximum without changing the minimum. "
+             "If you change both controls, their maximum-distance factors "
+             "multiply. Old profiles keep their previous behavior. The "
+             "maximum-only setting has not been play-tested; the earlier "
+             "shared-distance control has a player confirmation in GitHub #10.",
+        "k": "talk dialog conversation distance reach minimum maximum close "
+             "NPC interact social distancing range issue 10",
+    },
     # ------------------------------------------------------------ finding things
     {
         "q": "Can I type an exact value instead of dragging the slider?",

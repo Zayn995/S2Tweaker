@@ -185,6 +185,8 @@ def main() -> None:
             args.visual_review = bool(options.get("visual_review", False))
             args.design_review = bool(options.get("design_review", False))
             args.regional_weather = bool(options.get("regional_weather", False))
+            args.dialog_range = bool(options.get("dialog_range", False))
+            args.artifact_editor = bool(options.get("artifact_editor", False))
             os._exit(measure(args))
         else:
             from s2tweaker.gui import run

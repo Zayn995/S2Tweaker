@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.38.0
-File version:  1.38.0
+Name:          S2Tweaker 1.39.0
+File version:  1.39.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,19 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.39.0 - artifact editor and related settings
+
+- Individual artifact weight, base price, isolated bonuses and native radiation
+  tiers. Separate detector radii, Weird Ball, moving anomalies and rarity profiles.
+- 353 supported settings on game 2.0.5. World -> Artifact editor & related settings.
+- Profiles, favorites, undo/redo, reset and conflict scans. Neutral emits no patch.
+- Universal rarity also affects a quest placement. New behavior NOT play-tested.
+- Maximum talk distance only (100-300%) preserves the minimum when the existing
+  minimum/maximum control stays at 100%. Old profiles keep their behavior.
+- 52 headless suites, 13 CI suites, Windows interface checks and Pak readback.
+- Multiple-job and individual A-Life game tests remain open. No UE4SS.
+- Existing runtime binaries unchanged; no new VirusTotal result claimed.
+
 1.38.0 - regional weather controls
 
 - World -> Regional weather: 18 regions; ordinary weather selection weights

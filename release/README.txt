@@ -11,8 +11,27 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.38.0
+NEW IN 1.39.0
 --------------
+Artifact editor: World -> Artifact editor & related settings (experimental).
+353 supported settings on game 2.0.5: individual artifact weight, base price,
+bonuses and native radiation tiers; individual detectors; Weird Ball parameters;
+moving lightning/fire-ball speed and pursuit distance; rank-based rarity weights.
+Choose a family and target, then Edit selected settings. Supports profiles,
+favorites, undo/redo, reset and conflict scans. Inherit/-1 restores global
+behavior for absolute values; 100% restores individual multipliers.
+Rarity weights are normalized and Universal also affects an E06_MQ01 quest
+placement. Re-equip edited artifacts. Effects, stacking, save/load, ball behavior
+and spawn distributions are NOT PLAY-TESTED. No UE4SS is needed.
+
+Maximum talk distance only (100-300%), in Vaulting -> Interaction reach.
+Leave Talk distance (minimum & maximum) at 100% to keep the vanilla minimum.
+Existing profiles retain their behavior. Changed maximum factors multiply.
+Profiles, undo/redo, reset and conflict scans supported. NOT PLAY-TESTED.
+Multiple-job and individual A-Life game checks remain open. No UE4SS.
+
+INCLUDED FROM 1.38.0
+-------------------
 Regional weather: World -> Regional weather (experimental), choose a region,
 then Edit this region's weather. Selection weights 0-400%, duration 25-400%.
 100% keeps the regional baseline. Supports 18 regions; only enabled ordinary

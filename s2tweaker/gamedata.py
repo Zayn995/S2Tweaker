@@ -749,6 +749,12 @@ class GameData:
         from .regional_weather import catalog
         return catalog(self)
 
+    @cached_property
+    def artifact_editor(self) -> dict:
+        """Audited ordinary artifacts and related controls in the loaded data."""
+        from .artifact_extensions import catalog
+        return catalog(self)
+
     # --- 1.26.0 ---
     @cached_property
     def posteffects(self) -> CfgStruct:

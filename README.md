@@ -11,6 +11,18 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+Version 1.39.0 adds an [artifact editor and related settings](docs/ARTIFACT_EDITOR.md):
+individual artifact values and bonuses, separate detector radii, Weird Ball
+parameters, moving-anomaly speed/pursuit, and rank-based rarity weights.
+Open World → Artifact editor & related settings. These additions are experimental,
+have not been play-tested and require no UE4SS. See the guide for native radiation tiers and shared quest placements.
+
+Version 1.39.0 also adds **Maximum talk distance only** for [issue #10](https://github.com/Zayn995/S2Tweaker/issues/10).
+In Vaulting → Interaction reach, leave the existing minimum/maximum control at
+100% and raise the new maximum-only control to extend reach without increasing
+the minimum. Old profiles keep their behavior. The new setting is not play-tested.
+[Usage and remaining game checks](docs/REMAINING_ISSUE_CHECKS.md).
+
 Version 1.38.0 adds [regional weather controls](docs/REGIONAL_WEATHER.md):
 selection weights and duration for 18 regions, using the installed game's values.
 Open World → Regional weather to choose a region. These experimental controls
