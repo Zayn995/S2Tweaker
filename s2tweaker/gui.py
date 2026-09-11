@@ -21,7 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
-from . import extension_controls
+from . import extension_controls, regional_weather
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions
 from .tweaks import (
@@ -6357,7 +6357,8 @@ class App(WorkbenchMixin, ctk.CTk):
                      "(vanilla 1500). Not play-tested yet.")
         self._slider(f, "weather_dur", "Weather duration", 25, 400, 5, 100, fmt_pct,
                      "How long each weather lasts before the next roll "
-                     "(vanilla mostly 8 to 20 minutes). Not play-tested yet.")
+                     "using the installed game's durations. Multiplies any "
+                     "regional duration settings. Not play-tested yet.")
         self._slider(f, "weather_transition", "Weather transition speed (experimental)", 25, 400, 5, 100, fmt_pct,
                      "How fast one weather morphs into the next (vanilla "
                      "multiplier 1 on all 22 transition steps). 200 % = twice "
@@ -6374,6 +6375,20 @@ class App(WorkbenchMixin, ctk.CTk):
                      "The hour the game counts as evening (vanilla 20). "
                      "Experimental.")
         ctk.CTkLabel(f, text="", height=2).pack()
+
+        f = self._section(body, "Regional weather (experimental)")
+        ctk.CTkLabel(f, text="Choose a region, then edit each weather's selection weight and duration.\n"
+                            "100% keeps the regional default; global weather settings still apply.\n"
+                            "Only locally enabled weather is shown after loading game data.\n"
+                            "Quest weather can take priority. Not play-tested yet.",
+                     anchor="w", justify="left", wraplength=680).pack(fill="x", **PAD)
+        self.regional_weather_choice = ctk.CTkOptionMenu(
+            f, values=[entry[0] for entry in regional_weather.REGIONS.values()], width=240)
+        self.regional_weather_choice.pack(anchor="w", **PAD)
+        self.regional_weather_edit = ctk.CTkButton(
+            f, text="Edit this region's weather", width=240,
+            command=lambda: self._wb_regional_weather(self.regional_weather_choice.get()))
+        self.regional_weather_edit.pack(anchor="w", **PAD)
 
         f = self._section(body, "Travel & teleports")
         self._slider(f, "ft_lock", "Fast travel when overweight", 0, 2, 1, 2, fmt_lock,
@@ -6957,6 +6972,7 @@ class App(WorkbenchMixin, ctk.CTk):
             weird_flower_permanent=bool(self.checks["weird_flower_permanent"].get()),
             surface_noise_overrides=extension_controls.collect_factors(s, "surface_noise:"),
             weather_luminance_overrides=extension_controls.collect_factors(s, "weather_luminance:"),
+            regional_weather_overrides=regional_weather.collect(s),
             mutant_loot_overrides=extension_controls.collect_mutant_loot(s),
             max_hp=s["hp"].get(),
             hp_regen=s["hp_regen"].get(),

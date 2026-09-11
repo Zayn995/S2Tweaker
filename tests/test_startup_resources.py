@@ -49,10 +49,42 @@ class Registry(WorkbenchMixin):
 
 
 class StartupResources(unittest.TestCase):
+    def test_unavailable_regional_weather_stays_visible_only_for_reset(self):
+        app = Registry()
+        app._wb_defaults = {"sliders": {k: r.default for k, r in app.sliders.items()}}
+        region = "LesserZoneWeather"
+        app.gd = SimpleNamespace(regional_weather={region: {"Fogy": {region: {}}}})
+        active = ("sliders", ext.regional_weather.control_key(region, "Fogy", "weight"))
+        inactive = ("sliders", ext.regional_weather.control_key(region, "Thundery", "weight"))
+        rows = {r[0]: r for r in app._wb_catalog()}
+        self.assertIn(active, rows)
+        self.assertNotIn(inactive, rows)
+        app.sliders[inactive[1]].set(200)  # a preset from a different game snapshot
+        rows = {r[0]: r for r in app._wb_catalog()}
+        self.assertIn("inactive", rows[inactive][1])
+        self.assertIn("Reset to 100%", app._wb_info(inactive)[2])
+        with patch("s2tweaker.workbench_ui.messagebox.showinfo") as error:
+            app._wb_edit(inactive, "250")
+            error.assert_called_once()
+        self.assertEqual(app.sliders[inactive[1]].get(), 200)
+        app._wb_edit(inactive, "100")
+        self.assertNotIn(inactive, {r[0] for r in app._wb_catalog()})
+        self.assertEqual(ext.regional_weather.collect(app.sliders), {})
+
+    def test_region_shortcut_filters_the_existing_overview(self):
+        app = Registry()
+        app.gd = SimpleNamespace(regional_weather={})
+        app.wb_search = Mock()
+        app._wb_choose_view = Mock()
+        app._wb_regional_weather("Red Forest")
+        app.wb_search.insert.assert_called_once_with(0, "Regional weather: Red Forest /")
+        app._wb_choose_view.assert_called_once_with("Loot & world")
+
     def test_optional_registry_is_complete_without_any_slider_widgets(self):
         app = Registry()  # no _slider method: eager creation fails this test
         specs = list(ext.control_specs())
-        self.assertEqual(len(specs), len(ext.SLIDERS) + len(ext.SURFACES) + len(ext.WEATHERS) + 2 * len(ext.SPECIES))
+        self.assertEqual(len(specs), len(ext.SLIDERS) + len(ext.SURFACES) + len(ext.WEATHERS)
+                         + 2 * len(ext.SPECIES) + len(list(ext.regional_weather.control_specs())))
         self.assertEqual(len(app.sliders), len(specs))
         self.assertEqual(len(app._extension_paths), len(specs) + len(ext.CHECKS))
         self.assertFalse(app._wb_bindings)

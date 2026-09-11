@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.37.4
-File version:  1.37.4
+Name:          S2Tweaker 1.38.0
+File version:  1.38.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,17 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.38.0 - regional weather controls
+
+- World -> Regional weather: 18 regions; ordinary weather selection weights
+  0-400% and duration 25-400%, calculated from your installed game data.
+- Combines with global weather controls; supports profiles, favorites,
+  undo/redo and reset. Only enabled, verified ordinary weather is offered.
+- 50 headless suites, 11 CI suites, pak readback and a targeted Windows
+  interface check. NOT play-tested; quests can override ordinary weather.
+- Includes the 1.37.4 data-loading fix. No UE4SS or slow-motion add-on.
+- Runtime binaries unchanged. No new VirusTotal result claimed for this ZIP.
+
 1.37.4 - game patch 2.0.5 data-loading fix
 
 - Reads binary cfg formats 1 and 2. Fixes conversion failures and incorrect

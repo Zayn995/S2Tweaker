@@ -354,6 +354,19 @@ FAQ_ENTRIES = [
              "condition degrade",
     },
     {
+        "q": "Can I change weather for just one region?",
+        "a": "Yes: load game data, then open World > Regional weather, choose a "
+             "region and click Edit this region's weather. Each available weather "
+             "has a selection weight and a duration factor. 100% removes the "
+             "regional change. Weight is relative, not an occurrence probability; "
+             "0% removes both its starting weight and history increase. Keep at "
+             "least one weather type above zero. Regional factors multiply global "
+             "weather settings. Quest and forced weather can still override normal "
+             "weather; this feature has not been play-tested. Disabled vanilla "
+             "weather is not enabled by these factors. No UE4SS is required.",
+        "k": "regional weather rain fog cloudy storm duration selection weight",
+    },
+    {
         "q": "Can I tone down anomalies or emissions?",
         "a": "World tab: 'Anomaly damage' has one global slider plus one "
              "per element (electro, chemical, fire, gravity - they "

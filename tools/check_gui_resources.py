@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--open-window", action="store_true", help="explicit permission to open one test window")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--vanilla", type=Path)
+    parser.add_argument("--regional-weather", action="store_true", help="check region selection, editing and profiles using --vanilla")
     parser.add_argument("--portable", type=Path, help="check this existing portable S2Tweaker.exe with its own runtime")
     parser.add_argument("--visual-review", action="store_true", help="hold the Player page for 60 seconds for visual inspection instead of the resource sweep")
     parser.add_argument("--design-review", action="store_true", help="check palettes and toolbar, then hold the design chooser within the time budget")
@@ -43,6 +44,7 @@ def main():
                 "report": str(args.report),
                 "visual_review": args.visual_review,
                 "design_review": args.design_review,
+                "regional_weather": args.regional_weather,
                 "vanilla": str(args.vanilla.resolve()) if args.vanilla else None})
         else:
             command = [sys.executable, __file__, *sys.argv[1:], "--child"]

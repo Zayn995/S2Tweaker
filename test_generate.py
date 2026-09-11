@@ -50,6 +50,7 @@ s = Settings(
     npc_loaded_ammo_factor=2, npc_equipment_variety=True, npc_helmet_chance_factor=.5,
     vegetation_translucency_factor=.5, surface_noise_overrides={"Grass": .5},
     weather_luminance_overrides={"Fogy": .5}, npc_dispersion_distance_factor=.5,
+    regional_weather_overrides={"LesserZoneWeather": {"Fogy": {"weight": 2, "duration": 1.5}}},
     mutant_loot_range_factor=1.5, mutant_loot_height_factor=1.5,
     mutant_loot_ground_access=True, mutant_cut_radius_factor=1.5,
     mutant_trophy_weight_factor=.5, mutant_trophy_value_factor=2,

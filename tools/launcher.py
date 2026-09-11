@@ -184,6 +184,7 @@ def main() -> None:
                                       for key in ("report", "vanilla")})
             args.visual_review = bool(options.get("visual_review", False))
             args.design_review = bool(options.get("design_review", False))
+            args.regional_weather = bool(options.get("regional_weather", False))
             os._exit(measure(args))
         else:
             from s2tweaker.gui import run

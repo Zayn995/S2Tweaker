@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+Version 1.38.0 adds [regional weather controls](docs/REGIONAL_WEATHER.md):
+selection weights and duration for 18 regions, using the installed game's values.
+Open World → Regional weather to choose a region. These experimental controls
+have not been play-tested; they require no UE4SS.
+
 Version 1.37.4 repairs game-data loading after game patch **2.0.5**. It reads
 binary cfg formats 1 and 2, rebuilds the cache once, and names the affected
 file if conversion fails. No UE4SS or slow-motion add-on is included.

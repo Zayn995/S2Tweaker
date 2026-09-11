@@ -7,6 +7,7 @@ No Tk import: collection and footprint probes can be checked without a window.
 import math
 import re
 from .world_extensions import SURFACES, WEATHERS
+from . import regional_weather
 
 SPECIES = ("Tushkan", "Flesh", "Boar", "Blinddog", "Snork", "Cat", "Bloodsucker",
            "Pseudodog", "Poltergeist", "Burer", "Controller", "Chimera", "Deer", "Pseudogiant")
@@ -136,6 +137,7 @@ class StoredControl:
 
 def control_specs():
     """UI key, label, limits, default, help; all values are whole percentages."""
+    yield from regional_weather.control_specs()
     for field, (section, title, lo, hi, step, default, divisor, tip) in SLIDERS.items():
         yield field, title, lo, hi, default, tip
     for material in SURFACES:
@@ -181,6 +183,9 @@ def collect_mutant_loot(sliders):
 
 
 def dict_probe(key):
+    regional = regional_weather.probe(key)
+    if regional is not None:
+        return regional
     for prefix, field in (("surface_noise:", "surface_noise_overrides"),
                           ("weather_luminance:", "weather_luminance_overrides")):
         if key.startswith(prefix):

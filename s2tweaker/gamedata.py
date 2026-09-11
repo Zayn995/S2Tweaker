@@ -743,6 +743,12 @@ class GameData:
     def weatherselection(self) -> CfgStruct:
         return self._parse("WeatherSelectionPrototypes.cfg")
 
+    @cached_property
+    def regional_weather(self) -> dict:
+        """Audited region/weather choices available in this installed snapshot."""
+        from .regional_weather import catalog
+        return catalog(self)
+
     # --- 1.26.0 ---
     @cached_property
     def posteffects(self) -> CfgStruct:

@@ -597,6 +597,7 @@ class Settings:
     corpse_time_factor: float = 1.0          # CoreVariables Corpse*Time (1800/900/300/1800/6000)
     corpse_max_count: int = 10               # CoreVariables CorpseConditionOnlineCount
     weather_duration_factor: float = 1.0     # WeatherSelection WeatherDurationMin/Max
+    regional_weather_overrides: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict)
     bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
     bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
     pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 alle
@@ -2509,7 +2510,7 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
     rain_on = _neq(s.rain_factor, 1.0)
     emission_on = _neq(s.emission_factor, 1.0)
     duration_on = _neq(s.weather_duration_factor, 1.0) and s.weather_duration_factor > 0
-    if not (rain_on or emission_on or duration_on):
+    if not (rain_on or emission_on or duration_on or s.regional_weather_overrides):
         return {}
     patches: dict = {}
     root = gd.weatherselection
@@ -2547,7 +2548,7 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                 # refkey=[1]): komplett ausgeben, siehe _resolved_struct.
                 cfg = _merge_nested(_resolved_struct(root, node), cfg)
             patches[sid] = cfg
-    return patches
+    return extension_controls.regional_weather.apply(gd, s, patches)
 
 
 def _bullet_drop_patch(gd: GameData, s: Settings) -> dict:
@@ -7064,7 +7065,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 
 def summarize(s: Settings) -> list[str]:
     """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
-    lines = []
+    lines = extension_controls.regional_weather.summarize(s.regional_weather_overrides)
     defaults = Settings()
     for field_name, (_, title, _lo, _hi, _step, _default, divisor, _tip) in extension_controls.SLIDERS.items():
         value = getattr(s, field_name)

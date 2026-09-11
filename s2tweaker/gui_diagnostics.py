@@ -66,6 +66,51 @@ def measure(args):
             app = gui.App()
             app.geometry("1280x850")
             sample("startup")
+            if getattr(args, "regional_weather", False):
+                from s2tweaker import regional_weather as weather, editor_state
+                from s2tweaker.tweaks import build_patches
+                if not args.vanilla:
+                    raise ValueError("Regional weather diagnostics require --vanilla.")
+                app.gd = GameData(args.vanilla)
+                app._set_body_state(True)
+                for region in app.gd.regional_weather:
+                    app.tabs.set("World")
+                    label = weather.REGIONS[region][0]
+                    app.regional_weather_choice.set(label)
+                    app.regional_weather_edit.invoke()
+                    assert app.tabs.get() == "Overview"
+                    assert app.wb_search.get() == f"Regional weather: {label} /"
+                    assert 0 < len(app.wb_rows.winfo_children()) <= OVERVIEW_PAGE_SIZE
+                region = "LesserZoneWeather"
+                app.regional_weather_choice.set(weather.REGIONS[region][0])
+                app.regional_weather_edit.invoke()
+                key = weather.control_key(region, "Fogy", "weight")
+                duration = weather.control_key(region, "Fogy", "duration")
+                app._wb_edit(("sliders", key), "250")
+                app._wb_edit(("sliders", duration), "150")
+                expected = {region: {"Fogy": {"weight": 2.5, "duration": 1.5}}}
+                assert app._collect().regional_weather_overrides == expected
+                app._wb_undo()
+                assert app.sliders[duration].get() == 100
+                app._wb_redo()
+                assert app._collect().regional_weather_overrides == expected
+                profile = temp / "weather-profile.json"
+                editor_state.save_profile(profile, app._ui_state(), "Regional weather")
+                app._reset_all()
+                assert not app._collect().regional_weather_overrides
+                app._apply_ui_state(editor_state.read_profile(profile).state)
+                assert app._collect().regional_weather_overrides == expected
+                patches = build_patches(app.gd, app._collect())
+                assert len(patches) == 1 and "WeatherSelectionPrototypes/" in next(iter(patches))
+                sample("regional weather edited, restored and exported")
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                sample("regional weather reset")
+                report["regions_checked"] = len(app.gd.regional_weather)
+                report["passed"] = True
+                app.destroy()
+                app = None
+                return 0
             if getattr(args, "design_review", False):
                 from s2tweaker import theme
                 report["mode"] = "all palettes, visible toolbar and manual design review"

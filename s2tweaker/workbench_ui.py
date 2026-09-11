@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-from . import editor_state as state, mod_library, theme, armor_extensions
+from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather
 
 OVERVIEW_PAGE_SIZE = 20
 
@@ -268,7 +268,16 @@ class WorkbenchMixin:
 
     def _wb_info(self, path):
         if path in self._wb_meta:
-            return self._wb_meta[path]
+            label, tab, description = self._wb_meta[path]
+            parts = regional_weather.split_key(path[1]) if path[0] == "sliders" else None
+            if parts:
+                region, weather, _param = parts
+                gd = getattr(self, "gd", None)
+                if gd is None or weather not in gd.regional_weather.get(region, {}):
+                    label += " (inactive)"
+                    description = ("Inactive: this weather is unavailable in the loaded game data. "
+                                   "Reset to 100% to remove the saved change. " + description)
+            return label, tab, description
         group, key, *param = path
         if group == "checks" and key in self.checks:
             return self.checks[key].cget("text"), self._wb_check_tabs.get(key, "Player"), ""
@@ -303,11 +312,17 @@ class WorkbenchMixin:
     def _wb_catalog(self):
         current = state.flatten(self._ui_state())
         paths = current.keys() | self._wb_favorites
+        gd = getattr(self, "gd", None)
+        weather_keys = regional_weather.available_keys(gd.regional_weather) if gd else set()
         result = []
         for path in paths:
             default = self._wb_neutral(path)
             value = current.get(path, default)
             label, tab, description = self._wb_info(path)
+            if path[0] == "sliders" and path[1].startswith(regional_weather.PREFIX):
+                if path[1] not in weather_keys:
+                    if state.equal(default, value) and path not in self._wb_favorites:
+                        continue
             result.append((path, label, tab, default, value, description))
         return sorted(result, key=lambda row: (row[2], row[1].casefold(), row[0]))
 
@@ -358,6 +373,16 @@ class WorkbenchMixin:
 
     def _wb_extra_controls(self):
         self.wb_search.delete(0, "end")
+        self._wb_choose_view("Loot & world")
+
+    def _wb_regional_weather(self, label):
+        if label not in {entry[0] for entry in regional_weather.REGIONS.values()}:
+            return
+        if getattr(self, "gd", None) is None:
+            messagebox.showinfo("Regional weather", "Load the game data first to see available weather.", parent=self)
+            return
+        self.wb_search.delete(0, "end")
+        self.wb_search.insert(0, f"Regional weather: {label} /")
         self._wb_choose_view("Loot & world")
 
     def _wb_sync_search(self, query):
@@ -484,6 +509,12 @@ class WorkbenchMixin:
                     value = float(raw)
                 if not math.isfinite(value):
                     raise ValueError("Enter a finite number.")
+                weather_parts = regional_weather.split_key(key) if group == "sliders" else None
+                if weather_parts and value != 100:
+                    region, weather, _param = weather_parts
+                    gd = getattr(self, "gd", None)
+                    if gd is None or weather not in gd.regional_weather.get(region, {}):
+                        raise ValueError("This weather is unavailable in the loaded game data. Reset to 100%.")
                 row = self._wb_find_row(path)
                 if row is None:
                     raise ValueError("Open this setting in its category to edit it.")

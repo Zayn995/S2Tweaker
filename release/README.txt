@@ -11,8 +11,18 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.37.4
+NEW IN 1.38.0
 --------------
+Regional weather: World -> Regional weather (experimental), choose a region,
+then Edit this region's weather. Selection weights 0-400%, duration 25-400%.
+100% keeps the regional baseline. Supports 18 regions; only enabled ordinary
+weather is offered. Global rain/duration factors combine with regional values.
+Profiles, favorites, undo/redo and reset supported. No UE4SS needed.
+NOT PLAY-TESTED: quests can override weather; transitions may take time.
+All fixes from 1.37.4 are included. Runtime binaries remain unchanged.
+
+INCLUDED FROM 1.37.4
+-------------------
 Fixes loading game data after game patch 2.0.5 (binary cfg format 2).
 The cache rebuilds once. If conversion fails, the error names the file.
 Load game data again after updating; rebuild your personal pak when needed.
