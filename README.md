@@ -11,9 +11,9 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
-**1.40.1-rc.1 is a pre-release for testing job texts and return markers.**
-The game-side repair is unconfirmed; 1.40.0 remains the latest regular release.
-See [test instructions and limitations](release/NOTES_v1.40.1-rc.1.md).
+**1.40.1 adds repairs for job texts and return markers.**
+These experimental job changes still need confirmation in the game.
+See [test instructions and limitations](release/NOTES_v1.40.1.md).
 
 Version 1.40.0 includes an experimental
 [NPC equipment editor by faction and player progression](docs/NPC_EQUIPMENT.md).
@@ -24,7 +24,7 @@ This addition has not been play-tested; it needs no UE4SS.
 Version 1.40.0 also adds [extra artifact bonuses](docs/ARTIFACT_EDITOR.md)
 (for example fire protection on Liquid Stone) and optional strength labels.
 Molkerr reports the extra bonuses working. His 1.40 test still shows missing job
-texts and a lost completed-job marker. The **1.40.1-rc.1 test release** extends
+texts and a lost completed-job marker. The **1.40.1 release** extends
 native [journal translations](docs/REPEATABLE_JOBS_REPAIR.md) for every installed
 language and reapplies remaining ready-to-return markers. Both repairs need game
 tests. Translation files enlarge the generated pak and conflict with other mods

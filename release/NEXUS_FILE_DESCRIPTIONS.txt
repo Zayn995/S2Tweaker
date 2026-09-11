@@ -10,20 +10,20 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 
 ==================================================================
-DATEI — Optional Files (Testrelease)
-Name:          S2Tweaker 1.40.1-rc.1 - TEST RELEASE
-File version:  1.40.1-rc.1
-File category: Optional Files
+DATEI — Main Files
+Name:          S2Tweaker 1.40.1
+File version:  1.40.1
+File category: Main Files
 ==================================================================
 
---- File description (228 Zeichen) ---
-TEST RELEASE, NOT PLAY-TESTED. Candidate job text/return-marker repair. Native translations for all installed languages; conflicts with Game.locres mods. Use separate saves. Extract the entire ZIP and rebuild your Pak. No UE4SS.
+--- File description (214 Zeichen) ---
+Extract the entire ZIP, run S2Tweaker.exe and rebuild your Pak. Includes experimental job text and return-marker repairs, NOT play-tested. All installed languages supported; Game.locres mods can conflict. No UE4SS.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
-1.40.1-rc.1 - job text and return-marker TEST RELEASE
+1.40.1 - job text and return-marker repairs
 
-- NOT PLAY-TESTED. 1.40.0 remains the regular release.
+- Experimental job repairs NOT PLAY-TESTED; game confirmation remains open.
 - Native language-resource aliases for all installed languages (18 checked).
 - Guarded reapplication of remaining active return-stage markers.
 - Full language resources enlarge multi-job Paks; Game.locres mods can conflict.

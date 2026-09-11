@@ -11,7 +11,7 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-TEST RELEASE 1.40.1-rc.1 — NOT PLAY-TESTED
+NEW IN 1.40.1 — JOB REPAIRS NOT PLAY-TESTED
 -----------------------------------------
 Candidate repair for missing multi-job text and disappearing return markers.
 All installed languages are discovered dynamically (18 checked, 208 aliases each).
@@ -30,7 +30,7 @@ and the old Pak. Test translated job titles/objectives, two completed jobs hande
 in separately, reverse order and save/reload. Both rewards should be paid once;
 the other job's journal/marker/dialogue should remain after the first hand-in.
 Keep the same Pak until test jobs end. Reverting requires the matching original
-save and Pak together. Version 1.40.0 remains the regular release.
+save and Pak together. Rebuild your personal Pak to apply these changes.
 
 INCLUDED FROM 1.40.0
 --------------

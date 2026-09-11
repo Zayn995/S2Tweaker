@@ -8,9 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]Test release 1.40.1-rc.1: job texts and return markers — NOT PLAY-TESTED.[/b] Extends native translations for every installed language and attempts to restore remaining ready-job markers after a hand-in. 18 languages checked. Multi-job Paks now include full language resources (about 147 MiB here); other Game.locres mods can conflict. Use separate saves and report game results. 1.40.0 remains the regular release. No UE4SS.
+[b]New in 1.40.1: job texts and return markers — NOT PLAY-TESTED.[/b] Extends native translations for every installed language and attempts to restore remaining ready-job markers after a hand-in. 18 languages checked. Multi-job Paks now include full language resources (about 147 MiB here); other Game.locres mods can conflict. Use separate saves and report game results. No UE4SS.
 
-[b]Included from 1.40.0: extra artifact bonuses, job texts and NPC equipment.[/b] Add missing bonuses such as fire protection on Liquid Stone, optionally adapt displayed strength tiers, and edit NPC equipment choices by faction and player progression. The test release changes job localization loading as described above. New effects and game-side loading are experimental and NOT play-tested. Marker checks remain open. No UE4SS.
+[b]Included from 1.40.0: extra artifact bonuses, job texts and NPC equipment.[/b] Add missing bonuses such as fire protection on Liquid Stone, optionally adapt displayed strength tiers, and edit NPC equipment choices by faction and player progression. Version 1.40.1 changes job localization loading as described above. New effects and game-side loading are experimental and NOT play-tested. Marker checks remain open. No UE4SS.
 
 [b]Included from 1.39.0: artifact editor and related settings.[/b] World -> Artifact editor & related settings: individual artifact values and bonuses, native radiation tiers, separate detector radii, Weird Ball, moving lightning/fire-ball speed and pursuit, and rank-based rarity weights. 353 supported settings on game 2.0.5. Profiles, undo/redo and reset supported. Experimental and NOT play-tested. Universal rarity also affects a quest placement. No UE4SS.
 
@@ -29,7 +29,7 @@ The full source code is open under the MIT license. There is a public S2Tweaker 
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.40.1-rc.1): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.40.1): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
 S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
@@ -258,9 +258,9 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
-[b]v1.40.1-rc.1 - job text and return-marker TEST RELEASE[/b]
+[b]v1.40.1 - job text and return-marker repairs[/b]
 [list]
-[*]NOT PLAY-TESTED. Candidate for issue 9; 1.40.0 remains the regular release
+[*]NOT PLAY-TESTED. Experimental repairs for issue 9; game confirmation remains open
 [*]Extends native Game.locres for every installed language; 18 languages and 208 aliases each checked. Existing text and journal/stage IDs retained
 [*]Attempts to restore remaining return markers after another job ends, guarded by active job and active return stage. No reward replay or forced tracking
 [*]Generated multi-job Paks include full language resources (about 147 MiB here). Other Game.locres mods can conflict; config scans cannot detect this

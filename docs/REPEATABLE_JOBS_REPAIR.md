@@ -2,7 +2,7 @@
 
 Introduced in version 1.37.2; story cancellation corrected in 1.37.3,
 11 September 2026. Partially player-tested on 1.39; further repairs after the
-1.40 report are available in test release 1.40.1-rc.1 and require game tests.
+1.40 report are available in version 1.40.1 and require game tests.
 
 ## Player follow-up, 11 September 2026
 
@@ -27,7 +27,7 @@ visible, including the return-stage key in the second video. The report remains
 open. The current development revision below preserves every existing journal
 and stage identifier.
 
-## Native translations (1.40.1-rc.1 test release)
+## Native translations (1.40.1)
 
 `build_root_files` pairs the actual isolated journal/stage keys with their original
 keys and reads the translations from the currently loaded installation. On 2.0.5
@@ -67,7 +67,7 @@ marker-bearing nodes retained their marker settings. Ready-to-return jobs use
 their giver's shared actor GUID. The [follow-up audit](JOB_COMPLETED_MARKER_FOLLOWUP.md)
 found native quests reapplying a marker to an already active stage.
 
-The 1.40.1-rc.1 candidate adds 69 checks and 69 separate reapplication nodes. After a
+The 1.40.1 candidate adds 69 checks and 69 separate reapplication nodes. After a
 job container ends, each remaining journal AND its return stage must be Active
 before its existing marker payload is reapplied. Original reward/dialog outputs
 are not reused, completed/failed/cancelled jobs are excluded, and tracking is not
