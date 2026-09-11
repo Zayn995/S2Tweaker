@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.37.1
-File version:  1.37.1
+Name:          S2Tweaker 1.37.4
+File version:  1.37.4
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,18 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.37.4 - game patch 2.0.5 data-loading fix
+
+- Reads binary cfg formats 1 and 2. Fixes conversion failures and incorrect
+  structures after the 2.0.5 update.
+- Rebuilds the cache once; names the affected file if conversion fails.
+- Load game data again, then rebuild your personal pak when needed.
+- 49 headless suites, 10 CI suites and a 69-entry test pak checked using
+  fresh 2.0.5 data. Not play-tested. No UE4SS or slow-motion add-on.
+- Includes the experimental job-journal repairs from 1.37.2/1.37.3;
+  use a save before accepting jobs. Old active jobs cannot be migrated.
+- Signed runtime binaries unchanged. No new VirusTotal result claimed.
+
 1.37.1 - startup repair and clearer designs
 
 - Repairs the mostly black window from the withdrawn 1.37.0 release:

@@ -289,20 +289,20 @@ Sources: https://www.stalker2.com/news/mods-cost-of-hope-update-2-0-faq · https
 
 ---
 
-## 4. Bullet time — verdict
+## 4. Bullet time — native runtime options (11 September 2026)
 
-**Verdict: correctly assessed as out of cfg scope. Do NOT implement in the generated pak.** The GameData cfg system has no runtime time-dilation key (only `CoreVariables.cfg` `DefaultConfig::RealToGameTimeCoef = 24`, which scales the in-game *clock*, not gameplay speed), and cfg mods cannot register hotkeys. Zone Kit supports blueprint *data* modification, not scripting. All existing slow-mo mods use UE4SS or console commands:
+Static GameData patches do not register a gameplay hotkey. The quick-wheel
+`ItemSelectorTimeDilationCoefficient` controls only that menu; `RealToGameTimeCoef`
+controls the day clock. A general time toggle cannot be supplied by those
+static cfg settings.
 
-1. **UE4SS Lua** — "bulletTime for stalker2" (Nexus mod 10, Boilingmetal, Nov 2024): internal name `GameSpeedAdjust`; installs UE4SS to `Stalker2\Binaries\Win64`, mod in `ue4ss\Mods\GameSpeedAdjust\Scripts\main.lua`, enabled via `mods.txt` line `GameSpeedAdjust : 1`; hotkeys via `RegisterKeyBind(Key.XBUTTON_ONE/XBUTTON_TWO, ...)`; 20%/50% world speed, player speed uncompensated-slow exempted. ⚠ UE4SS broke on 2.0/UE5.5.4 — requires "RE-UE4SS Compatibility Fix for Update 2.0 (UE5.5)" (Nexus mod 2341); whether mod 10 itself runs on 2.0 is unverified.
-2. **Console binds via UETools** (Nexus mod 64 — itself a pak+sig+ucas+utoc set installed to `~mods`): one-key toggle
-   `UETools_BindToggle H "uetools_slomo 0.001|uetools_forceactorstimedilation bp_stalker2character_c 1000" "uetools_slomo 1|uetools_forceactorstimedilation bp_stalker2character_c 1"` (milder: `uetools_slomo 0.1` + player ×10). Player class: `BP_Stalker2Character_C`. 2.0 compatibility of UETools unverified.
-3. **Focus Aim** (Nexus 1218 / mod.io / Workshop id 3574327503): hybrid UE4SS BPModLoader (`Stalker2\Content\Paks\LogicMods\FocusAim.pak/.ucas/.utoc`) + Lua; slow-mo on Hold Breath; config keys SlowRate, IgnorePlayer, AltSFX, SCSlow.
-
-**Recommended tool behavior:** show "Bullet time" as an informational entry (not a slider) that explains it needs UE4SS/console scripting, and links mods 10, 64, 1218, 2341. Optionally offer to copy the UETools bind string to clipboard. Do not auto-install UE4SS (post-2.0 fragility, save-corruption reports, out of a cfg-tool's warranty).
-
-Do-not-confuse: Steam Workshop "Bullet Time X" id 3268589630 is for Selaco; Nexus 2360 is projectile velocity.
-
-Sources: https://www.nexusmods.com/stalker2heartofchornobyl/mods/10 · /mods/64 · /mods/1218 · /mods/2341 · https://vgtimes.com/games/s.t.a.l.k.e.r.-2-heart-of-chornobyl/files/77282-time-dilation.html · https://www.stalker2mod.com/focus-aim/ · https://github.com/scalespeeder/stalker-2-pc-console-common-useful-commands-list/blob/main/readme.txt
+S2Tweaker 1.37.4 does not include an independent slow-motion toggle.
+A general key-controlled effect requires runtime logic, which can be provided
+by a native Blueprint mod; UE4SS is not a universal requirement.
+[Focus Aim Remake (2.0)](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2575)
+uses Zone Kit assets without UE4SS and exposes world/player speed settings.
+Its trigger is holding breath, not an independent slow-time key. No Focus Aim
+assets or script loader are included in S2Tweaker.
 
 ---
 
@@ -352,6 +352,6 @@ Sources: https://www.nexusmods.com/stalker2heartofchornobyl/mods/10 · /mods/64 
 | Durability × | slider | `DifficultyPrototypes/...` (Weapon_DurabilityDamage ÷N, Armor_Durability ×N, Weapon_Durability ×N) |
 | Mutant HP × | slider | per-mutant `ObjPrototypes/<Mutant>/<Mutant>_patch_*.cfg` (VitalParams.MaxHP) |
 | Mutant damage × | slider | `DifficultyPrototypes/...` (Mutant_BaseDamage, all structs) |
-| Bullet time | info panel only | none (links to UE4SS/UETools per §4) |
+| Bullet time | no independent toggle in this tool | native Blueprint mods are possible; see §4 |
 
 All patch files for one build merge into one `zzz_<Name>_1000_P.pak` → `~mods`. Multiple base cfgs can each receive exactly one patch file per build; regenerating overwrites the previous pak (stable filename = clean upgrade path).

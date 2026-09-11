@@ -23,6 +23,7 @@ to instead mirror the directory tree under a separate output root.
 Updates:
 
 * 2026-08-26: Preserved numeric literals, fixed float infinity, added progress
+* 2026-09-11: Read version 2 source-location metadata (game patch 2.0.5).
 
 """
 
@@ -300,6 +301,7 @@ class BinaryCursor:
     def __init__(self, data: bytes):
         self.bytes = data
         self.position = 0
+        self.version = 1
 
     @property
     def length(self) -> int:
@@ -341,7 +343,9 @@ def get_binary_string(index: int, string_pool: List[str]) -> str:
 
 
 def read_binary_header(reader: BinaryCursor) -> List[str]:
-    reader.read_uint32()  # version
+    reader.version = reader.read_uint32()
+    if reader.version not in (1, 2):
+        raise ValueError(f"Unsupported binary cfg version {reader.version}; supported versions are 1 and 2.")
     string_count = reader.read_int32()
     string_pool: List[str] = []
     reader.read_uint32()  # reserved
@@ -368,10 +372,11 @@ def read_binary_header(reader: BinaryCursor) -> List[str]:
 
 
 def skip_post_pool_padding(reader: BinaryCursor) -> None:
-    if reader.position + 9 <= reader.length:
-        reader.read_uint32()
-        reader.read_uint32()
-        reader.read_byte()
+    reader.read_uint32()
+    reader.read_uint32()
+    if reader.version == 2:
+        reader.read_uint32()  # extra source-location slot in the outer block
+    reader.read_byte()
 
 
 class BinaryBlock:
@@ -396,6 +401,11 @@ def read_binary_cfg_config(reader: BinaryCursor, pool_size: int) -> BinaryBlock:
             break
         values.append(value)
 
+    # V2 adds a source-file string-pool index between the terminating zero
+    # and the flags byte. It is metadata, not a value or an inheritance link.
+    # Consuming it as flags misaligns every following field/child count.
+    if reader.version == 2:
+        reader.read_uint32()
     last_byte = reader.read_byte()
     return BinaryBlock(values, last_byte, position)
 

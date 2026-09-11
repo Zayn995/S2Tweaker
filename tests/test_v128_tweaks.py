@@ -788,24 +788,28 @@ assert core_values(infotopic_refresh_hours=72) == {"InfotopicRefreshHours": "72"
 assert CORE not in build_patches(gd, S(infotopic_refresh_hours=24))
 print("P8.2 Geruechte: 6 h / 72 h, Vanilla 24 erzeugt nichts  OK")
 
-# --- P8.3) Haendler auf NPC-Ebene: neun Koeffizienten, 22 Geldbeutel ---------------
+# --- P8.3) Haendler auf NPC-Ebene: Koeffizienten und Geldbeutel aus Spieldaten ----
 live_buy = {s for s, n in gd.npcprototypes.children.items() if "BuyCoefficient" in n.values}
 live_sell = {s for s, n in gd.npcprototypes.children.items() if "SellCoefficient" in n.values}
 assert sorted(live_buy) == TRADERS9 and live_buy == live_sell, sorted(live_buy)
 live_money = {s for s, n in gd.npcprototypes.children.items()
               if parse_number(n.values.get("Money"), 0.0) > 0}
-assert len(live_money) == 22, len(live_money)
+assert live_money, "No NPC money entries found in the installed game data"
 np_ = parsed(build_patches(gd, S(trader_buy_price_factor=2.0, trader_sell_price_factor=0.5)), NPCP)
 assert sorted(np_.children) == TRADERS9, sorted(np_.children)
 assert np_.children["Koldun"].values == {"BuyCoefficient": "1.6", "SellCoefficient": "1.0"}
 np_ = parsed(build_patches(gd, S(trader_money_factor=2.0)), NPCP)
-assert len(np_.children) == 22 and all(list(n.values) == ["Money"] for n in np_.children.values())
+assert set(np_.children) == live_money
+assert all(list(n.values) == ["Money"] for n in np_.children.values())
+for sid in live_money:
+    before = parse_number(gd.npcprototypes.children[sid].values["Money"])
+    assert parse_number(np_.children[sid].values["Money"]) == round(before * 2), sid
 assert np_.children["Eger"].values == {"Money": "40000"}
 assert all("." not in n.values["Money"] for n in np_.children.values())      # ganzzahlig
 p = build_patches(gd, S(trader_buy_price_factor=2.0))
 assert TRADE in p and NPCP in p                     # beide Ebenen bekommen denselben Faktor
 assert NPCP not in build_patches(gd, S(trader_min_durability_pct=0))   # anderer Regler, keine NPC-Datei
-print("P8.3 Haendler: 9 Koeffizienten (0.8 -> 1.6 / 2.0 -> 1.0), 22 Geldbeutel x2, beide Ebenen  OK")
+print(f"P8.3 Haendler: 9 Koeffizienten (0.8 -> 1.6 / 2.0 -> 1.0), {len(live_money)} Geldbeutel x2, beide Ebenen  OK")
 
 # --- P8.4) Die 1.8-MB-Datei wird nur bei aktivem Regler geparst --------------------
 fresh = GameData(VANILLA)

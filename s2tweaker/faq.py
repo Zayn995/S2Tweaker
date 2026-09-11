@@ -452,10 +452,10 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Why is there no bullet time / slow motion tweak?",
-        "a": "Bullet time is not possible through config files - it would "
-             "need script injection (UE4SS), which is fragile after every "
-             "game patch. This tool deliberately only does what the "
-             "game's own config-patch system supports.",
+        "a": "An independent slow-motion hotkey needs runtime logic. Native "
+             "Blueprint mods can provide it without UE4SS, but this tool "
+             "does not include that feature. The quick-wheel time-speed "
+             "setting only affects the item selector, not general gameplay.",
         "k": "bullet time slow motion slomo slowmo matrix ue4ss missing feature",
     },
     {

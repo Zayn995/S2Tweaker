@@ -91,7 +91,7 @@ NEEDED_FILES = [
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 26   # journal prototypes for independent repeatable jobs
+CACHE_SCHEMA = 27   # rebuild caches decoded without binary cfg version 2 support
 OPTIONAL_SPAWN = "SpawnActorPrototypes.cfg.bin"
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
@@ -359,7 +359,12 @@ class GameData:
                                    .rglob("*.cfg.bin")):
                 out = bin_path.with_name(bin_path.name[: -len(".bin")])
                 if not out.exists():
-                    roots = vendor_bin2cfg.read_binary_cfg(bin_path.read_bytes())
+                    try:
+                        roots = vendor_bin2cfg.read_binary_cfg(bin_path.read_bytes())
+                    except (ValueError, RecursionError) as exc:
+                        raise ValueError(
+                            f"Could not decode {bin_path.relative_to(cache)}: {exc}"
+                        ) from exc
                     out.write_text(
                         "\n".join(r.to_string() for r in roots), encoding="utf-8"
                     )

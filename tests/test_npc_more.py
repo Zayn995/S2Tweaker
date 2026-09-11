@@ -56,12 +56,26 @@ print("Movement noise x0: 4 Posen lautlos, Sichtbarkeit unveraendert  OK")
 p = build_patches(gd, Settings(weather_stealth_factor=2.0))
 w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
 assert "Clearly" not in w
-assert w["Fogy"]["VisibilityCoef"] == "0.4" and w["Fogy"]["HearingDistanceCoef"] == "0.05", w["Fogy"]
-assert w["Thundery"]["HearingDistanceCoef"] == "0.05" and w["Thundery"]["VisibilityCoef"] == "0.6"
+# Patch 2.0.5 changed weather hearing coefficients. Check the intended
+# reduction against the installed baseline instead of pinning pre-patch values.
+baseline = {e.values["WeatherSID"]: e.values for e in
+            cfgparse.parse_file(Path(VANILLA) / "AIGlobals.cfg")
+            .children["AISettings"].children["WeatherSettings"].children.values()}
+assert {"Fogy", "Thundery"} <= set(w)
+for sid, values in w.items():
+    for key in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"):
+        before = parse_number(baseline[sid][key])
+        after = parse_number(values[key])
+        if before >= 1:
+            assert after == before, (sid, key)
+        elif 2 * before - 1 < .05:
+            assert after == .05, (sid, key)
+        else:
+            assert abs((1 - after) - 2 * (1 - before)) < 1e-6, (sid, key)
 p = build_patches(gd, Settings(weather_stealth_factor=0.0))
 w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
 assert all(v[k] == "1.0" for v in w.values() for k in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"))
-print("Wetter x2 / x0: Fogy 0.7->0.4, Deckel 0.05, x0 = alles 1.0  OK")
+print("Wetter x2 / x0: aktuelle Vanilla-Abschlaege verdoppelt, Deckel 0.05, x0 = alles 1.0  OK")
 
 # --- 4) Taschenlampe x0 ------------------------------------------------------
 p = build_patches(gd, Settings(flashlight_stealth_factor=0.0))

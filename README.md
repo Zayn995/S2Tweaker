@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+Version 1.37.4 repairs game-data loading after game patch **2.0.5**. It reads
+binary cfg formats 1 and 2, rebuilds the cache once, and names the affected
+file if conversion fails. No UE4SS or slow-motion add-on is included.
+See the [2.0.5 validation report](docs/GAME_2_0_5_CHECK.md).
+
 Version 1.37.3 corrects a missed story cancellation in the experimental multi-job
 repair: Zalissya's story cleanup now also targets active Warlock job journals.
 Completed and never-accepted jobs are left alone. Rebuild your generated pak;

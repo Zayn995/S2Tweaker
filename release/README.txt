@@ -11,8 +11,16 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.37.3
+NEW IN 1.37.4
 --------------
+Fixes loading game data after game patch 2.0.5 (binary cfg format 2).
+The cache rebuilds once. If conversion fails, the error names the file.
+Load game data again after updating; rebuild your personal pak when needed.
+No UE4SS or slow-motion add-on. Tested for extraction and pak generation;
+NOT PLAY-TESTED. All 19 existing runtime binaries remain unchanged.
+
+INCLUDED FROM 1.37.3
+-------------------
 Fixes a missed story cancellation in the experimental multi-job repair.
 Zalissya's story cleanup now also cancels active Warlock job journals.
 Finished and never-accepted jobs stay untouched. Rebuild your generated pak.
