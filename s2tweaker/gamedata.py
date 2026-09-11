@@ -87,10 +87,11 @@ NEEDED_FILES = [
     "PackOfItemsGroupPrototypes.cfg.bin",    # Welt-Loot-Haufen (1.28.0 P7)
     "NPCPrototypes.cfg.bin",                 # Haendler auf NPC-Ebene (1.28.0 P8, 1.8 MB - lazy geparst)
     "DialogPrototypes.cfg.bin",              # Job-Dialogketten der Auftraggeber (1.36.0, 31.6 MB - lazy geparst, nur mit dem Mehrfach-Job-Schalter)
+    "JournalQuestPrototypes.cfg.bin",        # separate journal entries for simultaneous jobs
 ]
 
 # Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
-CACHE_SCHEMA = 25   # large spawn data is optional and stored as a compact stash index
+CACHE_SCHEMA = 26   # journal prototypes for independent repeatable jobs
 OPTIONAL_SPAWN = "SpawnActorPrototypes.cfg.bin"
 
 # Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
@@ -467,6 +468,11 @@ class GameData:
         einzig der Mehrfach-Job-Schalter braucht sie (1.36.0), um den
         If-Knoten am Anfang jeder Job-Dialogkette zu finden."""
         return self._parse("DialogPrototypes.cfg")
+
+    @cached_property
+    def journals(self) -> CfgStruct:
+        """Loaded only when exporting simultaneous repeatable jobs."""
+        return self._parse("JournalQuestPrototypes.cfg")
 
     @cached_property
     def aiglobals(self) -> CfgStruct:

@@ -283,19 +283,17 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I take several repeatable jobs at once?",
-        "a": "Economy tab: raise 'Repeatable jobs per round' for a bigger "
-             "menu (confirmed in-game), and tick 'Accept several jobs in "
-             "one conversation' to actually take more than one. In vanilla, "
-             "saying yes switches the giver's job dialog off; the switch "
-             "flips that switch-off so that saying yes re-opens the dialog "
-             "a second later - the route 'Zone Borders / Contracts' takes. "
-             "This is the third design (1.36.0): the first two added new "
-             "quest nodes and did nothing in Molkerr's tests, this one "
-             "only edits existing ones, the kind of change that provably "
-             "reaches the game. Untested so far. Known rough edges: a job "
-             "you took stays on the menu (don't take it twice), and the "
-             "'cancel job' line may linger after a round. Nothing is "
-             "stored in the save.",
+        "a": "Economy: 'Repeatable jobs per round' expands the choice. "
+             "'Accept several jobs from one giver' lets you accept one, "
+             "then interact again for another. It does not force the dialog "
+             "open. Molkerr confirmed acceptance but found that handing in "
+             "one job could remove another without its reward (GitHub #9). "
+             "The experimental repair gives each job an independent journal "
+             "and delays round cleanup until none is active. It has NOT "
+             "been play-tested. Start from a save before accepting jobs: "
+             "old active jobs cannot be migrated. Keep the pak until all "
+             "jobs are finished or cancelled. The giver's shared cancel "
+             "line cancels all his current jobs; journal state is saved.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",

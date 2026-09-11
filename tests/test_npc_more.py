@@ -96,6 +96,20 @@ acts = {a.values["Type"].split("::")[-1]: a.values for a in cfgparse.parse(p[THR
 assert acts["CallAllies"]["ThreatLevelValueMin"] == "1000" and acts["TurnHead"]["ThreatLevelValueMin"] == "400"
 print("Wachsamkeit x2 / x0.5 + Suchzeit x2: DefaultNPC, Aktionen komplett, Deckel 1000  OK")
 
+# Issue #13: new 1000% ceiling scales the live baseline without changing
+# the anomaly event's zero confidence time or empty RelationLevels.
+p = build_patches(gd, Settings(npc_search_time_factor=10.0))
+search = cfgparse.parse(p[THR]).children['[1]']
+base = gd.threats.children['[1]']
+for key, factor in [('DefaultThreatValueFreezeTimeSeconds', 10.0),
+                    ('DefaultThreatValueLossPerSecond', 0.1)]:
+    assert abs(parse_number(search.values[key]) - parse_number(base.values[key]) * factor) < 1e-6
+for node in search.walk():
+    if node.values.get('SoundType') == 'ESoundEventType::AnomalyActivated':
+        assert parse_number(node.values['ConfidenceDropToZeroTimeSeconds']) == 0
+        assert node.values['RelationLevels'] == ''
+print('Search time 1000%: live scaling and unchanged anomaly entry OK')
+
 # --- 6) Mut x2: drei Menschen-Typen, Mutant tabu -----------------------------
 p = build_patches(gd, Settings(npc_courage_factor=2.0))
 tac = ai(p).children["CombatTacticsSettings"].children["CombatTacticsParamsPerFactions"].children

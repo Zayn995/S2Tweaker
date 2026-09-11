@@ -25,9 +25,9 @@ All roles are held by the same maintainer, who works under the pseudonym
 Released binaries are **not** built on a personal computer. Every build runs
 in GitHub Actions from the public source of this repository
 ([`.github/workflows/build.yml`](../.github/workflows/build.yml)), which
-calls [`tools/build_exe.py`](../tools/build_exe.py) — the same script the
-local `build.bat` uses, so there is only one build recipe and it cannot
-drift.
+uses [`tools/refresh_portable.py`](../tools/refresh_portable.py) to assemble
+current sources with the SHA-256-pinned 1.36.1 runtime (since 1.37.1).
+Local development builds are not substituted for the CI artifact.
 
 Since 1.21.0 the build does not use PyInstaller or any other packer. The
 shipped folder is assembled from the python.org installation on the build
@@ -35,7 +35,7 @@ machine:
 
 - **`S2Tweaker.exe` is `pythonw.exe` from python.org, byte for byte**, signed
   by the Python Software Foundation. It is renamed, nothing else; the
-  workflow fails if its SHA-256 differs from the runner's `pythonw.exe` or
+  workflow fails if its SHA-256 differs from the pinned starter or
   if the signature is not valid.
 - `python3XX.dll` and the extension modules in `_internal` are the ones from
   that installation, signed by the Python Software Foundation; the Visual C++
@@ -53,9 +53,9 @@ machine:
 
 Each build runs a self-test before it is accepted: a copy of the folder is
 started, imports every bundled module, proves that `socket` and `ssl` are
-absent, writes and reads back a small pak in pure Python, builds the main
-window and tears
-it down again.
+absent, writes and reads back a small pak in pure Python, and exits without
+opening an application window. Visual checks are separate and are reported
+only when actually performed.
 
 Each release is approved manually.
 

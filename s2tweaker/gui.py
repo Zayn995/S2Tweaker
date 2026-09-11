@@ -4683,7 +4683,9 @@ class App(WorkbenchMixin, ctk.CTk):
                      "and a player found it did nothing (GitHub #10) - every "
                      "one of the 1608 human NPCs carries its own copy, and "
                      "the game evidently reads theirs. Since 1.36.0 they all "
-                     "get it too. Not play-tested in that form yet.")
+                     "get it too. Confirmed by craigduk76 on 1.37.1 at "
+                     "200 % (GitHub #10). Both minimum and maximum distance "
+                     "scale: standing too close can prevent interaction.")
         self._slider(f, "climb", "Ladder climb speed", 50, 300, 10, 100, fmt_pct,
                      "How fast Skif climbs ladders (vanilla coefficient "
                      "0.6) - since 1.28.0 including the five ladder "
@@ -4880,9 +4882,9 @@ class App(WorkbenchMixin, ctk.CTk):
         self._slider(f, "sober", "Sober-up speed", 1, 500, 1, 100, fmt_pct,
                      "How fast drunkenness wears off (vanilla 1 per second). "
                      "Confirmed in-game by craigduk76 at 25 % on 1.35.0 "
-                     "(GitHub #12) - and at his request the floor is 1 % "
-                     "since 1.36.0: a bottle then lasts a hundred times "
-                     "longer than vanilla.")
+                     "and at 1 %, including eventual sobriety (GitHub #12). "
+                     "1 % slows the configured recovery rate to one "
+                     "hundredth of vanilla.")
         self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 5, 100, fmt_pct,
                      "How many energy drinks Skif takes before overuse and "
                      "tolerance effects kick in (vanilla overuse 1000, "
@@ -4963,7 +4965,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self._slider(f, "headshot", "Player headshot damage", 0.25, 5, 0.1, 1, fmt_factor)
         self._slider(f, "aimpunch", "Hit camera shake (aim punch)", 0, 300, 5, 100, fmt_pct,
                      "Camera kick when YOU get shot. 0 % = no flinch, "
-                     "300 % = heavy aim punch.")
+                     "300 % = heavy aim punch. Confirmed at 300 % by "
+                     "craigduk76 (GitHub #14).")
         self._slider(f, "expl", "Explosion damage", 0.1, 5, 0.1, 1, fmt_factor)
         self._slider(f, "dur", "Weapon durability", 0.5, 10, 0.1, 1, fmt_factor,
                      "Weapons wear less per shot fired.")
@@ -5117,14 +5120,17 @@ class App(WorkbenchMixin, ctk.CTk):
         self._warning(f, "These are the hidden per-weapon AI profiles behind "
                          "'aimbot' complaints (same data the 'Grounded Combat' "
                          "and 'Better Gunfights' mods edit). Every NPC weapon "
-                         "profile, rank and distance scales together. Not "
-                         "play-tested yet.",
+                         "profile, rank and distance scales together. Guaranteed-hit "
+                         "shots have player reports; the other aim-profile "
+                         "controls remain unverified.",
                       title="Experimental — NPC aim profiles")
         self._slider(f, "npc_free_shots", "NPC guaranteed-hit shots", 0, 200, 10, 100, fmt_pct,
                      "Shots per burst that NPCs fire with ZERO spread - the "
                      "opening 'laser' fire (vanilla e.g. rifles 2-3 at long, "
                      "4-6 at short range). 0 % = every NPC shot uses normal "
-                     "spread; shotguns and launchers already have 0.")
+                     "spread; shotguns and launchers already have 0. "
+                     "craigduk76 reports the expected effect at 0 % "
+                     "(GitHub #16); NPCs can still hit you normally.")
         self._slider(f, "npc_burst", "NPC burst length", 25, 300, 5, 100, fmt_pct,
                      "Shots per burst (vanilla e.g. rifles 3-6 at long, 8-16 "
                      "at short range).")
@@ -5206,7 +5212,9 @@ class App(WorkbenchMixin, ctk.CTk):
                      "The base light level NPC eyes assume by time of day "
                      "(vanilla night 0.2, dawn 0.3, morning 0.6, day 1.0). "
                      "0 % = pitch black nights for NPCs; only values below 1 "
-                     "scale, capped at 1.0. Experimental, not play-tested.")
+                     "scale, capped at 1.0. craigduk76 reports improved "
+                     "night stealth at 50 % (GitHub #17). Dawn and morning "
+                     "also change; the exact detection effect is unmeasured.")
         self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 5, 100, fmt_pct,
                      "How much crouching and crawling hide you from eyes AND "
                      "ears (vanilla: crouched you are 25 % less visible and "
@@ -5233,10 +5241,12 @@ class App(WorkbenchMixin, ctk.CTk):
                      "head (200), search (350), move in (500) or call allies "
                      "(700 points; a gunshot is worth 700). 200 % = they react "
                      "at half the suspicion. Human NPCs only.")
-        self._slider(f, "npc_search", "NPC search time", 25, 400, 5, 100, fmt_pct,
+        self._slider(f, "npc_search", "NPC search time", 25, 1000, 5, 100, fmt_pct,
                      "How long NPCs stay suspicious and keep searching "
                      "(vanilla: suspicion frozen 30 s, then fades 30 points/s). "
-                     "25 % = they forget you fast.")
+                     "25 % = they forget you fast. craigduk76 reports longer "
+                     "searches at 400 % (GitHub #13). Up to 1000 % is now "
+                     "available; values above 400 % are not play-tested.")
         self._slider(f, "npc_courage", "NPC courage", 25, 300, 5, 100, fmt_pct,
                      "Confidence needed before human squads attack or fall "
                      "back (vanilla bandits 2 / 1, monolith 0.5 / 0, others "
@@ -5318,7 +5328,9 @@ class App(WorkbenchMixin, ctk.CTk):
                      "Chance that an NPC keeps the flashlight on while "
                      "fighting, by rank (vanilla newbie 100 %, experienced "
                      "75 %, veteran 50 %, master 25 %; capped at 100 %). "
-                     "0 % = never. Not play-tested yet.")
+                     "0 % = never. craigduk76 observed more NPCs fighting "
+                     "without lights at 50 % (GitHub #18); not a measured "
+                     "probability test.")
         self._slider(f, "npc_light_on", "NPCs switch flashlights on at (hour)", 16, 23, 1, 22, fmt_int,
                      "In-game hour at which NPCs turn their flashlights on "
                      "(vanilla 22).")
@@ -5858,7 +5870,9 @@ class App(WorkbenchMixin, ctk.CTk):
                      "(vanilla 0.6 to 0.8; silenced cases sit at 0 and stay "
                      "there). 0 % = nobody hears your shots. This is the "
                      "missing half of the stealth sliders, which so far only "
-                     "changed how well NPCs hear. Not play-tested yet.")
+                     "changed how well NPCs hear. Confirmed at 300 % by "
+                     "craigduk76: an unsuppressed AK alerted NPCs in a spot "
+                     "where it previously did not (GitHub #15).")
         self._slider(f, "butt_wear", "Weapon wear per butt strike", 0, 300, 5, 100, fmt_pct,
                      "Every butt strike costs the weapon 5 durability in "
                      "vanilla. 0 % = bash crates for free, like 'The weapon "
@@ -6593,28 +6607,18 @@ class App(WorkbenchMixin, ctk.CTk):
                      "cooldown above. To actually take several, use the "
                      "switch below.")
         self._check(f, "rq_jobs_multi",
-                    "Accept several jobs in one conversation (experimental, 3rd design)",
-                    "Three layers, each on its own. (1) Saying yes switches "
-                    "the giver's job dialog OFF through a launcher on that "
-                    "node; this flips it (and the per-job 'quest started' "
-                    "watchers next to it) so that saying yes re-opens the "
-                    "dialog a second later instead - what 'Zone Borders / "
-                    "Contracts' does by deleting them. (2) The dialog itself "
-                    "starts with an if: 'already said yes? then the cancel "
-                    "branch, not the menu' - both branches now lead to the "
-                    "menu (cancelling still works through the separate "
-                    "'cancel job' line). Both are {bpatch} edits on existing "
-                    "nodes, the kind of change that provably reaches the "
-                    "game. (3) Two small new nodes per job take a job you "
-                    "accepted off the menu, exactly as that mod does - if "
-                    "the game ignores them, the job simply stays listed. "
-                    "Also keeps the round-end node from shutting down jobs "
-                    "you still carry when you hand one in. Two earlier "
-                    "designs did nothing in Molkerr's tests (1.33.0, "
-                    "1.34.0); this one is untested so far. Rough edge: the "
-                    "'cancel job' line can linger after a round ends. "
-                    "Reads one more game file (first start re-extracts). "
-                    "Nothing is stored in the save.")
+                    "Accept several jobs from one giver (experimental repair)",
+                    "Take a job, then interact with the giver again to take "
+                    "another; the conversation does not open automatically. "
+                    "Each job now has its own journal entry. The round only "
+                    "ends when no accepted job is active. The shared cancel "
+                    "line cancels all current jobs from that giver. "
+                    "Molkerr confirmed acceptance but reported lost jobs "
+                    "and rewards on hand-in with the previous design "
+                    "(GitHub #9). This repair is NOT play-tested. Use a save "
+                    "from before accepting jobs; old active jobs cannot be "
+                    "migrated. Keep the same pak until all jobs are finished "
+                    "or cancelled. Journal state is saved by the game.")
         self._slider(f, "fasttravel", "Fast travel cost", 0, 400, 5, 100, fmt_pct,
                      "0 % = guides take you anywhere for free.")
         self._slider(f, "price_weapon", "Weapon prices", 0.25, 4, 0.1, 1, fmt_factor,

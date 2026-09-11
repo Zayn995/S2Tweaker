@@ -5468,59 +5468,14 @@ def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
-    """Mehrere wiederholbare Auftraege in EINEM Gespraech annehmen.
+    """Re-arm the existing offer dialog after accepting a job.
 
-    Dritter Entwurf (09.09.2026) - und der erste, der ausschliesslich aus
-    Aenderungen besteht, die nachweislich im Spiel ankommen: `{bpatch}` an
-    VORHANDENEN Knoten. Kein einziger neuer Knoten.
-
-    **Warum die ersten zwei Entwuerfe nichts taten** (Molkerr, GitHub #9:
-    1.33.0, dann die 1.34.0-Reparatur, gespielt auf 1.35.0). Beide haengten
-    NEUE Knoten an, die den abgeschalteten Dialog wieder starten sollten.
-    Der Dialog wird aber von der Zusage (`Technical_GetQuest`) ueber einen
-    Launcher mit `Excluding = true` abgeschaltet - und ein abgeschalteter
-    Knoten nimmt offenbar keinen Start mehr an, gleich woher er kommt. Ob
-    die neuen Knoten ueberhaupt geladen wurden, ist bis heute unbewiesen.
-    Die eine `{bpatch}`-Aenderung derselben Datei (der End-Knoten, s.u.)
-    kam dagegen nachweislich an: Molkerr sah ihre Nebenwirkung.
-
-    **Die Vorlage, bei der das Annehmen funktioniert** - "Zone Borders /
-    Contracts" (Nexus 2638), RSQ01.cfg am 09.09. gelesen: sie ENTFERNT am
-    Dialog-Knoten genau die Abschalt-Launcher, den von der Zusage und die
-    von den `OnJournalQuestEvent_<Job>_Start`-Wachen, und startet den Dialog
-    nach jeder Zusage ueber einen Launcher neu. Alles Weitere dort
-    (Held-Zaehler, Taken/Clear-Knoten) dient nur dazu, genommene Jobs aus
-    dem Menue zu nehmen und den Rundenaufraeumer zu verzoegern.
-
-    **Was wir tun:** dieselben Launcher-Eintraege bleiben stehen und
-    bekommen `Excluding = false`. Damit STARTET die Zusage den Dialog eine
-    Sekunde spaeter neu (GetQuest traegt StartDelay 1.0), statt ihn
-    abzuschalten - dieselbe Wirkung, die die Vorlage mit einem eigenen
-    Launcher erreicht. Array-Eintraege gehen komplett raus (Excluding und
-    alle Verbindungen mit SID und Name). Die `_Finish`-Wachen bleiben, wie
-    bei der Vorlage. Gemessen 09.09.: alle acht Geber haben genau diesen
-    Aufbau (eine Zusage-Wache plus ein bis drei `_Start`-Wachen).
-
-    **Das Abgeben:** wie seit 1.34.0 geht `ExcludeAllNodesInContainer` am
-    End-Knoten auf `false`, damit die erste Abgabe die anderen gehaltenen
-    Auftraege nicht mitreisst (634 der 1395 End-Knoten des Spiels stehen
-    selbst so). ⚠ Bekannte Nebenwirkung, von Molkerr gesehen: in Vanilla
-    schaltet der End-Knoten beim Rundenende auch den "Auftrag abbrechen"-
-    Dialog ab - mit `false` bleibt der stehen, bis die naechste Zusage ihn
-    neu setzt. Kosmetisch, aber sichtbar; steht im Tooltip. Die Vorlage
-    vermeidet das mit einem Zaehler, der den Aufraeumer erst laufen laesst,
-    wenn kein Job mehr gehalten wird - Stufe 2, falls Stufe 1 im Spiel
-    bestaetigt wird.
-
-    **Die zwei Begleiter (Besitzer: "gleich Stufe 2"):** `_quest_menu_patch`
-    biegt per {bpatch} den If-Knoten am Anfang der Dialogkette so, dass der
-    wieder geoeffnete Dialog ins Menue fuehrt statt in den Abbruch-Zweig -
-    ohne das zeigte er nach einer Zusage nur die Abbruch-Zeile (genau
-    Molkerrs Beobachtung). `_quest_taken_patch` nimmt genommene Jobs aus dem
-    Menue (neue Knoten, eigene Datei; laden sie nicht, bleibt der Job
-    einfach stehen). Was bleibt: die Abbruch-Zeile kann nach dem Rundenende
-    stehen bleiben (End `false`). Nichts liegt im Spielstand, Pak raus =
-    alles wie vorher."""
+    Acceptance is confirmed by Molkerr (GitHub #9, 10 September 2026),
+    but he must interact again; this does not force the conversation open.
+    The earlier End=false workaround did not protect sibling jobs because
+    they shared a journal. quest_jobs.build_job_isolation now separates
+    journals and guards round cleanup, leaving the End behavior vanilla.
+    """
     if not s.repeatable_jobs_multi:
         return {}
     patches: dict = {}
@@ -5560,12 +5515,8 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
             flipped[idx] = {"Excluding": "false", "Connections": complete}
         if flipped:
             patches.setdefault(dialog_sid, {})["Launchers"] = flipped
-        # Der End-Knoten hinter dem Rundenaufraeumer: EIN Schluessel, der
-        # darueber entscheidet, ob die uebrigen Auftraege eine Abgabe
-        # ueberleben (Details oben).
-        end_sid = giver.get("end_sid")
-        if end_sid and (giver.get("end_exclude") or "").strip().lower() == "true":
-            patches.setdefault(end_sid, {})["ExcludeAllNodesInContainer"] = "false"
+        # End behavior stays vanilla. build_job_isolation guards cleanup
+        # until every independent journal has finished/cancelled.
     return patches
 
 def _quest_menu_patch(gd: GameData, s: Settings) -> dict:
@@ -7056,12 +7007,20 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     _merge_nested(quest_patches, _quest_limit_patch(gd, s))
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     _merge_nested(quest_patches, _quest_multi_patch(gd, s))
+    job_guards, job_journals = {}, {}
+    if s.repeatable_jobs_multi:
+        from .quest_jobs import build_job_isolation
+        isolated, job_guards, job_journals = build_job_isolation(gd)
+        _merge_nested(quest_patches, isolated)
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
     # Mehrfach-Jobs, Teil 2 + 3 (1.36.0): der Menue-Boden in DialogPrototypes
     # ({bpatch}, erste Patchdatei dort) und die Taken/Clear-Knoten in einer
     # EIGENEN Datei ohne {bpatch} - Begruendung in den zwei Buildern.
     add(f"DialogPrototypes/DialogPrototypes_patch_{n}.cfg", _quest_menu_patch(gd, s))
-    add(f"QuestNodePrototypes/{n}_Jobs.cfg", _quest_taken_patch(gd, s))
+    job_nodes = _quest_taken_patch(gd, s)
+    job_nodes.update(job_guards)
+    add(f"QuestNodePrototypes/{n}_Jobs.cfg", job_nodes)
+    add(f"JournalQuestPrototypes/{n}_Jobs.cfg", job_journals)
     # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien. Die neuen
     # Knoten bekommen bewusst eine EIGENE Datei statt in die {bpatch}-Datei
     # oben zu wandern: die zwei Mods, deren neue Quest-Knoten nachweislich

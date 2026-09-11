@@ -76,7 +76,7 @@ check(build() == {}, "Vanilla-Stellung erzeugt nichts")
 MENU = "DialogPrototypes/DialogPrototypes_patch_S2Tweaker.cfg"
 JOBS = "QuestNodePrototypes/S2Tweaker_Jobs.cfg"
 p = build(repeatable_jobs_multi=True)
-check(set(p) == {QUESTS, MENU, JOBS},
+check(set(p) == {QUESTS, MENU, JOBS, "JournalQuestPrototypes/S2Tweaker_Jobs.cfg"},
       f"drei Patchdateien - Wachen, Menue-Boden, Taken/Clear: {sorted(p)}")
 raw = p[QUESTS]
 nodes = cfgparse.parse(raw).children
@@ -152,27 +152,13 @@ for giver in givers:
     assert acc.values.get("StartDelay", "").strip() == "1.0", giver["quest"]
 check(True, "jede Zusage ist wiederholbar und wartet 1 s - der Dialog kommt nach ihr zurueck")
 
-# 1e) Das Abgeben: der End-Knoten hinter dem Rundenaufraeumer raeumt in
-#     Vanilla ALLES in der Quest ab - auch die Behaelter der Auftraege, die
-#     man noch traegt. Genau dieser eine Schluessel geht auf false.
-vanilla_ends = {k: n for k, n in gd.questnodes.children.items()
-                if (n.values.get("NodeType") or "").strip() == "EQuestNodeType::End"}
-falses = [k for k, n in vanilla_ends.items()
-          if (n.values.get("ExcludeAllNodesInContainer") or "").strip() == "false"]
-check(len(falses) >= 500,
-      f"false ist kein Sonderwert: {len(falses)} von {len(vanilla_ends)} End-Knoten "
-      f"stehen in Vanilla selbst darauf")
+# 1e) The round End now stays vanilla. The independent journal repair
+# gates the original cleanup; full lifecycle checks: test_job_isolation.py.
 for giver in givers:
-    end_sid = giver["end_sid"]
-    assert end_sid and giver["end_exclude"] == "true", giver["quest"]
-    assert nodes[end_sid].values == {"ExcludeAllNodesInContainer": "false"}, end_sid
-    assert not nodes[end_sid].children, end_sid
-check(True, "jeder der acht End-Knoten bekommt GENAU diesen einen Schluessel auf false")
-
-# 1f) Der Aufraeumer, die Zusage und der Abbruch-Dialog bleiben vanilla.
-for giver in givers:
-    assert giver["cleanup_sid"] not in nodes and giver["accept"] not in nodes, giver["quest"]
-check(True, "Aufraeumer und Zusage werden nicht angefasst")
+    assert giver["end_sid"] not in nodes, giver["quest"]
+    assert giver["cleanup_sid"] in nodes, giver["quest"]
+    assert giver["accept"] not in nodes, giver["quest"]
+check(True, "round cleanup is guarded; End and acceptance stay vanilla")
 
 # Gegenprobe: ohne den Schalter bleiben Dialog und End-Knoten unberuehrt
 only_limit = build(repeatable_jobs_per_round=6)
@@ -214,7 +200,7 @@ slots = {g["quest_sid"]: gd.repeatable_job_slots(g["quest_sid"]) for g in givers
 n_slots = sum(len(v) for v in slots.values())
 check(n_slots == 69 and all(len(slots[g["quest_sid"]]) == g["pool"] for g in givers),
       f"{n_slots} Auftrags-Behaelter, je Geber genau so viele wie sein Pool")
-check(len(jobs) == 2 * n_slots and "{bpatch}" not in p[JOBS],
+check(len(jobs) == 2 * n_slots + len(givers) and "{bpatch}" not in p[JOBS],
       f"{len(jobs)} neue Knoten (Taken + Clear je Behaelter), kein {{bpatch}}")
 
 

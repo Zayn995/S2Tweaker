@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+Version 1.37.2 includes an [experimental multi-job hand-in repair](docs/REPEATABLE_JOBS_REPAIR.md),
+NPC search time up to 1000%, and [new community test reports](docs/COMMUNITY_TESTS_2026_09_10.md).
+The multi-job repair has not been play-tested. Use a save from before accepting
+jobs; old active jobs cannot be migrated. Keep the generated pak while its jobs are active.
+
 Version 1.37.1 repairs the black-window/startup failure in the withdrawn 1.37.0
 release. The interface uses fewer Windows handles, creates optional controls
 on demand and keeps Mousewheel and Design visible in the toolbar. All twelve

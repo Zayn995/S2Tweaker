@@ -54,6 +54,7 @@ GAMELITE = ROOT / "vanilla" / "Stalker2" / "Content" / "GameLite"
 VANILLA = GAMELITE / "GameData"
 
 from s2tweaker.gamedata import GameData
+from s2tweaker import cfgparse
 from s2tweaker.tweaks import Settings, build_patches, swappable_calibers
 from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
 
@@ -139,6 +140,7 @@ def scan(text):
     """
     tops, refs, problems = [], [], []
     depth, current = 0, None
+    parents = []
     for n, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
         m = BEGIN.match(stripped)
@@ -147,9 +149,12 @@ def scan(text):
                 current = m.group(1)
                 tops.append((current, m.group(2) or "", n))
             depth += 1
+            parents.append(m.group(1))
             continue
         if stripped == "struct.end":
             depth -= 1
+            if parents:
+                parents.pop()
             if depth < 0:
                 problems.append(f"Zeile {n}: ein struct.end zu viel")
                 depth = 0
@@ -157,6 +162,8 @@ def scan(text):
         leaf = LEAF.match(line)
         if leaf and current:
             key, value = leaf.group(1), leaf.group(2)
+            if key.startswith("[") and parents and parents[-1] == "Descriptions":
+                key = "Description"  # localization key, not a prototype reference
             refs.append((current, key, value, depth, n))
     if depth != 0:
         problems.append(f"am Dateiende fehlen {depth} struct.end")
@@ -174,6 +181,7 @@ REF_KEYS = {
     "StickinessAimAssistConeSID", "SnappingAimAssistConeSID",
     "MovingTrackingAimAssistConeSID", "StationaryTrackingAimAssistConeSID",
     "NextDialogSID",               # 1.36.0: der Menue-Boden in DialogPrototypes
+    "JournalQuestSID", "JournalQuestStageSID",
 }
 # Listen, deren `[N] = <SID>`-Eintraege ebenfalls Referenzen sind.
 REF_LISTS = {"NodesToCleanUpResults", "AmmoTypeProjectiles"}
@@ -319,6 +327,13 @@ def audit(patches: dict[str, str]) -> list[str]:
         for name, attrs, _line in scan(text)[0]:
             if "bpatch" not in attrs or "refkey=" in attrs:
                 own.add(name)
+        # Journal stages are definitions nested inside a new journal.
+        # A launcher SID is only a reference: its [index] name differs.
+        for top in cfgparse.parse(text).children.values():
+            if "bpatch" not in top.attrs:
+                for node in top.walk():
+                    if not node.name.startswith("[") and node.values.get("SID") == node.name:
+                        own.add(node.name)
 
     for path, text in sorted(patches.items()):
         tops, raw, problems = scan(text)

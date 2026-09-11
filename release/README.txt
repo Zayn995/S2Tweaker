@@ -11,8 +11,20 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.37.1
+NEW IN 1.37.2
 --------------
+Experimental multi-job repair: each accepted job gets its own journal, and
+round cleanup waits until none is active. NOT PLAY-TESTED. Use a save from
+before accepting jobs: old active jobs cannot be migrated. Keep the generated
+pak while its jobs are active. The shared cancel line cancels all current
+jobs from that giver. Interact again to accept another job; no auto-dialog.
+
+NPC search time now goes up to 1000%. The player report covers 400%; higher
+values are not play-tested. Tooltips record the latest community reports.
+The first game-data load rebuilds the cache to include journal prototypes.
+
+INCLUDED FROM 1.37.1
+-------------------
 Repairs the black-window/startup failure in the withdrawn 1.37.0 release.
 Fewer Windows handles, paged Overview, armor editors released when closed,
 and optional loot/world controls loaded on demand. Mousewheel and Design
