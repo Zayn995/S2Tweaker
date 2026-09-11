@@ -5,7 +5,8 @@ session. Limited observations are kept separate from controlled measurements.
 
 | Issue | Report | Interpretation |
 | --- | --- | --- |
-| [#9](https://github.com/Zayn995/S2Tweaker/issues/9) | Molkerr can accept several jobs but loses siblings/rewards on hand-in. | Confirmed reported failure of the previous design; experimental repair in 1.37.2, not yet validated in-game. |
+| [#9](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5635943100) | Molkerr reports separate hand-ins and the remaining journal surviving save/load in 1.39; the cancel line cancels both. | Partial player validation of independent journals. Missing title/objective localization is confirmed in his video. A completed sibling lost its marker in one report; an unfinished sibling retained its marker in a later clean-save test. Issue remains open. |
+| [#9 artifacts](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5636395348) | Individual artifact edits work for Molkerr; weakened artifacts retain their old displayed strength. Requests extra bonus types and cosmetic controls. | Version 1.40.0 offers the optional tier display and nine extra-bonus families (518 available artifact/family choices). The new display, added effects and inherited-variant protection still need game tests. |
 | [#10](https://github.com/Zayn995/S2Tweaker/issues/10) | craigduk76 confirms talk distance on 1.37.1 at 200%; prefers 180%. | Both minimum and maximum scale; standing too close can prevent interaction. No behavior change made here. |
 | [#12](https://github.com/Zayn995/S2Tweaker/issues/12) | 1% sober-up speed tested through eventual sobriety. | Extends the earlier 25% confirmation. An emission briefly interrupts swaying. |
 | [#13](https://github.com/Zayn995/S2Tweaker/issues/13) | 400% search time seems to work; requests 1000%. | Qualitative observation at 400%; new higher ceiling not play-tested. Empty RelationLevels and zero anomaly confidence time match local vanilla. |
@@ -16,6 +17,6 @@ session. Limited observations are kept separate from controlled measurements.
 | [#18](https://github.com/Zayn995/S2Tweaker/issues/18) | At 50% flashlight use, many Ward soldiers fight without lights. | Observational support, not a measured probability. |
 | [#19](https://github.com/Zayn995/S2Tweaker/issues/19) | Respawn 25%, refill cooldown 400%, encounter frequency 25%, expansion 25% make the zone quieter. | Combined test, so no individual slider is independently confirmed. No conclusion about the performance or stability of a 1000-agent cap. |
 
-The 1000% search-time option and the multi-job repair are included in 1.37.2,
-not in the earlier 1.37.1 release. No issue comments were sent or issues
-closed during this session.
+The 1000% search-time option and the multi-job repair were introduced after
+1.37.1. Later releases retained the journal repair. These observations do not
+establish every giver, reward, hand-in order or long-term save behavior.

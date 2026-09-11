@@ -11,6 +11,17 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+Version 1.40.0 includes an experimental
+[NPC equipment editor by faction and player progression](docs/NPC_EQUIPMENT.md).
+Choose ordinary faction/role profiles in World and adjust existing weapon,
+pistol and body-armor choices within their native rank and difficulty groups.
+This addition has not been play-tested; it needs no UE4SS.
+
+Version 1.40.0 also adds [extra artifact bonuses](docs/ARTIFACT_EDITOR.md)
+(for example fire protection on Liquid Stone) and optional strength labels.
+Multi-job exports automatically include supplementary [journal translations](docs/REPEATABLE_JOBS_REPAIR.md)
+read from the installed languages. These changes need game tests; no UE4SS is required.
+
 Version 1.39.0 adds an [artifact editor and related settings](docs/ARTIFACT_EDITOR.md):
 individual artifact values and bonuses, separate detector radii, Weird Ball
 parameters, moving-anomaly speed/pursuit, and rank-based rarity weights.
@@ -40,7 +51,8 @@ this does not promise recovery of saves that have already passed the event.
 
 Version 1.37.2 introduced the [experimental multi-job hand-in repair](docs/REPEATABLE_JOBS_REPAIR.md),
 NPC search time up to 1000%, and [new community test reports](docs/COMMUNITY_TESTS_2026_09_10.md).
-The multi-job repair has not been play-tested. Use a save from before accepting
+Molkerr reports separate hand-ins and save/load working on 1.39, with localization
+and a marker case still open. Use a save from before accepting
 jobs; old active jobs cannot be migrated. Keep the generated pak while its jobs are active.
 
 Version 1.37.1 repairs the black-window/startup failure in the withdrawn 1.37.0

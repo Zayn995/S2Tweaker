@@ -1,4 +1,4 @@
-# Remaining issue checks — 1.39.0
+# Remaining issue checks — 1.40.0
 
 ## Maximum talk distance (#10)
 
@@ -29,6 +29,20 @@ the comparison. Record game version, NPC/location and both observations.
 The repair in 1.37.2/1.37.3 is included unchanged. Config tests cannot establish
 that the game's journal registration, rewards and save/reload behavior work.
 See [repair details and save restrictions](REPEATABLE_JOBS_REPAIR.md).
+
+Update, 11 September: Molkerr reports separate hand-ins and a remaining journal
+surviving save/load on 1.39. Cancellation of all the giver's current jobs matches
+the documented behavior. The later clean-save test retains an unfinished sibling's
+marker; the earlier completed-sibling case still needs investigation. His video
+shows a localized general description but internal identifiers in the title and
+objective. The localization investigation is recorded in
+[CFG evidence](JOB_LOCALIZATION_CFG_RESEARCH.md) and
+[resource evidence](JOB_LOCALIZATION_ASSETS_RESEARCH.md). Version 1.40.0
+includes these supplementary resources automatically on multi-job export. File
+discovery and native English still need a game test before calling this fixed.
+The [marker audit](JOB_MARKERS_RESEARCH.md) finds no proven CFG defect. After the
+first hand-in, explicitly track the surviving ready-to-return job, compare its
+map/compass marker and then reload before reporting the result.
 
 Use a copy of a save from **before accepting the jobs** and enable only
 **Accept several jobs from one giver (experimental repair)** in Economy.

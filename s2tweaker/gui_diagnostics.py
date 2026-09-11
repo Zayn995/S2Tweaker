@@ -66,6 +66,71 @@ def measure(args):
             app = gui.App()
             app.geometry("1280x850")
             sample("startup")
+            if getattr(args, "npc_equipment", False):
+                from s2tweaker import npc_equipment as equipment, editor_state, cfgparse
+                from s2tweaker.tweaks import build_patches
+                if not args.vanilla:
+                    raise ValueError("NPC equipment diagnostics require --vanilla.")
+                app.gd = GameData(args.vanilla)
+                app._set_body_state(True)
+                app._wb_equipment_choices()
+                assert build_patches(app.gd, app._collect()) == {}
+                available = equipment.available(app.gd)
+                controls = [c for k, c in equipment.CONTROLS.items() if k in available]
+                first = next(c for c in controls if c.obj == "GeneralNPC_Neutral_CloseCombat" and c.source == equipment.OBJECTS[c.obj][2] and c.slot == "[0]" and c.row == "[0]")
+                helper = next(c for c in controls if c.obj == "GeneralNPC_Duty_Recon" and c.source != equipment.OBJECTS[c.obj][2] and "Armor" in c.source)
+                shared = next(c for c in controls if c.obj == "GeneralNPC_Bandit_Recon" and " + " in c.context.split(" / ")[0])
+                expected = {first.key: 200, helper.key: 50, shared.key: 0}
+                def show(c):
+                    app.tabs.set("World")
+                    app.equipment_faction.set(c.faction)
+                    app._wb_equipment_choices()
+                    app.equipment_role.set(c.role)
+                    app._wb_equipment_choices()
+                    app.equipment_pool.set(c.pool)
+                    app.equipment_edit.invoke()
+                    assert app.tabs.get() == "Overview"
+                    assert app.wb_search.get() == c.selection
+                    assert 0 < len(app.wb_rows.winfo_children()) <= OVERVIEW_PAGE_SIZE
+                for c in (first, helper, shared):
+                    show(c)
+                    app._wb_edit(("sliders", c.key), str(expected[c.key]))
+                assert app._collect().npc_equipment_overrides == expected
+                app._wb_undo()
+                assert shared.key not in app._collect().npc_equipment_overrides
+                app._wb_redo()
+                assert app._collect().npc_equipment_overrides == expected
+                profile = temp / "npc-equipment.json"
+                editor_state.save_profile(profile, app._ui_state(), "NPC equipment")
+                app._reset_all()
+                assert not app._collect().npc_equipment_overrides
+                app._apply_ui_state(editor_state.read_profile(profile).state)
+                assert app._collect().npc_equipment_overrides == expected
+                patches = build_patches(app.gd, app._collect())
+                assert len(patches) == 2
+                obj_file = next(v for k, v in patches.items() if k.startswith("ObjPrototypes/"))
+                assert set(cfgparse.parse(obj_file).children) == {first.obj, helper.obj, shared.obj}
+                sample("NPC equipment edited, restored and exported")
+                app.tabs.set("World")
+                app.update()
+                body = app.equipment_frame.master
+                canvas = body._parent_canvas
+                canvas.yview_moveto(app.equipment_frame.winfo_y() / max(1, body.winfo_height()))
+                sample("equipment screenshot selector")
+                time.sleep(.8)
+                for label, c in (("weapon", first), ("armor", helper), ("ranks", shared)):
+                    show(c)
+                    sample("equipment screenshot " + label)
+                    time.sleep(.8)
+                app._reset_all()
+                assert build_patches(app.gd, app._collect()) == {}
+                sample("NPC equipment reset")
+                report["available_controls"] = len(available)
+                report["profiles_checked"] = 3
+                report["passed"] = True
+                app.destroy()
+                app = None
+                return 0
             if getattr(args, "artifact_editor", False):
                 from s2tweaker import artifact_extensions as artifacts, editor_state
                 from s2tweaker.tweaks import build_patches
@@ -74,7 +139,10 @@ def measure(args):
                 app.gd = GameData(args.vanilla)
                 app._set_body_state(True)
                 assert build_patches(app.gd, app._collect()) == {}
-                selections = (("item", "EArtifactFlash"), ("detector", "Echo"),
+                app.checks["art_stat_labels"].select()
+                assert app._collect().artifact_stat_labels_follow
+                assert build_patches(app.gd, app._collect()) == {}
+                selections = (("item", "CArtifactLiquidStone"), ("detector", "Echo"),
                               ("ball", "AArtifactWeirdBall"), ("anomaly", "FireBallAnomaly"),
                               ("rarity", "UniversalArtifactSpawner"))
                 def show(group, target):
@@ -93,6 +161,8 @@ def measure(args):
                     "item:EArtifactFlash:weight": .125,
                     "item:EArtifactFlash:ArtifactProtectionShock1": 150,
                     "item:EArtifactFlash:radiation": 2,
+                    "item:CArtifactLiquidStone:extra_ProtectionBurn": 200,
+                    "item:CArtifactLiquidStone:extra_AdditionalInventoryWeight": 100,
                     "detector:Echo:reveal": 500,
                     "ball:AArtifactWeirdBall:MaxWeight": 3.75,
                     "anomaly:FireBallAnomaly:speed": 50,
@@ -108,10 +178,15 @@ def measure(args):
                 editor_state.save_profile(profile, app._ui_state(), "Artifact editor")
                 app._reset_all()
                 assert not app._collect().artifact_overrides
+                assert not app._collect().artifact_stat_labels_follow
                 app._apply_ui_state(editor_state.read_profile(profile).state)
                 assert app._collect().artifact_overrides == expected
+                assert app._collect().artifact_stat_labels_follow
                 patches = build_patches(app.gd, app._collect())
                 assert len(patches) == 4
+                assert any("EffectLevel = EEffectLevel::Medium" in text for text in patches.values())
+                assert any("refkey=ArtifactProtectionBurn1" in text for text in patches.values())
+                assert any("refkey=ArtifactPenaltyLessWeightEffect1" in text for text in patches.values())
                 sample("five artifact families edited, restored and exported")
                 report["screenshots"] = []
                 for group, target in (selections[0], selections[1], selections[4]):
@@ -126,6 +201,28 @@ def measure(args):
                 app._reset_all()
                 assert build_patches(app.gd, app._collect()) == {}
                 sample("artifact editor reset")
+                if getattr(args, "source_pak", None):
+                    from s2tweaker import pakfile, localization, job_localization
+                    app.gd = GameData(args.vanilla, source_pak=args.source_pak)
+                    app.checks["rq_jobs_multi"].select()
+                    target = temp / "jobs.pak"
+                    showinfo = gui.messagebox.showinfo
+                    try:
+                        gui.messagebox.showinfo = lambda *args, **kwargs: None
+                        assert app._generate(target)
+                    finally:
+                        gui.messagebox.showinfo = showinfo
+                    with pakfile.PakFile(target) as pak:
+                        paths = [path for path in pak.files() if path.endswith(".locres")]
+                        assert paths
+                        for path in paths:
+                            entries = localization.read_resource(pak.read(path))
+                            assert (job_localization.NAMESPACE, "sid_journal_S2T_Job_RSQ04_C02_Name") in entries
+                            assert all("S2T_Job_" in key for _ns, key in entries)
+                    report["exported_job_languages"] = len(paths)
+                    app._reset_all()
+                    assert build_patches(app.gd, app._collect()) == {}
+                    sample("automatic job translations exported through GUI")
                 report["families_checked"] = len(selections)
                 report["available_controls"] = len(app.gd.artifact_editor)
                 report["passed"] = True

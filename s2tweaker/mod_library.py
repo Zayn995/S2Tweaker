@@ -102,7 +102,10 @@ def build_safely(patches, target, root_files, history_dir):
                 raise ValueError("Generated Pak inventory did not match its input.")
             for path, value in expected.items():
                 # pack_mod uses platform text newlines; compare decoded content.
-                if pak.read(actual[path]).decode("utf-8").replace("\r\n", "\n") != value.replace("\r\n", "\n"):
+                raw = pak.read(actual[path])
+                matches = (raw == value if isinstance(value, bytes) else
+                           raw.decode("utf-8").replace("\r\n", "\n") == value.replace("\r\n", "\n"))
+                if not matches:
                     raise ValueError(f"Generated Pak readback failed: {path}")
         backup = backup_pak(target, history_dir)
         os.replace(staged, target)

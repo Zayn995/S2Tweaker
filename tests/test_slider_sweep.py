@@ -142,7 +142,7 @@ for key, field in CHECK_FIELDS.items():
     # 1.36.0: relations_runtime wirkt erst zusammen mit einem verstellten
     # Beziehungs-Paar (eigene Suite test_relations_runtime.py).
     if (not build_patches(gd, s) and key not in
-            ("stat_bars", "no_mouse_smooth", "no_view_accel",
+            ("stat_bars", "art_stat_labels", "no_mouse_smooth", "no_view_accel",
              "relations_runtime")):
         dead.append(f"check:{key}")
     if key in ("no_mouse_smooth", "no_view_accel"):

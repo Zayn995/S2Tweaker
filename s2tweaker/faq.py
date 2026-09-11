@@ -323,17 +323,36 @@ FAQ_ENTRIES = [
         "a": "Economy: 'Repeatable jobs per round' expands the choice. "
              "'Accept several jobs from one giver' lets you accept one, "
              "then interact again for another. It does not force the dialog "
-             "open. Molkerr confirmed acceptance but found that handing in "
-             "one job could remove another without its reward (GitHub #9). "
+             "open. The original design could lose a sibling on hand-in. "
              "The experimental repair gives each job an independent journal "
-             "and delays round cleanup until none is active. It has NOT "
-             "been play-tested. Start from a save before accepting jobs: "
+             "and delays round cleanup until none is active. Molkerr reports "
+             "separate hand-ins and save/load working in 1.39, but titles and "
+             "objectives show internal keys; marker behavior still needs checks "
+             "(GitHub #9). The development version now adds translations from "
+             "the installed languages when building this option; game-side "
+             "loading is still unverified. Start from a save before accepting jobs: "
              "old active jobs cannot be migrated. Keep the pak until all "
              "jobs are finished or cancelled. The giver's shared cancel "
              "line cancels all his current jobs; journal state is saved.",
         "k": "repeatable quests jobs tasks multiple several at once stack "
              "accept more than one three limit cap talk again quest giver "
              "barkeep warlock sidorovich drabadan harpy malachite rostok",
+    },
+    {
+        "q": "Can I add fire protection or another bonus to an artifact?",
+        "a": "World > Artifact editor: select the ordinary artifact and edit an "
+             "Add-bonus row. 0 is off; 100% uses the installed native Low-tier "
+             "strength; up to 1000% is available. Global artifact strength also "
+             "applies. Existing bonus families keep their existing controls. "
+             "Options include elemental/physical protection, radiation removal, "
+             "stamina, bleeding reduction, carry capacity and experimental maximum "
+             "durability. Carry capacity also adds a hidden penalty-free weight "
+             "bonus. Enable the bonus-label checkbox to update the displayed tier. "
+             "Re-equip after changing the mod. Extra bonuses, long lists and "
+             "protection of inherited fake/quest variants still need game tests. "
+             "This development feature needs no UE4SS.",
+        "k": "artifact add extra new bonus bonuses fire burn protection liquid "
+             "stone additional effects strength carry stamina radiation",
     },
     {
         "q": "Can dropped weapons spawn in better (or exact) condition?",
@@ -402,6 +421,19 @@ FAQ_ENTRIES = [
              "weather; this feature has not been play-tested. Disabled vanilla "
              "weather is not enabled by these factors. No UE4SS is required.",
         "k": "regional weather rain fog cloudy storm duration selection weight",
+    },
+    {
+        "q": "Why does a weakened artifact still say Max?",
+        "a": "The game stores the bonus strength and its displayed tier separately. "
+             "World > Artifact editor: 'Artifact bonus labels follow your changes' "
+             "updates ordinary bonus labels to the nearest native tier, using the "
+             "combined global and individual strength. Midpoints use the lower tier; "
+             "zero bonuses are hidden. Labels are approximate and cannot show an "
+             "exact percentage or a tier beyond the native range. Off keeps the "
+             "original labels. Radiation shielding tiers and unusual artifact "
+             "behavior are separate. This new display option is not play-tested yet.",
+        "k": "artifact description icon max low medium strong cosmetic stats tier "
+             "label liquid stone weakened bonus strength display",
     },
     {
         "q": "Can I tone down anomalies or emissions?",

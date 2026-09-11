@@ -11,8 +11,8 @@ Text gehoert ins Feld "Changelog" darunter. Beides ohne externe Links.
 
 ==================================================================
 DATEI — Main Files
-Name:          S2Tweaker 1.39.0
-File version:  1.39.0
+Name:          S2Tweaker 1.40.0
+File version:  1.40.0
 File category: Main Files
 ==================================================================
 
@@ -21,6 +21,17 @@ Unzip everything into one folder, keep the DLLs and _internal next to the exe, r
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.40.0 - extra artifact bonuses, job texts and NPC equipment
+
+- Nine extra artifact bonus families; 518 additional item/bonus choices.
+- Optional strength labels; automatic job translations from installed languages.
+- NPC gear by faction and player progression; 1,028 relative-choice controls.
+- Profiles, undo/redo, reset, conflict scans and Pak manifests supported.
+- 55 local headless suites, portable GUI and generated-Pak readback checked.
+- New effects/labels, localization and NPC generators NOT play-tested.
+- Job marker and A-Life game checks remain open. No UE4SS.
+- Existing signed runtime binaries unchanged; no new VirusTotal result claimed.
+
 1.39.0 - artifact editor and related settings
 
 - Individual artifact weight, base price, isolated bonuses and native radiation

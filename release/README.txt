@@ -11,8 +11,34 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.39.0
+NEW IN 1.40.0
 --------------
+Extra artifact bonuses: World -> Artifact editor & related settings.
+Add missing ordinary bonus types, including fire protection on Liquid Stone.
+Nine supported families; 518 additions and 871 total artifact-editor controls on
+the audited 2.0.5 data. Add controls: 0 off, 100% native Low, up to 1000%; global
+artifact strength also applies. Existing bonus controls retain their meanings.
+Optional Artifact bonus labels follow your changes selects the nearest native
+tier and hides zero-strength rows. Labels remain approximate. Re-equip artifacts.
+
+Multi-job exports automatically include supplemental title/objective translations
+from the installed game: 18 languages and 208 aliases each checked locally.
+Existing journal/stage IDs are preserved. First preparation after a game update
+may need Oodle to read compressed resources; see the tool's Oodle help.
+
+World -> NPC equipment by faction & player progression: 12 factions, 50 ordinary
+role profiles, 370 native groups and 1,028 relative-choice controls on 2.0.5.
+100% inherits, 200% doubles a relative weight, 0 disables it if another remains.
+Rank means player progression. Existing pools, shared rank groups and difficulty
+filters remain. NPC-only body armor does not become lootable. Existing inventories
+may not refresh; generic mission NPCs may use the edited ordinary profiles.
+
+New bonuses/labels, inherited-variant protection, supplemental translations and
+NPC equipment are NOT PLAY-TESTED. Many bonus rows have no verified engine limit.
+Job marker checks and individual A-Life tests remain open. No UE4SS is needed.
+
+INCLUDED FROM 1.39.0
+-------------------
 Artifact editor: World -> Artifact editor & related settings (experimental).
 353 supported settings on game 2.0.5: individual artifact weight, base price,
 bonuses and native radiation tiers; individual detectors; Weird Ball parameters;

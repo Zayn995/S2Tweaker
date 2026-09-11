@@ -260,6 +260,7 @@ def _add_earlier_equipment(gd, s, patches, key, slot_key, slot, siblings, ammo):
 
 def _expanded_gear_quality(gd, s, patches, key, slot_key, own_rows, additions):
     """Apply the existing quality weighting to the final expanded lottery."""
+    from .npc_equipment import quality_weight, _fmt as weight_literal
     factor = _number(_setting(s, "npc_gear_quality_factor", 1), 1)
     if not additions or factor <= 0 or factor == 1:
         return
@@ -283,14 +284,14 @@ def _expanded_gear_quality(gd, s, patches, key, slot_key, own_rows, additions):
         weight = parse_number(values.get("Weight"))
         if cost is None or weight <= 0:
             continue
-        changed = max(1, int(round(weight * factor ** ranks[cost])))
+        changed = quality_weight(weight, factor, ranks[cost])
         if added:
-            values["Weight"] = str(changed)
+            values["Weight"] = weight_literal(changed)
         else:
-            earlier = (max(1, int(round(weight * factor ** original_ranks[cost])))
-                       if cost in original_ranks else int(round(weight)))
-            if changed != int(round(weight)) or earlier != int(round(weight)):
-                _patch_row(patches, key, slot_key, row_key, {"Weight": str(changed)})
+            earlier = (quality_weight(weight, factor, original_ranks[cost])
+                       if cost in original_ranks else weight)
+            if _different(changed, weight) or _different(earlier, weight):
+                _patch_row(patches, key, slot_key, row_key, {"Weight": weight_literal(changed)})
 
 
 def mutant_species(gd):

@@ -99,7 +99,7 @@ SPECIAL = {                      # Regler, deren Vanilla-Wert 0 oder Deckel ist
 #   stat_bars_follow spiegelt nur die Waffenregler
 #   no_mouse_smoothing/no_view_acceleration schreiben eine INI statt cfg
 #   relations_runtime braucht mindestens ein verstelltes Beziehungs-Paar
-ALONE_EMPTY = {"stat_bars_follow", "no_mouse_smoothing", "no_view_acceleration",
+ALONE_EMPTY = {"stat_bars_follow", "artifact_stat_labels_follow", "no_mouse_smoothing", "no_view_acceleration",
                "relations_runtime"}
 
 COUPLED = {

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 import math
 import re
 
-from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions
+from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions, npc_equipment
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import CATEGORY_TEMPLATES, GameData
@@ -601,6 +601,7 @@ class Settings:
     weather_duration_factor: float = 1.0     # WeatherSelection WeatherDurationMin/Max
     regional_weather_overrides: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict)
     artifact_overrides: dict[str, float] = field(default_factory=dict)  # deferred individual artifact/world controls
+    artifact_stat_labels_follow: bool = False  # cosmetic native tiers for edited ordinary bonuses
     bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
     bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
     pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 alle
@@ -989,6 +990,7 @@ class Settings:
     surface_noise_overrides: dict[str, float] = field(default_factory=dict)
     weather_luminance_overrides: dict[str, float] = field(default_factory=dict)
     mutant_loot_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
+    npc_equipment_overrides: dict[str, float] = field(default_factory=dict)
 
     # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
     weapon_price_factor: float = 1.0
@@ -1591,9 +1593,10 @@ def _gear_quality_patch(gd: GameData, s: Settings) -> dict:
     billigste Item Faktor 1, das teuerste den vollen Faktor, dazwischen
     geometrisch nach Preisrang — bei Faktor 4 ist die beste Waffe des
     Pools also 4x so wahrscheinlich, bei 0.25 dominiert der Schrott.
-    EHRLICHE GRENZE: es werden nie Items ergaenzt oder entfernt (Gewicht
-    faellt nie unter 1), NPCs tragen weiter nur, was ihr Pool vanilla
-    hergibt. Items ohne aufloesbaren Preis bleiben unangetastet."""
+    EHRLICHE GRENZE: es werden nie Items ergaenzt oder entfernt, NPCs
+    tragen weiter nur, was ihr Pool vanilla hergibt. Ganze Basisgewichte
+    behalten min1; gebrochene Vanilla-Gewichte bleiben gebrochen.
+    Items ohne aufloesbaren Preis bleiben unangetastet."""
     f = s.npc_gear_quality_factor
     if not _neq(f, 1.0) or f <= 0:
         return {}
@@ -1606,14 +1609,14 @@ def _gear_quality_patch(gd: GameData, s: Settings) -> dict:
         for item_key, item, weight, cost in pool:
             if cost is None:
                 continue
-            new = max(1, int(round(weight * (f ** rank[cost]))))
-            if new == int(round(weight)):
+            new = npc_equipment.quality_weight(weight, f, rank[cost])
+            if not _neq(new, weight):
                 continue
             (patches.setdefault(sid, {})
                     .setdefault(gen_key, {})
                     .setdefault(slot_key, {})
                     .setdefault("PossibleItems", {})
-                    .setdefault(item_key, {}))["Weight"] = str(new)
+                    .setdefault(item_key, {}))["Weight"] = npc_equipment._fmt(new)
     return patches
 
 
@@ -6798,6 +6801,20 @@ def input_ini(s: Settings) -> str | None:
     return "[/Script/Engine.InputSettings]\n" + "\n".join(lines) + "\n"
 
 
+def build_root_files(gd: GameData, s: Settings) -> dict[str, str | bytes]:
+    """Non-CFG output; optional translations are prepared only on preview/export."""
+    files = {}
+    ini = input_ini(s)
+    if ini is not None:
+        files["Stalker2/Config/UserInput.ini"] = ini
+    if s.repeatable_jobs_multi:
+        from .quest_jobs import build_job_isolation
+        aliases = {}
+        build_job_isolation(gd, localization_aliases=aliases)
+        files.update(gd.job_localization_files(aliases))
+    return files
+
+
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
     n = s.mod_name
@@ -6813,6 +6830,18 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
             else:
                 target = f"{stem}/{stem.rsplit('/', 1)[-1]}_patch_{n}.cfg"
             _merge_nested(extensions.setdefault(target, {}), patch)
+
+    # Equipment clones need the complete global loot result before Obj links
+    # are emitted. Original generators keep only independently chosen globals.
+    gen_path = f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg"
+    gen_patches = _loot_patch(gd, s)
+    _merge_nested(gen_patches, _loot_condition_patch(gd, s))
+    _merge_nested(gen_patches, _gear_quality_patch(gd, s))
+    _merge_nested(gen_patches, _trader_stock_patch(gd, s))
+    _merge_nested(gen_patches, extensions.pop(gen_path, {}))
+    equipment_objects = npc_equipment.apply(gd, s, gen_patches)
+    if equipment_objects:
+        _merge_nested(extensions.setdefault(f"ObjPrototypes/ObjPrototypes_patch_{n}.cfg", {}), equipment_objects)
 
     def add(path: str, patches: dict):
         _merge_nested(patches, extensions.pop(path, {}))
@@ -6953,10 +6982,6 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
     # Drei Builder teilen sich die Generator-Datei (Mengen, Waffen-Zustand,
     # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
-    gen_patches = _loot_patch(gd, s)
-    _merge_nested(gen_patches, _loot_condition_patch(gd, s))
-    _merge_nested(gen_patches, _gear_quality_patch(gd, s))
-    _merge_nested(gen_patches, _trader_stock_patch(gd, s))
     # loot_extensions composes global and species trophy settings.
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
@@ -7068,6 +7093,9 @@ def summarize(s: Settings) -> list[str]:
     """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
     lines = extension_controls.regional_weather.summarize(s.regional_weather_overrides)
     lines.extend(artifact_extensions.summarize(s.artifact_overrides))
+    if s.artifact_stat_labels_follow:
+        lines.append("Artifact bonus labels follow edited strength (nearest native tier; zero bonuses hidden; experimental)")
+    lines.extend(npc_equipment.summarize(s.npc_equipment_overrides))
     defaults = Settings()
     for field_name, (_, title, _lo, _hi, _step, _default, divisor, _tip) in extension_controls.SLIDERS.items():
         value = getattr(s, field_name)
@@ -7643,7 +7671,7 @@ def summarize(s: Settings) -> list[str]:
     f("Quest money rewards", s.quest_reward_factor)
     f("Repeatable quest cooldown", s.repeatable_quest_factor)
     if s.repeatable_jobs_multi:
-        lines.append("Accept several repeatable jobs in one conversation")
+        lines.append("Accept several repeatable jobs by interacting again (includes experimental journal translations)")
     if _neq(s.repeatable_jobs_per_round, Settings.repeatable_jobs_per_round):
         lines.append(f"Repeatable jobs per round {s.repeatable_jobs_per_round:g} "
                      f"(vanilla {Settings.repeatable_jobs_per_round})")

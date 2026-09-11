@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions
+from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions, npc_equipment
 
 OVERVIEW_PAGE_SIZE = 20
 
@@ -293,6 +293,13 @@ class WorkbenchMixin:
                                 "ArtifactSpawnerPrototypes": gd.artifactspawners}[source]
                         baseline = gd.resolve(root, spec.target, paths[0])
                     description = f"Loaded baseline: {baseline}. " + description
+            if path[0] == "sliders" and path[1] in npc_equipment.CONTROLS:
+                data = npc_equipment.available(getattr(self, "gd", None))
+                if path[1] not in data:
+                    label += " (inactive)"
+                    description = "Inactive in this game data. Reset to 100% to remove the saved change. " + description
+                else:
+                    description = f"Loaded native weight: {data[path[1]]:g}. " + description
             return label, tab, description
         group, key, *param = path
         if group == "checks" and key in self.checks:
@@ -331,6 +338,7 @@ class WorkbenchMixin:
         gd = getattr(self, "gd", None)
         weather_keys = regional_weather.available_keys(gd.regional_weather) if gd else set()
         artifact_keys = artifact_extensions.available(gd)
+        equipment_keys = npc_equipment.available(gd)
         result = []
         for path in paths:
             default = self._wb_neutral(path)
@@ -341,6 +349,9 @@ class WorkbenchMixin:
                     if state.equal(default, value) and path not in self._wb_favorites:
                         continue
             if path[0] == "sliders" and path[1] in artifact_extensions.CONTROLS and path[1] not in artifact_keys:
+                if state.equal(default, value) and path not in self._wb_favorites:
+                    continue
+            if path[0] == "sliders" and path[1] in npc_equipment.CONTROLS and path[1] not in equipment_keys:
                 if state.equal(default, value) and path not in self._wb_favorites:
                     continue
             result.append((path, label, tab, default, value, description))
@@ -407,6 +418,11 @@ class WorkbenchMixin:
 
     def _wb_build_artifact_editor(self, body):
         frame = self._section(body, "Artifact editor & related settings (experimental)")
+        self._check(frame, "art_stat_labels", "Artifact bonus labels follow your changes",
+                    "Shows the nearest native strength tier after global and individual bonus changes; "
+                    "ties use the lower tier. Zero bonuses are hidden. These are approximate labels, "
+                    "not exact numbers. Radiation shielding tiers and unusual artifacts are separate. "
+                    "Off keeps the original labels. Not play-tested yet.")
         self.artifact_editor_note = ctk.CTkLabel(frame, text="", justify="left", anchor="w", wraplength=660)
         self.artifact_editor_note.pack(fill="x", padx=12, pady=6)
         self.artifact_editor_group = ctk.CTkOptionMenu(frame, values=list(artifact_extensions.GROUPS.values()),
@@ -431,7 +447,7 @@ class WorkbenchMixin:
         self.artifact_editor_note.configure(text=(
             "Rarity weights are normalized per rank. These shared profiles also affect quest placements, including E06_MQ01. Not play-tested yet."
             if group == "rarity" else
-            "Choose an item or profile, then edit its available values. Inherit restores global behavior. Artifact names use their game-data identifiers. Not play-tested yet."))
+            "Choose an item or profile, then edit its values. Add-bonus rows: 0 off, 100% of native Low strength. Existing bonuses: 100% inherits. Artifact names use game-data identifiers. Not play-tested yet."))
 
     def _wb_artifact_editor(self, label, target):
         gd = getattr(self, "gd", None)
@@ -445,6 +461,55 @@ class WorkbenchMixin:
             return
         self.wb_search.delete(0, "end")
         self.wb_search.insert(0, f"{label} / {target} /")
+        self._wb_choose_view("Loot & world")
+
+    def _wb_build_equipment_editor(self, body):
+        frame = self._section(body, "NPC equipment by faction & player progression (experimental)")
+        self.equipment_frame = frame
+        ctk.CTkLabel(frame, text=("Choose a faction, role and native equipment group. Edit the relative frequency of existing weapons, pistols and body armor. "
+                                + npc_equipment.NOTE), justify="left", anchor="w", wraplength=660).pack(fill="x", padx=12, pady=6)
+        choices = ctk.CTkFrame(frame, fg_color="transparent")
+        choices.pack(fill="x", padx=12, pady=4)
+        ctk.CTkLabel(choices, text="Faction").pack(side="left", padx=(0, 6))
+        self.equipment_faction = ctk.CTkOptionMenu(choices, values=["Load game data first"], width=200,
+                                                 command=self._wb_equipment_choices)
+        self.equipment_faction.pack(side="left")
+        ctk.CTkLabel(choices, text="Role").pack(side="left", padx=8)
+        self.equipment_role = ctk.CTkOptionMenu(choices, values=["—"], width=170,
+                                              command=self._wb_equipment_choices)
+        self.equipment_role.pack(side="left")
+        ctk.CTkLabel(frame, text="Equipment / player rank group / difficulty", anchor="w").pack(fill="x", padx=12)
+        self.equipment_pool = ctk.CTkOptionMenu(frame, values=["—"], width=650)
+        self.equipment_pool.pack(anchor="w", padx=12, pady=4)
+        self.equipment_edit = ctk.CTkButton(frame, text="Edit equipment choices", command=self._wb_equipment_editor)
+        self.equipment_edit.pack(anchor="w", padx=12, pady=6)
+        self._wb_equipment_choices()
+
+    def _wb_equipment_choices(self, _value=None):
+        data = npc_equipment.available(getattr(self, "gd", None))
+        controls = [c for k, c in npc_equipment.CONTROLS.items() if k in data]
+        def options(menu, values):
+            values = sorted(set(values))
+            menu.configure(values=values or ["Unavailable in this game data"])
+            if menu.get() not in values:
+                menu.set(values[0] if values else "Unavailable in this game data")
+        options(self.equipment_faction, (c.faction for c in controls))
+        controls = [c for c in controls if c.faction == self.equipment_faction.get()]
+        options(self.equipment_role, (c.role for c in controls))
+        controls = [c for c in controls if c.role == self.equipment_role.get()]
+        options(self.equipment_pool, (c.pool for c in controls))
+        self.equipment_edit.configure(state="normal" if controls else "disabled")
+
+    def _wb_equipment_editor(self):
+        data = npc_equipment.available(getattr(self, "gd", None))
+        selected = next((c for k, c in npc_equipment.CONTROLS.items() if k in data
+                         and c.faction == self.equipment_faction.get() and c.role == self.equipment_role.get()
+                         and c.pool == self.equipment_pool.get()), None)
+        if selected is None:
+            self._wb_equipment_choices()
+            return
+        self.wb_search.delete(0, "end")
+        self.wb_search.insert(0, selected.selection)
         self._wb_choose_view("Loot & world")
 
     def _wb_sync_search(self, query):
@@ -491,6 +556,9 @@ class WorkbenchMixin:
                          wraplength=630).pack(pady=24)
         start = self._wb_page * OVERVIEW_PAGE_SIZE
         for path, label, tab, default, value, description in rows[start:start + OVERVIEW_PAGE_SIZE]:
+            equipment = npc_equipment.CONTROLS.get(path[1]) if path[0] == "sliders" else None
+            if equipment and query == equipment.selection.casefold():
+                label = equipment.title
             card = ctk.CTkFrame(self.wb_rows)
             card.pack(fill="x", padx=4, pady=3)
             card.grid_columnconfigure(1, weight=1)
@@ -568,13 +636,14 @@ class WorkbenchMixin:
                     if value is None:
                         value = float(raw)
                     armor_extensions.clean({param[0]: value})
-                elif group == "sliders" and key in artifact_extensions.CONTROLS:
-                    spec = artifact_extensions.CONTROLS[key]
+                elif group == "sliders" and (key in artifact_extensions.CONTROLS or key in npc_equipment.CONTROLS):
+                    editor = npc_equipment if key in npc_equipment.CONTROLS else artifact_extensions
+                    spec = editor.CONTROLS[key]
                     value = {"inherit": spec.default, "default": spec.default, "off": 0}.get(raw.lower())
                     if value is None:
                         value = float(raw)
                     value = spec.validate(value)
-                    if value != spec.default and key not in artifact_extensions.available(getattr(self, "gd", None)):
+                    if value != spec.default and key not in editor.available(getattr(self, "gd", None)):
                         raise ValueError(f"This control is unavailable in the loaded game data. Reset to {spec.default:g}.")
                 else:
                     value = float(raw)

@@ -1,4 +1,4 @@
-# Artifact editor and related settings (1.39.0)
+# Artifact editor and related settings (1.40.0)
 
 Open **World → Artifact editor & related settings (experimental)**. Select a
 family, then an item or profile, and click **Edit selected settings**. The
@@ -7,8 +7,9 @@ and click Apply or press Enter. Details shows the installed baseline and the
 control's meaning. These settings support search, favorites, profiles, Pak
 manifests, undo/redo and reset.
 
-The current 2.0.5 snapshot provides 353 controls across five families. These additions are experimental and have not been play-tested.
-They are included in version 1.39.0. No UE4SS, injector, Blueprint package
+Version 1.40.0 extends the 353 controls introduced in 1.39.0 with 518
+extra-bonus choices (871 controls in the current 2.0.5 snapshot) and an optional
+display checkbox. The new additions are experimental and not play-tested. No UE4SS, injector, Blueprint package
 or new extraction input is required; cache schema remains unchanged.
 
 | Family | Controls and scope |
@@ -26,6 +27,9 @@ template, quest, prologue and special PSY variants are excluded from the ordinar
 editor. Weird artifacts have their own specific controls.
 
 ## Defaults and global settings
+
+- **Add-bonus rows / 0:** no extra bonus. **100%** uses the loaded native Low-tier
+  value; **1–1000%** scales that value and combines with global artifact strength.
 
 - **Inherit / -1:** restores the existing global behavior for absolute item,
   detector and Weird Ball values. Explicit zero is a real setting where allowed.
@@ -53,6 +57,45 @@ inactive so they can be reset. Unknown or unsupported game definitions are never
 patched by guessing.
 
 ## Individual bonuses and radiation
+
+### Adding a missing bonus (1.40.0)
+
+Select an ordinary artifact in World → Artifact editor and edit an **Add** row.
+Only bonus families absent from that artifact are offered. For example, select
+`CArtifactLiquidStone` and set **Add fire protection** to **200%**. On the audited
+2.0.5 installation, native Low fire protection is 10, so this adds 20 before any
+global strength factor. The value is read from the installation, not hardcoded.
+
+The nine families are electric, fire, chemical and physical protection, radiation
+removal, stamina regeneration, bleeding reduction, carry capacity and experimental
+maximum durability. Carry adds a visible capacity bonus and a hidden penalty-free
+weight bonus with the same factor; existing carry-only exceptions remain intact.
+This does not add harmful radiation. Existing bonus controls retain their meaning.
+
+Each addition uses an item-specific effect definition and appends aligned entries
+to the effect, visibility and display-type arrays. Existing indices and prior
+individual changes are retained. Fake/quest descendants receive protective empty
+hidden slots where needed, preventing them from inheriting the new bonus in the
+configuration model. That combined neutral slot still needs an engine test.
+
+Re-equip after changing the mod. Effective protection can still reach the game's
+caps. The maximum number of visible/effective rows is not verified; many bonuses
+at once and the descendant protection remain experimental. See
+[source research and inheritance exceptions](ARTIFACT_EXTRA_BONUSES_RESEARCH.md).
+
+Unreleased display option: **World → Artifact editor → Artifact bonus labels
+follow your changes**. The native `EffectLevel` is separate from magnitude;
+leaving it unchanged can show “Max” after reducing a bonus. With this option on,
+ordinary bonuses use the nearest installed native magnitude in the same effect
+family after global and individual factors. Exact midpoints use the lower tier.
+Values beyond the native range keep its lowest/highest label, so this remains an
+approximation. Zero bonus rows are hidden using their existing `ShouldShowEffects`
+indices. Off retains the original display. Radiation shielding tiers and unusual
+artifacts are outside this option. Enabling it alone produces no patch.
+
+Source verification and synthetic/live-data output tests cover the mapping;
+the new display option has **not been tested in the game**. Molkerr's 1.39 report
+confirms his individual artifact edits, not this later display change.
 
 Each edited ordinary bonus receives a stable mod/item/effect-specific definition
 derived from the original native effect. Only that item's existing effect-list
@@ -102,11 +145,12 @@ global composition, native radiation selection, shielding references, exclusions
 constraints, number suffixes, profile/history/reset behavior and complete Pak
 read-back. A separate single-window diagnostic exercises all five families,
 editing, profiles, undo/redo, export and reset while measuring GUI resources.
-The implementation prepared on 2026-09-11 passed all 52 local headless suites and all 13 CI suites
-run locally, plus the portable runtime self-test, signature verification, the
-single-window GUI diagnostic and byte-for-byte read-back of six generated Paks.
-All five editor families were exercised. Peak GUI resources were 6,744 USER and
-106 GDI objects. Packaged files are checked against the tested preview.
+The 1.40.0 release preparation passed 55 local headless suites, including
+individual and combined generation of all 518 extra-bonus choices. The portable
+runtime self-test, signature verification and generated-Pak readback also pass.
+All five editor families were exercised in a real Windows window. The same GUI
+check exported the job translations in 18 languages. Peak GUI resources were
+6,791 USER and 106 GDI objects. Packaged sources are checked against the release tag.
 None of these checks is an in-game test.
 
 Underlying evidence and exact baseline tables are linked from

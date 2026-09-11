@@ -61,7 +61,7 @@ OODLE_URL = (
 )
 
 OODLE_HELP = """S2Tweaker needs the Oodle decompression library ({dll})
-to read the packed config files of your game, and it is not on this PC yet.
+to read packed game data. It was not found in the usual locations.
 
 {reason}
 
@@ -85,9 +85,10 @@ other Oodle 2.9.x builds are rejected on purpose.
 You may already have this file: every Unreal Engine installation ships
 it, and so do some other S.T.A.L.K.E.R. 2 modding tools.
 
-Note: BUILDING a mod pak never needs Oodle - only reading the vanilla
-values out of your game does. If you have loaded game data before, your
-cached values keep working without it."""
+Note: Writing the Pak itself does not need Oodle. Reading packed game
+data does, including the first preparation of optional job translations
+or extra stash data during export. Already prepared, current caches can
+be reused without decompressing those files again."""
 
 
 class OodleError(RuntimeError):
@@ -292,7 +293,7 @@ def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
 
 
 def pack_mod(cfg_files: dict[str, str], out_pak: Path,
-             root_files: dict[str, str] | None = None) -> Path:
+             root_files: dict[str, str | bytes] | None = None) -> Path:
     """cfg-Dateien in eine Mod-Pak packen.
 
     cfg_files: {"ObjPrototypes/zzz_S2Tweaker_Player.cfg": "<cfg-Text>", ...}
@@ -327,12 +328,29 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
             # seit 1.35.0 auch verschachtelt (Stalker2/Config/UserInput.ini)
             target = staging / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            if isinstance(content, bytes):
+                target.write_bytes(content)
+            else:
+                target.write_text(content, encoding="utf-8")
         pakfile.pack_dir(staging, out_pak)
 
     if not out_pak.is_file():
         raise RuntimeError(f"Pak wurde nicht erzeugt: {out_pak}")
     return out_pak
+
+
+def export_root_files(files: dict[str, str | bytes], root: Path) -> list[Path]:
+    """Keep supplementary binary resources byte-exact in the debug export."""
+    written = []
+    for rel, content in files.items():
+        target = Path(root) / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, bytes):
+            target.write_bytes(content)
+        else:
+            target.write_text(content, encoding="utf-8")
+        written.append(target)
+    return written
 
 
 def list_pak(pak: Path) -> list[str]:

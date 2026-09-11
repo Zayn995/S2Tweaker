@@ -53,7 +53,7 @@ unscannable |= {"check:" + k for k in CHECK_FIELDS
 # 1.36.0: der Laufzeit-Schalter der Fraktionsbeziehungen wirkt nur mit
 # verstellten Paaren; die Paare selbst deckt der Sammel-Fussabdruck
 # `tree:factions` ab (Begruendung in gui.footprint_settings).
-assert unscannable == {"check:stat_bars",
+assert unscannable == {"check:stat_bars", "check:art_stat_labels",
                        "check:no_mouse_smooth", "check:no_view_accel",
                        "check:relations_runtime"}, unscannable
 t0 = time.time()

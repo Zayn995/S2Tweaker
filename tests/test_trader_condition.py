@@ -126,13 +126,13 @@ assert m, "Recon-Loadout fehlt"
 assert "Weight = 400" in m.group(1), m.group(1)[:600]
 assert "Weight = 1000\n" not in m.group(1).replace("\r", ""), \
     "billigstes Item (Faktor 1) darf keine Patch-Zeile bekommen"
-# Gewichte fallen nie unter 1; neutral = kein Weight-Patch
+# Integer-Baselines behalten min1; echte Bruchteile bleiben positiv erhalten.
 low = build_patches(gd, Settings(npc_gear_quality_factor=0.25))[GEN_KEY]
-assert all(int(v) >= 1 for v in re.findall(r"Weight = (\d+)", low))
+assert all(float(v) > 0 for v in re.findall(r"Weight = ([0-9.eE+-]+)", low))
 assert "Weight" not in build_patches(
     gd, Settings(loot_amount_factor=2.0))[GEN_KEY]
 print(f"NPC-Gear x4: {len(pools)} Pools, Referenzpool exakt, "
-      "min-Gewicht 1, neutral sauber  OK")
+      "positive Gewichte inkl. Bruchteile, neutral sauber  OK")
 
 # --- 7) summarize -------------------------------------------------------
 lines = summarize(Settings(dropped_condition_pct=80.0,

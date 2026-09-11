@@ -7,7 +7,7 @@ No Tk import: collection and footprint probes can be checked without a window.
 import math
 import re
 from .world_extensions import SURFACES, WEATHERS
-from . import regional_weather, artifact_extensions
+from . import regional_weather, artifact_extensions, npc_equipment
 
 SPECIES = ("Tushkan", "Flesh", "Boar", "Blinddog", "Snork", "Cat", "Bloodsucker",
            "Pseudodog", "Poltergeist", "Burer", "Controller", "Chimera", "Deer", "Pseudogiant")
@@ -149,6 +149,7 @@ def control_specs():
     """UI key, label, limits, default, help; all values are whole percentages."""
     yield from regional_weather.control_specs()
     yield from artifact_extensions.control_specs()
+    yield from npc_equipment.control_specs()
     for field, (section, title, lo, hi, step, default, divisor, tip) in SLIDERS.items():
         yield field, title, lo, hi, default, tip
     for material in SURFACES:
@@ -166,7 +167,7 @@ def control_specs():
 def build_controls(app, body, fmt_pct):
     app._extension_paths = set()
     for key, title, lo, hi, default, tip in control_specs():
-        spec = artifact_extensions.CONTROLS.get(key)
+        spec = artifact_extensions.CONTROLS.get(key) or npc_equipment.CONTROLS.get(key)
         app.sliders[key] = ArtifactControl(spec) if spec else StoredControl(title, lo, hi, default)
         app.slider_tabs[key] = app._current_tab
         path = ("sliders", key)
@@ -195,6 +196,9 @@ def collect_mutant_loot(sliders):
 
 
 def dict_probe(key):
+    equipment = npc_equipment.probe(key)
+    if equipment is not None:
+        return equipment
     artifact = artifact_extensions.probe(key)
     if artifact is not None:
         return artifact

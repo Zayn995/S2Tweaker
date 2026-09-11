@@ -248,6 +248,11 @@ class GameData:
         stat = self._source_pak.stat()
         return stat.st_size, stat.st_mtime_ns
 
+    def job_localization_files(self, aliases):
+        """Optional, compact cache; no localization work during normal loading."""
+        from .job_localization import resources
+        return resources(self, aliases)
+
     def stash_spawn_source(self):
         """Load the large spawn file only for enabled extra stash finds.
 
@@ -753,6 +758,12 @@ class GameData:
     def artifact_editor(self) -> dict:
         """Audited ordinary artifacts and related controls in the loaded data."""
         from .artifact_extensions import catalog
+        return catalog(self)
+
+    @cached_property
+    def npc_equipment_editor(self) -> dict:
+        """Validated object links and weighted choices for ordinary NPC roles."""
+        from .npc_equipment import catalog
         return catalog(self)
 
     # --- 1.26.0 ---

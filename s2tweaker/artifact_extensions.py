@@ -103,6 +103,16 @@ def _controls():
                               "Additional multiplier on this item's existing bonus, combined with global artifact strength. "
                               "100% inherits; 0% removes the magnitude. Other artifacts keep their own effects. "
                               "Carry capacity and penalty-free carry weight are separate bonuses. Re-equip after changing the mod." + experimental)
+        for family, label in EFFECT_LABELS.items():
+            if family == "PenaltyLessWeightEffect":
+                continue
+            yield Control("item", sid, "extra_" + family,
+                          "Add " + label.lower() + " (% of native Low; 0 off)", 0, 1000, 0, 0,
+                          "Adds a bonus this artifact does not already have. 100% uses the installed native Low-tier magnitude; "
+                          "the global artifact-strength factor also applies. 0 disables this addition. "
+                          "Carry capacity also adds a hidden penalty-free weight bonus with the same factor. "
+                          "Use the bonus-label checkbox to adjust the displayed tier. Re-equip after changing the mod. "
+                          "Multiple added rows and protection of fake/quest variants need a game test." + experimental)
     for sid in DETECTORS:
         for param, path in DETECTOR_PATHS.items():
             title = {"reveal": "Artifact reveal radius", "work": "Search / work radius", "near": "Near detection radius",
@@ -222,6 +232,10 @@ def catalog(gd):
                     result[key] = ("ItemPrototypes", ("EffectPrototypeSIDs." + indices[c.target][native[0]], native[0]))
             elif c.param in indices[c.target] and _safe_effect(gd, c.param, effect_family(c.param)):
                 result[key] = ("ItemPrototypes", ("EffectPrototypeSIDs." + indices[c.target][c.param], c.param))
+            elif c.param.startswith("extra_"):
+                from .artifact_additions import supported, family
+                if supported(gd, c.target, family(c.param)):
+                    result[key] = ("ItemPrototypes", ("EffectPrototypeSIDs", "Artifact" + family(c.param) + "1"))
         elif c.group in ("detector", "ball"):
             node = gd.items.children.get(c.target)
             path = DETECTOR_PATHS[c.param] if c.group == "detector" else c.param
@@ -298,19 +312,71 @@ def _effect_change(gd, settings, c, value):
     # Keep the original localization lookup when a new SID is introduced.
     localization = gd.resolve(gd.effects, c.param, "LocalizationSID")
     cfg["LocalizationSID"] = localization if localization and localization.lower() != "empty" else c.param
+    if settings.artifact_stat_labels_follow:
+        _sync_level(gd, c.param, cfg)
     return name, cfg
+
+
+def _sync_level(gd, sid, cfg):
+    """Cosmetic nearest native tier, using this installation's family values."""
+    family = effect_family(sid)
+    if family is None or not _safe_effect(gd, sid, family):
+        return
+    value = parse_number(cfg.get("ValueMin"), math.nan)
+    if not math.isfinite(value) or value <= 0:
+        return  # Zero rows are hidden on the item, not assigned a made-up tier.
+    levels = {"EEffectLevel::" + name for name in ("VeryLow", "Low", "Medium", "Strong", "Max")}
+    tiers = []
+    for candidate in gd.effects.children:
+        if effect_family(candidate) != family or not _safe_effect(gd, candidate, family):
+            continue
+        level = gd.resolve(gd.effects, candidate, "EffectLevel")
+        if level in levels:
+            tiers.append((parse_number(gd.resolve(gd.effects, candidate, "ValueMin")), level))
+    if tiers:
+        # At a midpoint prefer the lower value; the display is an approximation.
+        _, level = min(tiers, key=lambda row: (round(abs(row[0] - value), 9), row[0]))
+        original = gd.resolve(gd.effects, sid, "EffectLevel")
+        if level != original:
+            cfg["EffectLevel"] = level
+        elif "EffectLevel" in cfg:
+            del cfg["EffectLevel"]
+
+
+def _hide_zero_bonuses(gd, settings, patches):
+    for key in available(gd):
+        c = CONTROLS[key]
+        if c.group != "item" or effect_family(c.param) is None:
+            continue
+        factor = settings.artifact_effect_factor * settings.artifact_overrides.get(key, 100) / 100
+        if factor != 0:
+            continue
+        path = available(gd)[key][1][0].replace("EffectPrototypeSIDs", "ShouldShowEffects")
+        raw = gd.resolve(gd.items, c.target, path)
+        if raw is not None:
+            _put(patches, c.target, path, "false", raw)
 
 
 def apply(gd, settings, source, patches):
     if source not in ("ItemPrototypes", "EffectPrototypes", "ArtifactSpawnerPrototypes", "AnomalyPrototypes"):
         return
     selected = list(changes(settings.artifact_overrides))
+    if settings.artifact_stat_labels_follow:
+        if source == "EffectPrototypes":
+            for sid, cfg in patches.items():
+                _sync_level(gd, sid, cfg)
+        elif source == "ItemPrototypes":
+            _hide_zero_bonuses(gd, settings, patches)
+    from .artifact_additions import apply as apply_additions
+    # Existing effects are patched first; additional slots merge with that output below.
     if not selected:
         return
     data = available(gd)
     ranks = set()
     touched_detectors, touched_ball = set(), False
     for c, value in selected:
+        if c.param.startswith("extra_"):
+            continue
         if c.key not in data:
             continue
         file, paths = data[c.key]
@@ -367,13 +433,15 @@ def apply(gd, settings, source, patches):
                 raise ValueError(f"{sid} / {rank}: keep at least one rarity tier above zero.")
             for tier in TIERS:
                 _put(patches, sid, f"{rank}.RarityChance.{tier}", _literal(weights[tier] * baseline_total / total, raw[tier]), raw[tier])
+    apply_additions(gd, settings, source, patches, selected)
 
 
 def probe(key):
     c = CONTROLS.get(key)
     if c is None:
         return None
-    return {"artifact_overrides": {key: (50 if c.default == 100 else 0 if c.param == "radiation" else c.minimum)}}
+    return {"artifact_overrides": {key: (100 if c.param.startswith("extra_") else
+                                       50 if c.default == 100 else 0 if c.param == "radiation" else c.minimum)}}
 
 
 def footprint(gd, key):
@@ -381,6 +449,9 @@ def footprint(gd, key):
     if key not in available(gd):
         return set()
     c = CONTROLS[key]
+    if c.param.startswith("extra_"):
+        from .artifact_additions import footprint as extra_footprint, family
+        return extra_footprint(gd, c.target, family(c.param))
     _source, paths = available(gd)[key]
     if c.group == "item" and (c.param == "radiation" or effect_family(c.param)):
         from .modscan import EFFECT_LIST_LEAF
@@ -388,7 +459,7 @@ def footprint(gd, key):
         return {(c.target, EFFECT_LIST_LEAF), (c.target, "EffectPrototypeSIDs"),
                 (c.target, "ShouldShowEffects")} | {
                     (effect, leaf) for effect in effects for leaf in
-                    ("ValueMin", "ValueMax", "Type", "Duration", "DuplicationType", "bIsPermanent", "LocalizationSID")}
+                    ("ValueMin", "ValueMax", "Type", "Duration", "DuplicationType", "bIsPermanent", "LocalizationSID", "EffectLevel")}
     if c.group == "rarity":
         return {(c.target, tier) for tier in TIERS}  # normalization changes every tier
     if c.group == "ball" and c.param in ("MinWeight", "MaxWeight"):

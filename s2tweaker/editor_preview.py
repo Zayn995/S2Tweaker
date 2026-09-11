@@ -1,7 +1,7 @@
 """A read-only preview of actual generated patches, with conservative baselines."""
 from pathlib import PurePosixPath
 from . import cfgparse, mod_library
-from .tweaks import build_patches, input_ini, summarize
+from .tweaks import build_patches, build_root_files, input_ini, summarize
 
 
 def base_file(path):
@@ -17,11 +17,14 @@ def base_file(path):
 
 def describe_output(gd, settings, limit=400):
     patches = build_patches(gd, settings)
+    resources = build_root_files(gd, settings)
+    localized = {path: data for path, data in resources.items() if path.endswith(".locres")}
     ini = input_ini(settings)
     active = summarize(settings)
     lines = [f"Generated result for {settings.mod_name}",
              f"{len(active)} selection summaries · {len(patches)} config files"
-             + (" · 1 input settings file" if ini else ""), "",
+             + (" · 1 input settings file" if ini else "")
+             + (f" · {len(localized)} job translation files" if localized else ""), "",
              "This preview uses the current selection and installed game data.",
              "It does not install a mod or predict savegame/animation behavior.", ""]
     if not patches and ini is None:
@@ -58,6 +61,10 @@ def describe_output(gd, settings, limit=400):
             shown += 1
     if ini:
         lines += ["", "Input settings (whole INI file)", ini]
+    if localized:
+        lines += ["", "Supplementary job translations (experimental; game loading not yet verified)",
+                  "Texts come from the current installation. Existing journal and stage identifiers are preserved."]
+        lines += [f"  {path}: {len(data):,} bytes" for path, data in sorted(localized.items())]
     lines += ["", f"{total} generated value assignments; {shown} displayed.",
               "Unresolved bases are not assumed to be zero or vanilla. Use More options → Debug export for all patch files."]
     return "\n".join(lines)

@@ -21,7 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
-from . import extension_controls, regional_weather, artifact_extensions
+from . import extension_controls, regional_weather, artifact_extensions, npc_equipment
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions
 from .tweaks import (
@@ -43,6 +43,7 @@ from .tweaks import (
     ammo_label,
     armor_label,
     build_patches,
+    build_root_files,
     caliber_label,
     caliber_warning,
     summarize,
@@ -1079,6 +1080,7 @@ CHECK_FIELDS: dict[str, str] = {
     # rq_jobs_multi ist seit 09.09.2026 der dritte Entwurf (nur {bpatch}).
     "rq_jobs_multi": "repeatable_jobs_multi",
     "stat_bars": "stat_bars_follow",
+    "art_stat_labels": "artifact_stat_labels_follow",
     "chamber_round": "chamber_round",
 }
 
@@ -1190,7 +1192,7 @@ def footprint_settings(key: str) -> list[Settings] | None:
         # fremden Reichweiten-Mod falschen Alarm schlagen. Also wie
         # npc_gear und die Baum-Regler: bewusst nicht markierbar - die
         # Waffenregler, denen es folgt, sind es ja.
-        if field_name == "stat_bars_follow":
+        if field_name in ("stat_bars_follow", "artifact_stat_labels_follow"):
             return None
         # 1.35.0: die zwei Maus-Schalter schreiben ueberhaupt keine
         # GameData-Datei, sondern Stalker2/Config/UserInput.ini. Der
@@ -6419,6 +6421,7 @@ class App(WorkbenchMixin, ctk.CTk):
 
         extension_controls.build_controls(self, body, fmt_pct)
         self._wb_build_artifact_editor(body)
+        self._wb_build_equipment_editor(body)
 
         f = self._section(body, "Loot in stashes & on bodies")
         ctk.CTkLabel(
@@ -6642,9 +6645,10 @@ class App(WorkbenchMixin, ctk.CTk):
                     "Each job now has its own journal entry. The round only "
                     "ends when no accepted job is active. The shared cancel "
                     "line cancels all current jobs from that giver. "
-                    "Molkerr confirmed acceptance but reported lost jobs "
-                    "and rewards on hand-in with the previous design "
-                    "(GitHub #9). This repair is NOT play-tested. Use a save "
+                    "Molkerr reports separate hand-ins and save/load working in 1.39. "
+                    "Marker behavior still needs checks. Job translations are now "
+                    "included automatically from your installed languages; their "
+                    "loading still needs a game test. Use a save "
                     "from before accepting jobs; old active jobs cannot be "
                     "migrated. Keep the same pak until all jobs are finished "
                     "or cancelled. Journal state is saved by the game.")
@@ -6824,6 +6828,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     self._if_populate()
                     self._im_populate()
                     self._wb_artifact_targets(self.artifact_editor_group.get())
+                    self._wb_equipment_choices()
                     self._set_busy(False)
                     self._set_body_state(True)
                     # Laufende Suche auf den frisch gebauten Baum anwenden
@@ -6889,7 +6894,9 @@ class App(WorkbenchMixin, ctk.CTk):
                 "Stalker2" / "Content" / "GameLite" / "GameData"
             if dev.is_dir():
                 self._set_status("Loading vanilla data (dev folder) ...")
-                gd = GameData(dev)
+                source_pak = Path(self.game_dir) / "Stalker2/Content/Paks/pakchunk0-Windows.pak"
+                gd = GameData(dev, source_pak=source_pak if source_pak.is_file() else None,
+                              progress=self._set_status)
             else:
                 self._set_status(
                     "First start: extracting game data (takes a moment) ...")
@@ -6989,7 +6996,9 @@ class App(WorkbenchMixin, ctk.CTk):
             weather_luminance_overrides=extension_controls.collect_factors(s, "weather_luminance:"),
             regional_weather_overrides=regional_weather.collect(s),
             artifact_overrides=artifact_extensions.collect(s),
+            artifact_stat_labels_follow=bool(self.checks["art_stat_labels"].get()),
             mutant_loot_overrides=extension_controls.collect_mutant_loot(s),
+            npc_equipment_overrides=npc_equipment.collect(s),
             max_hp=s["hp"].get(),
             hp_regen=s["hp_regen"].get(),
             max_stamina=s["sp"].get(),
@@ -7883,6 +7892,9 @@ class App(WorkbenchMixin, ctk.CTk):
         (Top-Level-Struct, Blattname)-Paare patcht er? Vereinigung der
         Sonden aus footprint_settings (x2 UND x0.5)."""
         if key not in self._footprints:
+            if key in npc_equipment.CONTROLS:
+                self._footprints[key] = npc_equipment.footprint(gd, key)
+                return self._footprints[key]
             if key in artifact_extensions.CONTROLS:
                 self._footprints[key] = artifact_extensions.footprint(gd, key)
                 return self._footprints[key]
@@ -8671,9 +8683,8 @@ class App(WorkbenchMixin, ctk.CTk):
                 "The values you changed have no effect on the game data – "
                 "nothing to patch." + why)
             return False
-        root_files = {MANIFEST_NAME: self._build_manifest(s, active)}
-        if ini is not None:
-            root_files["Stalker2/Config/UserInput.ini"] = ini
+        extra_files = build_root_files(self.gd, s)
+        root_files = {MANIFEST_NAME: self._build_manifest(s, active), **extra_files}
         backup = mod_library.build_safely(patches, out_pak, root_files,
                                          app_dir() / "pak_history")
 
@@ -8684,7 +8695,8 @@ class App(WorkbenchMixin, ctk.CTk):
             # erscheinen lassen (Issue #5: Traceback statt Erfolgsmeldung).
             try:
                 written = pakio.export_cfgs(patches, debug_root)
-                debug_note += (f"\n\nDebug: {len(written)} patch .cfg files "
+                written.extend(pakio.export_root_files(extra_files, debug_root))
+                debug_note += (f"\n\nDebug: {len(written)} generated files "
                               f"in\n{debug_root}")
             except OSError as exc:
                 debug_note += ("\n\nDebug export failed (the pak itself is "

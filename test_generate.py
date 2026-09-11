@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from s2tweaker.gamedata import GameData
-from s2tweaker.tweaks import Settings, build_patches, input_ini, summarize
+from s2tweaker.tweaks import Settings, build_patches, build_root_files, input_ini, summarize
 from s2tweaker import pakio
 
 VANILLA = Path(__file__).parent / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
@@ -40,7 +40,12 @@ from collections import Counter as _C
 print("Spieler-Waffen:", len(weapons), dict(_C(c for c, _ in weapons.values())))
 
 s = Settings(
+    npc_equipment_overrides={
+        "npc_equipment:GeneralNPC_Neutral_CloseCombat:GeneralNPC_Neutral_CloseCombat_ItemGenerator:[0]:[0]": 200,
+    },
+    artifact_stat_labels_follow=True,
     artifact_overrides={
+        "artifact_edit:item:CArtifactLiquidStone:extra_ProtectionBurn": 200,
         "artifact_edit:item:EArtifactFlash:weight": .15,
         "artifact_edit:item:EArtifactFlash:ArtifactProtectionShock1": 150,
         "artifact_edit:item:EArtifactFlash:radiation": 2,
@@ -300,5 +305,5 @@ pak = OUT / "zzz_S2Tweaker_Test_P.pak"
 ini = input_ini(s)
 assert ini and "bEnableMouseSmoothing=False" in ini, ini
 pakio.pack_mod(patches, pak,
-               root_files={"Stalker2/Config/UserInput.ini": ini})
+               root_files=build_root_files(gd, s))
 print(f"\nPak erzeugt: {pak}  ({pak.stat().st_size:,} bytes)")

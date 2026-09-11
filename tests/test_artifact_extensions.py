@@ -100,6 +100,56 @@ class SyntheticArtifacts(unittest.TestCase):
         a.apply(self.gd, s, "ItemPrototypes", result)
         self.assertEqual(result, {})
 
+    def test_cosmetic_tiers_follow_live_values_and_zero_visibility(self):
+        source = self.gd.effects.children["ArtifactProtectionShock1"]
+        source.values["EffectLevel"] = "EEffectLevel::Low"
+        for sid, value, level in (("ArtifactProtectionShock2", 39, "Medium"),
+                                  ("ArtifactProtectionShock4", 91, "Max")):
+            node = deepcopy(source)
+            node.values.update(SID=sid, ValueMin=str(value), ValueMax=str(value),
+                               EffectLevel="EEffectLevel::" + level)
+            self.gd.effects.children[sid] = node
+        s = setting(**{"item:EArtifactFlash:ArtifactProtectionShock1": 200})
+        effects = {}
+        a.apply(self.gd, s, "EffectPrototypes", effects)
+        clone = a.clone_sid(s.mod_name, "EArtifactFlash", "ArtifactProtectionShock1")
+        self.assertNotIn("EffectLevel", effects[clone])  # Off keeps old labels.
+        s.artifact_stat_labels_follow = True
+        effects = {}
+        a.apply(self.gd, s, "EffectPrototypes", effects)
+        self.assertEqual(effects[clone]["ValueMin"], "35f")
+        self.assertEqual(effects[clone]["EffectLevel"], "EEffectLevel::Medium")
+        s.artifact_effect_factor = .5
+        effects = {}
+        a.apply(self.gd, s, "EffectPrototypes", effects)
+        self.assertNotIn("EffectLevel", effects[clone])  # Combined magnitude = native.
+        s.artifact_overrides = {key("item:EArtifactFlash:ArtifactProtectionShock1"): 0}
+        items = {}
+        a.apply(self.gd, s, "ItemPrototypes", items)
+        self.assertEqual(items["EArtifactFlash"]["ShouldShowEffects"], {"[2]": "false"})
+        self.assertNotIn("EArtifactChocolate", items)
+        s.artifact_effect_factor = 0
+        items = {}
+        a.apply(self.gd, s, "ItemPrototypes", items)
+        self.assertEqual(items["EArtifactChocolate"]["ShouldShowEffects"], {"[2]": "false"})
+        self.assertNotIn("EArtifactFlash_Fake", items)
+        self.assertNotIn("[7]", items["EArtifactFlash"]["ShouldShowEffects"])
+
+    def test_native_tier_midpoint_and_changed_schema(self):
+        node = self.gd.effects.children["ArtifactProtectionShock1"]
+        node.values["EffectLevel"] = "EEffectLevel::Low"
+        high = deepcopy(node)
+        high.values.update(SID="ArtifactProtectionShock2", ValueMin="38.5f", ValueMax="38.5f",
+                           EffectLevel="EEffectLevel::Medium")
+        self.gd.effects.children["ArtifactProtectionShock2"] = high
+        cfg = {"ValueMin": "28f", "ValueMax": "28f"}
+        a._sync_level(self.gd, "ArtifactProtectionShock1", cfg)
+        self.assertNotIn("EffectLevel", cfg)  # Exact midpoint chooses lower.
+        high.values["Type"] = "EEffectType::Composite"
+        cfg["ValueMin"] = cfg["ValueMax"] = "38.5f"
+        a._sync_level(self.gd, "ArtifactProtectionShock1", cfg)
+        self.assertNotIn("EffectLevel", cfg)
+
     def test_weight_overrides_global_and_cancels_only_own_leaf(self):
         patches = {"EArtifactFlash": {"Weight": "0.365", "Cost": "25000"}}
         a.apply(self.gd, setting(**{"item:EArtifactFlash:weight": .73}), "ItemPrototypes", patches)
@@ -180,9 +230,11 @@ class LiveArtifacts(unittest.TestCase):
 
     def test_inventory_and_every_available_control(self):
         self.assertEqual(Counter(a.CONTROLS[k].group for k in self.gd.artifact_editor),
-                         {"item": 296, "detector": 14, "ball": 7, "anomaly": 8, "rarity": 28})
+                         {"item": 814, "detector": 14, "ball": 7, "anomaly": 8, "rarity": 28})
         for k in self.gd.artifact_editor:
             c = a.CONTROLS[k]
+            if c.param.startswith("extra_"):
+                continue  # Extra arrays and protected descendants have their own exhaustive suite.
             value = 50 if c.default == 100 else 0 if c.param == "radiation" else None
             source, paths = self.gd.artifact_editor[k]
             if value is None:
@@ -194,6 +246,22 @@ class LiveArtifacts(unittest.TestCase):
             self.assertTrue(patches, (k, value))
             self.assertEqual(set(patches), {c.target}, k)
             self.assertTrue(a.footprint(self.gd, k), k)
+
+    def test_liquid_stone_labels_and_global_bonus_composition(self):
+        self.assertEqual(build_patches(self.gd, Settings(artifact_stat_labels_follow=True)), {})
+        s = setting(**{"item:CArtifactLiquidStone:ArtifactProtectionChemicalBurn4": 50})
+        s.artifact_stat_labels_follow = True
+        s.artifact_effect_factor = .5
+        result = build_patches(self.gd, s)
+        effect_text = next(v for k, v in result.items() if k.startswith("EffectPrototypes/"))
+        tree = cfgparse.parse(effect_text)
+        clone = a.clone_sid(s.mod_name, "CArtifactLiquidStone", "ArtifactProtectionChemicalBurn4")
+        cfg = tree.children[clone]
+        native = cfgparse.parse_number(self.gd.resolve(self.gd.effects, "ArtifactProtectionChemicalBurn4", "ValueMin"))
+        self.assertAlmostEqual(cfgparse.parse_number(cfg.values["ValueMin"]), native * .25)
+        self.assertEqual(cfg.values["EffectLevel"], "EEffectLevel::Low")
+        self.assertEqual(tree.children["ArtifactProtectionChemicalBurn4"].values["EffectLevel"], "EEffectLevel::Medium")
+        self.assertFalse(any("EffectLevel" in n.values for sid, n in tree.children.items() if sid.startswith("ArtifactAddRadiation")))
 
     def test_detector_override_and_quest_exclusion(self):
         s = setting(**{"detector:Echo:reveal": 230})

@@ -87,7 +87,7 @@ def _external_cancellations(gd, journal_jobs, job_quests, reserved):
     return nodes
 
 
-def build_job_isolation(gd):
+def build_job_isolation(gd, *, localization_aliases=None):
     """Return (existing-node patches, new nodes, new journals).
 
     No held-job counter: the engine's native JournalState condition also
@@ -170,6 +170,10 @@ def build_job_isolation(gd):
             if journal_sid in gd.journals.children or journal_sid in journals:
                 raise ValueError(f"Journal namespace collision: {journal_sid}")
             stages = {sid: f"{journal_sid}_{sid}" for sid in sorted(used_stages)}
+            if localization_aliases is not None:
+                localization_aliases[f"sid_journal_{journal_sid}_Name"] = f"sid_journal_{original}_Name"
+                for sid, new_sid in stages.items():
+                    localization_aliases[f"sid_journal_stage_{new_sid}"] = f"sid_journal_stage_{sid}"
             journal = deepcopy(resolved)
             journal.update(__new__=True, SID=journal_sid)
             journal["Stages"] = {}
@@ -177,8 +181,8 @@ def build_job_isolation(gd):
                 stage = deepcopy(stage_by_sid[sid])
                 stage["SID"] = new_sid
                 journal["Stages"][new_sid] = stage
-            # Use an existing localized objective as the title, never an
-            # invented localization key derived from our generated SID.
+            # Retain metadata for existing saves. The renderer still needs
+            # the supplemental implicit journal/stage localization aliases.
             titles = [v.get("Description", "") for k, v in stage_by_sid.items()
                       if k in used_stages and k.endswith("_Start")]
             if not journal.get("Name") and titles:

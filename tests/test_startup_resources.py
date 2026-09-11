@@ -85,7 +85,7 @@ class StartupResources(unittest.TestCase):
         specs = list(ext.control_specs())
         self.assertEqual(len(specs), len(ext.SLIDERS) + len(ext.SURFACES) + len(ext.WEATHERS)
                          + 2 * len(ext.SPECIES) + len(list(ext.regional_weather.control_specs()))
-                         + len(ext.artifact_extensions.CONTROLS))
+                         + len(ext.artifact_extensions.CONTROLS) + len(ext.npc_equipment.CONTROLS))
         self.assertEqual(len(app.sliders), len(specs))
         self.assertEqual(len(app._extension_paths), len(specs) + len(ext.CHECKS))
         self.assertFalse(app._wb_bindings)
