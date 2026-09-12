@@ -11,6 +11,13 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.42.0 refreshes the desktop editor:** 24 color palettes with a teal/ice-blue
+Standard, clearer sections and change cards, and persistent game-data, Oodle,
+Mousewheel and build controls. The previous olive/amber preview is available as
+Zone PDA. Select **Design -> Standard** to switch from a saved faction palette.
+No Pak rebuild is needed just for this visual update. The signed runtime stays
+unchanged. [Release notes](release/NOTES_v1.42.0.md).
+
 **1.41.0** adds experimental
 [data-only detail options](docs/DETAIL_OPTIONS.md): special artifacts, individual
 medicine/buffs and weapon item values, weather senses, camp activities,
@@ -19,7 +26,10 @@ Movement, reload and animation-timing extensions are deferred. No UE4SS or Dev
 Kit is required. See the linked guide for supported values and gameplay limits.
 
 **1.40.1 adds repairs for job texts and return markers.**
-These experimental job changes still need confirmation in the game.
+Molkerr [reports translated quest text and the second return marker surviving
+a hand-in before and after save/load](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394).
+This is limited player confirmation; other languages, givers and save scenarios
+still need checks.
 See [test instructions and limitations](release/NOTES_v1.40.1.md).
 
 Version 1.40.0 includes an experimental
@@ -30,11 +40,12 @@ This addition has not been play-tested; it needs no UE4SS.
 
 Version 1.40.0 also adds [extra artifact bonuses](docs/ARTIFACT_EDITOR.md)
 (for example fire protection on Liquid Stone) and optional strength labels.
-Molkerr reports the extra bonuses working. His 1.40 test still shows missing job
-texts and a lost completed-job marker. The **1.40.1 release** extends
+Molkerr reports the extra bonuses working, with Liquid Stone resistances changing
+at slider values 100, 500 and 1000. The **1.40.1 release** extends
 native [journal translations](docs/REPEATABLE_JOBS_REPAIR.md) for every installed
-language and reapplies remaining ready-to-return markers. Both repairs need game
-tests. Translation files enlarge the generated pak and conflict with other mods
+language and reapplies remaining ready-to-return markers; his 12 September
+follow-up reports success for the tested quest text and marker case. Wider game
+checks remain open. Translation files enlarge the generated pak and conflict with other mods
 replacing those files. No UE4SS is required.
 
 Version 1.39.0 adds an [artifact editor and related settings](docs/ARTIFACT_EDITOR.md):
@@ -108,9 +119,11 @@ field repair and bolt lifetime. These additions have not been play-tested.
   vanilla value, so an untouched tool never writes a patch. The mouse wheel
   only scrolls the page by default, so it can't nudge a value by accident —
   a toolbar switch hands it back to the sliders.
-- **12 colour themes** in the style of the game's factions (Loners, Bandits,
+- **24 color palettes for one desktop design**: teal/ice-blue Standard,
+  olive/amber Zone PDA, violet Obsidian, ten additional palettes ranging from
+  neutral Graphite to Rose and Emerald, and the game's factions (Loners, Bandits,
   Duty, Freedom, Military, Ward, Spark, Monolith, Ecologists, Mercenaries,
-  Clear Sky) next to the default blue and amber — each one sets background,
+  Clear Sky). Each palette sets background,
   cards, buttons, sliders and text; switched live, remembered between runs,
   and purely cosmetic. Two layers on purpose: the faction sets the look, the
   system colours never move — green means ready, red means destructive and

@@ -2,7 +2,16 @@
 
 Introduced in version 1.37.2; story cancellation corrected in 1.37.3,
 11 September 2026. Partially player-tested on 1.39; further repairs after the
-1.40 report are available in version 1.40.1 and require game tests.
+1.40 report are available in version 1.40.1, with limited player confirmation below.
+
+## Player follow-up, 12 September 2026
+
+[Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394) working quest translations and the second quest's
+return marker remaining after handing in the first, before and after save/load.
+His message does not identify the exact tool version. These are his reported
+observations, not an independent review of every language, giver, reward order,
+story cancellation or long-term save scenario. The earlier reports below explain
+the repairs; their missing-text/marker observations are superseded for his tested case.
 
 ## Player follow-up, 11 September 2026
 
@@ -56,11 +65,11 @@ localization files; no global cache-schema change is required.
 Preview lists the language files; normal Pak export, verified replacement and debug
 export handle their binary content without newline conversion. The generated texts
 match the independently constructed native candidate in all 18 languages.
-Actual loading/rendering still requires a game test in multiple languages,
+The reported text success does not cover every language. Loading/rendering still needs checks in multiple languages,
 including native English, Russian and other supported game languages. Also check ordinary
 quests and menus. Binary equality does not prove visible text is fixed.
 
-## Remaining marker case
+## Return-marker repair and remaining checks
 
 The [original marker audit](JOB_MARKERS_RESEARCH.md) found that all 318 original
 marker-bearing nodes retained their marker settings. Ready-to-return jobs use
@@ -71,8 +80,9 @@ The 1.40.1 candidate adds 69 checks and 69 separate reapplication nodes. After a
 job container ends, each remaining journal AND its return stage must be Active
 before its existing marker payload is reapplied. Original reward/dialog outputs
 are not reused, completed/failed/cancelled jobs are excluded, and tracking is not
-forced. Native patterns justify this experiment but do not prove the shared-marker
-problem is fixed or that repeat notifications are absent.
+forced. The 12 September player report supports the tested marker case.
+Native patterns and that report do not verify every giver, hand-in order or the
+absence of repeated notifications across other scenarios.
 
 Test two ready-to-return jobs: hand in either first, check the other's journal,
 map/compass and reward, then save/load. Repeat the reverse order and compare an

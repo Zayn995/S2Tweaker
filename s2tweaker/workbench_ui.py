@@ -380,26 +380,32 @@ class WorkbenchMixin:
         self.tabs._name_list.insert(0, "Overview")
         self.tabs._relayout()
         header = ctk.CTkFrame(page, fg_color="transparent")
-        header.pack(fill="x", padx=12, pady=8)
-        ctk.CTkLabel(header, text="Your workspace", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
-        self.wb_overview_note = ctk.CTkLabel(header, text="", anchor="w", wraplength=680)
+        header.pack(fill="x", padx=16, pady=(12, 6))
+        ctk.CTkLabel(header, text="Workspace", font=ctk.CTkFont(size=25, weight="bold")).pack(anchor="w")
+        self.wb_overview_note = ctk.CTkLabel(header, text="", anchor="w", wraplength=680,
+            text_color=theme.get(self.theme_name)["secondary"], font=ctk.CTkFont(size=12))
         self.wb_overview_note.pack(fill="x")
         modes = theme.SegmentedButton(header, values=["My changes", "Favorites", "Browse controls", "Loot & world"],
                                       command=self._wb_choose_view)
         modes.set(self._wb_view)
         self.wb_modes = modes
         modes.pack(anchor="w", pady=6)
-        self.wb_search = ctk.CTkEntry(header, placeholder_text="Filter this list…")
-        self.wb_search.pack(fill="x")
+        filter_bar = ctk.CTkFrame(header, fg_color="transparent")
+        filter_bar.pack(fill="x", pady=(4, 0))
+        paging = ctk.CTkFrame(filter_bar, fg_color="transparent")
+        paging.pack(side="right", padx=(10, 0))
+        self.wb_search = ctk.CTkEntry(filter_bar, placeholder_text="Filter this list…", height=30)
+        self.wb_search.pack(side="left", fill="x", expand=True)
         self.wb_search.bind("<KeyRelease>", lambda e: self._wb_render_overview(force=True))
-        paging = ctk.CTkFrame(header, fg_color="transparent")
-        paging.pack(fill="x", pady=4)
         self.wb_previous = ctk.CTkButton(paging, text="Previous", width=80,
+                                        fg_color=ui().PANEL2, hover_color=ui().PANEL2_HOVER,
                                         command=lambda: self._wb_change_page(-1))
         self.wb_previous.pack(side="left")
-        self.wb_page_label = ctk.CTkLabel(paging, text="")
+        self.wb_page_label = ctk.CTkLabel(paging, text="", font=ctk.CTkFont(size=11),
+            text_color=theme.get(self.theme_name)["secondary"])
         self.wb_page_label.pack(side="left", padx=10)
         self.wb_next = ctk.CTkButton(paging, text="Next", width=80,
+                                    fg_color=ui().PANEL2, hover_color=ui().PANEL2_HOVER,
                                     command=lambda: self._wb_change_page(1))
         self.wb_next.pack(side="left")
         self.wb_rows = ctk.CTkScrollableFrame(page, fg_color="transparent")
@@ -605,14 +611,25 @@ class WorkbenchMixin:
             equipment = npc_equipment.CONTROLS.get(path[1]) if path[0] == "sliders" else None
             if equipment and query == equipment.selection.casefold():
                 label = equipment.title
-            card = ctk.CTkFrame(self.wb_rows)
-            card.pack(fill="x", padx=4, pady=3)
+            pal = theme.get(self.theme_name)
+            modified = not state.equal(value, default)
+            card = ctk.CTkFrame(self.wb_rows, border_width=1,
+                border_color=pal["accent"] if modified else pal["line"])
+            card.pack(fill="x", padx=6, pady=5)
             card.grid_columnconfigure(1, weight=1)
             ctk.CTkButton(card, text="★" if path in self._wb_favorites else "☆", width=28,
-                          fg_color="transparent", command=lambda p=path: self._wb_toggle_favorite(p)).grid(row=0, column=0, padx=5)
-            ctk.CTkLabel(card, text=label, anchor="w", wraplength=340).grid(row=0, column=1, sticky="ew", pady=5)
-            ctk.CTkLabel(card, text=tab + " · " + self._wb_status(path), text_color=theme.get(self.theme_name)["secondary"],
-                         anchor="w", font=ctk.CTkFont(size=11)).grid(row=1, column=1, sticky="w", pady=(0, 5))
+                          fg_color="transparent", hover_color=pal["panel2_hover"],
+                          text_color=pal["accent"] if path in self._wb_favorites else pal["secondary"],
+                          command=lambda p=path: self._wb_toggle_favorite(p)).grid(row=0, column=0, padx=8)
+            context, separator, title = label.rpartition(" / ")
+            title_label = ctk.CTkLabel(card, text=title if separator else label,
+                anchor="w", justify="left", wraplength=340, font=ctk.CTkFont(size=15, weight="bold"))
+            title_label.grid(row=0, column=1, sticky="ew", pady=(12, 3))
+            ui().HoverTip(title_label, lambda text=label: text)
+            caption = (context + " · " if separator else "") + tab + " · " + self._wb_status(path)
+            ctk.CTkLabel(card, text=caption, text_color=pal["secondary"], wraplength=600,
+                         anchor="w", justify="left", font=ctk.CTkFont(size=11)).grid(
+                             row=1, column=1, columnspan=4, sticky="ew", padx=(0, 12), pady=(0, 12))
             entry = ctk.CTkEntry(card, width=86)
             entry.insert(0, armor_extensions.format_value(path[2], value) if path[0] == "armor_custom" else
                          "Inherit" if path[0] == "sliders" and (path[1] in artifact_extensions.CONTROLS or path[1] in detail_controls.CONTROLS) and value == -1 else value_text(value))
@@ -620,7 +637,8 @@ class WorkbenchMixin:
             entry.bind("<Return>", lambda e, p=path, w=entry: self._wb_edit(p, w.get()))
             ctk.CTkButton(card, text="Apply", width=52, command=lambda p=path, w=entry: self._wb_edit(p, w.get()),
                           state="normal" if self._body_enabled_state() == "normal" and not self._wb_busy else "disabled").grid(row=0, column=3, padx=3)
-            ctk.CTkButton(card, text="Details", width=62, command=lambda p=path: self._wb_details(p)).grid(row=0, column=4, padx=5)
+            ctk.CTkButton(card, text="Details", width=62, fg_color=pal["panel2"],
+                          hover_color=pal["panel2_hover"], command=lambda p=path: self._wb_details(p)).grid(row=0, column=4, padx=(5, 12))
 
     def _wb_find_row(self, path):
         if path[0] == "sliders":

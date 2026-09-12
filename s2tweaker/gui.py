@@ -90,7 +90,7 @@ MANIFEST_NAME = "S2Tweaker_Manifest.json"
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 
-# Capture factory colors before constructing widgets so Default restores them.
+# Capture toolkit colors before applying the shared desktop styling.
 theme.snapshot()
 # Apply the default dark theme.
 theme._theme_defaults(theme.get(theme.DEFAULT_NAME))
@@ -116,10 +116,11 @@ ATTENTION_BORDER = theme.ATTENTION_BORDER
 SYS_BORDER = theme.SYSTEM_BORDER_WIDTH
 
 # Set the base font before constructing widgets; CTkFont reads it at creation.
-ctk.ThemeManager.theme["CTkFont"]["size"] = 14   # Reduced from the previous size of 13.
+ctk.ThemeManager.theme["CTkFont"]["size"] = 14
+ctk.ThemeManager.theme["CTkFont"]["family"] = "Segoe UI"
 # Explicit widget font sizes follow the same relative size scale.
 
-PAD = {"padx": 12, "pady": 3}
+PAD = {"padx": 14, "pady": 5}
 
 # Use the theme accent for search hits and overrides.
 # Warnings use fixed WARN_AMBER so their meaning survives theme changes.
@@ -436,7 +437,8 @@ class SliderRow:
         self.entry.bind("<KP_Enter>", self._entry_apply)
         self.entry.bind("<FocusOut>", self._entry_apply)
         self.entry.bind("<Escape>", self._entry_cancel)
-        self.reset_btn = ctk.CTkButton(row, text="↺", width=28, command=self.reset)
+        self.reset_btn = ctk.CTkButton(row, text="↺", width=28, fg_color=PANEL2,
+                                      hover_color=PANEL2_HOVER, command=self.reset)
         self.reset_btn.pack(side="left", padx=(6, 0))
         self._orig_color = self.label.cget("text_color")
         self._sync_value_label()
@@ -2532,6 +2534,7 @@ class ImGroupBlock:
 
 # Use monochrome symbols for tab labels; emoji color rendering disrupts the bar.
 TAB_ICONS = {
+    "Overview": "▦",
     "Player": "◉", "Vaulting": "◈", "Weight & items": "⚖", "Combat": "⚔",
     "NPCs & AI": "◎", "Mutants": "☣", "Factions": "⚑", "Weapons": "◆",
     "Ammo": "▪", "Armor": "◇", "Upgrades": "⚙", "World": "☢",
@@ -2541,7 +2544,10 @@ TAB_ICONS = {
 
 # Footer themes use ordinary font symbols rather than bundled game artwork.
 THEME_MARKS = {
-    "Standard": "◐", "Loners": "◈", "Bandits": "☠", "Duty": "⛨", "Freedom": "☘",
+    "Standard": "◐", "Zone PDA": "◈", "Obsidian": "◈", "Graphite": "◆",
+    "Arctic": "◇", "Deep Ocean": "≈", "Cobalt": "◆", "Emerald": "◇",
+    "Mint": "❖", "Copper": "◈", "Sunset": "◒", "Rose": "❖", "Plum": "◆",
+    "Loners": "◈", "Bandits": "☠", "Duty": "⛨", "Freedom": "☘",
     "Military": "★", "Ward": "⚔", "Spark": "⌁", "Monolith": "◆",
     "Ecologists": "⚗", "Mercenaries": "⌾", "Clear Sky": "☁",
 }
@@ -2553,8 +2559,9 @@ class TabBar(ctk.CTkFrame):
     def __init__(self, master, rows: int = 2, **kw):
         super().__init__(master, fg_color="transparent", **kw)
         self._rows = max(1, int(rows))
-        self._bar = ctk.CTkScrollableFrame(self, width=176, fg_color="transparent")
-        self._bar.pack(side="left", fill="y", padx=(0, 6))
+        self._bar = ctk.CTkScrollableFrame(self, width=176, fg_color=PANEL,
+                                          corner_radius=8)
+        self._bar.pack(side="left", fill="y", padx=(0, 10))
         self._counts = {}
         self._holder = ctk.CTkFrame(self, fg_color="transparent")
         self._holder.pack(side="left", fill="both", expand=True)
@@ -2564,11 +2571,9 @@ class TabBar(ctk.CTkFrame):
         self._name_list: list[str] = []
         self._current_name = ""
         self._font = ctk.CTkFont(size=14)
-        theme = ctk.ThemeManager.theme["CTkSegmentedButton"]
-        self._sel = theme["selected_color"]
-        self._sel_hover = theme["selected_hover_color"]
-        self._unsel = theme["unselected_color"]
-        self._unsel_hover = theme["unselected_hover_color"]
+        pal = theme.get(theme.DEFAULT_NAME)
+        self._sel, self._sel_hover = pal["button"], pal["button_hover"]
+        self._unsel, self._unsel_hover = pal["panel"], pal["panel2_hover"]
 
     # ---------------------------------------------------------- Construction
     def add(self, name: str) -> ctk.CTkFrame:
@@ -2578,8 +2583,8 @@ class TabBar(ctk.CTkFrame):
         icon = TAB_ICONS.get(name, "")
         label = (icon + "  " + name) if icon else name
         self._labels[name] = label
-        btn = ctk.CTkButton(self._bar, text=label, height=30, width=170, anchor="w",
-                            font=self._font, corner_radius=6,
+        btn = ctk.CTkButton(self._bar, text=label, height=32, width=170, anchor="w",
+                            font=self._font, corner_radius=5,
                             fg_color=self._unsel, hover_color=self._unsel_hover,
                             command=lambda n=name: self.set(n))
         self._tab_dict[name] = frame
@@ -2629,9 +2634,9 @@ class TabBar(ctk.CTkFrame):
     def restyle(self, pal: dict) -> None:
         """Apply theme colors to the tab bar itself.
 
-        The active tab uses the accent; inactive tabs use the secondary surface."""
+        The active tab uses the accent; inactive tabs blend into the sidebar."""
         self._sel, self._sel_hover = pal["button"], pal["button_hover"]
-        self._unsel, self._unsel_hover = pal["panel2"], pal["panel2_hover"]
+        self._unsel, self._unsel_hover = pal["panel"], pal["panel2_hover"]
         self._paint()
 
     def _paint(self) -> None:
@@ -2649,7 +2654,7 @@ class App(WorkbenchMixin, ctk.CTk):
         super().__init__()
         self.title(APP_TITLE)
         # Tabbed layout also fits smaller or scaled displays.
-        self.geometry("1140x760")
+        self.geometry("1240x760")
         self.minsize(1000, 600)
         self._set_icon()
         self.after(300, self._set_icon)  # Otherwise CustomTkinter sets its own icon.
@@ -3049,43 +3054,52 @@ class App(WorkbenchMixin, ctk.CTk):
     def _build_header(self):
         # Reset the shared mouse-wheel mode when constructing a new app.
         SliderRow.set_wheel_enabled(False)
-        # First row: game folder selection and confirmation.
-        head = ctk.CTkFrame(self)
-        head.pack(fill="x", padx=10, pady=(10, 4))
-        self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w")
+        pal = theme.get(self.theme_name)
+        self.header = ctk.CTkFrame(self, border_width=1, border_color=pal["line"])
+        self.header.pack(fill="x", padx=12, pady=(12, 8))
+        head = ctk.CTkFrame(self.header, fg_color="transparent")
+        head.pack(fill="x", padx=12, pady=(10, 6))
+        brand = ctk.CTkFrame(head, fg_color="transparent", width=170)
+        brand.pack(side="left", padx=(0, 16))
+        self.brand_title = ctk.CTkLabel(brand, text="S2Tweaker", anchor="w",
+            text_color=pal["accent"], font=ctk.CTkFont(size=23, weight="bold"))
+        self.brand_title.pack(anchor="w")
+        ctk.CTkLabel(brand, text=f"ZONE CONFIGURATION  /  {__version__}", anchor="w",
+            height=16, text_color=MUTED, font=ctk.CTkFont(size=10)).pack(anchor="w")
+        self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w",
+            width=1, font=ctk.CTkFont(size=12), text_color=MUTED)
+        HoverTip(self.game_label, lambda: self.game_label.cget("text"))
+        self.btn_oodle = ctk.CTkButton(
+            head, text="● Oodle", width=124, height=32, fg_color=PANEL2,
+            hover_color=PANEL2_HOVER, command=self._open_oodle_wizard)
+        self.btn_oodle.pack(side="right", padx=(8, 0))
         self.btn_confirm = ctk.CTkButton(
-            head, text="✓ Confirm & load game data", width=200,
+            head, text="✓ Confirm & load game data", width=214, height=32,
             fg_color=ATTENTION, hover_color=ATTENTION_HOVER,
             border_width=SYS_BORDER, border_color=ATTENTION_BORDER,
             command=self._confirm_game)
-        self.btn_confirm.pack(side="right", padx=(4, 10), pady=8)
-        self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
-                                        command=self._pick_game_dir)
-        self.btn_browse.pack(side="right", padx=4, pady=8)
+        self.btn_confirm.pack(side="right", padx=(8, 0))
+        self.btn_browse = ctk.CTkButton(head, text="Browse …", width=86, height=32,
+            fg_color=PANEL2, hover_color=PANEL2_HOVER, command=self._pick_game_dir)
+        self.btn_browse.pack(side="right", padx=(8, 0))
         # Pack the path last so long folder names cannot squeeze the action buttons.
-        self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
+        self.game_label.pack(side="left", fill="x", expand=True)
 
-        # Second row: search, Changed-only, FAQ and library status.
-        tools = ctk.CTkFrame(self)
-        tools.pack(fill="x", padx=10, pady=(0, 4))
-        self.search_entry = ctk.CTkEntry(tools, width=230,
-                                         placeholder_text="🔍 Find a slider, weapon or ammo …")
+        tools = ctk.CTkFrame(self.header, fg_color="transparent")
+        tools.pack(fill="x", padx=12, pady=(4, 12))
+        self.search_entry = ctk.CTkEntry(tools, width=230, height=32,
+                                         placeholder_text="Find a setting, weapon or ammo …")
         self.btn_faq = ctk.CTkButton(tools, text="? FAQ", width=70,
                                      fg_color=PANEL2, hover_color=PANEL2_HOVER,
                                      command=self._show_faq)
-        self.btn_faq.pack(side="right", padx=(4, 10), pady=8)
-        # Click the library indicator to reopen the guide, including after setup succeeds.
-        self.btn_oodle = ctk.CTkButton(
-            tools, text="● Oodle", width=132, fg_color=PANEL2,
-            hover_color=PANEL2_HOVER, command=self._open_oodle_wizard)
-        self.btn_oodle.pack(side="right", padx=4, pady=8)
+        self.btn_faq.pack(side="right", padx=(8, 0))
         # Wheel adjustment starts disabled; normal scrolling remains available.
         self.btn_scroll = ctk.CTkButton(
             tools, text="● Mousewheel: OFF", width=156,
             fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
             border_width=SYS_BORDER, border_color=BAD_BORDER,
             command=self._toggle_wheel)
-        self.btn_scroll.pack(side="right", padx=4, pady=8)
+        self.btn_scroll.pack(side="right", padx=(8, 0))
         HoverTip(self.btn_scroll, lambda: (
             "On: the mouse wheel changes slider values.\n"
             "Off: the mouse wheel only scrolls the page."))
@@ -3093,23 +3107,24 @@ class App(WorkbenchMixin, ctk.CTk):
         self.btn_theme = ctk.CTkButton(
             tools, text="◐ Design", width=100, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._show_theme_window)
-        self.btn_theme.pack(side="right", padx=4, pady=8)
+        self.btn_theme.pack(side="right", padx=(8, 0))
         self.btn_changed = ctk.CTkButton(
             tools, text="Changed only", width=105, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._toggle_changed_only)
-        self.btn_changed.pack(side="right", padx=4, pady=8)
+        self.btn_changed.pack(side="right", padx=(8, 0))
         # Give the visible controls room first; the search takes the remainder.
-        self.search_entry.pack(side="left", padx=(10, 4), pady=8,
-                               fill="x", expand=True)
+        self.search_entry.pack(side="left", fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", self._apply_filter)
         self.btn_changed.configure(text="My changes", command=lambda: (
             self.tabs.set("Overview"), self._wb_choose_view("My changes")))
 
     def _section(self, parent, title: str) -> ctk.CTkFrame:
-        frame = ctk.CTkFrame(parent)
-        frame.pack(fill="x", pady=(8, 2), padx=4)
-        ctk.CTkLabel(frame, text=title, font=ctk.CTkFont(size=16, weight="bold"),
-                     anchor="w").pack(fill="x", padx=12, pady=(8, 2))
+        frame = ctk.CTkFrame(parent, border_width=1,
+                            border_color=theme.get(self.theme_name)["line"])
+        frame.pack(fill="x", pady=(6, 6), padx=4)
+        ctk.CTkLabel(frame, text=title, text_color=ACCENT,
+                     font=ctk.CTkFont(size=18, weight="bold"),
+                     anchor="w").pack(fill="x", padx=14, pady=(12, 7))
         return frame
 
     def _slider(self, parent, key: str, label: str, from_: float, to: float,
@@ -3136,7 +3151,7 @@ class App(WorkbenchMixin, ctk.CTk):
             body, text="⚠   " + title.upper(), anchor="center",
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
             text_color=WARN_AMBER)
-        heading._theme_static = True  # warning amber also equals Standard's text accent
+        heading._theme_static = True  # Keep warning amber independent of palette accents.
         heading.pack(fill="x")
         message = ctk.CTkLabel(body, text=text, anchor="center", justify="center",
                                wraplength=720, font=ctk.CTkFont(size=12), text_color=MUTED)
@@ -6376,31 +6391,33 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
     def _build_footer(self):
-        foot = ctk.CTkFrame(self)
-        foot.pack(fill="x", padx=10, pady=(4, 10))
+        foot = ctk.CTkFrame(self, border_width=1, border_color=theme.get(self.theme_name)["line"])
+        # Reserve the action area before the expandable content, also at large UI scales.
+        foot.pack(side="bottom", before=self.tabs, fill="x", padx=12, pady=(8, 12))
+        secondary = {"fg_color": PANEL2, "hover_color": PANEL2_HOVER}
         row1 = ctk.CTkFrame(foot, fg_color="transparent")
-        row1.pack(fill="x", padx=8, pady=(8, 2))
+        row1.pack(fill="x", padx=10, pady=(10, 5))
         ctk.CTkLabel(row1, text="Mod name:").pack(side="left", padx=(4, 6))
         self.name_entry = ctk.CTkEntry(row1, width=170)
         self.name_entry.insert(0, "S2Tweaker")
         self.name_entry.pack(side="left")
-        self.wb_undo_btn = ctk.CTkButton(row1, text="↶ Undo", width=76, command=self._wb_undo)
+        self.wb_undo_btn = ctk.CTkButton(row1, text="↶ Undo", width=76, **secondary, command=self._wb_undo)
         self.wb_undo_btn.pack(side="left", padx=(12, 3))
-        self.wb_redo_btn = ctk.CTkButton(row1, text="↷ Redo", width=76, command=self._wb_redo)
+        self.wb_redo_btn = ctk.CTkButton(row1, text="↷ Redo", width=76, **secondary, command=self._wb_redo)
         self.wb_redo_btn.pack(side="left", padx=3)
         for label, command in (("More options", self._wb_options),
                                ("My mods", self._wb_mods), ("Profiles", self._wb_profiles)):
-            ctk.CTkButton(row1, text=label, width=100, command=command).pack(side="right", padx=3)
+            ctk.CTkButton(row1, text=label, width=100, **secondary, command=command).pack(side="right", padx=3)
         row2 = ctk.CTkFrame(foot, fg_color="transparent")
-        row2.pack(fill="x", padx=8, pady=4)
-        self.wb_preview_btn = ctk.CTkButton(row2, text="Preview changes", width=150, command=self._wb_preview)
+        row2.pack(fill="x", padx=10, pady=(0, 6))
+        self.wb_preview_btn = ctk.CTkButton(row2, text="Preview changes", width=150, **secondary, command=self._wb_preview)
         self.wb_preview_btn.pack(side="left", padx=4)
         self.btn_build = ctk.CTkButton(row2, text="Build pak → output", height=36,
             font=ctk.CTkFont(size=15, weight="bold"), command=self._generate_output)
         self.btn_build.pack(side="left", fill="x", expand=True, padx=4)
-        self.btn_install = ctk.CTkButton(row2, text="Install to ~mods", width=150, command=self._generate_install)
+        self.btn_install = ctk.CTkButton(row2, text="Install to ~mods", width=150, **secondary, command=self._generate_install)
         self.btn_install.pack(side="left", padx=4)
-        ctk.CTkButton(row2, text="Reset settings", width=130,
+        ctk.CTkButton(row2, text="Reset settings", width=130, **secondary,
             command=lambda: self._wb_action(self._reset_all)).pack(side="right", padx=4)
         # Existing state and scan code keeps these controls; their visible actions
         # are provided by More options instead of crowding the main toolbar.
@@ -6413,7 +6430,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self.theme_mark = ctk.CTkLabel(status_row, text="", anchor="e", width=150,
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"))
         self.theme_mark.pack(side="right")
-        self.status = ctk.CTkLabel(status_row, text="Starting…", anchor="w", text_color="gray70", wraplength=770)
+        self.status = ctk.CTkLabel(status_row, text="Starting…", anchor="w", text_color=MUTED,
+                                  font=ctk.CTkFont(size=12), wraplength=770)
         self.status.pack(side="left", fill="x", expand=True)
         self._set_busy(True)
 
@@ -7202,19 +7220,19 @@ class App(WorkbenchMixin, ctk.CTk):
             return
         win = ctk.CTkToplevel(self)
         self._theme_win = win
-        win.title("S2Tweaker — designs")
+        win.title("S2Tweaker — color palettes")
         win.geometry("540x650")
         win.minsize(500, 420)
         win.transient(self)
         ctk.CTkLabel(
-            win, text="Choose your design", anchor="w",
+            win, text="One design. Your colors.", anchor="w",
             font=ctk.CTkFont(size=20, weight="bold")).pack(
                 fill="x", padx=16, pady=(14, 0))
         ctk.CTkLabel(
             win, anchor="w", justify="left", wraplength=480,
             font=ctk.CTkFont(size=12), text_color=MUTED,
-            text="Faction-inspired colours. Select a palette to apply it immediately. "
-                 "Your mod settings stay the same.").pack(fill="x", padx=16, pady=(4, 12))
+            text="Choose a color palette for the whole editor. Layout and controls stay consistent. "
+                 "Game-data, Oodle and mousewheel indicators keep their status colors.").pack(fill="x", padx=16, pady=(4, 12))
         body = ctk.CTkScrollableFrame(win, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         choices = {}

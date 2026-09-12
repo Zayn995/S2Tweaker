@@ -8,11 +8,13 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.41.0: additional detail settings — NOT PLAY-TESTED.[/b] 486 additional supported values on the checked 2.0.5 data: special artifacts, medicine/buffs, individual weapon weight/price/inventory size, weather senses, camp needs, ranked grenades, optional helmets, selective upgrades and passive scanners. Open World -> Additional detail settings; helmet chances are in the existing NPC equipment editor. Profiles, undo/redo, reset and Pak previews supported. Animation-dependent extensions remain deferred. No UE4SS or Dev Kit needed.
+[b]New in 1.42.0: desktop design and 24 color palettes.[/b] Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes and all faction colors. Clearer sections, quieter navigation and improved change cards. Game folder, Confirm/Reload, Oodle help, Mousewheel and build actions stay visible. Mousewheel starts OFF; status colors stay consistent. Purely visual: no Pak rebuild needed. Existing signed runtime unchanged.
 
-[b]Included from 1.40.1: job texts and return markers — NOT PLAY-TESTED.[/b] Extends native translations for every installed language and attempts to restore remaining ready-job markers after a hand-in. 18 languages checked. Multi-job Paks now include full language resources (about 147 MiB here); other Game.locres mods can conflict. Use separate saves and report game results. No UE4SS.
+[b]Included from 1.41.0: additional detail settings — NOT PLAY-TESTED.[/b] 486 additional supported values on the checked 2.0.5 data: special artifacts, medicine/buffs, individual weapon weight/price/inventory size, weather senses, camp needs, ranked grenades, optional helmets, selective upgrades and passive scanners. Open World -> Additional detail settings; helmet chances are in the existing NPC equipment editor. Profiles, undo/redo, reset and Pak previews supported. Animation-dependent extensions remain deferred. No UE4SS or Dev Kit needed.
 
-[b]Included from 1.40.0: extra artifact bonuses, job texts and NPC equipment.[/b] Add missing bonuses such as fire protection on Liquid Stone, optionally adapt displayed strength tiers, and edit NPC equipment choices by faction and player progression. Version 1.40.1 changes job localization loading as described above. New effects and game-side loading are experimental and NOT play-tested. Marker checks remain open. No UE4SS.
+[b]Included from 1.40.1: job texts and return markers — limited player confirmation.[/b] [url=https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394]Molkerr's 12 September follow-up[/url] reports working quest translations and the second marker surviving a hand-in before and after save/load; Liquid Stone resistances also change with the selected strength. This does not verify all languages, givers, rewards or artifact combinations. Multi-job Paks extend native resources for every installed language (18 checked in data); full resources add about 147 MiB here and may conflict with other Game.locres mods. No UE4SS.
+
+[b]Included from 1.40.0: extra artifact bonuses, job texts and NPC equipment.[/b] Add missing bonuses such as fire protection on Liquid Stone, optionally adapt displayed strength tiers, and edit NPC equipment choices by faction and player progression. Version 1.40.1 changes job localization loading as described above. These features remain experimental. Limited artifact/text/marker player confirmation is summarized above; NPC equipment and wider scenarios still need game checks. No UE4SS.
 
 [b]Included from 1.39.0: artifact editor and related settings.[/b] World -> Artifact editor & related settings: individual artifact values and bonuses, native radiation tiers, separate detector radii, Weird Ball, moving lightning/fire-ball speed and pursuit, and rank-based rarity weights. 353 supported settings on game 2.0.5. Profiles, undo/redo and reset supported. Experimental and NOT play-tested. Universal rarity also affects a quest placement. No UE4SS.
 
@@ -31,10 +33,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.41.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.42.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.36.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.42.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -260,6 +262,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.42.0 - desktop redesign and 24 color palettes[/b]
+[list]
+[*]New teal/ice-blue Standard palette, olive/amber Zone PDA and 24 palettes in total. Existing faction selections remain available.
+[*]Segoe UI text, clearer section borders, quieter navigation and Overview cards with the setting name before its category context.
+[*]Game folder/Browse, Confirm/Reload, Oodle setup and Mousewheel remain visible; Mousewheel still starts OFF.
+[*]Preview/build/install stay visible at larger interface scales. Empty scroll areas follow palette changes correctly.
+[*]Visual changes preserve gameplay settings and generated Pak contents. No Pak rebuild needed just for this update.
+[*]Documentation includes Molkerr's limited quest-text/return-marker and Liquid Stone feedback; wider game checks remain open.
+[*]The signed starter and all runtime binaries remain unchanged. No new VirusTotal result claimed for this ZIP.
+[/list]
+
 [b]v1.41.0 - additional detail settings[/b]
 [list]
 [*]486 additional supported values on the checked game 2.0.5 data, including editions.
@@ -275,6 +288,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The 19 signed runtime binaries are unchanged; no scan result for this new ZIP yet.
 [/list]
 
+[spoiler]
 [b]v1.40.1 - job text and return-marker repairs[/b]
 [list]
 [*]NOT PLAY-TESTED. Experimental repairs for issue 9; game confirmation remains open
@@ -285,7 +299,6 @@ If the ~mods folder doesn't exist, create it.
 [*]No game translations/Oodle DLL shipped, no UE4SS. The 19 signed runtime binaries remain unchanged; no new VirusTotal result claimed
 [/list]
 
-[spoiler]
 [b]v1.40.0 - extra artifact bonuses, job texts and NPC equipment[/b]
 [list]
 [*]Add missing artifact bonuses such as fire protection on Liquid Stone: nine families, 518 additional choices, 871 total artifact-editor controls on 2.0.5. 0 off, 100% native Low, up to 1000%; global strength applies

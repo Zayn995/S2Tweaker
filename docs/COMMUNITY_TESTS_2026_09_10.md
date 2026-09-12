@@ -1,4 +1,11 @@
-# Community reports reviewed on 11 September 2026
+# Community reports reviewed on 11–12 September 2026
+
+12 September follow-up: [Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394) working quest translations and
+the second return marker surviving a hand-in before/after save/load. Liquid Stone
+resistances change at strength values 100, 500 and 1000. His message does not name
+the exact tool version. This supersedes his earlier missing-text/marker result for
+the tested case, while wider languages, givers, rewards and artifact combinations
+remain unverified. The table below preserves the earlier observations.
 
 These are player reports, not tests performed by the developer during this
 session. Limited observations are kept separate from controlled measurements.

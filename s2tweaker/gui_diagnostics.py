@@ -392,14 +392,28 @@ def measure(args):
             if getattr(args, "design_review", False):
                 from s2tweaker import theme
                 report["mode"] = "all palettes, visible toolbar and manual design review"
+                if args.vanilla:
+                    from s2tweaker.tweaks import build_patches
+                    app.gd = GameData(args.vanilla)
+                    assert build_patches(app.gd, app._collect()) == {}
                 app._set_body_state(True)
-                app.geometry("1000x760")
                 app.tabs.set("Player")
-                sample("minimum window width")
-                for control in (app.btn_theme, app.btn_scroll, app.btn_oodle, app.search_entry):
-                    assert control.winfo_ismapped()
-                    assert control.winfo_width() >= 80
-                    assert control.winfo_rootx() + control.winfo_width() <= app.winfo_rootx() + app.winfo_width()
+                for scale, size in ((100, "1000x600"), (115, "1000x760"), (130, "1000x760")):
+                    app._wb_set_scale(f"{scale}%")
+                    app.geometry(size)
+                    sample(f"desktop {size} at {scale}%")
+                    for control in (app.btn_theme, app.btn_scroll, app.btn_oodle, app.search_entry,
+                                    app.btn_confirm, app.btn_browse, app.btn_faq, app.wb_preview_btn,
+                                    app.btn_build, app.btn_install, app.name_entry):
+                        assert control.winfo_ismapped()
+                        assert control.winfo_width() >= 65
+                        assert control.winfo_height() >= 24
+                        assert control.winfo_rootx() >= app.winfo_rootx()
+                        assert control.winfo_rooty() >= app.winfo_rooty()
+                        assert control.winfo_rootx() + control.winfo_width() <= app.winfo_rootx() + app.winfo_width()
+                        assert control.winfo_rooty() + control.winfo_height() <= app.winfo_rooty() + app.winfo_height()
+                app._wb_set_scale("100%")
+                before = app._ui_state()
                 assert not gui.SliderRow._wheel_enabled
                 assert app.btn_scroll.cget("fg_color") == gui.BAD_RED
                 app.btn_scroll.invoke()
@@ -409,6 +423,8 @@ def measure(args):
                 for name in theme.names():
                     app._set_theme(name)
                     pal = theme.get(name)
+                    for frame, role in ((app.tabs._bar, "panel"), (app.wb_rows, "base")):
+                        assert frame._parent_canvas.cget("bg").lower() == theme._solid(pal[role]).lower()
                     assert app.btn_scroll.cget("fg_color") == gui.OK_GREEN
                     assert first.value_label.cget("foreground").lower() == theme._solid(pal["text"]).lower()
                     assert first.entry.cget("text_color") == pal["text"]
@@ -421,16 +437,31 @@ def measure(args):
                         for button in app.wb_modes._buttons_dict.values():
                             assert theme.contrast(button.cget("text_color"), button.cget("fg_color")) >= 4.5
                     sample("design: " + name)
+                    assert app._ui_state() == before
+                if args.vanilla:
+                    assert build_patches(app.gd, app._collect()) == {}
                 app.btn_scroll.invoke()
                 assert not gui.SliderRow._wheel_enabled
                 assert app.btn_scroll.cget("fg_color") == gui.BAD_RED
-                app._set_theme("Duty")
+                app._set_theme(theme.DEFAULT_NAME)
                 app.geometry("1280x850")
-                app.btn_theme.invoke()
-                sample("design chooser")
-                # Reserve shutdown time inside the parent's 90-second limit.
-                remaining_ms = int((80 - (time.perf_counter() - started)) * 1000)
-                app.after(max(1, min(20000, remaining_ms)), app.quit)
+                if getattr(args, "visual_review", False):
+                    app._refresh_oodle_badge()
+                    app._set_busy(app.gd is None)
+                    if app.gd is not None:
+                        app.game_label.configure(text="Local game-data snapshot loaded")
+                        app.btn_confirm.configure(text="↻ Reload game data")
+                    app._status_write("Local design review · temporary settings · no mod installed")
+                    app.sliders["hp"].set(150)
+                    app.sliders["pdmg"].set(1.25)
+                    app._wb_checkpoint()
+                    sample("desktop ready for screenshots")
+                    app.protocol("WM_DELETE_WINDOW", app.quit)
+                    app.after(45000, app.quit)
+                else:
+                    app.btn_theme.invoke()
+                    sample("design chooser")
+                    app.after(1000, app.quit)
                 app.mainloop()
                 sample("design visual review")
                 report["passed"] = True
@@ -441,6 +472,7 @@ def measure(args):
                 report["mode"] = "visual review (not the full resource sweep)"
                 app._set_body_state(True)
                 app.tabs.set("Player")
+                app.protocol("WM_DELETE_WINDOW", app.quit)
                 app.after(60000, app.quit)
                 app.mainloop()
                 sample("visual review")

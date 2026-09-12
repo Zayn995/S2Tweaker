@@ -11,7 +11,20 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.41.0 — ADDITIONAL DETAIL SETTINGS
+NEW IN 1.42.0 — DESKTOP DESIGN AND 24 COLOR PALETTES
+--------------------------------------------------
+- Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes
+  and all eleven faction palettes. Choose Design -> Standard for the new default.
+- Clearer sections, quieter navigation, Segoe UI text and revised Overview cards.
+- Game folder/Browse, Confirm/Reload, Oodle help and Mousewheel stay visible.
+- Preview, build and install keep their place at larger interface scales.
+- Mousewheel still starts OFF. Status colors keep their meaning in every palette.
+- No gameplay settings or generated Pak contents change from choosing a palette.
+- Extract the complete new ZIP. Preserve your settings.json/editor.json and
+  presets if moving from a previous folder; keep all runtime files together.
+- No Pak rebuild needed for this visual update. The signed runtime is unchanged.
+
+INCLUDED FROM 1.41.0 — ADDITIONAL DETAIL SETTINGS
 ------------------------------------------
 - 486 additional supported values on the checked game 2.0.5 data, including editions.
 - Weird Nut/Water, individual medicine/buff strength and ongoing buff duration.
@@ -28,7 +41,7 @@ NEW IN 1.41.0 — ADDITIONAL DETAIL SETTINGS
 
 Rebuild your personal Pak to apply your choices. Values are read from your game.
 
-INCLUDED FROM 1.40.1 — JOB REPAIRS NOT PLAY-TESTED
+INCLUDED FROM 1.40.1 — JOB REPAIRS WITH LIMITED PLAYER CONFIRMATION
 -----------------------------------------
 Candidate repair for missing multi-job text and disappearing return markers.
 All installed languages are discovered dynamically (18 checked, 208 aliases each).
@@ -38,8 +51,10 @@ can conflict; the config conflict scan cannot identify these language conflicts.
 No game translations or Oodle DLL ship inside this tool. No UE4SS is needed.
 
 After one job ends, remaining return markers are reapplied only when their
-job and return stage are active. Game-side loading and marker behavior remain
-unconfirmed. 56 local test suites passed; this does not replace a game test.
+job and return stage are active. On 12 September Molkerr reported working quest
+translations and the second marker surviving a hand-in before/after save/load.
+Other languages, givers, reward orders and save scenarios still need checks.
+This is player feedback, not an independent gameplay test of every case.
 
 Use a separate tool folder and save from before accepting jobs. Rebuild your
 personal Pak, with the game closed before replacing it. Keep original saves
@@ -160,7 +175,7 @@ globally or per round, and food and medicine have their own slider.
 
 Every slider has a number box for exact values (dot and comma both work),
 the mouse wheel only scrolls the page unless you switch it over, and the
-Design button offers 12 colour themes in the style of the game's factions -
+Design button offers 24 color palettes, including teal/ice-blue Standard -
 all purely cosmetic, the .pak you build is identical.
 
 WHAT YOU CAN TWEAK (short tour)

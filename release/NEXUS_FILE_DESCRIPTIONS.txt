@@ -2,16 +2,29 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.41.0
-File version:  1.41.0
+Name:          S2Tweaker 1.42.0
+File version:  1.42.0
 File category: Main Files
 ==================================================================
 
---- File description (224 characters) ---
-486 additional detail values: artifacts, medicine, weapon items, weather, camps, grenades, helmets, upgrades and scanners. Extract the entire ZIP and run S2Tweaker.exe. Rebuild your Pak. NOT play-tested. No UE4SS or Dev Kit.
+--- File description ---
+Desktop redesign with 24 color palettes and a teal/ice-blue Standard. Clearer sections and change cards; Oodle, Mousewheel and build actions stay visible. Extract the entire ZIP. No Pak rebuild needed for this visual update.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.42.0 - desktop redesign and 24 color palettes
+
+- Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten additional general
+  palettes and all eleven faction palettes. Choose Design to switch colors.
+- Segoe UI text, clearer sections, quieter navigation and improved change cards.
+- Game folder/Browse, Confirm/Reload, Oodle setup and Mousewheel stay visible.
+- Preview/build/install retain their space at larger interface scales.
+- Empty scroll areas now follow palette changes. Mousewheel still starts OFF.
+- Colors preserve gameplay settings and generated Pak contents; no Pak rebuild
+  needed just for this visual update. All 19 native runtime binaries unchanged.
+- Documentation records Molkerr's limited quest-text/return-marker and Liquid
+  Stone feedback; broader gameplay checks remain open.
+
 1.41.0 - additional detail settings
 
 - 486 additional supported values on the checked game 2.0.5 data, including editions.

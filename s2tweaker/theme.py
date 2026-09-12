@@ -27,11 +27,11 @@ SUCCESS_BORDER = "#4FA96B"
 DANGER_BORDER = "#C0453F"
 SYSTEM_BORDER_WIDTH = 2
 
-# Keep button-fill and highlight roles separate. Standard uses blue buttons
-# and amber highlights; faction text accents are brighter than button fills.
+# Keep button-fill and highlight roles separate so text accents remain
+# brighter than button fills in every palette.
 ROLES = ("base", "panel", "panel2", "panel2_hover", "button", "button_hover",
          "progress", "bright", "bright_hover", "accent", "button_text",
-         "secondary", "text")
+         "secondary", "text", "line")
 
 
 def _shade(color: str, factor: float) -> str:
@@ -108,20 +108,44 @@ def _pal(base, panel, panel2, accent, bright, secondary, text, note):
         "bright": bright, "bright_hover": _shade(bright, 1.15),
         "accent": _lift_text(bright, panel2),
         "secondary": _lift_text(secondary, panel2), "text": text, "note": note,
+        "line": _shade(panel2, 1.55),
     }
 
 
-# Standard uses the tool's dark background; snapshot() captures CTk accent defaults.
+# All palettes share the same desktop layout and control geometry.
 DEFAULT_NAME = "Standard"
-DEFAULT_ACCENT = "#d9a648"
+DEFAULT_ACCENT = "#78C7D8"
 
 THEMES: dict[str, dict] = {
     DEFAULT_NAME: {
-        "base": "#000000", "panel": "#141414",
-        "panel2": "#1E1E1E", "panel2_hover": "#2A2A2A",
-        "secondary": "gray60",
-        "note": "the tool's own blue on black",
+        **_pal("#142024", "#1B2B31", "#24393F", "#9AD4E0", DEFAULT_ACCENT,
+               "#A4BEC7", "#E1EDF0", "deep teal and ice blue"),
+        "progress": "#78C7D8", "line": "#3B535E", "panel2_hover": "#284550",
     },
+    "Zone PDA": _pal("#141814", "#1D231D", "#272E25", "#846A38", "#DFB86D",
+                     "#ADB5A7", "#E5E9DF", "olive graphite and warm amber"),
+    "Obsidian": _pal("#11141E", "#1B2030", "#252C3E", "#695895", "#B5A9F3",
+                     "#A8B3CE", "#E9EDF9", "graphite and soft violet"),
+    "Graphite": _pal("#151719", "#202326", "#2B3034", "#77828B", "#C1CCD4",
+                     "#AFB7BD", "#E8EDF0", "neutral charcoal and silver"),
+    "Arctic": _pal("#131F29", "#1B2D3B", "#273D4D", "#93C6E4", "#C2E7F5",
+                   "#A9C2D2", "#E6F1F7", "cold slate and pale ice"),
+    "Deep Ocean": _pal("#0C1822", "#122735", "#1B3745", "#327F9B", "#68C5DE",
+                       "#A0BAC8", "#DEEFF5", "midnight blue and ocean cyan"),
+    "Cobalt": _pal("#111A2A", "#1A283D", "#263750", "#426EB3", "#8EB9FF",
+                   "#AFBFD8", "#E5EDFA", "dark navy and vivid blue"),
+    "Emerald": _pal("#10221B", "#193127", "#264235", "#3D8763", "#86D5A7",
+                    "#ACC6B7", "#E2F0E8", "forest green and emerald"),
+    "Mint": _pal("#17221F", "#22312C", "#30423A", "#88BBA7", "#BBE5D2",
+                 "#B5CABE", "#E9F2ED", "soft sage and pale mint"),
+    "Copper": _pal("#211915", "#30251E", "#423127", "#A8734D", "#DCA575",
+                   "#C5B4A6", "#F0E7DE", "warm charcoal and aged copper"),
+    "Sunset": _pal("#24171A", "#35232A", "#49303A", "#CA8261", "#F4BA8F",
+                   "#CFB3BA", "#F7E6E5", "dark plum and warm peach"),
+    "Rose": _pal("#221722", "#312431", "#433343", "#B477A2", "#E1AFD0",
+                 "#C7B1C4", "#F4E7F2", "smoky mauve and soft pink"),
+    "Plum": _pal("#1D1429", "#2C1F3B", "#3C2D4E", "#8358A5", "#C6A1E7",
+                 "#BFB0CF", "#EFE4F9", "deep aubergine and lavender"),
     "Loners": _pal("#171512", "#211F1A", "#29261F", "#9A7745", "#BD9657",
                    "#75664F", "#D0CBC0",
                    "earthy browns and brass — the Zone's oldest jacket"),
@@ -161,10 +185,7 @@ _FACTORY: dict = {}
 
 
 def snapshot() -> None:
-    """Capture factory colors after ctk.set_default_color_theme(...).
-
-    Capturing at import time would record the wrong defaults and prevent
-    role matching against the actual widgets."""
+    """Retain the original toolkit colors for diagnostics before applying palettes."""
     if _FACTORY:
         return
     t = ctk.ThemeManager.theme
@@ -177,9 +198,6 @@ def snapshot() -> None:
         "text": t["CTkLabel"]["text_color"],
         "button_text": t["CTkButton"]["text_color"],
     })
-    THEMES[DEFAULT_NAME].update(_FACTORY)
-    # Standard highlights stay amber, independently of blue button fills.
-    THEMES[DEFAULT_NAME]["accent"] = DEFAULT_ACCENT
 
 
 # Map widget class/color-field pairs to candidate roles in priority order.
@@ -187,9 +205,12 @@ def snapshot() -> None:
 _ROLES = {
     ("CTkToplevel", "fg_color"): ("base",),
     ("CTkFrame", "fg_color"): ("panel", "panel2"),
+    ("CTkFrame", "border_color"): ("line", "accent"),
     ("CTkScrollableFrame", "fg_color"): ("panel", "panel2"),
     ("CTkButton", "fg_color"): ("button", "panel2"),
     ("CTkButton", "hover_color"): ("button_hover", "panel2_hover"),
+    ("CTkButton", "border_color"): ("line", "accent"),
+    ("CTkSlider", "fg_color"): ("line",),
     ("CTkSlider", "progress_color"): ("progress",),
     ("CTkSlider", "button_color"): ("bright",),
     ("CTkSlider", "button_hover_color"): ("bright_hover",),
@@ -200,6 +221,7 @@ _ROLES = {
     ("CTkEntry", "fg_color"): ("panel2",),
     ("CTkEntry", "text_color"): ("text",),
     ("CTkEntry", "placeholder_text_color"): ("secondary",),
+    ("CTkEntry", "border_color"): ("line",),
     ("CTkTextbox", "fg_color"): ("panel2",),
     ("CTkTextbox", "text_color"): ("text",),
     ("CTkOptionMenu", "fg_color"): ("button",),
@@ -220,7 +242,7 @@ _ROLES = {
 
 
 def names() -> list[str]:
-    """Theme names in display order, Default first."""
+    """Theme names in display order, Standard first."""
     return list(THEMES)
 
 
@@ -245,6 +267,21 @@ def _theme_defaults(pal: dict) -> None:
     t["CTkToplevel"]["fg_color"] = pal["base"]
     t["CTkFrame"]["fg_color"] = pal["panel"]
     t["CTkFrame"]["top_fg_color"] = pal["panel"]
+    t["CTkFrame"]["border_color"] = pal["line"]
+    t["CTkFrame"]["corner_radius"] = 8
+    t["CTkButton"]["corner_radius"] = 5
+    t["CTkButton"]["border_color"] = pal["line"]
+    t["CTkEntry"]["corner_radius"] = 5
+    t["CTkEntry"]["border_width"] = 1
+    t["CTkEntry"]["border_color"] = pal["line"]
+    t["CTkSlider"]["fg_color"] = pal["line"]
+    t["CTkSlider"]["border_width"] = 5
+    t["CTkSlider"]["button_length"] = 8
+    t["CTkSlider"]["button_corner_radius"] = 6
+    t["CTkCheckBox"]["corner_radius"] = 4
+    t["CTkCheckBox"]["border_width"] = 2
+    t["CTkOptionMenu"]["corner_radius"] = 5
+    t["CTkSegmentedButton"]["corner_radius"] = 5
     t["CTkButton"]["fg_color"] = pal["button"]
     t["CTkButton"]["hover_color"] = pal["button_hover"]
     t["CTkButton"]["text_color"] = pal["button_text"]
@@ -330,6 +367,10 @@ def _repaint(widget, old: dict, new: dict) -> int:
                 continue
             changes[attr] = now
             break                      # One role match per color field is sufficient.
+    if isinstance(widget, ctk.CTkScrollableFrame):
+        # Its parent frame may already have changed during this traversal.
+        # Refresh the native canvas as well, including transparent empty space.
+        changes.setdefault("fg_color", widget.cget("fg_color"))
     if changes:
         widget.configure(**changes)
         n += len(changes)

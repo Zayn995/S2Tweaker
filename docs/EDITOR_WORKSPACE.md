@@ -1,4 +1,4 @@
-# Editor workspace improvements (v1.37.0)
+# Editor workspace
 
 The desktop editor now has an Overview page and left navigation. Game-data
 generation still uses the existing Settings and selective config patch engine.
@@ -17,7 +17,8 @@ No native in-game menu or targeted third-party mod support is included.
 | Navigation | A scrollable left category list with counts of changed editor inputs. |
 | Density and scale | Compact or detailed explanations and 85/100/115/130 percent widget scale under More options. |
 | Mousewheel | Visible in the toolbar. Red OFF scrolls the page; green ON permits slider changes. Starts OFF every time. |
-| Design | Visible in the toolbar. Twelve faction-inspired palettes with individual previews and an active marker. Hint text, highlighted text, tab captions and selection controls remain readable when switching. |
+| Design | One shared desktop layout with 24 color palettes: teal/ice-blue Standard, olive/amber Zone PDA, violet Obsidian, ten more general palettes and the existing faction palettes. Previews and the active palette remain available in the toolbar. Hint text, highlighted text, tab captions and selection controls remain readable when switching. |
+| Game data and Oodle | The header keeps the game folder, Browse, Confirm & load game data, and Oodle status visible. Successful loading changes the action to Reload game data. The Oodle indicator still opens the setup guide. |
 | Command layout | Preview, build and install remain visible. Profiles, own Paks and display/occasional actions have their own entry points. |
 | Evidence status | Distinguish experimental controls, explicitly recorded in-game reports and controls with no recorded play-test. Export checks never imply verified gameplay. |
 
@@ -25,6 +26,14 @@ Editor preferences are stored in `editor.json`. Game settings remain in
 `settings.json`, profiles in `presets/`, retained Paks in `pak_history/`.
 Nothing is written into the executable. The preferences stay local and are
 not embedded into generated game patches.
+
+The desktop uses Segoe UI, coordinated control borders, quieter inactive
+navigation, and a persistent footer for preview/build/install. Overview cards
+put the setting name first and its full category context underneath; hovering
+the title also shows the complete label. Status colors for loading, Oodle and
+mousewheel mode are independent of the selected palette. Mousewheel adjustment
+still resets to OFF at each start. No game-data loading or DLL download is
+triggered by selecting a palette.
 
 ## Scope and limits
 
@@ -58,11 +67,11 @@ and Design have been moved out of More options into the visible toolbar.
 Warning captions retain their amber system colour and wrap to the available
 width. Palette previews retain their own colours while the main window changes.
 Native slider values follow the chosen text colour; selected and unselected
-tabs keep readable captions. Standard retains its blue-on-black palette.
+tabs keep readable captions. At that stage, Standard used a blue-on-black palette.
 
 `test_theme_palette.py` covers all palettes, normal/hover text contrast, role
 round-trips, system colours, fixed previews and defaults for newly built widgets.
-The separate opt-in `--design-review` checks all twelve palettes, toolbar
+The separate opt-in `--design-review` checks all available palettes, toolbar
 visibility at the 1000-pixel minimum width, Mousewheel state, native value text
 and tab/segmented captions in one real Windows process. It records handle counts
 and leaves a short interval for manual inspection. It never runs in CI.

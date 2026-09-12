@@ -12,6 +12,14 @@ extra-bonus choices (871 controls in the current 2.0.5 snapshot) and an optional
 display checkbox. The additions remain experimental, with limited player feedback below. No UE4SS, injector, Blueprint package
 or new extraction input is required; cache schema remains unchanged.
 
+## Player follow-up, 12 September 2026
+
+[Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394) that Liquid Stone's total resistances change at slider
+values 100, 500 and 1000, with near-full resistances at 1000 in his setup. This
+supports strength changes for that item; it does not establish exact linear
+scaling, every bonus family or all artifact combinations. The report does not
+state an exact tool version.
+
 ## Player feedback, 11 September 2026
 
 [Molkerr reports extra bonuses working in 1.40.0](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5639882302).

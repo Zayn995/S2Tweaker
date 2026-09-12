@@ -59,10 +59,13 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I change the colours of the tool?",
-        "a": "Yes - the 'Theme' button in the toolbar opens 12 colour themes "
-             "in the style of the game's factions (Loners, Bandits, Duty, "
+        "a": "Yes - the 'Design' button in the toolbar opens 24 color palettes "
+             "for one shared desktop layout. They include teal/ice-blue Standard, "
+             "olive/amber Zone PDA, violet Obsidian, Graphite, Arctic, Deep Ocean, "
+             "Cobalt, Emerald, Mint, Copper, Sunset, Rose, Plum, and the game's "
+             "factions (Loners, Bandits, Duty, "
              "Freedom, Military, Ward, Spark, Monolith, Ecologists, "
-             "Mercenaries, Clear Sky) next to the default. Each sets the "
+             "Mercenaries, Clear Sky). Each sets the "
              "background, cards, buttons, sliders and text; one click "
              "changes the window and the choice is remembered. Purely "
              "cosmetic - the mod you build is identical. Green and red never "

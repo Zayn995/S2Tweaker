@@ -39,16 +39,22 @@ for name in theme.names():
         assert len(set(seen)) == len(seen), f"{name}: {klass}.{attr} {roles} {seen}"
 print(f"{len(theme.names())} themes, all roles assigned and distinguishable  OK")
 
-# Standard restores the captured factory colors.
-factory = dict(theme._FACTORY)
-assert factory, "snapshot() was never called"
-for role, value in factory.items():
-    assert theme.get(theme.DEFAULT_NAME)[role] == value, role
-print("Default matches the customtkinter theme defaults  OK")
+# Color selection must not change the common control geometry.
+geometry = None
+for name in theme.names():
+    theme._theme_defaults(theme.get(name))
+    current = {kind: {key: value for key, value in fields.items()
+                      if key in ("corner_radius", "border_width", "button_length")}
+               for kind, fields in theme.ctk.ThemeManager.theme.items()}
+    assert geometry is None or current == geometry, name
+    geometry = current
+theme._theme_defaults(theme.get(theme.DEFAULT_NAME))
+print("Every color palette uses the same control geometry  OK")
 
 # --- 2) Switch themes in a real window ---
 app = gui.App()
 app.update()
+app.tabs.set("Player")
 row = app.sliders["pdmg"]
 ampeln = {
     "confirm": app.btn_confirm.cget("fg_color"),
@@ -86,7 +92,7 @@ for name in theme.names():
     for key, want in ampeln.items():
         btn = {"confirm": app.btn_confirm, "oodle": app.btn_oodle,
                "wheel": app.btn_scroll, "remove": app.btn_remove}[key]
-        assert str(btn.cget("fg_color")) == str(want), f"{name}: {key} verfaerbt"
+        assert str(btn.cget("fg_color")) == str(want), f"{name}: {key} changed color"
 print("Confirm, Oodle, mouse wheel and Remove remain consistent across themes  OK")
 
 # Switching themes and back must preserve original role colors.
