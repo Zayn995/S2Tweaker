@@ -130,8 +130,7 @@ def _selftest(report: Path) -> None:
         assert Path(got).resolve() == APP_DIR, f"{name}.app_dir() = {got}"
     assert gui._asset("icon.ico").is_file(), gui._asset("icon.ico")
     assert gui._asset("help", "oodle_folder.png").is_file()
-    # Paks in reinem Python (kein repak.exe mehr seit 05.09.2026): einmal
-    # schreiben und zuruecklesen, und die alte Binaerdatei darf nicht da sein.
+    # Run a pure-Python Pak roundtrip and confirm no legacy repak binary is bundled.
     import tempfile
     from s2tweaker import pakfile
     with tempfile.TemporaryDirectory(prefix="s2t_selftest_") as tmp:
@@ -139,7 +138,7 @@ def _selftest(report: Path) -> None:
         with pakfile.PakFile(pak) as pk:
             assert pk.version.label == "V8B", pk.version
             assert pk.read("a/b.cfg") == b"x = 1\r\n"
-    assert not (INTERNAL / "repak.exe").exists(), "repak.exe ist zurueck"
+    assert not (INTERNAL / "repak.exe").exists(), "repak.exe has returned"
     lines.append("pak: pure-Python write/read roundtrip OK, no repak.exe")
 
     lines.append("headless: no application window created; layout not tested")

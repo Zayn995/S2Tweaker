@@ -57,7 +57,7 @@ Preview lists the language files; normal Pak export, verified replacement and de
 export handle their binary content without newline conversion. The generated texts
 match the independently constructed native candidate in all 18 languages.
 Actual loading/rendering still requires a game test in multiple languages,
-including native English, Russian and the owner's language. Also check ordinary
+including native English, Russian and other supported game languages. Also check ordinary
 quests and menus. Binary equality does not prove visible text is fixed.
 
 ## Remaining marker case

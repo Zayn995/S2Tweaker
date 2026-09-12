@@ -1,456 +1,290 @@
-# Generator-Block: Datenlage (Loot, Drops, Händler, Verstecke)
+# Item generators: loot, drops, traders and stashes
 
-Recherche-Stand **2026-09-01**, erstellt mit der Skill `research-cfg-block`
-(6 parallele Agents auf den lokalen `vanilla/`-Dateien). **Kein Code** — dieses
-Dokument ist die Grundlage für eine spätere Umsetzung mit `add-tweak`.
+Research snapshot: 2026-09-01. Counts describe the inspected game files and
+initial filter analysis, not constants for the application. The implementation
+reads current installation values through `gd.resolve` and related accessors.
 
-> **Nachtrag 01.09. (Stufe 1+2 sind gebaut).** Der gegnerische Review vor dem
-> Commit hat vier Lücken in diesem Dokument gefunden — Geld existiert auch als
-> *Item* (`MoneyCommon/Rare/Epic/Legendary`, Effekt `EEffectType::AddMoney`),
-> es gibt einen **zweiten** Quest-Marker `IsQuestItemPrototype` (291 Items
-> tragen nur ihn), die Händler-Hülle darf ihre Sperre nicht transitiv
-> weitergeben, und der Namensfilter gehört auch auf Item-SIDs. Details und die
-> daraus gebaute Filterlogik ist in `gamedata.loot_generators()` und in
-> README.md beschrieben (frueher: ROADMAP, Abschnitt „Was der Review an
-> der Recherche korrigiert hat", sowie `README.md`. Zwei Angaben unten sind
-> falsch: `LesserZone_Cabin` gibt es **nicht** 4× als gleichnamigen Schlüssel
-> (die Datei hat 0 doppelte Top-Level-Schlüssel), und `Electrocollar` ist
-> **kein** Quest-Item (`IsQuestItem = false`).
+The completed filter review corrected four early assumptions: money also exists
+as items (`MoneyCommon/Rare/Epic/Legendary`, `EEffectType::AddMoney`); quest items
+can use `IsQuestItemPrototype` as well as `IsQuestItem`; trader membership must
+not transitively blacklist unrelated loot; and exclusion patterns apply to item
+SIDs too. **291 items carry only the second quest marker.** `Electrocollar` is
+not itself marked `IsQuestItem = true`. The inspected generator file has no
+duplicate top-level keys; the earlier claim of four identical `LesserZone_Cabin`
+keys was incorrect. See `gamedata.loot_generators()` for the resulting filter.
 
-Alle Zahlen sind gezählt, nicht geschätzt; die Zählmethode steht jeweils dabei.
-Werte gehören in dieses Dokument, **nicht in den Code** — dort immer live über
-`gd.resolve(...)` lesen (eiserne Regel, siehe CLAUDE.md).
+## Files and scope
 
----
-
-## Kurzfassung
-
-| Frage | Antwort |
-|---|---|
-| Loot-Mengen regelbar? | **Ja**, aber nur mit zweistufigem Sicherheitsfilter (Name + Item-Inhalt). 2.049 von 3.085 Generatoren sind sicher. |
-| Zustand gedroppter Waffen regelbar? | **Ja**, technisch sauber — aber teuer: bis zu ~23.000 Patch-Zeilen, weil kein Wert vererbt wird. |
-| Händler-Bestände regelbar? | **Ja, als eigener Regler** — Handel und NPC-Loot sind fast disjunkt (Schnittmenge 6 von 95 bzw. 963 Generatoren). |
-| Versteck-Inhalte regelbar? | **Ja, und das ist der billigste und sicherste Einstieg**: 19 Structs, nachweislich 0 Quest-Items, 0 Unikate. |
-| „Mehr Leichen-Loot je Schwierigkeitsgrad"? | **So nicht verdrahtet** — der Vanilla-Anker existiert nur auf Easy und Medium (siehe unten). |
-
-**Empfehlung: in zwei Stufen bauen.** Stufe 1 = `StashPrototypes.cfg`
-(Verstecke + Leichen-Loot), klein, sicher, sofort testbar. Stufe 2 = die
-Mengen im großen Generator, mit dem unten beschriebenen Filter. Der
-Zustands-Regler und die Händler-Bestände sind je ein eigenes Thema danach.
-
----
-
-## 1. Die beiden Dateien
-
-| Datei | Zeilen | Top-Level-Structs | Größe |
+| File | Lines | Top-level structs | Size |
 |---|---|---|---|
-| `ItemGeneratorPrototypes.cfg` | 277.318 | 3.085 | 9,3 MB |
-| `StashPrototypes.cfg` | 10.681 | 19 | 0,4 MB |
+| ItemGeneratorPrototypes.cfg | 277,318 | 3,085 | 9.3 MB |
+| StashPrototypes.cfg | 10,681 | 19 | 0.4 MB |
 
-Dazu als Nachbarn: `DifficultyPrototypes.cfg` (11 Structs, enthält
-`CorpseSmartLoot`), `TradePrototypes.cfg` (74 Structs, Händler-Verknüpfung),
-`ObjPrototypes.cfg` (1.659 NPC-Prototypen, Loadout-Verknüpfung),
-`ItemPrototypes.cfg` (Quest-Item-Marker), `SpawnActorPrototypes.cfg`
-(Versteck-Zuweisung).
+Related files are DifficultyPrototypes (11 structs, CorpseSmartLoot),
+TradePrototypes (74 structs), ObjPrototypes (1,659 NPC prototypes),
+ItemPrototypes (quest markers), and SpawnActorPrototypes (stash assignments).
 
----
+Loot quantity, weapon condition, trader stock and stash contents use different
+paths and filters. They must remain separate controls. The initial analysis
+identified 2,049 candidate loot generators after filtering, but that count
+predates the additional quest/money checks above and is not a current allowlist.
+Stashes are much smaller; weapon condition can require about 23,000 patch lines
+because those values are locally defined rather than inherited.
 
-## 2. Aufbau von ItemGeneratorPrototypes.cfg
+## ItemGeneratorPrototypes structure
 
-Fünf Ebenen, Einrückung immer 3 Leerzeichen, keine Tabs, kein CR:
+Five levels, normally indented by three spaces:
 
-```
-Prototyp                                   ← Patch-Schlüssel
+```text
+Prototype key
    ItemGenerator | MoneyGenerator
-      [N]  Slot mit Category + Filtern
+      [N] or named slot, with Category and filters
          PossibleItems
-            [M]  einzelner Kandidat mit den Zahlen
+            [M] candidate item and numeric values
 ```
 
-Beispiel (Zeilen 32–58, `SimpleFoodGenerator`, komplett selbstdefiniert):
+For example, `SimpleFoodGenerator.ItemGenerator.[0].PossibleItems.[0]` contains
+Bread, Weight 4, MinCount 1 and MaxCount 1. This is an illustrative snapshot;
+patch addressing must come from the parsed file.
 
-```
-SimpleFoodGenerator : struct.begin
-   SID = SimpleFoodGenerator
-   ItemGenerator : struct.begin
-      [0] : struct.begin
-         Category = EItemGenerationCategory::Consumable
-         PossibleItems : struct.begin
-            [0] : struct.begin
-               ItemPrototypeSID = Bread
-               Weight = 4
-               MinCount = 1
-               MaxCount = 1
-            struct.end
-            ...
-```
+There are 28 distinct field names across 153,578 assignment lines:
 
-**Nur 28 verschiedene Feldnamen** in 153.578 `Key = Wert`-Zeilen. Häufigkeit:
-
-| Feld | Anzahl | Ebene |
+| Field | Count | Level |
 |---|---|---|
-| `ItemPrototypeSID` | 23.469 | Item |
-| `Weight` | 17.520 | Item |
-| `Category` | 13.940 | Slot |
-| `MinDurability` / `MaxDurability` | 12.987 / 12.984 | Item |
-| `AmmoMinCount` / `AmmoMaxCount` | 12.375 / 12.371 | Item |
-| `Chance` | 10.587 | Item |
-| `MinCount` / `MaxCount` | 6.962 / 6.147 | Item **und** MoneyGenerator |
-| `PlayerRank` | 6.941 | Slot |
-| `ItemGeneratorPrototypeSID` | 4.752 | Item (Sub-Generator) |
-| `SID` | 3.085 | Prototyp |
-| `SpecificRewardSound` | 2.485 | Prototyp |
-| `Diff` | 2.364 | Slot |
-| `bAllowSameCategoryGeneration` | 2.003 | Slot |
-| `bRequireWeapon` | 1.103 | Item |
-| `RefreshTime` | 799 | Prototyp (`1d` 794×, `1h` 5×) |
-| `weight` (klein!) | 152 | Item — **Vanilla-Tippfehler** |
-| `ID` | 66 | Prototyp |
-| `bUnloadedWeapon` / `ReputationThreshold` / `AmmoMaxcount` | 5 / 4 / 4 | selten |
-| `bRequireAmmo` / `GeneratedItems` / `Binoculars_03` | je 1 | kaputte Vanilla-Daten |
+| ItemPrototypeSID | 23,469 | Item |
+| Weight | 17,520 | Item |
+| Category | 13,940 | Slot |
+| MinDurability / MaxDurability | 12,987 / 12,984 | Item |
+| AmmoMinCount / AmmoMaxCount | 12,375 / 12,371 | Item |
+| Chance | 10,587 | Item |
+| MinCount / MaxCount | 6,962 / 6,147 | Item and MoneyGenerator |
+| PlayerRank | 6,941 | Slot |
+| ItemGeneratorPrototypeSID | 4,752 | Subgenerator reference |
+| SID | 3,085 | Prototype |
+| SpecificRewardSound | 2,485 | Prototype |
+| Diff | 2,364 | Slot |
+| bAllowSameCategoryGeneration | 2,003 | Slot |
+| bRequireWeapon | 1,103 | Item |
+| RefreshTime | 799 | Prototype; 794 `1d`, five `1h` |
+| weight | 152 | Lowercase vanilla spelling |
+| ID | 66 | Prototype |
+| bUnloadedWeapon / ReputationThreshold / AmmoMaxcount | 5 / 4 / 4 | Rare fields |
+| bRequireAmmo / GeneratedItems / Binoculars_03 | 1 each | Includes malformed vanilla fields |
 
-16 Kategorien (`EItemGenerationCategory::…`), im sicheren Rest verteilt als:
-WeaponPrimary 3.858, SubItemGenerator 3.334, BodyArmor 1.670, Head 1.255,
-Detector 838, Artifact 817, Consumable 297, WeaponPistol 210, Junk 150,
-Ammo 144, Attach 102, WeaponSecondary 98, Mask 75, NightVision 30,
-MutantLoot 15, None 1.
+The initial filtered category counts were WeaponPrimary 3,858, SubItemGenerator
+3,334, BodyArmor 1,670, Head 1,255, Detector 838, Artifact 817, Consumable 297,
+WeaponPistol 210, Junk 150, Ammo 144, Attach 102, WeaponSecondary 98, Mask 75,
+NightVision 30, MutantLoot 15 and None 1.
 
----
+## Numeric controls
 
-## 3. Die Stellschrauben
+### Quantities
 
-### 3.1 Stückzahlen — `MinCount` / `MaxCount`
+The same field names occur in different semantic contexts:
 
-Pfad: `<Prototyp>.ItemGenerator[i].PossibleItems[j].MinCount`
-
-Die 6.962 `MinCount`-Zeilen verteilen sich auf **fünf verschiedene Pfadformen**,
-die man nicht vermischen darf:
-
-| Pfadform | MinCount | MaxCount | Bedeutung |
+| Path | MinCount | MaxCount | Meaning |
 |---|---|---|---|
-| `…PossibleItems[j]` | 6.479 | 5.665 | **Stückzahl (das Ziel)** |
-| `<Prototyp>.MoneyGenerator` | 372 | 372 | **Geldbetrag — nie mitskalieren!** |
-| `…ItemGenerator.Consumable.PossibleItems[j]` | 83 | 83 | benannter statt indizierter Slot |
-| `…PossibleItems[j].Upgrades` | 20 | 19 | Waffen-Upgrades |
-| `…PossibleItems[j].Attaches` | 8 | 8 | Anbauteile |
+| PossibleItems.[j] | 6,479 | 5,665 | Item quantity |
+| Prototype.MoneyGenerator | 372 | 372 | Money, excluded from item-quantity scaling |
+| ItemGenerator.Consumable.PossibleItems.[j] | 83 | 83 | Named slot |
+| PossibleItems.[j].Upgrades | 20 | 19 | Weapon upgrades |
+| PossibleItems.[j].Attaches | 8 | 8 | Attachments |
 
-Verteilung in PossibleItems (n = 6.590 / 5.775):
-`MinCount` 1 = 4.289 (65,1 %), 2 = 400, 10 = 342, 5 = 301, 30 = 195 …
-`MaxCount` 1 = 3.070 (53,2 %), 2 = 494, 3 = 333, 10 = 278, 5 = 231 …
-Häufigstes Paar (1,1) = 3.029 (52,7 %). **3.895 feste Mengen (Min == Max),
-1.853 echte Spannen, 0 Fälle mit Min > Max.**
+Across PossibleItems and nested forms, MinCount has 6,590 occurrences and
+MaxCount 5,775. Common minimums: 1 (4,289), 2 (400), 10 (342), 5 (301), 30 (195).
+Common maximums: 1 (3,070), 2 (494), 3 (333), 10 (278), 5 (231).
+There are 3,895 fixed quantities and 1,853 ranges, with no Min > Max in that
+generator subset. The common pair 1/1 occurs 3,029 times. **814 entries have
+MinCount without MaxCount**, 807 of them equal to 1; none has only MaxCount.
 
-**814 Einträge haben `MinCount` OHNE `MaxCount`** (807× mit Wert 1) —
-umgekehrt kein einziger. Ein Regler, der nur `MaxCount` anfasst, übersieht sie.
+### Ammunition inside a found weapon
 
-### 3.2 Munition in der Waffe — `AmmoMinCount` / `AmmoMaxCount`
+`AmmoMinCount/AmmoMaxCount` are ammunition amounts, not numbers of weapons.
+84.99% of minimums are zero. Common maximums are 7 (4,493), 6 (2,635) and
+5 (2,602); 0/7 occurs 4,486 times. 92.7% belong to WeaponPrimary. The 315
+Consumable entries at 0/0 remain unchanged under multiplicative scaling.
 
-Das ist **nicht** die Stückzahl der Ware, sondern die Munition, die einer
-gefundenen Waffe beiliegt. 84,99 % der `AmmoMinCount` sind 0; `AmmoMaxCount`
-konzentriert sich auf 7 (4.493), 6 (2.635), 5 (2.602). Häufigstes Paar
-(0,7) = 4.486. 92,7 % hängen an `Category = WeaponPrimary`.
-**315 Einträge unter `Consumable` stehen auf 0/0 — dort wirkt kein Faktor.**
+### Condition
 
-### 3.3 Zustand — `MinDurability` / `MaxDurability`
+12,981 regular entries contain condition values, about 46.5% of PossibleItems:
 
-12.981 reguläre Einträge (46,5 % aller PossibleItems). Extrem einseitig verteilt:
-
-| Paar | Anzahl | Bedeutung |
+| Min / Max | Count | Typical use |
 |---|---|---|
-| 0.25 / 0.5 | 11.431 (88,1 %) | Standard für geplünderte Waffen |
-| 1.0 / 1.0 · 1 / 1 · 1. / 1. | 415 · 220 · 13 | Neuzustand (**drei Schreibweisen!**) |
-| 0.0 / 0.0 | 319 | Platzhalter, meist Quest-Belohnungen |
-| 0.4 / 0.9 | 263 | überwiegend WeaponSecondary |
-| 0.8 / 0.9 | 162 | überwiegend WeaponPistol |
-| 0.45 / 0.45 | 64 | überwiegend Artefakte |
+| 0.25 / 0.5 | 11,431 | Looted weapons |
+| 1.0 / 1.0; 1 / 1; 1. / 1. | 415; 220; 13 | New condition in three numeric spellings |
+| 0.0 / 0.0 | 319 | Placeholders, often quest rewards |
+| 0.4 / 0.9 | 263 | Mostly secondary weapons |
+| 0.8 / 0.9 | 162 | Mostly pistols |
+| 0.45 / 0.45 | 64 | Mostly artifacts |
 
-**Der Zustand hängt klar an der Kategorie** — ein einzelner globaler Regler ist
-damit widerlegt: WeaponPrimary 11.209 von 11.572 auf 0.25/0.5 (96,9 %),
-BodyArmor 272 von 278 auf Neuzustand (97,8 %), Head 83 von 84 (98,8 %).
-Wer Waffen-Zustand anhebt, tut bei Rüstung nichts; wer pauschal senkt, lässt
-erstmals beschädigte Rüstung spawnen.
+WeaponPrimary has 11,209 of 11,572 entries at 0.25/0.5. BodyArmor has 272
+of 278 at new condition; Head has 83 of 84. A blanket reduction would create
+damaged armor where vanilla normally provides new armor. Keep these categories
+separate. None of the 12,981 regular condition entries inherits its values.
 
-### 3.4 Auswahl — `Chance` vs. `Weight`
+### Chance versus Weight
 
-Zwei Mechaniken, die sich pro Liste ausschließen:
+Weight represents weighted selection; Chance represents independent item rolls.
+Do not normalize chance lists to a total of one. Only two of 621 lists with at
+least three entries sum to one; `Monolit_bench_1_ItemGenerator`, for example,
+contains 13 entries at Chance 1.0. Weight totals range from zero to 4,100.
 
-- **`Weight`** = gewichtete Lotterie, **genau ein** Item wird gezogen
-  (Wahrscheinlichkeit = Weight / Summe). Summen völlig frei (0 bis 4.100).
-- **`Chance`** = unabhängiger Einzelwurf je Item, mehrere können gleichzeitig
-  fallen. **Chance-Werte addieren sich NICHT auf 1** — von 621 Listen mit ≥ 3
-  Einträgen tun das nur 2. Beweis: `Monolit_bench_1_ItemGenerator`
-  (Zeilen 27939–27995) hat 13 Einträge mit je `Chance = 1.0`.
+Of 27,889 entries, 17,329 have Weight only, 10,222 Chance only, 337 both and one
+neither. Mixed entries require care; the presence of a Weight key alone is not
+proof of the behavior of every nested generator. Increasing quantity changes
+the selected item's amount, not necessarily the number of independent rolls.
 
-Von 27.889 Einträgen: 17.329 nur Weight, 10.222 nur Chance, 337 beide, 1 keines.
-Bei `Weight`-Listen erhöht ein Mengen-Faktor also nur das **eine** gezogene Item.
+## Inheritance and addressing
 
----
+- 2,607 of 3,085 structs have refurl/refkey metadata; 1,773 reference `[0]`,
+  the empty base template. **Never patch that template for general loot.**
+- `refkey=[N]` is positional. Eighty-eight structs reference `[1]`, whose
+  actual second top-level key is `MoneyGenerator`.
+- Many refurl source files were merged during packaging and do not exist as
+  separate files. Resolve the merged structure rather than opening arbitrary
+  refurl paths. 2,519 of 2,607 refkeys resolve within the inspected file;
+  missing-source inheritance remains a data limitation.
+- 226 structs use indexed keys; 239 have a key different from their SID.
+  Addressing an indexed struct by SID can create a new ineffective node.
+- Named slots coexist with indexed slots. The initial scan identified 724
+  relevant direct-child groups, including Head, BodyArmor, Consumable,
+  WeaponPrimary, WeaponPistol and Attach. Read actual paths from the parser.
+- Numeric and Boolean spellings vary (`1`, `1.`, `1.0`, `4.f`, `True`, `false`).
+  Compare parsed values numerically to avoid redundant patches.
 
-## 4. Vererbung und Adressierung — die Fallen
+## Exclusions
 
-- **2.607 von 3.085** Structs tragen `{refurl=…;refkey=…}`, davon **1.773 auf
-  `[0]`** (das leere Basis-Template).
-- **`refkey=[N]` ist positionsbasiert, nicht namensbasiert.** 88 Structs zeigen
-  auf `[1]` — und das zweite Top-Level-Struct heißt `MoneyGenerator`, nicht `[1]`.
-- **Die in `refurl` genannten Dateien existieren nicht** (`DynamicItemGenerator.cfg`
-  662×, `Gamepass_ItemGenerators.cfg` 12× …). Sie wurden beim Packen
-  eingeschmolzen; 2.519 der 2.607 refkeys lösen **innerhalb** dieser Datei auf.
-  `refurl` darf nie als Dateizugriff interpretiert werden.
-- **Kein einziger Durability-Wert wird vererbt** (12.981 von 12.981 stehen lokal).
-  Ein Template-Patch existiert für dieses Feld schlicht nicht.
-- **226 Structs heißen `[N]` statt wie ihre SID**, 239 haben Schlüssel ≠ SID.
-  Der bpatch-Schlüssel muss dann der Index sein — sonst entsteht laut
-  SPEC-Semantik ein **neuer** Knoten statt eines Patches (wirkungslos + Müll).
-- **724 Direktkinder unter `ItemGenerator` sind benannt statt indiziert**
-  (Head 722, BodyArmor 669, Consumable 17, WeaponPrimary 13, WeaponPistol 2,
-  Attach 1). Pfade müssen aus der Datei gelesen, nie konstruiert werden.
-- **Doppelte SID:** `LesserZone_Cabin` existiert 4× als eigenständiges
-  Top-Level-Struct. Ein SID-basiertes Dictionary verschluckt 3 davon.
-- **Zahlen- und Boolean-Schreibweisen sind inkonsistent:** `1`, `1.`, `1.0`,
-  `4.f` für dieselbe Zahl; `True` (601×), `False` (150×), `false` (352×).
-  Ein textueller `_neq`-Vergleich erzeugt Phantom-Patches.
+Generator names do not contain reliable quest-item flags. Resolve both
+`IsQuestItem` and `IsQuestItemPrototype` in ItemPrototypes, including inheritance.
+The original IsQuestItem-only scan found 327 true assignments and 326 resolved
+items; that was incomplete without the second marker.
 
----
+Apply exclusions to struct keys, generator SIDs and contained item SIDs. The
+initial name pattern covered quest prefixes MQ/EQ/SQ/RSQ/ANCQ, Quest, QSBIG,
+GDEQ, Reward, C_, BP_, UAID_, Container, Template, Player, Boss, Arena,
+GamePass, Key, Safe, Icon and PDA. It removed 918 structs, but names alone
+missed quest keys and unique weapons. Inspect item content and subgenerators too.
 
-## 5. Was NICHT angefasst werden darf
+Unique item IDs follow `Gun_<Name>_<Class>`, for example `Gun_Whip_SR`, unlike
+ordinary `GunAK74_ST`. `_GS` identifies a weapon setup and is not a unique-item
+test. The snapshot had 39 unique items, seven appearing in nine generators.
 
-Es gibt **kein Quest-Feld** in dieser Datei — 0 Treffer für `bQuest`, `IsQuest`,
-`Unique` o. Ä. Der Marker liegt eine Ebene tiefer, in `ItemPrototypes.cfg`
-(`IsQuestItem`, 327× true; nach Auflösung der refkey-Kette **326 Quest-Items**).
-Ein sicherer Filter braucht deshalb **beide** Stufen:
+The preliminary two-stage filter left 2,162 structs, then 2,049 after trader
+and aggregate-template exclusions. Those historical counts must not replace
+the corrected item, money and graph checks in the implementation.
 
-**Stufe 1 — Namens-Blacklist** (auf SID *und* Struct-Schlüssel):
-`(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)`, `Quest`, `QSBIG`, `GDEQ`, `Reward`,
-`^C_`, `(?:^|_)BP_`, `UAID_`, `Container`, `Template`, `Player`, `Boss`,
-`Arena`, `GamePass`, `(?:^|_)Key`, `(?:^|_)Safe`, `Icon`, `PDA`
-→ entfernt **918** Structs.
+Preserve these boundaries:
 
-**Stufe 2 — inhaltliche Prüfung**: Block verwerfen, wenn eine enthaltene
-`ItemPrototypeSID` ein Quest-Item (`IsQuestItem = true`) ist oder dem
-Unikat-Muster `^Gun_[A-Z]` entspricht → entfernt **5 weitere**.
-
-**Ergebnis: 2.162 Structs (70,1 %), Gegenprobe 0 Quest-Items, 0 Unikate.**
-Nach zusätzlichem Ausschluss von Händlern (97) und Sammel-Templates (17+1)
-bleiben **2.049**.
-
-**Stufe 1 allein reicht nachweislich nicht** — durch sie rutschen
-`Electrocollar`, `Garbage_DetentionCenter_Key_Padlock`, `Gun_Encourage_HG`,
-`Gun_Silence_SMG` und `Gun_Trophy_AR` durch.
-
-> **Korrektur zum Auftrag:** Das Muster `Gun_*_GS` kommt in dieser Datei
-> **0×** vor. `_GS` ist das Suffix eines *Waffen-Setups*, kein Unikat-Merkmal.
-> Die richtige Unikat-Konvention auf Item-Ebene ist `Gun_<Name>_<Klasse>`
-> (mit Unterstrich nach `Gun`), z. B. `Gun_Whip_SR` — im Gegensatz zu
-> Serienwaffen wie `GunAK74_ST`. 39 solcher Unikate existieren, 7 davon
-> liegen in 9 Generatoren.
-
----
-
-## 6. StashPrototypes.cfg — der sichere Einstieg
-
-19 Structs; `empty` (Zeile 1) ist ein **reines Null-Schema**, die anderen 18
-erben per `{refkey=empty}`, definieren aber **alle Zahlen selbst**.
-1.060 Items, 470 Parameter-Einträge. **Keine `[*]`-Arrays** — jede Position
-ist stabil indiziert und damit bpatch-sicher. **0 Quest-Items, 0 Unikate,
-0 Durability-Felder.**
-
-Schema: `<Stash>.ItemGenerators[i]` (i = Rang) → `.SmartLootParams` →
-eine von 7 Gruppen → `[j]` → `.Items[k]`.
-
-Die 7 Gruppen: `HealthParams`, `AttachParams` (beide **nur im Template**, tot),
-`PrimaryWeaponParams`, `SecondaryWeaponParams`, `PistolWeaponParams`,
-`ConsumablesParams`, `GrenadesParams`.
-
-Stellschrauben je Eintrag: `MinSpawnChance` / `MaxSpawnChance` (0…1),
-`MainWeaponAmmoCount`, `ItemSetCount`, `PriorityCaliber` sowie je Item
-`MinCount` / `MaxCount` / `Weight` (1.035×) bzw. `Chance` (25×).
-
-Die drei NPC-Leichen-Generatoren vollständig:
-
-| Generator | Newbie | Experienced | Veteran | Master |
-|---|---|---|---|---|
-| `NPC_Ammo_Smart` | 4 Einträge | 5 | 7 | 8 |
-| `NPC_Medicine_Smart` | Medkit 1–2, Bandage 2–4 | + Antirad | + ArmyMedkit | Antirad W5 |
-| `NPC_Water_Smart` | Water 1–1 | identisch | identisch | identisch |
-
-`MinSpawnChance` ist in allen 39 Einträgen 0.1f; `MaxSpawnChance` 0.8f (Munition)
-bzw. 0.7f (Medizin/Wasser).
-
-**Nutzung (aus `SpawnActorPrototypes.cfg`, 2.972 Zuweisungen):** `Empty` 2.022×,
-`StashMedicine_Smart` + `Stash_Ammo_Smart_CommonRare` 753 + 86×,
-`… + Stash_Ammo_Smart_Cheap` 46×, `StashMedicine_Cheap` 16×,
-`Stash_AmmoAll_Cheap` 13×. **Vier Generatoren decken 2.937 der 2.972
-Zuweisungen ab** — das ist der günstigste Hebel.
-
-### CorpseSmartLoot: anders verdrahtet als angenommen
-
-> **Korrektur zum Auftrag:** `DifficultyPrototypes.EconomyDifficulty.CorpseSmartLoot`
-> existiert, weist die Generatoren aber **nur auf 2 von 11 Schwierigkeits-Structs**
-> zu: `Easy` → `NPC_Medicine_Smart, NPC_Ammo_Smart` (Zeile 83) und `Medium` →
-> `NPC_Water_Smart` (Zeile 152). `Empty` und `Hard` setzen das Feld **explizit
-> leer**, `Stalker`, `Custom`, `Default` und alle vier Xbox-Varianten erben leer.
-> Auf Hard/Stalker gibt es also **keinen Vanilla-Anker zum Skalieren** — dort
-> müsste der Block erst angelegt werden, und ob die Engine ihn dann auswertet,
-> ist aus den Daten **nicht belegbar**.
-
-Zusätzlich greift Smart-Loot nur bei NPCs mit
-`EnableSmartLootIfPossible = true` (1.514 Einträge) — die UI darf also keine
-Wirkung auf „alle Leichen" versprechen.
-
----
-
-## 7. Händler — ein eigener Regler
-
-Kette: `ObjPrototypes.<NPC>.TradePrototypeSID` →
-`TradePrototypes.<Laden>.TradeGenerators[i].ItemGeneratorPrototypeSID` →
-`ItemGeneratorPrototypes.<Gen>.ItemGenerator[i].PossibleItems[j].MinCount`.
-
-- Transitive Händler-Hülle: **95 Structs** (68 Wurzeln + 27 geteilte Bausteine).
-- NPC-Loot-Hülle: **963 Structs**. **Schnittmenge: nur 6.**
-- Händler-Einträge setzen fast immer eine Menge (77,0 % vs. 13,4 % beim Loot),
-  nutzen `Chance` statt `Weight` (892 von 904) und haben größere Mengen
-  (Munition Median 60/120 gegen 10/15).
-- **334 der 696 Mengenzeilen liegen in nur 27 geteilten Bausteinen**
-  (`Trader_T1..T4_Guns/Ammo`, `Trader_Attachments_T2..T4`,
-  `Trader_Cosnsumables`, `Trader_NatoAmmo`, `Trader_SovietAmmo`) — günstigster Hebel.
-- Sicherer Kern ohne Dev-Generatoren: **62 Structs, 456 Einträge = 912 Wertzeilen.**
-
-Zwei sinnvolle Zusatzregler liegen in `TradePrototypes.cfg`, nicht im
-Generator-Block: **Händler-Geld** (`Money`, `bInfiniteMoney`) und
-**Nachschub-Takt** (`RefreshConditionSID`, je 73–74 Einzelpatches).
-
-`ObjPrototypes.cfg`: alle **1.659** NPC-Prototypen definieren
-`ItemGeneratorPrototypeSID` **und** `TradePrototypeSID` selbst — keine
-Template-Abkürzung. Häufigster Loot-Generator:
-`GeneralNPC_Neutral_Recon_ItemGenerator` (586 NPCs). 1.304 NPCs haben
-`TradePrototypeSID = NoTrade`; nur 303 handeln überhaupt.
-
----
-
-## WARNUNGEN
-
-**Global**
-
-1. **Niemals `[0]` patchen** (SID `empty`, Zeilen 1–24). 1.773 Structs erben davon.
-2. **Niemals `MoneyGenerator.MinCount/MaxCount` mitskalieren** — gleiche Feldnamen,
-   aber Kupons. 372 Werte, Maximum **72.500** (`SQ94_RSQ_reward_var11`, Zeile 273582).
-   Ein ×3-Regler ergäbe 217.500 Kupons.
-3. **Niemals die 871 quest-markierten Structs anfassen** — feste Story-Belohnungen
-   mit `Chance = 1` und `MinCount == MaxCount`.
-4. **Niemals `E01_MQ01_PlayerItemGenerator` / `E02_MQ01_PlayerItemGenerator`** —
-   das ist die Startausrüstung inklusive `Gun_SkifGun_HG`.
-5. **Niemals die 9 Unikat-Verteiler**: `Stash_SQ01_ValenokStash`,
-   `Promzona_StorageontheHill_StashGenerator2_1CBB…`, `VartaColonelKorshunov_ItemGenerator`,
-   `VartaColonelKorshunovBoss_ItemGenerator`, `NeutralPaivka_ItemGenerator`,
-   `SQ02_reward_var1`, `SQ20_reward_var5` + die beiden Player-Generatoren.
-   **Drei davon tragen keinen Quest-Marker im Namen** und werden nur von der
-   inhaltlichen Item-Prüfung gefangen.
-6. **Niemals die 5 Schlüssel-/Dokument-Generatoren**: `KeyGeneratorRedForest`,
+1. Exclude MoneyGenerator counts and money-effect items from general quantities.
+   MoneyGenerator values reach 72,500 at `SQ94_RSQ_reward_var11`.
+2. Exclude story rewards, player starting equipment and unique-item distributors.
+   Examples include `E01_MQ01_PlayerItemGenerator`, `E02_MQ01_PlayerItemGenerator`,
+   `Stash_SQ01_ValenokStash`, Korshunov generators, `NeutralPaivka_ItemGenerator`,
+   `SQ02_reward_var1` and `SQ20_reward_var5`.
+3. Protect key/document generators such as `KeyGeneratorRedForest`,
    `MutantElectrocollarGenerator`, `CementPlant_IslandNearKopachi_Safe`,
-   `GarbageDetCenterCorpseItemGenerator`,
-   `GDEQ_Duty_DeadBody_ConcreteForest_ItemGenerator` — doppelte Quest-Schlüssel
-   können den Questfortschritt blockieren.
-7. **Niemals die Index-Structs `[159]`, `[192]`, `[206]`, `[238]`, `[239]`** —
-   Ikone, ShahPDA, StrangePDA, NestorNote, X18-Dokumente.
-8. **Niemals leere Zuweisungen befüllen** (`ItemGenerator =` 261×,
-   `PossibleItems =` 181×). Sie löschen geerbte Arrays absichtlich.
-9. **Niemals über die SID adressieren, wenn der Schlüssel ein Index ist** (226 Fälle).
-10. **Niemals `[i]`-Indizes unter `ItemGenerator` annehmen** — 724 benannte Slots.
-11. **Niemals textuell vergleichen** — `1` / `1.` / `1.0` / `4.f`,
-    `True` / `False` / `false`, dazu die Tippfehler-Felder `weight` (152×) und
-    `AmmoMaxcount` (4×) sowie das kaputte Struct `DefaultReward` (Zeile 263011)
-    mit den Pseudofeldern `GeneratedItems =` und `Binoculars_03 =`.
-12. **Dev-Generatoren ausschließen**: `AllAmmosGenerator` `[12]` steht bereits auf
-    `MinCount = MaxCount = 900`; ebenso `AllBodyArmors` `[13]`, `AllPrimaryWeapons` `[11]`,
-    `AllHeads` `[14]`, `AllArtifacts` `[15]`, `AllPistols` `[10]`, `AllConsumables` `[16]`,
-    `AllAttaches` `[18]`, `AllDetectors` `[17]`, `AllTraderItemGenerator` `[19]`.
+   `GarbageDetCenterCorpseItemGenerator` and
+   `GDEQ_Duty_DeadBody_ConcreteForest_ItemGenerator`.
+4. Preserve indexed story distributors `[159]`, `[192]`, `[206]`, `[238]`,
+   `[239]` and their icon/PDA/document contents.
+5. Preserve empty assignments: 261 `ItemGenerator =` and 181 `PossibleItems =`
+   intentionally clear inherited arrays.
+6. Exclude development collections: AllPistols `[10]`, AllPrimaryWeapons `[11]`,
+   AllAmmosGenerator `[12]`, AllBodyArmors `[13]`, AllHeads `[14]`, AllArtifacts
+   `[15]`, AllConsumables `[16]`, AllDetectors `[17]`, AllAttaches `[18]`,
+   AllTraderItemGenerator `[19]`. Some already generate quantities of 900.
+7. Preserve lowercase `weight`, `AmmoMaxcount` and malformed fields instead
+   of silently inventing corrected keys. `DefaultReward` contains the unusual
+   `GeneratedItems` and `Binoculars_03` assignments.
+8. Determine traders through references, not names. Seventeen names containing
+   Trade/Trader represent real loot, while trader references can use other names.
+9. Do not add missing MaxDurability to the three MinDurability-only entries.
+   Skip the six Mercenaries generators with condition values one level too deep
+   under `PossibleItems[1].[6]` (12 malformed lines).
+10. Clamp condition to 0..1 and maintain Min <= Max without unrelated repairs.
 
-**Zustand (Durability)**
+## StashPrototypes
 
-13. **Händler-Ware nicht beschädigen**: 21 in `TradePrototypes.cfg` referenzierte
-    Generatoren (183 Einträge, fast alle 1/1) ausschließen — **über die SID-Liste,
-    nicht über ein Namensmuster**: 17 Structs mit „Trade"/„Trader" im Namen
-    (196 Einträge) sind echter Loot, `RC_TraderNPC_ItemGenerator` und
-    `DynamicTraderItemGenerator` sind umgekehrt echte Händler ohne passendes Suffix.
-14. **Die 3 Einträge mit `MinDurability` ohne `MaxDurability` nicht ergänzen**
-    (Zeilen 84229, 84300, 273981) — sonst legt der Patch einen neuen Schlüssel an.
-15. **Den Vanilla-Struktur-Bug auslassen**: 12 Zeilen liegen eine Ebene zu tief
-    (`…PossibleItems[1].[6]`) in 6 Mercenaries-Generatoren (Zeilen 38696, 60670,
-    168628, 174251, 222560, 228415).
-16. **Nie `Min > Max` erzeugen** — beim Skalieren auf 0…1 klemmen und
-    `Min ≤ Max` erzwingen.
+Nineteen structs include `empty`, a zero-valued schema inherited by the other
+18. All numeric values are defined locally. The snapshot has 1,060 items and
+470 parameter entries, with stable indices and no `[*]` arrays. No quest items,
+unique items or condition fields were found in that stash scan.
 
-**Verstecke (Stashes)**
+Path structure: `<Stash>.ItemGenerators.[rank].SmartLootParams.<Group>.[j].Items.[k]`.
+Groups are HealthParams and AttachParams (template-only), PrimaryWeaponParams,
+SecondaryWeaponParams, PistolWeaponParams, ConsumablesParams and GrenadesParams.
+Parameters include Min/MaxSpawnChance, MainWeaponAmmoCount, ItemSetCount,
+PriorityCaliber and per-item MinCount/MaxCount/Weight or Chance.
+Items use Weight 1,035 times and Chance 25 times.
 
-17. **Niemals `empty` in `StashPrototypes.cfg` patchen.** Alle 18 Structs erben
-    davon. Wer dort `MaxSpawnChance` oder `ItemSetCount` anhebt, aktiviert überall
-    geerbte Einträge mit `ItemPrototypeSID = empty` — **wahrscheinlichster
-    Absturzkandidat des ganzen Blocks.**
-18. **Keine Rang-Indizes hardcodieren**: 7 Structs haben nur `ItemGenerators[0]`,
-    12 haben `[0..3]`; einzelnen Rängen fehlen ganze Gruppen
-    (`Stash_Ammo_Smart_Cheap.ItemGenerators[0]` ohne `PrimaryWeaponParams`,
-    `Stash_Ammo_Smart_CommonRare.ItemGenerators[2]/[3]` ohne `SecondaryWeaponParams`).
-19. **Nicht pauschal `Weight` schreiben** — 25 Items nutzen stattdessen `Chance`.
-20. **`SecondaryWeaponParams` mitpatchen** — in den großen Munitions-Stashes sind
-    sie 1:1-Kopien der Primary-Blöcke; wer sie auslässt, wirkt nur zur Hälfte.
-21. **Tote bzw. abgeschaltete Structs kennen**: `StashMedicine_Corpse` und
-    `StashVodka_Corpse` haben **0 Referenzen**; `Stash_AmmoSNG_Smart_MainLoot`
-    und `Stash_AmmoNATO_Smart_MainLoot` stehen in **allen** Einträgen auf
-    `MaxSpawnChance = 0.f` (bewusst deaktiviert — ein additiver Regler würde sie
-    einschalten, ein multiplikativer wirkt nicht).
-22. **Parser-Härtung nötig**: `MinSpawnChance = 0.` (nackter Punkt, Zeile 171),
-    `= 0` ohne `.f` (Zeilen 158, 197), `MaxSpawnChance = 0.5` ohne `f`
-    (Zeilen 159, 172, 198).
-23. **Items nicht über die SID deduplizieren** — 42 Einträge führen dieselbe SID
-    mehrfach; Deduplizierung verschiebt die Array-Indizes.
-24. **Beim Patchen von `CorpseSmartLoot`**: `Empty` (Zeile 17) und `Hard` (Zeile 230)
-    schreiben die leere Kurzform `CorpseSmartLoot =` ohne Struct-Block. Diese in
-    einen Block zu verwandeln ist eine andere Operation als das Überschreiben
-    eines vorhandenen — ungetestet. Xbox-Varianten **nicht** zusätzlich patchen,
-    sie erben automatisch.
+| Corpse generator | Newbie | Experienced | Veteran | Master |
+|---|---|---|---|---|
+| NPC_Ammo_Smart | 4 entries | 5 | 7 | 8 |
+| NPC_Medicine_Smart | Medkit 1–2, Bandage 2–4 | Adds Antirad | Adds ArmyMedkit | Antirad weight 5 |
+| NPC_Water_Smart | Water 1–1 | Same | Same | Same |
 
-**Datenlücke**
+All 39 entries use MinSpawnChance 0.1f. MaxSpawnChance is 0.8f for ammunition
+and 0.7f for medicine/water. Of 2,972 map assignments, Empty accounts for 2,022;
+StashMedicine_Smart and Stash_Ammo_Smart_CommonRare account for 753 and 86;
+the Cheap ammunition combination adds 46, StashMedicine_Cheap 16 and
+Stash_AmmoAll_Cheap 13. Four generators cover 2,937 assignments, including Empty.
+That count does not authorize modifying the empty template.
 
-25. 2.206 Structs verweisen per `refurl` auf Dateien, die in `vanilla/` nicht
-    existieren. Die Werte stehen zwar praktisch immer lokal (12.981 von 12.981
-    Durability-Werten), aber ein Restrisiko bleibt.
+### CorpseSmartLoot limitations
 
----
+`EconomyDifficulty.CorpseSmartLoot` assigns generators only on Easy
+(NPC_Medicine_Smart and NPC_Ammo_Smart) and Medium (NPC_Water_Smart).
+Empty and Hard explicitly clear it; Stalker, Custom, Default and four Xbox
+variants inherit empty values. There is no existing Hard/Stalker block to scale.
+Creating one is a different operation whose runtime support was not established
+by this research. NPCs also need `EnableSmartLootIfPossible = true`
+(1,514 entries), so the feature must not promise to affect every corpse.
 
-## Fazit und Vorschlag für die Umsetzung
+### Stash invariants
 
-**Stufe 1 — Verstecke & Leichen-Loot (klein, sicher, empfohlener Anfang).**
-Ziel: `StashPrototypes.cfg`. 19 Structs, alles explizit indiziert, keine
-Quest-Items, keine Unikate, keine Händler-Überschneidung. Regler-Kandidaten:
-Stückzahlen (`Items[k].MinCount/MaxCount`), Fundchance (`MaxSpawnChance`) und
-Munition an der Waffe (`MainWeaponAmmoCount`). Vier Generatoren decken 98,8 %
-der Zuweisungen ab. Aufwand: gering; Patch bleibt klein.
-**Neue Datei in `NEEDED_FILES` → `CACHE_SCHEMA` erhöhen.**
+Do not patch `empty`: activating inherited entries with ItemPrototypeSID empty
+could be invalid. Read available ranks and groups instead of assuming four
+complete ranks. Seven structs have only `[0]`; twelve have `[0..3]`, and some
+ranks omit entire groups. Preserve both PrimaryWeaponParams and
+SecondaryWeaponParams where present, and preserve Chance versus Weight.
 
-**Stufe 2 — Loot-Mengen im großen Generator.**
-Nur `MinCount`/`MaxCount` in `PossibleItems`, nur auf den 2.049 gefilterten
-Structs. Braucht vier Bausteine, ohne die es zu riskant ist:
-(a) verschachtelter Parser mit Index-Tracking (5 Ebenen, gemischt Index/Name),
-(b) Cross-File-Lookup nach `ItemPrototypes.cfg` inkl. refkey-Auflösung für
-`IsQuestItem`, (c) strikte Trennung von `MoneyGenerator` und `PossibleItems`,
-(d) numerische statt textueller `_neq`-Vergleiche.
+StashMedicine_Corpse and StashVodka_Corpse have no references in the snapshot.
+Stash_AmmoSNG_Smart_MainLoot and Stash_AmmoNATO_Smart_MainLoot have zero maximum
+spawn chance throughout; multiplication must preserve those disabled values.
+Forty-two entries repeat item SIDs: deduplicating them would shift indices.
+Numeric parsing must accept `0.`, `0`, `0.5` and suffixed forms.
 
-**Stufe 3 (optional, je eigener Regler).**
-Zustand gedroppter Waffen — nur auf den Haupt-Cluster 0.25/0.5 der
-Waffen-Kategorien (11.431 Einträge in 827 Structs), Rüstung/Helme getrennt
-lassen. Achtung: **kein Wert wird vererbt**, deshalb ~22.900 Patch-Zeilen —
-das sprengt alle bisherigen Blöcke um Größenordnungen. Vorher überlegen, ob
-sich das gegenüber dem Nutzen lohnt.
-Händler-Bestände als vierter, klar getrennter Regler (62 Structs / 912 Zeilen),
-plus optional Händler-Geld und Nachschub-Takt aus `TradePrototypes.cfg`.
+Useful regression cases include the unique 0.9f MaxSpawnChance at
+`NPC_Ammo_Smart.ItemGenerators[0].…PrimaryWeaponParams[1]` and the existing
+stash inconsistency MinCount 25 > MaxCount 15 at
+`Stash_AmmoNATO_Smart.ItemGenerators[3].…SecondaryWeaponParams[7].Items[0]`.
+This stash inconsistency is distinct from the regular generator subset above.
 
-**Pflicht-Testfälle für jede Stufe** (die Ausreißer, an denen naive
-Implementierungen scheitern): die 319 Einträge mit 0.0/0.0 (Faktor wirkungslos),
-die 648 Neuzustand-Einträge in drei Schreibweisen, die 814 Einträge mit
-`MinCount` ohne `MaxCount`, die 3 ohne `MaxDurability`, die 6 benannten
-`ItemGenerator`-Slots (z. B. `NeutralEfim_ItemGenerator.ItemGenerator.WeaponPrimary`),
-die 524 nur per Index adressierbaren Einträge, die 12 Zeilen des Struktur-Bugs,
-`NPC_Ammo_Smart.ItemGenerators[0].…PrimaryWeaponParams[1].MaxSpawnChance = 0.9f`
-(einziger 0.9f-Wert der Datei) und
-`Stash_AmmoNATO_Smart.ItemGenerators[3].…SecondaryWeaponParams[7].Items[0]`
-(Vanilla-Widerspruch `MinCount = 25 > MaxCount = 15`, Zeile 4695).
+## Traders
+
+Reference chain: `ObjPrototypes.<NPC>.TradePrototypeSID` ->
+`TradePrototypes.<Shop>.TradeGenerators.[i].ItemGeneratorPrototypeSID` ->
+`ItemGeneratorPrototypes.<Generator>.ItemGenerator.<Slot>.PossibleItems.[j]`.
+
+The initial transitive trader graph has 95 structs (68 roots, 27 shared
+components); the NPC-loot graph has 963, with six shared structs. Trader entries
+usually specify quantities (77.0%, versus 13.4% for loot) and use Chance rather
+than Weight (892 of 904). Median ammunition quantities are 60/120 versus 10/15.
+Twenty-seven shared components contain 334 of 696 quantity lines; the initial
+non-development trader subset had 62 structs and 456 entries (912 values).
+
+TradePrototypes separately provides Money, bInfiniteMoney and RefreshConditionSID.
+ObjPrototypes defines both ItemGeneratorPrototypeSID and TradePrototypeSID on
+all 1,659 NPC prototypes. GeneralNPC_Neutral_Recon_ItemGenerator is referenced
+by 586 NPCs; 1,304 use NoTrade and 303 have an actual trade setup in this scan.
+These counts describe different reference subsets and should not be treated
+as a complete partition of all NPC types.
+
+## Implementation checks
+
+Use parsed paths, cross-file item classification, resolved inheritance,
+separate money/item semantics and numeric comparisons. Neutral settings must
+emit no patch. Important test cases include zero condition, three spellings of
+new condition, missing maximum keys, named slots, indexed prototypes, malformed
+nested condition fields and inactive stash groups. Runtime loot generation and
+save refresh behavior still require in-game observation beyond structural tests.

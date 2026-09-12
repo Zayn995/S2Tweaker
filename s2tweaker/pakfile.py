@@ -1,43 +1,15 @@
-"""Unreal-Pak-Dateien lesen und schreiben - in reinem Python, ohne repak.exe.
+"""Read and write Unreal Paks using Python's standard library.
 
-Warum es das gibt (05.09.2026)
-------------------------------
-Bis 1.22.0 erledigte das mitgelieferte repak.exe (Rust, von uns aus dem
-Quelltext gebaut) das Entpacken der Spieldateien und das Packen der Mod.
-Es war die einzige unsignierte ausfuehrbare Datei im Paket - und genau die
-markierte Microsofts Machine-Learning-Erkennung am 05.09.2026 als
-"Trojan:Win32/Wacatac.B!ml" bzw. "Bearfoos.A!ml", zweimal hintereinander,
-fuer Binaerdateien, die sich nur im Zeitstempel unterschieden. Ein
-unsigniertes Rust-Programm, das eine DLL per Namen laedt, ist fuer solche
-Modelle ein verdaechtiges Muster, egal was es tut.
+The format reference is repak (https://github.com/trumank/repak,
+MIT OR Apache-2.0). tests/test_pakfile.py compares headers, indices, hashes
+and extracted bytes against reference output and installed game files.
 
-Dieses Modul ersetzt repak vollstaendig. Es braucht nur die Standard-
-bibliothek: struct, zlib, hashlib, ctypes. Die proprietaere Oodle-DLL
-(oo2core_9_win64.dll) wird - wie bisher - vom Nutzer einmal danebengelegt
-und dann per ctypes geladen; heruntergeladen wird nichts (pakio.py).
+Layout: file entry headers/data, mount-point/index entries, then a footer
+with version, index offset/size and SHA-1.
 
-Das Format
-----------
-Die Implementierung folgt dem Pak-Format von Unreal Engine 4/5, wie es
-repak (https://github.com/trumank/repak, MIT OR Apache-2.0) liest und
-schreibt. Verifiziert am 05.09.2026 gegen repak 0.2.3: eine von uns
-geschriebene Mod-Pak hat denselben Index, dieselben Eintragskoepfe, Hashes
-und Inhalte wie die von repak gepackte (nur die Reihenfolge der Datensaetze
-unterscheidet sich - repak packt parallel und schreibt sie in zufaelliger
-Reihenfolge, wir sortiert), repak liest unsere Paks, und die aus pakchunk0
-und 27 fremden Mod-Paks entpackten Dateien sind byteidentisch mit denen,
-die repak entpackt (tests/test_pakfile.py).
-
-    [Datensatz je Datei: Eintragskopf + Rohdaten] ...
-    [Index: Mount-Point, Anzahl, je Datei Pfad + Eintragskopf mit Offset]
-    [Footer: Magic, Version, Index-Offset/-Groesse, SHA-1 des Index, ...]
-
-Gelesen werden die Versionen 1 bis 11 (Spielpaks: 11, Mod-Paks: meist 8B),
-mit Zlib, Gzip und Oodle als Kompression. Verschluesselte Paks und Zstd/LZ4
-werden als klarer Fehler gemeldet (kommen bei S.T.A.L.K.E.R. 2 nicht vor).
-Geschrieben wird immer Version 8B, unkomprimiert, Mount-Point ../../../ -
-exakt die repak-Vorgaben, mit denen Mod-Paks im Spiel nachweislich laufen.
-"""
+Read versions 1-11 with Zlib, Gzip or user-supplied Oodle decompression.
+Reject encryption and unsupported codecs. Write uncompressed V8B Paks
+mounted at ../../../. No repak executable or Oodle DLL is bundled."""
 from __future__ import annotations
 
 import ctypes
@@ -52,26 +24,26 @@ MAGIC = 0x5A6F12E1
 MOUNT_POINT = "../../../"
 STRIP_PREFIX = ("..", "..", "..")
 
-# Kompressionsnamen im Footer (ab Version 8 als Text, davor feste Liste)
+# Compression names in the footer: text from version 8, fixed list before it.
 ZLIB, GZIP, OODLE, ZSTD, LZ4 = "Zlib", "Gzip", "Oodle", "Zstd", "LZ4"
 _FIXED_COMPRESSION = [ZLIB, GZIP, OODLE]
 
 
 class PakError(RuntimeError):
-    """Pak unlesbar, unbekannte Version, verschluesselt, Eintrag fehlt ..."""
+    """Unreadable pak, unsupported version, encryption, missing entry, etc."""
 
 
 class OodleNeeded(PakError):
-    """Ein Eintrag ist Oodle-komprimiert, aber es wurde keine DLL uebergeben."""
+    """An entry requires Oodle decompression but no DLL was supplied."""
 
 
 @dataclass(frozen=True)
 class PakVersion:
     label: str          # V11, V8B, ...
-    major: int          # im Footer gespeicherte Versionsnummer
+    major: int          # Version number stored in the footer.
     footer_size: int
-    names: int          # Anzahl der 32-Byte-Kompressionsnamen im Footer
-    compression_u8: bool = False   # nur V8A: Kompressionsindex als u8
+    names: int          # Number of 32-byte compression-name slots in the footer.
+    compression_u8: bool = False   # V8A alone uses a u8 compression index.
 
 
 def _footer_size(major: int, names: int) -> int:
@@ -85,7 +57,7 @@ def _footer_size(major: int, names: int) -> int:
     return size + 32 * names
 
 
-# Reihenfolge = Probierreihenfolge beim Lesen (neueste zuerst), wie repak.
+# Read attempts in newest-first order, matching repak.
 VERSIONS = [
     PakVersion("V11", 11, _footer_size(11, 5), 5),
     PakVersion("V10", 10, _footer_size(10, 5), 5),
@@ -108,7 +80,7 @@ class Entry:
     offset: int
     compressed: int
     uncompressed: int
-    compression: int | None        # Index in die Kompressionsliste des Footers
+    compression: int | None        # Index into the footer's compression list.
     blocks: list[tuple[int, int]] | None = None
     flags: int = 0
     block_size: int = 0
@@ -119,10 +91,10 @@ class Entry:
         return bool(self.flags & 1)
 
 
-# --- Lesehilfen -----------------------------------------------------------
+# --- Reading helpers -----------------------------------------------------------
 
 class _Reader:
-    """Kleiner Cursor ueber ein bytes-Objekt."""
+    """Small cursor over a bytes object."""
     __slots__ = ("buf", "pos")
 
     def __init__(self, buf: bytes, pos: int = 0):
@@ -148,7 +120,7 @@ class _Reader:
         return struct.unpack("<Q", self.take(8))[0]
 
     def string(self) -> str:
-        """FString: i32 Laenge inkl. NUL; negativ = UTF-16LE."""
+        """FString: i32 length including NUL; negative means UTF-16LE."""
         n = self.i32()
         if n < 0:
             raw = self.take(-n * 2)
@@ -168,7 +140,7 @@ def _write_string(value: str) -> bytes:
 
 
 def _entry_size(version: PakVersion, compression: int | None, block_count: int) -> int:
-    """Groesse des Eintragskopfs vor den Rohdaten (repak: get_serialized_size)."""
+    """Return serialized entry-header size, matching repak's get_serialized_size."""
     size = 8 + 8 + 8 + (1 if version.compression_u8 else 4)
     if version.major == 1:
         size += 8           # timestamp
@@ -200,7 +172,7 @@ def _read_entry(r: _Reader, version: PakVersion) -> Entry:
 
 
 def _read_encoded_entry(r: _Reader, version: PakVersion) -> Entry:
-    """Kompakte Eintraege des Index ab Version 10 (repak: read_encoded)."""
+    """Read compact index entries used from version 10 (repak: read_encoded)."""
     bits = r.u32()
     comp = (bits >> 23) & 0x3F
     compression = None if comp == 0 else comp - 1
@@ -232,17 +204,13 @@ def _read_encoded_entry(r: _Reader, version: PakVersion) -> Entry:
                  int(encrypted), block_size)
 
 
-# --- Lesen ----------------------------------------------------------------
+# --- Reading ---
 
 class PakFile:
-    """Eine Pak lesen: Index beim Oeffnen, Eintraege bei Bedarf.
+    """Read a Pak index on opening and load entry data on demand.
 
-        with PakFile(path) as pak:
-            for name in pak.files():
-                data = pak.read(name)
-
-    `oodle`: Callable(comp: bytes, raw_len: int) -> bytes, wird nur fuer
-    Oodle-komprimierte Eintraege gebraucht (pakio.oodle_decompressor)."""
+    Use as a context manager. Optional oodle(comp, raw_len) is required only
+    for Oodle-compressed entries."""
 
     def __init__(self, path: Path | str, oodle=None):
         self.path = Path(path)
@@ -326,7 +294,7 @@ class PakFile:
 
     def _load_index_v10(self, index: _Reader) -> None:
         index.u64()                          # path hash seed
-        if index.u32():                      # path hash index (nicht gebraucht)
+        if index.u32():                      # Unused path-hash index.
             index.u64(); index.u64(); index.take(20)
         directories = None
         if index.u32():                      # full directory index
@@ -356,14 +324,14 @@ class PakFile:
                     entry = plain[-location - 1]
                 self.entries[prefix + file_name] = entry
 
-    # -- Zugriff ----------------------------------------------------------
+    # -- Access ----------------------------------------------------------
 
     def files(self) -> list[str]:
-        """Alle Eintragspfade (relativ zum Mount-Point), sortiert wie repak."""
+        """Return sorted entry paths relative to the mount point."""
         return sorted(self.entries)
 
     def full_path(self, name: str) -> str:
-        """Mount-Point + Eintrag, z.B. ../../../Stalker2/Content/..."""
+        """Mount point plus entry, e.g. ../../../Stalker2/Content/..."""
         if name.startswith("/"):
             return name
         if self.mount_point and not self.mount_point.endswith("/"):
@@ -371,7 +339,7 @@ class PakFile:
         return self.mount_point + name
 
     def stripped(self, name: str) -> str:
-        """Pfad ohne das fuehrende ../../../ (repak: --strip-prefix)."""
+        """Strip the leading ../../../ from an entry path."""
         parts = [p for p in self.full_path(name).split("/") if p not in ("", ".")]
         if tuple(parts[:3]) != STRIP_PREFIX:
             raise PakError(f"path {self.full_path(name)!r} is not under {MOUNT_POINT}")
@@ -399,8 +367,7 @@ class PakFile:
         self._fh.seek(entry.offset)
         head = self._fh.read(_entry_size(self.version, entry.compression,
                                          len(entry.blocks or ())))
-        # Der Kopf vor den Daten wiederholt den Index-Eintrag; seine Laenge
-        # bestimmt, wo die Daten beginnen (repak liest ihn genauso).
+        # The data header repeats the index entry; its serialized size locates the payload.
         r = _Reader(head)
         _read_entry(r, self.version)
         data_offset = entry.offset + r.pos
@@ -411,7 +378,7 @@ class PakFile:
         method = self.compression_of(name)
         if method is None:
             return data
-        # Blockgrenzen: ab Version 5 relativ zum Eintrag, davor absolut.
+        # Compression block offsets are entry-relative from V5, absolute in older versions.
         if entry.blocks:
             base = data_offset - entry.offset if self.version.major >= 5 else data_offset
             ranges = [(start - base, end - base) for start, end in entry.blocks]
@@ -440,13 +407,13 @@ class PakFile:
         raise PakError(f"{name}: compression {method!r} is not supported")
 
 
-# --- Oodle per ctypes -----------------------------------------------------
+# --- Oodle through ctypes ---
 
 def load_oodle(dll: Path | str):
-    """OodleLZ_Decompress der DLL als Python-Funktion (comp, raw_len) -> bytes.
+    """Wrap OodleLZ_Decompress as (compressed_bytes, raw_length) -> bytes.
 
-    Signatur wie in repaks oodle_loader: fuzzSafe=1, checkCRC=1,
-    threadPhase=3 (alles). Rueckgabe 0 heisst: Daten kaputt oder falsche DLL."""
+    Use fuzzSafe=1, checkCRC=1 and threadPhase=3. A zero return indicates
+    invalid data or an incompatible library."""
     lib = ctypes.CDLL(str(dll))
     fn = lib.OodleLZ_Decompress
     fn.restype = ctypes.c_ssize_t
@@ -458,7 +425,7 @@ def load_oodle(dll: Path | str):
         quiet = lib.OodleCore_Plugins_SetPrintf
         quiet.restype = None
         quiet.argtypes = [ctypes.c_void_p]
-        quiet(None)                      # Oodle-Logausgaben abschalten
+        quiet(None)                      # Disable Oodle logging.
     except AttributeError:
         pass
 
@@ -476,13 +443,11 @@ def load_oodle(dll: Path | str):
     return decompress
 
 
-# --- Schreiben ------------------------------------------------------------
+# --- Writing ------------------------------------------------------------
 
 def write_pak(out_path: Path | str, files: list[tuple[str, bytes]],
               mount_point: str = MOUNT_POINT) -> Path:
-    """Pak Version 8B, unkomprimiert, schreiben. `files` = [(pfad, bytes)]
-    in der Reihenfolge, in der die Datensaetze liegen sollen; der Index ist
-    - wie bei repak - nach Pfad sortiert."""
+    """Write uncompressed V8B entries in the supplied order, sorting the index by path."""
     out_path = Path(out_path)
     records: dict[str, tuple[int, int, bytes]] = {}
     with open(out_path, "wb") as fh:
@@ -508,14 +473,15 @@ def write_pak(out_path: Path | str, files: list[tuple[str, bytes]],
         fh.write(struct.pack("<II", MAGIC, V8B.major))
         fh.write(struct.pack("<QQ", index_offset, len(index)))
         fh.write(hashlib.sha1(index).digest())
-        fh.write(b"\0" * (32 * V8B.names))             # keine Kompression
+        fh.write(b"\0" * (32 * V8B.names))             # Uncompressed entry.
     return out_path
 
 
 def pack_dir(staging: Path | str, out_path: Path | str,
              mount_point: str = MOUNT_POINT) -> Path:
-    """Einen Ordner packen wie `repak pack`: alle Dateien rekursiv, Pfade
-    relativ zum Ordner mit '/', Datensaetze in Pfadkomponenten-Reihenfolge."""
+    """Pack all folder files recursively with slash-separated relative paths.
+
+    Order records by path components, matching the reference packer."""
     staging = Path(staging)
     if not staging.is_dir():
         raise PakError(f"input is not a directory: {staging}")
@@ -525,11 +491,10 @@ def pack_dir(staging: Path | str, out_path: Path | str,
     return write_pak(out_path, [(rel[p], p.read_bytes()) for p in paths], mount_point)
 
 
-# --- Include-Muster (repak: -i, glob mit literalem '/') ---------------------
+# Include globs with literal slash separators.
 
 def glob_regex(pattern: str) -> re.Pattern:
-    """Glob -> Regex: '*' und '?' laufen nicht ueber '/', '**' schon,
-    '[...]' wie in fnmatch ('[[]' = literales '[')."""
+    """Convert a glob to regex: */? do not cross '/', ** does; [[] matches '['."""
     out, i = [], 0
     while i < len(pattern):
         ch = pattern[i]
@@ -559,8 +524,7 @@ def glob_regex(pattern: str) -> re.Pattern:
 
 
 def matches(patterns: list[re.Pattern], stripped: str) -> bool:
-    """Trifft ein Muster den Pfad oder einen seiner Ordner (mit oder ohne
-    Schraegstrich am Ende)? Genau die Regel von `repak unpack -i`."""
+    """Match an entry or parent directory with optional trailing slash."""
     candidates = [stripped]
     parts = stripped.split("/")
     for n in range(len(parts) - 1, 0, -1):

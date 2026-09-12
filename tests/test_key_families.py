@@ -1,32 +1,8 @@
-"""Waechter gegen halbe Schluesselgruppen (07.09.2026).
+"""Detect unreviewed neighboring numeric fields in supported game-data structs.
 
-An einem einzigen Tag sind beim Gegenlesen fremder Mods VIER Faelle
-derselben Sorte aufgefallen:
-
-  1. `WeaponJamParams.[i]` haelt zwei Schluessel - wir schrieben seit
-     1.26.0 nur `FullJamTime` hinein (gefunden in Maklane's Better Zone).
-  2. `NPCToNPCDamageScaler` hat zwei Geschwister, `NPCToPlayerDamageScaler`
-     und `NPCToFriendlyDamageScaler` - 1.31.0 nahm nur den ersten
-     (gefunden in Better Ballistics Core).
-  3. `PenetrationSpawnChance` hat `PenetrationTraceLenght` daneben
-     (dieselbe Mod).
-  4. Die Huepf-Familie der Artefakte: wir fassen `JumpSeriesDelay` an,
-     nicht `JumpAmount`, `JumpDelay`, `JumpForce`, `JumpDistance`,
-     `JumpHeight` (gefunden in ScrN Artifact Overhaul).
-
-Viermal derselbe Fehler ist ein Muster, kein Zufall - dieser Test sucht
-danach systematisch, statt auf die naechste fremde Mod zu warten.
-
-METHODE: Aus unserem Code werden alle Schluesselnamen gesammelt, die wir
-kennen. Dann wird jede Struktur der Dateien durchgegangen, die das
-Werkzeug einliest: steht neben einem Schluessel, den wir anfassen, ein
-NACHBAR mit verwandtem Namen (gemeinsame Wortbestandteile), den unser
-Code nirgends erwaehnt? Genau das ist eine halbe Gruppe.
-
-Der Bestand unten ist eingefroren. Taucht ein NEUER Nachbar auf - etwa
-nach einem Spiel-Update -, wird der Test rot und jemand muss ihn
-einsortieren: bauen, oder mit Begruendung in IGNORED aufnehmen.
-"""
+Compare related name components against keys known to the implementation.
+Maintain reviewed exclusions with reasons; newly discovered neighbors fail
+for investigation after code or game-data changes."""
 import re
 import sys
 from collections import defaultdict
@@ -39,22 +15,19 @@ VANILLA = ROOT / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
 from s2tweaker import cfgparse
 from s2tweaker import gamedata as gd_mod
 
-# --- 1) Was kennt unser Code? -------------------------------------------
+# --- 1) Keys referenced by the implementation ---
 SOURCE = "\n".join((ROOT / "s2tweaker" / f).read_text(encoding="utf-8")
                    for f in ("tweaks.py", "gamedata.py", "loot_extensions.py",
                              "repair_extensions.py", "world_extensions.py"))
 KNOWN_KEYS = (set(re.findall(r'"(b?[A-Z][A-Za-z0-9_]{3,})"', SOURCE))
               | set(re.findall(r"'(b?[A-Z][A-Za-z0-9_]{3,})'", SOURCE)))
 
-# Nicht-numerische Nachbarn interessieren nicht: Pfade, Meshes, Sounds,
-# Icons, Namen. Die kann ein Regler ohnehin nicht sinnvoll skalieren.
+# Ignore nonnumeric neighbors such as paths, assets and identifiers.
 COSMETIC = re.compile(r"(SID|Path|Mesh|Sound|Icon|Particle|VFX|PFX|Blueprint|"
                       r"Texture|Localization|Text|Hint|Image|Socket|Anim|Curve|"
                       r"Name|Prototype|Class|Type|Tag|Guid|Description)", re.I)
 
-# Wortbestandteile; Min/Max/Base/Default sind zu allgemein, um eine
-# Verwandtschaft zu begruenden (sonst waere jedes Min* mit jedem Max*
-# verwandt) - sie fliegen darum aus dem Vergleich.
+# Ignore generic name components such as Min/Max/Base/Default when finding families.
 GENERIC = {"min", "max", "base", "default", "b"}
 
 
@@ -70,16 +43,11 @@ def walk(node, path=""):
 
 
 def suspicious() -> dict[str, dict]:
-    """{Nachbar-Schluessel: {structs, known, example}}"""
-    # NEEDED_FILES traegt teils Pfade ("WeaponData/..."), verglichen wird
-    # aber der reine Dateiname - sonst faellt die halbe Waffendatei raus.
+    """Return {adjacent key: {structs, known, example}}."""
+    # Compare filenames rather than NEEDED_FILES path prefixes.
     wanted = {Path(gd_mod._cfg_name(n)).name.lower() for n in gd_mod.NEEDED_FILES}
-    # 1.36.0: DialogPrototypes (31,6 MB) wird nur fuer EINEN If-Knoten je
-    # Job-Dialogkette gelesen. Seine Schluessel sind Gespraechs-STRUKTUR
-    # (NextDialogSID, Terminate, AnswerTo, MainReply ...), keine
-    # Stellschrauben - als Nachbarn waeren sie nur Rauschen, und die Datei
-    # wuerde den Lauf um ein Drittel verlaengern.
-    # SpawnActor is streamed only to attach loot helpers, not a general tweak tree.
+    # Exclude structural dialogue fields and streamed spawn helpers from numeric
+    # control-family discovery.
     wanted -= {"dialogprototypes.cfg", "spawnactorprototypes.cfg"}
     found: dict[str, dict] = defaultdict(
         lambda: {"structs": 0, "known": set(), "example": None})
@@ -92,10 +60,7 @@ def suspicious() -> dict[str, dict]:
             continue
         for top, node in root.children.items():
             for sub, inner in walk(node):
-                # In RelationPrototypes sind die Eintraege unter "Relations"
-                # bzw. unter "Factions" die Fraktions-NAMEN (WildBandits,
-                # AzimutVarta ...) - keine
-                # Schluesselfamilie - der Rest der Datei zaehlt aber.
+                # Faction names beneath Relations/Factions are data keys, not numeric field families.
                 if (path.name.startswith("RelationPrototypes")
                         and sub.split("/")[0] in ("Relations", "Factions")):
                     continue
@@ -120,9 +85,7 @@ def suspicious() -> dict[str, dict]:
     return found
 
 
-# --- 2) Eingefrorener Bestand -------------------------------------------
-# Echte halbe Gruppen: gemessen, in docs/ROADMAP.md als Kandidat notiert,
-# aber (noch) nicht gebaut. Wer einen davon baut, nimmt ihn hier raus.
+# Known unimplemented neighbors; remove entries when coverage is added.
 CANDIDATES = {
     "OffsetAimDispersionMod", "SpawnChanceBonus",
     "ThreatLevelValueMax", "MaxDistanceToAlly",
@@ -162,10 +125,10 @@ CANDIDATES = {
     "BleedingChanceStackMaxSize", "MPC_FOV", "AimFOVRestoreTime",
     "NarrowTraceInteractionRadius", "WideTraceInteractionRadius",
     "AccumulatedDamageReductionIncludesHealedHealth", "ApplyImpulseToHitLocationFromPlayer",
-    # 07.09. abends dazugekommen, als der Test auch ObjPrototypes mitnahm:
+    # Additional reviewed object-prototype neighbors.
     "MaxHungerPoints", "MaxSleepinessPoints", "MaxDrunknessPoints",
     "MaxOverDrunknessPoints", "RegenPoppyFieldSleepiness",
-    "NoiseJumpCoef", "NoiseObstacleCoef",          # Stealth: wir nehmen nur Ducken/Gehen
+    "NoiseJumpCoef", "NoiseObstacleCoef",          # Stealth coverage currently targets crouching/walking.
     "VisibilityJumpCoef", "VisibilityObstacleBodyCoef", "VisibilityObstacleHeadCoef",
     "VaultOverCrouchingHeight", "VaultOverStandingHeight",
     "CriticalDamageCoefThreshold", "CriticalDamageCooldownMin",
@@ -177,42 +140,28 @@ CANDIDATES = {
     "DialogInteractDistance",
 }
 
-# Bewusst nicht angefasst - mit Grund. Die Kategorien:
-#   (a) in der Doku als tabu vermerkt,
-#   (b) Zaehler/Schalter ohne sinnvolle Skala,
-#   (c) Zeiten und Radien reiner Technik (Traces, Decals, Ticks, Audio),
-#   (d) Enum/Struktur statt Zahl.
+# Reviewed exclusions: unsupported behavior, unsuitable counters/toggles,
+# engine timing/geometry internals, and enum/struct fields.
 IGNORED = {
     "Delay",  # post-process startup timing, not repair strength
     "DropOnPickup",  # item interaction behavior, not loot availability
     "FootStepsDecalsPoolSize",  # footstep tracks are separate from projectile/blood marks
-    # 08.09.2026 gemessen: Durst ist ein toter Zaehler. RegenThirstPoints
-    # steht bei Spieler UND Basis auf 0.0, und das Wort "Thirst" kommt im
-    # ganzen Spiel NUR in ObjPrototypes vor - kein Effekt, kein Getraenk,
-    # kein Schwierigkeitsgrad-Schluessel fuettert ihn. Nichts zu skalieren.
+    # Thirst is inert in the checked data: zero regeneration and no referenced
+    # consumable/effect/difficulty mechanism.
     "RegenThirstPoints",
-    # 09.09.2026 IM SPIEL WIDERLEGT (craigduk76, GitHub #10/#11, 1.35.0):
-    # die zwei Leiter-Schluessel und der Dialog-Zoom standen bis 1.35.0 im
-    # Werkzeug. Sein Debug-Export beweist, dass der Patch ankam
-    # (ViewPitchDownLimit aus demselben Struct wirkte) - diese drei tun
-    # nichts. Zurueckgezogen; nie wieder bauen, es sei denn jemand findet,
-    # was sie ueberhaupt liest.
+    # Retired ladder-view and dialogue-FOV keys failed community game tests.
+    # Do not treat them as supported without evidence of an active consumer.
     "ClimbViewYawLimit", "ClimbViewPitchLimit", "DialogFOVDefault",
-    # 08.09.2026, aufgetaucht als 1.35.0 das Blicktempo baute:
-    # AimLookUpCoef/AimTurnCoef (0.8) sitzen an 47 MUTANTEN-Prototypen,
-    # der Player ist NICHT dabei - das ist KI-Drehtempo beim Anvisieren,
-    # nicht die Blickempfindlichkeit des Spielers.
+    # These aim-turn coefficients belong to mutant AI, not player sensitivity.
     "AimLookUpCoef",
-    # dito MinJumpDistance (300-800) unter JumpActionData/
-    # JumpToEnemyActionData: Sprung-Geometrie von Mutanten-Angriffen,
-    # nicht die Huepf-Familie der Artefakte.
+    # These distances describe mutant attack geometry, not artifact jumps.
     "MinJumpDistance",
-    "RadiusExtensionBulletCount",      # (a) docs/ROADMAP.md: ausdruecklich tabu
-    "DamageIgnoranceThreshold",        # (a) HANDOVER P6: Phasen-Unterarray bewusst nicht
-    "CorpseRagdollQuestProtectionCheckTime",   # (a) Quest-Schutz, P5 tabu
-    "CorpseRagdollQuestProtectionEnableTime",  # (a) dito
+    "RadiusExtensionBulletCount",      # Intentionally excluded: unverified animation behavior.
+    "DamageIgnoranceThreshold",        # Excluded nested destructible phase arrays.
+    "CorpseRagdollQuestProtectionCheckTime",   # (a) Quest protection, excluded from this control
+    "CorpseRagdollQuestProtectionEnableTime",  # (a) Likewise
     "ALifeGridUpdateDelay", "bALifeTick", "NumTracePointsPerVisionUpdate",
-    "CoefTimeForInterp", "WaitingTimeToRotationCamera",          # (c) Leistung/Technik
+    "CoefTimeForInterp", "WaitingTimeToRotationCamera",          # Performance/technical behavior.
     "ProjectileDecalMaxSaveCountOnCorpse", "ProjectileDecalLifeSpanOnCorpse",
     "ProjectileDecalFadeOutTime", "FootstepsDecalFadeOutTime",   # (c) Decals
     "ProjectileAdditionalTraceDistance", "IKTraceDistance",
@@ -221,64 +170,60 @@ IGNORED = {
     "DetectorWorkSFX", "FireIntervalRTPCParameter",
     "PlayerAudioLogVolumeDecreaseTime", "EnergeticOveruseParameter",  # (c) Audio/Parameter
     "DefaultTeleportScreenHideDelay", "DefaultTeleportScreenShowDelay",
-    "FlashlightDialogIntensityLerpTime",                         # (c) Blenden
-    "LadderEnterUpZOffset", "LadderEnterUpXOffset",              # (c) Geometrie
+    "FlashlightDialogIntensityLerpTime",                         # Fades.
+    "LadderEnterUpZOffset", "LadderEnterUpXOffset",              # Geometry.
     "DamageSource", "CombatStateAction", "CombatStateActionEnd",
     "StaticItemContainer", "SkeletalItemContainer",
-    "bIdentifyEnemyByThreatLevel", "NPCWeaponAttributes",        # (d) Enum/Referenz
-    "DamagePlayer",                    # (d) heisst in ExplosionPrototypes anders als gemeint
-    "ManualHub",              # (d) Fraktions-/Hub-Namen
-    # 07.09. abends geprueft und mit Grund ausgelassen:
-    "InGameMinutes",       # (b) GEMESSEN: kein einziger SetTimer benutzt Minuten
-                           #     (alle 0) - der Cooldown-Regler ist vollstaendig
-    "MovementSpeedCoef",   # (a) NPC-Tempo, seit der Anim-Recherche bewusst tabu
-    "LowCrouch",           # (b) StaminaPerAction: vanilla 0, ein Faktor bleibt 0
-    "CanDailyScheduleBeOverride",  # (d) Schalter fuer Tagesablaeufe, Fehltreffer
-    "ChangeValue",         # (d) Quest-Knoten-Feld, gehoert zur Struktur
+    "bIdentifyEnemyByThreatLevel", "NPCWeaponAttributes",        # Enum/reference.
+    "DamagePlayer",                    # Has a different meaning in ExplosionPrototypes.
+    "ManualHub",              # Faction/hub names.
+    # Additional reviewed exclusions.
+    "InGameMinutes",       # All checked quest SetTimer minute values are zero.
+                           # The existing cooldown control covers the used time unit.
+    "MovementSpeedCoef",   # NPC movement timing remains outside the supported animation scope.
+    "LowCrouch",           # StaminaPerAction: vanilla zero stays zero under multiplication.
+    "CanDailyScheduleBeOverride",  # Schedule toggle, not a numeric control-family match.
+    "ChangeValue",         # Structural quest-node field.
     "WindowBackTraceHeightModifier", "WindowBackTraceRadiusModifier",
-                           # (a) Vault-Trace-Interna: laut ROADMAP bewusst nur im Preset
+                           # Vault trace internals belong only to the coordinated preset.
 }
 
 BASELINE = CANDIDATES | IGNORED
 
-# --- 3) Pruefung ---------------------------------------------------------
+# --- 3) Verification ---
 found = suspicious()
 names = set(found)
 
-print(f"Bekannte Schluesselnamen aus unserem Code: {len(KNOWN_KEYS)}")
-print(f"Verdaechtige Nachbarn in den gelesenen Dateien: {len(names)}\n")
+print(f"Known key names in the code: {len(KNOWN_KEYS)}")
+print(f"Suspicious adjacent keys in loaded files: {len(names)}\n")
 
 new = sorted(names - BASELINE)
 gone = sorted(BASELINE - names)
 
 if new:
-    print("NEUE halbe Gruppen - bitte einsortieren:")
+    print("NEW partially covered groups - classify these entries:")
     for key in new:
         e = found[key]
         print(f"  {key:<42} {e['structs']:>5}x neben {', '.join(sorted(e['known'])[:2])}")
         print(f"      {e['example']}")
-assert not new, (f"{len(new)} unbekannte Nachbar-Schluessel: {new[:8]} - entweder "
-                 f"bauen oder mit Begruendung in IGNORED aufnehmen")
+assert not new, (f"{len(new)} unknown adjacent keys: {new[:8]} - entweder "
+                 f"implement or add to IGNORED with a reason")
 
-# Verschwundene sind KEIN Fehler (Spiel-Update, oder wir haben sie gebaut),
-# aber sie sollen auffallen, damit der Bestand nicht verrottet.
+# Report disappeared neighbors without failing; they may be implemented or removed upstream.
 if gone:
-    print("Nicht mehr gefunden (gebaut oder aus dem Spiel verschwunden):")
+    print("No longer found (implemented or removed from the game):")
     for key in gone:
         print(f"  {key}")
 
-# --- 4) Der Detektor selbst muss die vier Faelle von 07.09. finden -------
-# Sonst koennte er stillschweigend kaputtgehen und immer gruen melden.
-# (Die urspruenglichen Referenzen NPCToPlayerDamageScaler und JumpDelay sind
-#  seit 1.35.0 gebaut und tauchen darum nicht mehr als Nachbarn auf. Neue
-#  Anker: zwei halbe Gruppen, die bewusst offen bleiben.)
+# Verify the detector itself using known remaining family gaps,
+# so a broken detector cannot silently pass everything.
 for key, why in (("DegenSuppressionPoints", "Unterdrueckungsfeuer"),
                  ("NoiseJumpCoef", "halbe Stealth-Familie")):
-    assert key in names, f"Detektor findet {why} nicht mehr - Regel kaputt?"
-print(f"\nDer Detektor findet die Referenzfaelle weiterhin.")
+    assert key in names, f"Detector no longer finds {why} - broken rule?"
+print(f"\nThe detector still finds the reference cases.")
 
 built = {"FullJamTime", "PenetrationSpawnChance", "MaxStackCount"}
-assert built <= KNOWN_KEYS, "erwartete gebaute Schluessel fehlen im Code"
+assert built <= KNOWN_KEYS, "Expected implemented keys missing from code"
 
-print(f"\n=== {len(names)} Nachbarn geprueft, {len(CANDIDATES)} als Kandidat "
-      f"notiert, {len(IGNORED)} bewusst ausgelassen ===")
+print(f"\n=== {len(names)} adjacent keys checked, {len(CANDIDATES)} candidate entries "
+      f"notiert, {len(IGNORED)} intentionally excluded ===")

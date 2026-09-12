@@ -203,7 +203,7 @@ items share a setup, and some unique items have distinct player attribute
 chains. Existing named weapons and edition variants need deliberate handling.
 On the four examples above, both `PlayerWeaponAttributes` and
 `NPCWeaponAttributes` exist. Changing an item prototype can affect every copy
-of that item, including NPC or vendor copies, not only the owner's inventory.
+of that item, including NPC or vendor copies, not only the player's inventory.
 Changing base price may also affect any generator selection based on price.
 
 ## 4. Split upgrade strengths by useful effect
@@ -293,7 +293,7 @@ not a verified formula. Every one of the 91 setups resolves to the same
 `WeaponDurabilityCurve` asset reference. The actual curve is not represented
 as editable numeric CFG points in this audit.
 
-A useful optional feature would let the owner delay the condition range in
+A useful optional feature would let the user delay the condition range in
 which malfunctions grow, without disabling malfunctions entirely. Keep the
 two condition values ordered (`MaxJamDurabilityThreshold` below
 `MinJamDurabilityThreshold`) and within `[0,1]`, resolving per-gun defaults.

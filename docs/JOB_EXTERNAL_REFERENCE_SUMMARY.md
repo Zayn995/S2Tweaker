@@ -1,8 +1,7 @@
 # External job references: acquisition and comparison
 
-Reviewed 11 September 2026 after the owner supplied Nexus mods 2638 and 2482
-and authorized obtaining the useful reference material. This is source/data
-research, not a new feature or an in-game confirmation.
+Historical review of Nexus mods 2638 and 2482, dated 11 September 2026.
+This compares source/data evidence and does not establish in-game behavior.
 
 ## Material available
 

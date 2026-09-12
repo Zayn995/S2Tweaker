@@ -1,20 +1,8 @@
-"""Anzeigenamen fuer Waffen und Ruestungen (reine UI-/Suchhilfe).
+"""Weapon and armor display aliases for UI/search only.
 
-Quelle: Community-Masterliste des Besitzers (ChatGPT-Recherche,
-02.09.2026, Gamer-Guides/Nexus/offizielle Editions-Seite) — hier steht
-NUR, was gegen die echten Spieldaten dieses Stands verifiziert wurde
-(jede SID existiert im jeweiligen Baum; Pruefskript siehe Chat vom
-02.09., Wiederholung: tests/test_names.py). Spielwerte kommen weiterhin
-IMMER live aus den Daten — diese Datei beschriftet nur.
-
-- WEAPON_ALIASES: {WeaponGeneralSetup-SID: Anzeigename} fuer den
-  Waffen-Baum (Zeilen zeigen SID + Name, die Suche findet beide).
-- ARMOR_ALIASES: {Item-SID: Anzeigename} fuer den Armor-Baum
-  (ersetzt das generierte Label aus armor_label(), wo bekannt).
-
-Namen sind Lokalisierungs-, keine Spieldaten — bei Luecken bleibt die
-SID sichtbar, lieber ehrlich technisch als falsch geraten.
-"""
+WEAPON_ALIASES maps WeaponGeneralSetup SIDs; ARMOR_ALIASES maps item SIDs.
+Alias coverage is checked by tests/test_names.py. Missing names fall back
+to SIDs; gameplay values are always read from installed data."""
 
 WEAPON_ALIASES = {
     'GunAK74_ST': 'AKM-74S',

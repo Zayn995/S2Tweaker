@@ -1,17 +1,7 @@
-"""Parser fuer das GSC-cfg-Format von S.T.A.L.K.E.R. 2.
+"""Parse GSC cfg text into a tree of CfgStruct nodes.
 
-Format (Beispiel):
-
-    Player : struct.begin {refurl=../BaseObj.cfg, refkey=Base}
-       VitalParams : struct.begin
-          MaxHP = 100
-       struct.end
-    struct.end
-
-Der Parser liest eine cfg-Datei in einen Baum aus CfgStruct-Knoten.
-Er dient nur zum LESEN der Vanilla-Werte; geschrieben werden eigene
-Patch-Dateien ueber s2tweaker.emit.
-"""
+Reads vanilla data and inheritance attributes; s2tweaker.emit writes patches.
+Example: Player : struct.begin {refurl=../BaseObj.cfg, refkey=Base}"""
 
 from __future__ import annotations
 
@@ -21,19 +11,17 @@ from dataclasses import dataclass, field
 
 @dataclass
 class CfgStruct:
-    """Ein struct.begin/struct.end-Block; Werte sind Strings (roh)."""
+    """A struct.begin/struct.end block with raw string values."""
 
     name: str
-    attrs: str = ""  # Inhalt der {...}-Klammer hinter struct.begin, roh
+    attrs: str = ""  # Raw {...} attributes following struct.begin.
     values: dict[str, str] = field(default_factory=dict)
     children: dict[str, "CfgStruct"] = field(default_factory=dict)
 
     def attr_dict(self) -> dict[str, str]:
-        """{...}-Attribute hinter struct.begin als dict, z.B. {"refkey": "[0]"}.
+        """Parse {...} attributes, e.g. {"refkey": "[0]"}.
 
-        Trennzeichen ist ';' (auch ',' kommt vor); Eintraege ohne '='
-        (z.B. "bpatch") bekommen den Wert "true".
-        """
+        Separators are semicolons or commas. Flags without '=' map to "true"."""
         result: dict[str, str] = {}
         for part in re.split(r"[;,]", self.attrs):
             part = part.strip()
@@ -47,7 +35,7 @@ class CfgStruct:
         return result
 
     def get(self, path: str, default: str | None = None) -> str | None:
-        """Wert per Pfad holen, z.B. get("VitalParams.MaxHP")."""
+        """Read a value by path, e.g. get("VitalParams.MaxHP")."""
         parts = path.split(".")
         node: CfgStruct = self
         for part in parts[:-1]:
@@ -58,7 +46,7 @@ class CfgStruct:
         return node.values.get(parts[-1], default)
 
     def find(self, name: str) -> "CfgStruct | None":
-        """Rekursiv den ersten Kind-Struct mit diesem Namen finden."""
+        """Recursively find the first child struct with this name."""
         if name in self.children:
             return self.children[name]
         for child in self.children.values():
@@ -68,13 +56,13 @@ class CfgStruct:
         return None
 
     def walk(self):
-        """Alle Structs rekursiv liefern (inkl. self)."""
+        """Yield all structs recursively, including self."""
         yield self
         for child in self.children.values():
             yield from child.walk()
 
 
-# Trailing ':' kommt in AIGlobals.cfg vor ("AISettings : struct.begin:")
+# A trailing ':' occurs in AIGlobals.cfg ("AISettings : struct.begin:").
 _STRUCT_BEGIN = re.compile(
     r"^(?P<name>[^=:]+?)\s*:\s*struct\.begin(?:\s*\{(?P<attrs>[^}]*)\})?\s*:?\s*$"
 )
@@ -82,8 +70,8 @@ _KEY_VALUE = re.compile(r"^(?P<key>[^=:]+?)\s*=\s*(?P<value>.*)$")
 
 
 def _strip_comment(line: str) -> str:
-    # Kommentare beginnen mit // (Strings mit // in Werten sind in GameData
-    # praktisch nicht vorhanden; Pfade nutzen einzelne Slashes).
+    # Strip // comments. GameData paths use single slashes; values containing
+    # // are not expected in the supported input.
     idx = line.find("//")
     if idx >= 0:
         return line[:idx]
@@ -91,8 +79,8 @@ def _strip_comment(line: str) -> str:
 
 
 def parse(text: str, root_name: str = "<root>") -> CfgStruct:
-    """cfg-Text in einen CfgStruct-Baum parsen."""
-    # BOM und exotische Whitespaces tolerieren
+    """Parse cfg text into a CfgStruct tree."""
+    # Accept BOM and nonstandard whitespace.
     text = text.lstrip("﻿")
     # The shipped AIGlobals has a numeric assignment and struct.end on one
     # line (FleshMetal noise). Keep following materials at their actual level.
@@ -115,7 +103,7 @@ def parse(text: str, root_name: str = "<root>") -> CfgStruct:
         if m:
             node = CfgStruct(m.group("name").strip(), (m.group("attrs") or "").strip())
             parent = stack[-1]
-            # Doppelte Namen (kommt bei Arrays nicht vor, [0], [1] sind eindeutig)
+            # Handle duplicate names; indexed array keys [0], [1], ... are unique.
             key = node.name
             i = 1
             while key in parent.children:
@@ -130,7 +118,7 @@ def parse(text: str, root_name: str = "<root>") -> CfgStruct:
             stack[-1].values[m.group("key").strip()] = m.group("value").strip()
             continue
 
-        # Unbekannte Zeile: ignorieren (robust bleiben)
+        # Ignore unknown lines to tolerate additional syntax.
 
     return root
 
@@ -139,15 +127,14 @@ def parse_file(path) -> CfgStruct:
     from pathlib import Path
 
     data = Path(path).read_bytes()
-    # GameData-cfgs sind UTF-8 (teils mit BOM)
+    # GameData cfg files use UTF-8, sometimes with a BOM.
     return parse(data.decode("utf-8-sig", errors="replace"), root_name=str(path))
 
 
 def parse_number(value: str | None, default: float = 0.0) -> float:
-    """GSC-Zahlenliterale wie '24.f', '0.3f', '100', '1000.f;', '2%' nach float.
+    """Convert GSC numbers such as '24.f', '0.3f', '1000.f;' or '2%' to float.
 
-    Trailing ';' (AIGlobals.cfg) und '%'-Literale werden toleriert;
-    '2%' liefert 2.0 (Prozentzahl, NICHT 0.02)."""
+    Accept trailing semicolons. '2%' returns 2.0, not 0.02."""
     if value is None:
         return default
     v = value.strip().rstrip(";").strip()

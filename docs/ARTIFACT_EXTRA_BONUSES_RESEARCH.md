@@ -4,7 +4,7 @@ Audit: 2026-09-11, locally extracted game 2.0.5. Read-only research; no producti
 
 ## Requested behavior and concrete scope
 
-The owner requested adding a benefit an ordinary artifact does not already have, specifically fire protection on Liquid Stone. The planned editor offers nine visible numeric benefit families on the existing 69 ordinary artifact identifiers. A family is available only if the live item does not already contain that family. Existing-family magnitude controls retain their current role.
+Additional bonuses allow an ordinary artifact to receive a missing benefit, such as fire protection on Liquid Stone. The planned editor offers nine visible numeric benefit families on the existing 69 ordinary artifact identifiers. A family is available only if the live item does not already contain that family. Existing-family magnitude controls retain their current role.
 
 Each additional family has `0 = off` and `1–1000%` of that installation's native tier-1 effect. All nine tier-1 sources currently have `EffectLevel = EEffectLevel::Low`. The percentage is an authoring choice; the source magnitudes are read live, never copied from this document into code. The global artifact-strength multiplier also applies once. Default settings produce no extra effect, item row, display row or descendant guard.
 

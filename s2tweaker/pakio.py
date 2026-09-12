@@ -1,40 +1,10 @@
-"""Pak-Erzeugung und -Entpacken fuer S.T.A.L.K.E.R. 2 - in reinem Python.
+"""Extract game data and generate S.T.A.L.K.E.R. 2 Paks using pakfile.py.
 
-Funktionierende Mod-Paks im Spiel sind: Version V8B, Mount-Point ../../../,
-unkomprimiert, unverschluesselt. Genau das schreibt s2tweaker/pakfile.py,
-und genau das schrieb bis 1.22.0 das mitgelieferte repak.exe.
-
-Kein repak.exe mehr (05.09.2026)
---------------------------------
-repak.exe (Rust, von uns aus dem Quelltext gebaut) war die einzige
-unsignierte ausfuehrbare Datei im Paket - und wurde am 05.09.2026 von
-Microsofts Machine-Learning-Erkennung als Trojaner markiert, zweimal, fuer
-Binaerdateien, die sich nur im Zeitstempel unterschieden. Die Aufgabe
-uebernimmt seitdem pakfile.py mit der Standardbibliothek; die Gegenprobe
-gegen repak an den echten Spieldateien steht in tests/test_pakfile.py.
-
-Oodle: wird gebraucht, aber NIE mitgeliefert und NIE heruntergeladen
---------------------------------------------------------------------
-pakchunk0 des Spiels ist Oodle-komprimiert, deshalb braucht das ENTPACKEN
-die proprietaere oo2core_9_win64.dll (zum PACKEN nicht - unsere Paks sind
-unkomprimiert, verifiziert). Geladen wird sie per ctypes, so wie repak sie
-per LoadLibrary lud.
-
-Beschafft wird sie seit 04.09.2026 NICHT mehr von uns. Zwei Gruende:
-
-  1. Ein Programm, das zur Laufzeit eine Bibliothek aus dem Netz holt und
-     als nativen Code laedt, zeigt exakt das Verhalten eines Droppers -
-     einer der Gruende, warum Virenscanner solche Werkzeuge markieren.
-     Die Freigabe auf Nexus scheiterte an genau solchen Fehlalarmen.
-  2. Der Download war ohnehin die fehleranfaelligste Stelle: Bugreport
-     foxce (31.08.2026), Abbruch mit InvalidCertificate(UnknownIssuer)
-     hinter einer AV-/Proxy-HTTPS-Inspektion.
-
-Stattdessen: lokal suchen (SHA-256 immer pruefen, die Datei wird gleich
-darauf als nativer Code geladen), und wenn sie fehlt, den Nutzer per
-Klartext-Dialog bitten, sie einmal selbst danebenzulegen - mit Link und
-Zielordner (OODLE_HELP).
-"""
+Write uncompressed, unencrypted V8B Paks mounted at ../../../.
+Reading Oodle-compressed game entries requires a user-supplied proprietary
+DLL; packing does not. Locate it locally and verify its SHA-256 before
+loading native code. Missing libraries produce the manual setup guide.
+No library downloads or repak executable are used."""
 
 from __future__ import annotations
 
@@ -50,9 +20,7 @@ from . import pakfile
 
 GAMEDATA_PREFIX = "Stalker2/Content/GameLite/GameData"
 
-# Die Oodle-Version, mit der die Spielpaks nachweislich gelesen werden
-# (dieselbe, die repak 0.2.3 verlangte) - nur mit diesem Hash wird die
-# DLL akzeptiert und geladen.
+# Accept only the verified Oodle library hash before loading native code.
 OODLE_DLL = "oo2core_9_win64.dll"
 OODLE_SHA256 = "6f5d41a7892ea6b2db420f2458dad2f84a63901c9a93ce9497337b16c195f457"
 OODLE_URL = (
@@ -92,7 +60,7 @@ be reused without decompressing those files again."""
 
 
 class OodleError(RuntimeError):
-    """Oodle-DLL fehlt und konnte nicht beschafft werden (Klartext-Hilfe)."""
+    """The required Oodle library is missing; include readable setup guidance."""
 
 
 def _sha256(path: Path) -> str:
@@ -111,7 +79,7 @@ def _hash_ok(path: Path) -> bool:
 
 
 def app_dir() -> Path:
-    """Ordner der EXE (gefroren) bzw. des Projekts (Entwicklung)."""
+    """Return the executable directory or development project root."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
@@ -129,9 +97,7 @@ def _writable(directory: Path) -> bool:
 
 
 def _oodle_error(reason: str) -> "OodleError":
-    # Dem Nutzer wird IMMER der Ordner mit S2Tweaker.exe genannt - dort
-    # sucht ensure_oodle zuerst, und dorthin zeigen Anleitung und Bild im
-    # Assistenten.
+    # The setup guide directs users to the folder containing S2Tweaker.exe.
     where = str(app_dir())
     return OodleError(OODLE_HELP.format(
         dll=OODLE_DLL, url=OODLE_URL, hash8=OODLE_SHA256[:8],
@@ -139,10 +105,9 @@ def _oodle_error(reason: str) -> "OodleError":
 
 
 def oodle_cache_dir() -> Path:
-    """Dauerhafter Ablageort der DLL - portabel neben der EXE.
+    """Return the portable DLL cache directory.
 
-    Falls dort nicht geschrieben werden darf (EXE in Programme\\ o.ae.),
-    weicht der Cache nach %LOCALAPPDATA% aus (in README/Nexus dokumentiert)."""
+    If the program folder is unwritable, fall back to LOCALAPPDATA."""
     primary = app_dir() / "tools"
     if _writable(primary):
         return primary
@@ -156,9 +121,7 @@ def oodle_cache_dir() -> Path:
 
 
 def _place(src: Path, dst: Path) -> None:
-    """Kopieren OHNE Attribute (copy2 wuerde ein Read-only-Flag vererben und
-    den Cache damit unersetzbar machen) und ueber eine evtl. vorhandene
-    schreibgeschuetzte Datei hinweg."""
+    """Copy without inheriting read-only attributes, replacing a read-only destination."""
     try:
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
@@ -176,7 +139,7 @@ def _place(src: Path, dst: Path) -> None:
 
 
 def _local_oodle_candidates(pak: Path | None) -> list[Path]:
-    """Stellen, an denen eine brauchbare DLL schon liegen koennte."""
+    """Yield local locations that may already contain a usable DLL."""
     dirs = [app_dir(), app_dir() / "tools", Path.cwd(),
             Path(__file__).resolve().parent.parent / "tools"]
     if getattr(sys, "frozen", False):
@@ -199,7 +162,7 @@ def _local_oodle_candidates(pak: Path | None) -> list[Path]:
 
 
 def oodle_available(pak: Path | None = None) -> bool:
-    """Liegt irgendwo eine brauchbare Oodle-DLL? (fuer die Pruefung beim Start)"""
+    """Check whether a verified local Oodle library is available."""
     try:
         if _hash_ok(oodle_cache_dir() / OODLE_DLL):
             return True
@@ -209,17 +172,10 @@ def oodle_available(pak: Path | None = None) -> bool:
 
 
 def ensure_oodle(pak: Path | None = None, progress=None) -> Path:
-    """Pfad zur (echten) Oodle-DLL - OHNE Download.
+    """Locate a verified Oodle DLL locally without downloading anything.
 
-    Gesucht wird ausschliesslich LOKAL: erst der Cache neben der EXE, dann
-    die ueblichen Stellen (Programmordner, Spielordner ...). Ein Fund wird
-    in den Cache kopiert, damit er beim naechsten Mal sofort da ist. Fehlt
-    die Datei ueberall, gibt es einen Klartext-Fehler mit Anleitung;
-    heruntergeladen wird nichts (Begruendung im Modul-Kopf). `progress`
-    bleibt nur der Signatur wegen erhalten.
-
-    Es wird immer der SHA-256 geprueft, nie nur die Existenz - die Datei
-    wird gleich darauf als nativer Code geladen."""
+    Check the cache and known local locations; cache a usable copy when possible.
+    Raise a readable setup error if absent. Retain progress for API compatibility."""
     cache = oodle_cache_dir() / OODLE_DLL
     if _hash_ok(cache):
         return cache
@@ -231,7 +187,7 @@ def ensure_oodle(pak: Path | None = None, progress=None) -> Path:
             try:
                 _place(candidate, cache)
             except OodleError:
-                return candidate          # nicht kopierbar, aber benutzbar
+                return candidate          # Use the verified source directly if caching is unavailable.
             if _hash_ok(cache):
                 return cache
             return candidate
@@ -247,7 +203,7 @@ _decompressors: dict[Path, object] = {}
 
 
 def oodle_decompressor(pak: Path | None = None, progress=None):
-    """OodleLZ_Decompress als Python-Funktion - laedt die DLL einmal."""
+    """Load the Oodle library once and return its decompression wrapper."""
     dll = ensure_oodle(pak, progress)
     fn = _decompressors.get(dll)
     if fn is None:
@@ -257,9 +213,7 @@ def oodle_decompressor(pak: Path | None = None, progress=None):
 
 
 def _open(pak: Path) -> pakfile.PakFile:
-    """Pak oeffnen; Oodle wird erst geladen, wenn ein Eintrag es braucht -
-    sonst wuerde ein Offline-Rechner ohne DLL jede harmlose (unkomprimierte
-    oder Zlib-)Mod als unlesbar melden."""
+    """Open a Pak, loading Oodle only when a compressed entry actually requires it."""
     pak = Path(pak)
 
     def lazy(comp: bytes, raw_len: int) -> bytes:
@@ -269,19 +223,11 @@ def _open(pak: Path) -> pakfile.PakFile:
 
 
 def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
-    """Die Patch-Dateien als lose .cfg unter root ablegen (Debug-Export).
+    """Export loose cfg patches under root using the same path rules as pack_mod.
 
-    Gleiche Pfad-Regel wie pack_mod(): normale Eintraege landen direkt unter
-    root (wie bisher, z.B. root/DifficultyPrototypes/..._patch_X.cfg), die
-    "//"-Eintraege der Editions-Waffen unter root/GameLite/DLCGameData/...
-
-    GitHub Issue #5 (KobaltRaven, 03.09.2026): der fruehere Export machte
-    `root / rel` - und ein rel, das mit "//" beginnt, ist fuer pathlib ein
-    ABSOLUTER UNC-Pfad (\\\\GameLite\\DLCGameData\\...), der die Basis
-    verdraengt. mkdir versuchte dann, einen Netzwerkpfad anzulegen
-    (WinError 53), sobald ein Editions-Patch dabei war - also bei jedem
-    Waffen-Tweak seit v1.14.0 mit angehaktem Debug. Die Pak war zu dem
-    Zeitpunkt laengst gebaut; der Benutzer sah nur den Traceback."""
+    Normal paths are relative to GameData; // edition paths are relative to
+    Content. Strip the marker before joining paths so pathlib cannot interpret
+    it as a UNC network path (issue #5)."""
     root = Path(root)
     written: list[Path] = []
     for rel, content in cfg_files.items():
@@ -294,23 +240,13 @@ def export_cfgs(cfg_files: dict[str, str], root: Path) -> list[Path]:
 
 def pack_mod(cfg_files: dict[str, str], out_pak: Path,
              root_files: dict[str, str | bytes] | None = None) -> Path:
-    """cfg-Dateien in eine Mod-Pak packen.
+    """Pack cfg_files and optional root_files into a mod Pak.
 
-    cfg_files: {"ObjPrototypes/zzz_S2Tweaker_Player.cfg": "<cfg-Text>", ...}
-               Pfade relativ zu Stalker2/Content/GameLite/GameData/.
-               Absolute Sonderfaelle (DLC) koennen mit "//" beginnen und sind
-               dann relativ zu Stalker2/Content/ zu verstehen.
-    root_files: Dateien DIREKT unter dem Pak-Mount (z.B. das eingebettete
-               S2Tweaker-Manifest). Bewusst NICHT unter GameData: den Ordner
-               durchsucht der Config-Scanner des Spiels, und Dateien, die
-               das Spiel nie anfragt, sind an der Wurzel garantiert
-               wirkungslos.
-    out_pak:   Zielpfad der .pak-Datei (z.B. ...\\~mods\\zzz_S2Tweaker_P.pak).
+    cfg_files paths are relative to GameData; // paths are relative to Content.
+    root_files are relative to the Pak mount, outside config scanning when used
+    for manifests. out_pak is the destination file.
 
-    Der Umweg ueber einen Staging-Ordner bleibt absichtlich: die Dateien
-    werden wie bisher mit write_text abgelegt (Windows-Zeilenenden), damit
-    die Pak byteidentisch mit der bisherigen repak-Erzeugung bleibt.
-    """
+    Use a staging folder to retain established write_text newline behavior."""
     out_pak = Path(out_pak)
     out_pak.parent.mkdir(parents=True, exist_ok=True)
 
@@ -325,7 +261,7 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
         for rel, content in (root_files or {}).items():
-            # seit 1.35.0 auch verschachtelt (Stalker2/Config/UserInput.ini)
+            # Root files may be nested, e.g. Stalker2/Config/UserInput.ini.
             target = staging / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             if isinstance(content, bytes):
@@ -335,7 +271,7 @@ def pack_mod(cfg_files: dict[str, str], out_pak: Path,
         pakfile.pack_dir(staging, out_pak)
 
     if not out_pak.is_file():
-        raise RuntimeError(f"Pak wurde nicht erzeugt: {out_pak}")
+        raise RuntimeError(f"Pak was not created: {out_pak}")
     return out_pak
 
 
@@ -354,17 +290,16 @@ def export_root_files(files: dict[str, str | bytes], root: Path) -> list[Path]:
 
 
 def list_pak(pak: Path) -> list[str]:
-    """Dateiliste einer Pak (fuer den Mod-Scan), Pfade ohne ../../../ wie
-    bei `repak list`. Liest nur den Index - braucht kein Oodle und ist auch
-    bei 2-GB-Paks schnell."""
+    """List Pak entry paths without ../../../ by reading only the index.
+
+    No decompression library is needed."""
     with _open(Path(pak)) as pk:
         return [pk.stripped(name) for name in pk.files()]
 
 
 def _extract(pak: Path, out_dir: Path, patterns: list[str] | None,
              progress=None) -> int:
-    """Eintraege, die ein Muster treffen (alle ohne Muster), nach out_dir
-    schreiben - Ablage wie `repak unpack`: out_dir/<Pfad ohne ../../../>."""
+    """Extract matching entries under out_dir, stripping ../../../ from their paths."""
     pak, out_dir = Path(pak), Path(out_dir)
     regexes = [pakfile.glob_regex(p) for p in patterns] if patterns else None
     written = 0
@@ -374,8 +309,7 @@ def _extract(pak: Path, out_dir: Path, patterns: list[str] | None,
             stripped = pk.stripped(name)
             if regexes is None or pakfile.matches(regexes, stripped):
                 selected.append((name, stripped))
-        # Fehlt die DLL, soll der Klartext-Fehler kommen, BEVOR etwas
-        # geschrieben wird - nicht mitten im Entpacken.
+        # Check required decompression support before writing any output.
         if pk.uses_oodle([name for name, _ in selected]):
             ensure_oodle(pak, progress)
         for name, stripped in selected:
@@ -391,16 +325,14 @@ def _extract(pak: Path, out_dir: Path, patterns: list[str] | None,
 
 def unpack_many(pak: Path, out_dir: Path, includes: list[str],
                 progress=None) -> None:
-    """Mehrere Eintraege in einem Rutsch entpacken (fuer den Mod-Scan).
-    `includes` sind Glob-Muster wie bei `repak unpack -i` ('[' als '[[]')."""
+    """Extract several include globs in one pass; escape literal '[' as '[[]'."""
     _extract(pak, out_dir, list(includes), progress)
 
 
 def unpack(pak: Path, out_dir: Path, include: str | None = None,
            progress=None) -> None:
-    """Pak entpacken (fuer die Vanilla-GameData-Extraktion); `include` ist
-    ein Glob-Muster auf den Pfad ohne ../../../ - ohne Muster alles.
+    """Extract matching Pak entries, or all entries without an include glob.
 
-    Braucht bei Oodle-komprimierten Eintraegen die DLL; fehlt sie, kommt
-    der Klartext-Fehler mit Anleitung (siehe Modul-Kopf)."""
+    Patterns use paths without ../../../. Oodle entries require the verified
+    local library or raise a setup error."""
     _extract(pak, out_dir, [include] if include else None, progress)

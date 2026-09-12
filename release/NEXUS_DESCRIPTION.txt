@@ -27,7 +27,7 @@
 Developed with AI assistance (Claude and Codex). I can't code myself - so please see this as a CONCEPT / proof of what's possible, made for people who CAN code, to pick up, improve and build on :D
 Everyone is free to use this mod and the tool!
 
-The full source code is open under the MIT license. There is a public S2Tweaker repository on GitHub under my name (Zayn995), but [b]I am deliberately not linking it here[/b]: while a file of mine is under review, Nexus guidelines ask authors not to point at off-site downloads, and I would rather respect that than argue about where the line is. If you want the source, it is easy to find - or just ask in the comments. Bug reports, improvements and forks are very welcome.
+The full source code is available under the MIT license. Bug reports, improvements and forks are welcome.
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
@@ -923,7 +923,7 @@ If the ~mods folder doesn't exist, create it.
 [heading]CREDITS[/heading]
 
 [list]
-[*]All code written by Claude (Anthropic)
+[*]Developed with AI assistance from Claude (Anthropic) and Codex (OpenAI)
 [*]repak by trumank (pak packing, MIT/Apache-2.0)
 [*]cfg.bin decoder based on work by joric, sdwvit and thexii
 [*]Thanks to the S.T.A.L.K.E.R. 2 modding community for documenting the {bpatch} config-patch system, and GSC Game World for the game

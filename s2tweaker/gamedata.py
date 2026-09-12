@@ -1,14 +1,8 @@
-"""Vanilla-GameData beschaffen und auswerten.
+"""Extract, cache and resolve vanilla GameData from the installed game.
 
-Pipeline beim ersten Start (bzw. nach Spiel-Update):
-  1. repak unpack pakchunk0-Windows.pak  (nur GameData-Dateien, Auswahl unten)
-  2. *.cfg.bin -> *.cfg konvertieren (vendor_bin2cfg)
-  3. Ergebnis im Cache-Ordner ablegen (%LOCALAPPDATA%/S2Tweaker/vanilla-<size>)
-
-Danach werden die cfg-Texte geparst und Vererbung (refkey) aufgeloest, damit
-Multiplikator-Tweaks (Haltbarkeit x3, Mutanten-HP x2, ...) auf den echten
-Vanilla-Werten der installierten Spielversion rechnen.
-"""
+Read the selected Pak entries, decode cfg.bin with vendor_bin2cfg, then
+parse cfg text and resolve refkey inheritance. Tweaks use these live
+baselines so multipliers track the installed game version."""
 
 from __future__ import annotations
 
@@ -23,7 +17,7 @@ from pathlib import Path
 from . import cfgparse, pakio, vendor_bin2cfg
 from .cfgparse import CfgStruct, parse_number
 
-# Nur diese Dateien braucht das Tool (spart Zeit beim Entpacken/Konvertieren)
+# Extract only required files to limit decoding time and cache size.
 NEEDED_FILES = [
     "ObjPrototypes.cfg.bin",
     "ItemPrototypes.cfg.bin",
@@ -58,45 +52,44 @@ NEEDED_FILES = [
     "LairPrototypes.cfg.bin",
     "ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg.bin",
     "AIPrototypes/ThreatPrototypes.cfg.bin",
-    "FlashlightPrototypes.cfg.bin",          # NPC-Taschenlampen (05.09.2026)
-    "SaveLoadVariables.cfg",                 # Speicherstaende-Limit (unbinarisiert)
-    "AutoSaveVariables.cfg",                 # Autosave-Intervall (unbinarisiert)
-    "AimAssistPresetPrototypes.cfg.bin",     # Aim-Assist Maus/Gamepad (06.09.2026)
-    "ProjectilePrototypes.cfg.bin",          # Geschoss-Geschwindigkeit (06.09.2026)
-    "ObjSleepParamsPrototypes.cfg.bin",      # Schlaf (06.09.2026)
-    "PostEffectProcessorPrototypes.cfg.bin", # Duck-Vignette (1.26.0)
-    "ExplosionPrototypes.cfg.bin",           # Granaten-Radius (1.26.0)
-    "CorpseClueStashPrototypes.cfg.bin",     # Versteck-Hinweise (1.26.0)
-    "MarkerPrototypes.cfg.bin",              # PDA-Karte (1.26.0)
-    "AnomalyPrototypes.cfg.bin",             # Klicker-Anomalie (1.26.0)
-    "CombatSynchronizationPrototypes.cfg.bin",  # gleichzeitige Angreifer (1.27.0)
-    "ItemContainerPrototypes.cfg.bin",       # Behaelter-Respawn (1.27.0)
-    "QuickSaveVariables.cfg",                # Schnellspeicher-Fenster (1.28.0, unbinarisiert)
-    "CoreVariablesCustom.cfg",               # CustomConfigOverride-Versicherung (1.28.0, unbinarisiert)
-    "EnemyEvaluatorPrototypes.cfg.bin",      # NPC-Zielwahl (1.28.0 P3)
-    "CoverEvaluatorPrototypes.cfg.bin",      # NPC-Deckungsprofile (1.28.0 P3)
-    "AIPrototypes/FlairSensorPrototypes.cfg.bin",   # Mutanten-Witterung (1.28.0 P4)
-    "NPCNeedsPresetPrototypes.cfg.bin",      # A-Life-Trupp-Ausbreitung (1.28.0 P5)
-    "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",   # A-Life-Nachfuellen (1.28.0 P5)
-    "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin",   # Fraktions-Ausbreitung (1.28.0 P5)
-    "BarbedWirePrototypes.cfg.bin",          # Stacheldraht (1.28.0 P6)
-    "DestructibleObjectPrototypes.cfg.bin",  # explodierende Behaelter (1.28.0 P6, 536 KB - lazy geparst)
-    "PhysicsInteractionPrototypes.cfg.bin",  # Schubkraft (1.28.0 P6)
-    "WeatherChainPrototypes.cfg.bin",        # Wetteruebergaenge (1.28.0 P6)
-    "SingletonConstants.cfg",                # Nacht/Himmel (1.28.0 P6, unbinarisiert)
-    "PackOfItemsGroupPrototypes.cfg.bin",    # Welt-Loot-Haufen (1.28.0 P7)
-    "NPCPrototypes.cfg.bin",                 # Haendler auf NPC-Ebene (1.28.0 P8, 1.8 MB - lazy geparst)
-    "DialogPrototypes.cfg.bin",              # Job-Dialogketten der Auftraggeber (1.36.0, 31.6 MB - lazy geparst, nur mit dem Mehrfach-Job-Schalter)
+    "FlashlightPrototypes.cfg.bin",          # NPC flashlights.
+    "SaveLoadVariables.cfg",                 # Save-count limit (unbinarized).
+    "AutoSaveVariables.cfg",                 # Autosave interval (unbinarized).
+    "AimAssistPresetPrototypes.cfg.bin",     # Mouse/gamepad aim assist.
+    "ProjectilePrototypes.cfg.bin",          # Projectile speed.
+    "ObjSleepParamsPrototypes.cfg.bin",      # Sleep (06.09.2026)
+    "PostEffectProcessorPrototypes.cfg.bin", # Crouch vignette.
+    "ExplosionPrototypes.cfg.bin",           # Grenade radius.
+    "CorpseClueStashPrototypes.cfg.bin",     # Stash clues.
+    "MarkerPrototypes.cfg.bin",              # PDA map.
+    "AnomalyPrototypes.cfg.bin",             # Clicker anomaly.
+    "CombatSynchronizationPrototypes.cfg.bin",  # Concurrent attackers.
+    "ItemContainerPrototypes.cfg.bin",       # Containers-Respawn (1.27.0)
+    "QuickSaveVariables.cfg",                # Quicksave window (unbinarized).
+    "CoreVariablesCustom.cfg",               # CustomConfigOverride confirmation (unbinarized).
+    "EnemyEvaluatorPrototypes.cfg.bin",      # NPC target selection.
+    "CoverEvaluatorPrototypes.cfg.bin",      # NPC cover profiles.
+    "AIPrototypes/FlairSensorPrototypes.cfg.bin",   # Mutant scent detection.
+    "NPCNeedsPresetPrototypes.cfg.bin",      # A-Life squad expansion.
+    "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",   # A-Life refill.
+    "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin",   # Faction expansion.
+    "BarbedWirePrototypes.cfg.bin",          # Barbed wire.
+    "DestructibleObjectPrototypes.cfg.bin",  # explodierende Containers (1.28.0 P6, 536 KB - lazy geparst)
+    "PhysicsInteractionPrototypes.cfg.bin",  # Push impulse.
+    "WeatherChainPrototypes.cfg.bin",        # Weather transitions.
+    "SingletonConstants.cfg",                # Night/sky settings (unbinarized).
+    "PackOfItemsGroupPrototypes.cfg.bin",    # World loot piles.
+    "NPCPrototypes.cfg.bin",                 # NPC-level traders; parsed lazily.
+    "DialogPrototypes.cfg.bin",              # Job-giver dialogue chains; parsed lazily for simultaneous jobs.
     "JournalQuestPrototypes.cfg.bin",        # separate journal entries for simultaneous jobs
 ]
 
-# Bei Aenderungen an NEEDED_FILES erhoehen -> alte Caches werden neu aufgebaut
+# Increment when NEEDED_FILES changes to invalidate incomplete old caches.
 CACHE_SCHEMA = 27   # rebuild caches decoded without binary cfg version 2 support
 OPTIONAL_SPAWN = "SpawnActorPrototypes.cfg.bin"
 
-# Mutanten-Art (Fraktion) -> Praefixe der Attacken-Structs in
-# AbilityPrototypes.cfg (verifiziert; docs/V15_DATA_RESEARCH.md).
-# Rat, Poltergeist und "Mutant" haben keine Damage-Attacken.
+# Mutant factions mapped to attack-struct prefixes in AbilityPrototypes.cfg.
+# See docs/V15_DATA_RESEARCH.md. Rat, Poltergeist and Mutant have no damage attacks.
 SPECIES_ABILITY_PREFIXES = {
     "Bloodsucker": ["Bloodsucker_", "AshyBloodsucker_", "MistBloodsucker_",
                     "PrologueBloodsucker_"],
@@ -118,10 +111,8 @@ SPECIES_ABILITY_PREFIXES = {
 
 GAMEDATA_REL = "Stalker2/Content/GameLite/GameData"
 
-# --- DLC-Editionen (Nexus-Wunsch zDusty 02.09.): die Editions-Waffen
-# (Gabion, Veteran, Monolith-Set ...) liegen in EIGENEN Paks und einem
-# eigenen DLCGameData-Zweig. Fehlende Paks sind KEIN Fehler — das Tool
-# laeuft dann einfach ohne DLC-Waffen weiter.
+# Edition weapons use separate Paks and a DLCGameData branch.
+# Missing optional Paks simply omit those weapons.
 DLCGAMEDATA_REL = "Stalker2/Content/GameLite/DLCGameData"
 DLC_SOURCES = {
     "PreOrder": "pakchunk101-Windows.pak",
@@ -133,10 +124,10 @@ DLC_FILES = ("ItemPrototypes.cfg.bin",
 
 
 def _cfg_name(needed: str) -> str:
-    """NEEDED_FILES-Eintrag -> Name der lesbaren cfg nach der Konvertierung."""
+    """Map a NEEDED_FILES entry to its decoded cfg filename."""
     return needed[: -len(".bin")] if needed.endswith(".cfg.bin") else needed
 
-# Kreatur-Fraktionen = Mutanten (Zombie-Stalker zaehlen als Menschen)
+# Creature factions identify mutants; zombie stalkers count as humans.
 MUTANT_FACTIONS = {
     "Bayun", "Blinddog", "Bloodsucker", "Boar", "Burer", "Chimera",
     "Controller", "Deer", "Flesh", "MoldyBlinddog", "Mutant", "Poltergeist",
@@ -146,11 +137,11 @@ MUTANT_FACTIONS = {
 WEAPON_TEMPLATES = {"TemplateWeapon"}
 ARMOR_TEMPLATES = {"TemplateArmor"}
 
-# Kategorie-Templates in WeaponGeneralSetupPrototypes.cfg: jede Waffe erbt
-# per refkey (ggf. ueber Unikat-Zwischenstufen) von genau einem davon.
+# Category templates in WeaponGeneralSetupPrototypes.cfg: every weapon inherits
+# Through refkey, potentially via intermediate unique-item prototypes.
 WEAPON_CATEGORY_TEMPLATES = {
     "TemplatePistol": "pistol",
-    "TemplateMAC": "smg",           # Maschinenpistolen -> SMG-Kategorie
+    "TemplateMAC": "smg",           # Machine pistols belong to the SMG category.
     "TemplateSMG": "smg",
     "TemplateRifle": "rifle",
     "TemplateRifleSingleFire": "rifle",
@@ -161,8 +152,7 @@ WEAPON_CATEGORY_TEMPLATES = {
     "TemplateGLaunch": "launcher",
 }
 
-# Ausreisser in den Spieldaten: der RPG-7 erbt kurioserweise von
-# TemplateSniper — fuer die Regler zaehlt er als Granatwerfer.
+# RPG-7 inherits TemplateSniper in game data but belongs to grenade launchers.
 WEAPON_CATEGORY_OVERRIDES = {
     "GunRpg7_GL": "launcher",
 }
@@ -186,18 +176,17 @@ def default_cache_dir() -> Path:
     return base
 
 
-# Wiederholbare Jobs (repeatable side quests): die Knoten einer Quest tragen
-# QuestSIDs wie "RSQ01" oder "RSQ06_C00___SIDOROVICH" — gruppiert wird ueber
-# den fuehrenden RSQ<Nummer>-Teil (acht Auftraggeber, gemessen 07.09.2026).
+# Group repeatable jobs by the leading RSQ<number> in QuestSID,
+# e.g. RSQ01 or RSQ06_C00___SIDOROVICH.
 _RSQ_GROUP_RE = re.compile(r"^(RSQ\d+)")
 
 
 def _less_condition(node: CfgStruct,
                     variables: set[str]) -> tuple[tuple[str, str], float] | None:
-    """Im Conditions-Baum eines If-Knotens die `Less`-Bedingung auf eine der
-    genannten Variablen suchen. Liefert ((AussenSchluessel, InnenSchluessel),
-    Grenzwert) — der Pfad wird gebraucht, um genau diesen Array-Eintrag
-    spaeter KOMPLETT auszugeben."""
+    """Find a Less condition on a listed variable in an If node's Conditions.
+
+    Return ((outer_key, inner_key), limit) so the builder can emit the complete
+    array entry at that path."""
     conds = node.children.get("Conditions")
     if conds is None:
         return None
@@ -213,14 +202,11 @@ def _less_condition(node: CfgStruct,
 
 def _launcher_link(node: CfgStruct,
                    source_sid: str) -> tuple[tuple[str, str], str] | None:
-    """Die Launcher-Verbindung eines Knotens finden, die von `source_sid`
-    kommt. Liefert ((LauncherSchluessel, VerbindungsSchluessel), Pin-Name).
+    """Find the incoming launcher connection from source_sid.
 
-    Launchers sind EINGEHENDE Verbindungen (`Name` ist der Ausgangs-Pin des
-    ausloesenden Knotens) — nachgeprueft am Vanilla-Graphen: der Random-
-    Knoten von RSQ01 nennt seinen If-Knoten mit Pin True. Der Verbindungs-
-    Index ist NICHT bei allen Gebern gleich (viermal [0], viermal [1]),
-    darum wird er hier gesucht statt angenommen."""
+    Return ((launcher_key, connection_key), pin_name). Name identifies the
+    source node's output pin. Connection indices vary between job givers,
+    so resolve the link from the graph instead of assuming an index."""
     launchers = node.children.get("Launchers")
     if launchers is None:
         return None
@@ -236,8 +222,7 @@ def _launcher_link(node: CfgStruct,
 
 class GameData:
     def __init__(self, gamedata_dir: Path, *, source_pak=None, progress=None):
-        """gamedata_dir: Ordner, der die cfg-TEXT-Dateien enthaelt
-        (.../Stalker2/Content/GameLite/GameData)."""
+        """Initialize from decoded cfg text under Stalker2/Content/GameLite/GameData."""
         self.dir = Path(gamedata_dir)
         self._source_pak = Path(source_pak) if source_pak else None
         self._source_stamp = self._pak_stamp() if source_pak else None
@@ -300,14 +285,13 @@ class GameData:
     @classmethod
     def from_game(cls, game_dir: Path, cache_root: Path | None = None,
                   progress=None) -> "GameData":
-        """Vanilla-Daten aus der Spielinstallation extrahieren (mit Cache)."""
+        """Extract and cache vanilla data from the game installation."""
         pak = Path(game_dir) / "Stalker2/Content/Paks/pakchunk0-Windows.pak"
         cache_root = cache_root or default_cache_dir()
 
         if not pak.is_file():
-            # Steam aktualisiert gerade das Spiel o.ae. -> letzten Cache nutzen
-            # (nur Caches des AKTUELLEN Schemas: aeltere haben nicht alle
-            # NEEDED_FILES und wuerden beim Bauen crashen)
+            # If the game files are temporarily unavailable, reuse only a cache with
+            # the current schema; older schemas may lack required files.
             fallback = sorted(
                 (d for d in cache_root.glob(f"vanilla-*-s{CACHE_SCHEMA}")
                  if (d / ".complete").is_file()),
@@ -322,16 +306,14 @@ class GameData:
                 "Is Steam currently updating or verifying the game? "
                 "Wait for the update to finish, then restart this tool.")
 
-        # Pak-Groesse als billiger Versions-Fingerabdruck
+        # Pak size provides an inexpensive version fingerprint.
         tag = f"vanilla-{pak.stat().st_size}-s{CACHE_SCHEMA}"
         cache = cache_root / tag
         gd = cache / GAMEDATA_REL
         marker = cache / ".complete"
 
-        # 1.28.0: innerhalb EINES Schemas schieben die Kern-Sweep-Pakete
-        # P1-P8 neue Dateien nach (Schema 22 gilt fuer das ganze Release).
-        # Ein fertiger Cache, dem nur neue Dateien fehlen, wird ergaenzt
-        # statt weggeworfen; ein unfertiger wird wie bisher komplett gebaut.
+        # Supplement complete caches missing newly required files;
+        # rebuild incomplete caches.
         fresh = not marker.is_file()
         to_extract = (list(NEEDED_FILES) if fresh else
                       [name for name in NEEDED_FILES
@@ -343,9 +325,8 @@ class GameData:
             for name in to_extract:
                 pakio.unpack(pak, cache, include=f"{GAMEDATA_REL}/{name}",
                              progress=progress)
-            # DLC-Editionen (optional): eigene Paks, eigener cfg-Zweig.
-            # Bewusst fehlertolerant — ohne Editions-Pak gibt es einfach
-            # keine DLC-Waffen im Baum, alles andere laeuft normal.
+            # Optional edition Paks have their own cfg branch; extraction failure
+            # must not prevent using the base game data.
             for edition, pakname in (DLC_SOURCES.items() if fresh else ()):
                 dlc_pak = Path(game_dir) / "Stalker2/Content/Paks" / pakname
                 if not dlc_pak.is_file():
@@ -373,10 +354,8 @@ class GameData:
                     out.write_text(
                         "\n".join(r.to_string() for r in roots), encoding="utf-8"
                     )
-            # Erst pruefen, dann als fertig markieren: repak meldet Erfolg
-            # auch, wenn ein Include-Muster auf nichts passt. Ohne diesen
-            # Check bliebe ein unvollstaendiger Cache dauerhaft liegen und
-            # der Fehler taeuchte erst beim Bauen als Traceback auf.
+            # Verify required files before marking the cache complete. An include
+            # pattern may match nothing even when extraction reports success.
             missing = [name for name in NEEDED_FILES
                        if not (gd / _cfg_name(name)).is_file()]
             if missing:
@@ -386,8 +365,7 @@ class GameData:
                     + "\n\nYour game version may have moved or renamed them. "
                       "Please report this together with your game version.")
             marker.write_text("ok", encoding="utf-8")
-            # Caches frueherer Schema-Versionen sind nie wieder nutzbar und
-            # liegen sonst dauerhaft neben der EXE (~90 MB je Generation).
+            # Remove obsolete schema caches to avoid accumulating unused data.
             for old in cache_root.glob("vanilla-*"):
                 if old.is_dir() and not old.name.endswith(f"-s{CACHE_SCHEMA}"):
                     shutil.rmtree(old, ignore_errors=True)
@@ -467,16 +445,15 @@ class GameData:
 
     @cached_property
     def questnodes(self) -> CfgStruct:
-        """ACHTUNG: 75-MB-Datei, ~84.000 Structs, Parse ~3 s. NUR lazy
-        anfassen — d.h. erst, wenn der Quest-Cooldown-Regler wirklich
-        nicht auf 100 % steht (dasselbe Muster wie itemgenerators)."""
+        """Lazily parse quest nodes only when needed; the checked file was ~75 MB
+        with ~84,000 structs. Access has the same cost considerations as itemgenerators."""
         return self._parse("QuestNodePrototypes.cfg")
 
     @cached_property
     def dialogs(self) -> CfgStruct:
-        """ACHTUNG: 31.6-MB-Datei (DialogPrototypes). NUR lazy anfassen -
-        einzig der Mehrfach-Job-Schalter braucht sie (1.36.0), um den
-        If-Knoten am Anfang jeder Job-Dialogkette zu finden."""
+        """Lazily parse DialogPrototypes for simultaneous-job dialogue gates.
+
+        The checked file was 31.6 MB."""
         return self._parse("DialogPrototypes.cfg")
 
     @cached_property
@@ -526,15 +503,15 @@ class GameData:
 
     @cached_property
     def flashlights(self) -> CfgStruct:
-        """FlashlightPrototypes: vier Structs [0]..[3] (Empty, PlayerFlashlight,
-        NPCFlashlight, WeaponFlashlightTest). Nur die NPC-Lampe traegt
-        Lichtwerte; die Spieler-Lampe sitzt in Blueprint-Kurven."""
+        """Read FlashlightPrototypes.
+
+        Only NPCFlashlight has cfg light values in the checked data; player light
+        behavior is controlled by Blueprint curves."""
         return self._parse("FlashlightPrototypes.cfg")
 
     @cached_property
     def projectiles(self) -> CfgStruct:
-        """ProjectilePrototypes: 16 Structs - 11 Kugeln (Speed 20000-42000),
-        Gauss (1e7), RPG (6000) und zwei Granaten (3500)."""
+        """Read ProjectilePrototypes for bullets, Gauss, RPG and grenades."""
         return self._parse("ProjectilePrototypes.cfg")
 
     @cached_property
@@ -547,8 +524,9 @@ class GameData:
                               "Radiation", "PSY")
 
     def mutant_protections(self) -> dict[str, dict[str, float]]:
-        """{SID: {Schutzart: Wert}} aller Mutanten-Prototypen mit Schutz > 0
-        (2.0.x: 46 von 47; praktisch nur Strike, Shot ist ueberall 0)."""
+        """Return {SID: {protection_type: value}} for mutants with positive protection.
+
+        In the checked 2.0.x data, 46 of 47 had protection, mainly Strike; Shot was zero."""
         result: dict[str, dict[str, float]] = {}
         for sid in self.mutants():
             values: dict[str, float] = {}
@@ -561,9 +539,7 @@ class GameData:
         return result
 
     def slot_weapon_items(self) -> dict[str, tuple[str | None, str, str | None]]:
-        """{Item-SID: (Kategorie, Slot, Edition|None)} aller Waffen-Items ohne
-        Templates - Basis (119, davon 99 PrimaryWeapon / 20 Pistol) plus die
-        Editions-Waffen mit eigenem Item-Struct."""
+        """Return {item_SID: (category, slot, edition_or_None)} for non-template weapons."""
         result: dict[str, tuple[str | None, str, str | None]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -588,7 +564,7 @@ class GameData:
         return result
 
     def pistol_slot_literal(self) -> str | None:
-        """Der Enum-Text des Pistolenslots, live aus einem Pistolen-Item."""
+        """Read the pistol-slot enum from an installed pistol item."""
         for sid, (_cat, slot, edition) in self.slot_weapon_items().items():
             if slot == "Pistol" and edition is None:
                 raw = self.resolve(self.items, sid, "ItemSlotType")
@@ -598,15 +574,16 @@ class GameData:
 
     @cached_property
     def aimassist(self) -> CfgStruct:
-        """AimAssistPresetPrototypes: 15 Presets (Empty, Hip/AimMouse, Hip/
-        AimGamepad + je Waffenklasse _AR/_PT/_SG/_SMG/_MG). Die Staerke
-        steckt in CurveFloat-Assets, per cfg geht nur an/aus: Kegel-SIDs
-        auf den Empty-Kegel setzen."""
+        """Read mouse/gamepad aim-assist presets and weapon-class variants.
+
+        Strength is in CurveFloat assets; cfg can disable assistance by replacing
+        cone SIDs with the Empty cone."""
         return self._parse("AimAssistPresetPrototypes.cfg")
 
     def armor_artifact_slots(self) -> dict[str, tuple[int, str | None]]:
-        """{SID: (Vanilla-ArtifactSlots, Edition|None)} aller Spieler-
-        Koerperruestungen (Slot Body; Helme haben 0 und bleiben draussen)."""
+        """Return {SID: (vanilla_artifact_slots, edition_or_None)} for player body armor.
+
+        Head-slot items are excluded."""
         result: dict[str, tuple[int, str | None]] = {}
         for sid, (slot, _values) in self.player_armors().items():
             if slot != "Body":
@@ -626,122 +603,116 @@ class GameData:
 
     @cached_property
     def saveload(self) -> CfgStruct:
-        """SaveLoadVariables (unbinarisiert): DefaultConfig.SavesLimit je
-        Speichertyp, 0 = unbegrenzt."""
+        """Unbinarized SaveLoadVariables: DefaultConfig.SavesLimit per save type; 0 = unlimited."""
         return self._parse("SaveLoadVariables.cfg")
 
     @cached_property
     def autosave(self) -> CfgStruct:
-        """AutoSaveVariables (unbinarisiert): DefaultConfig.AutoSaveIntervalTime
-        in Sekunden."""
+        """Unbinarized AutoSaveVariables: DefaultConfig.AutoSaveIntervalTime in seconds."""
         return self._parse("AutoSaveVariables.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P1) ---
+    # --- 1.28.0 (core controls P1) ---
     @cached_property
     def quicksave(self) -> CfgStruct:
-        """QuickSaveVariables (unbinarisiert): DefaultConfig.QuickSaveOverwriteTime
-        in Sekunden (Vanilla 300) - so lange ueberschreibt ein neuer
-        Schnellspeicher denselben Slot statt einen neuen anzulegen."""
+        """Read QuickSaveOverwriteTime in seconds from unbinarized QuickSaveVariables.
+
+        This is the window in which quicksaves overwrite the same slot."""
         return self._parse("QuickSaveVariables.cfg")
 
     @cached_property
     def corevarscustom(self) -> CfgStruct:
-        """CoreVariablesCustom (unbinarisiert): der Struct CustomConfigOverride
-        wiederholt fuenf DefaultConfig-Schluessel mit identischen Werten
-        (docs/CORE_SWEEP_RESEARCH.md par. 0). Gewinnt er beim Laden, waeren
-        die Gewichts-/Ausdauer-Patches in CoreVariables still tot - darum
-        spiegelt tweaks._corevars_custom_patch vier Schluessel dorthin."""
+        """Read unbinarized CoreVariablesCustom overrides.
+
+        CustomConfigOverride repeats DefaultConfig keys and may override core
+        patches at load time; _corevars_custom_patch mirrors affected keys there.
+        See docs/CORE_SWEEP_RESEARCH.md, section 0."""
         return self._parse("CoreVariablesCustom.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P3) ---
+    # --- 1.28.0 (core controls P3) ---
     @cached_property
     def enemyevaluators(self) -> CfgStruct:
-        """EnemyEvaluatorPrototypes: ein einziges Struct [0] (SID empty) -
-        die Zielwahl aller NPCs (docs/CORE_SWEEP_RESEARCH.md par. 2.5)."""
+        """Read the shared NPC target evaluator (EnemyEvaluatorPrototypes [0]).
+
+        See docs/CORE_SWEEP_RESEARCH.md, section 2.5."""
         return self._parse("EnemyEvaluatorPrototypes.cfg")
 
     @cached_property
     def coverevaluators(self) -> CfgStruct:
-        """CoverEvaluatorPrototypes: DefaultCoverEvaluator (CoverEvaluatorSID
-        an 1605 NPC-Objekten) plus Boss-/Sonderkinder, die alle 47 Schluessel
-        selbst deklarieren (par. 2.5)."""
+        """Read cover evaluators, including special/boss children with explicit keys.
+
+        See docs/CORE_SWEEP_RESEARCH.md, section 2.5."""
         return self._parse("CoverEvaluatorPrototypes.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P4) ---
+    # --- 1.28.0 (core controls P4) ---
     @cached_property
     def flairsensors(self) -> CfgStruct:
-        """FlairSensorPrototypes (Witterung, par. 2.4): zehn Sensoren, Kinder
-        von DefaultFlairSensor, die alle Schluessel selbst deklarieren;
-        BlindDogFlairSensor haengt an 38 Mutanten-Prototypen."""
+        """Read scent sensors, whose children declare their own values.
+
+        See docs/CORE_SWEEP_RESEARCH.md, section 2.4."""
         return self._parse("AIPrototypes/FlairSensorPrototypes.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P5) ---
+    # --- 1.28.0 (core controls P5) ---
     @cached_property
     def needspresets(self) -> CfgStruct:
-        """NPCNeedsPresetPrototypes (par. 2.6): 26 Presets; 16 tragen einen
-        eigenen GoalNeeds-Eintrag AI.Need.Expansion (MutantGeneric unter [1])."""
+        """Read NPC needs presets, including GoalNeeds entries for AI.Need.Expansion.
+
+        Array positions vary; MutantGeneric uses [1] in the checked data."""
         return self._parse("NPCNeedsPresetPrototypes.cfg")
 
     @cached_property
     def alifepolicy(self) -> CfgStruct:
-        """ALifePolicyPrototypes (par. 2.7): ein Struct Default - Refill-Cooldowns,
-        Refill-Distanzband, Leichenbudget; TriggerExtinction/StopExtinction tabu."""
+        """ALifePolicyPrototypes: one Default struct with refill cooldowns,
+        distance range and corpse budget; extinction thresholds are excluded."""
         return self._parse("ALifePrototypes/ALifePolicyPrototypes.cfg")
 
     @cached_property
     def alifefactions(self) -> CfgStruct:
-        """ALifePopulationManagerFactionPrototypes (par. 2.7): ein Struct
-        ALifePopulationManagerPreset mit 29 Fraktionen; Lagerbaender tabu."""
+        """Read ALifePopulationManagerFactionPrototypes without altering camp bands."""
         return self._parse("ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P6) ---
+    # --- 1.28.0 (core controls P6) ---
     @cached_property
     def barbedwire(self) -> CfgStruct:
-        """BarbedWirePrototypes (par. 2.2): [0] Empty plus zwei Kinder
-        (Limiting/Overlappable), die alle Werte selbst deklarieren."""
+        """Read the empty base and explicit Limiting/Overlappable barbed-wire children."""
         return self._parse("BarbedWirePrototypes.cfg")
 
     @cached_property
     def destructibles(self) -> CfgStruct:
-        """DestructibleObjectPrototypes (par. 2.10): 436 Prototypen, Schluessel
-        sind Indizes [N], die SID steht im Struct. 536 KB - dieser Accessor
-        wird nur beruehrt, wenn der Behaelter-Regler nicht auf Vanilla steht."""
+        """Lazily read destructible objects when their controls differ from vanilla.
+
+        Struct keys are [N] indices; the SID is stored inside each struct."""
         return self._parse("DestructibleObjectPrototypes.cfg")
 
     @cached_property
     def physicsinteractions(self) -> CfgStruct:
-        """PhysicsInteractionPrototypes (par. 2.11): 88 Prototypen, jeder mit
-        eigenem PlayerPushImpulse (20.0 bis 27000.0)."""
+        """Read physics interaction prototypes and their explicit PlayerPushImpulse."""
         return self._parse("PhysicsInteractionPrototypes.cfg")
 
     @cached_property
     def weatherchains(self) -> CfgStruct:
-        """WeatherChainPrototypes (par. 2.11): 18 Ketten, 21 Uebergangsschritte,
-        22 WeatherTransitionTimeMultiplier in zwei Array-Ebenen."""
+        """WeatherChainPrototypes: 18 chains, 21 transition steps,
+        22 WeatherTransitionTimeMultiplier values across two array levels."""
         return self._parse("WeatherChainPrototypes.cfg")
 
     @cached_property
     def singletonconstants(self) -> CfgStruct:
-        """SingletonConstants (par. 2.8, unbinarisiert wie CoreVariables):
-        TimeManager mit Mond/Sonne/Sternen/Wolken. Latitude, Longitude,
-        TimeZone, NorthOffsetAngle und die Start*-Schluessel sind tabu."""
+        """Read unbinarized TimeManager sky constants.
+
+        Latitude, Longitude, TimeZone, NorthOffsetAngle and Start* keys are excluded."""
         return self._parse("SingletonConstants.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P7) ---
+    # --- 1.28.0 (core controls P7) ---
     @cached_property
     def packofitems(self) -> CfgStruct:
-        """PackOfItemsGroupPrototypes (par. 2.12): 47 Gruppen handplatzierter
-        Welt-Loot-Haufen. Nur ArtifactUncommon wird angefasst (20 Eintraege,
-        alle mit Weight 0); die Rang-Sperren der anderen Gruppen sind tabu."""
+        """Read hand-placed loot groups.
+
+        The base tweak targets ArtifactUncommon; other groups' rank gates are excluded."""
         return self._parse("PackOfItemsGroupPrototypes.cfg")
 
-    # --- 1.28.0 (Kern-Sweep P8) ---
+    # --- 1.28.0 (core controls P8) ---
     @cached_property
     def npcprototypes(self) -> CfgStruct:
-        """NPCPrototypes (par. 2.9): 1353 NPC-Structs, davon neun Haendler mit
-        eigenem BuyCoefficient/SellCoefficient und 22 mit Money > 0. Die Datei
-        ist 1.8 MB gross - dieser Accessor wird nur beruehrt, wenn einer der
-        drei Haendler-Regler nicht auf Vanilla steht."""
+        """Lazily read NPC trader coefficients and money when trader controls change."""
         return self._parse("NPCPrototypes.cfg")
 
     @cached_property
@@ -780,38 +751,36 @@ class GameData:
 
     @cached_property
     def explosions(self) -> CfgStruct:
-        """ExplosionPrototypes: RGD5/F1/VOG25/M203/PG7V, Faesser, Gasflaschen."""
+        """ExplosionPrototypes: RGD5/F1/VOG25/M203/PG7V, barrels and gas cylinders."""
         return self._parse("ExplosionPrototypes.cfg")
 
     @cached_property
     def corpseclues(self) -> CfgStruct:
-        """CorpseClueStashPrototypes: Default + 23 Regionen, Base/AddSpawnChance."""
+        """CorpseClueStashPrototypes: Default + 23 regions, Base/AddSpawnChance."""
         return self._parse("CorpseClueStashPrototypes.cfg")
 
     @cached_property
     def markers(self) -> CfgStruct:
-        """MarkerPrototypes: 359 PDA-Marker (Orte, Regionen, Haendler ...)."""
+        """MarkerPrototypes: 359 PDA markers for places, regions, traders and other targets."""
         return self._parse("MarkerPrototypes.cfg")
 
     @cached_property
     def combatsync(self) -> CfgStruct:
-        """CombatSynchronizationPrototypes: Default + je Grad, darin je Rang
-        FilterGroups mit MaxScore (Token-Budgets) - 1.27.0."""
+        """Read combat synchronization presets with rank-specific FilterGroups budgets."""
         return self._parse("CombatSynchronizationPrototypes.cfg")
 
     @cached_property
     def containers(self) -> CfgStruct:
-        """ItemContainerPrototypes: 25 Behaeltertypen, RespawnTimeSeconds 0 - 1.27.0."""
+        """ItemContainerPrototypes: 25 container types, RespawnTimeSeconds 0."""
         return self._parse("ItemContainerPrototypes.cfg")
 
     @cached_property
     def anomalies(self) -> CfgStruct:
-        """AnomalyPrototypes (nur ClickerAnomaly wird angefasst)."""
+        """Read anomaly prototypes; the existing tweak targets ClickerAnomaly."""
         return self._parse("AnomalyPrototypes.cfg")
 
     def human_npcs(self) -> list[str]:
-        """SIDs aller menschlichen NPC-Prototypen: Faction gesetzt und keine
-        Mutanten-Fraktion; Player und Basis [0] ausgenommen."""
+        """Return human NPC prototype SIDs, excluding mutant factions, Player and [0]."""
         out: list[str] = []
         for sid in self.obj.children:
             if sid in ("[0]", "Player") or "#" in sid:
@@ -823,11 +792,10 @@ class GameData:
         return out
 
     def scope_effects(self) -> dict[str, tuple[str | None, list[str]]]:
-        """{Scope-SID: (Zoom-Effekt-SID | None, [Nachteil-Effekt-SIDs])} aller
-        Zielfernrohr-Items (AttachType Scope, keine Templates) mit einem
-        Zoom-Effekt (AimingFOVX*) oder Nachteilen (ScopeAimingTimeNeg*,
-        ScopeAimingMovementNeg*) in ihrer EffectPrototypeSIDs-Liste. In
-        Vanilla definiert jedes Scope-Item die Liste selbst (1.27.0)."""
+        """Return {scope_SID: (zoom_effect_or_None, [penalty_effects])} for real scopes.
+
+        Resolve AimingFOVX*, ScopeAimingTimeNeg* and ScopeAimingMovementNeg* from
+        EffectPrototypeSIDs. Each checked vanilla scope declares its own list."""
         result: dict[str, tuple[str | None, list[str]]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -847,8 +815,7 @@ class GameData:
         return result
 
     def scope_effect_list(self, sid: str) -> dict[str, str]:
-        """{Index: Effekt-SID} der EffectPrototypeSIDs-Liste eines Scope-Items
-        (eigene Liste, sonst die naechste geerbte)."""
+        """Return {index: effect_SID} from the nearest declared scope-effect list."""
         for node in self._resolve_chain(self.items, sid):
             if "EffectPrototypeSIDs" in node.children:
                 return {k: v.strip() for k, v in node.children["EffectPrototypeSIDs"].values.items()}
@@ -863,7 +830,7 @@ class GameData:
     # ------------------------------------------------------------ inheritance
     @staticmethod
     def _resolve_chain(root: CfgStruct, sid: str) -> list[CfgStruct]:
-        """Kette [Prototyp, Basis, Basis der Basis, ...] via refkey (gleiche Datei)."""
+        """Follow same-file refkey inheritance: [prototype, parent, grandparent, ...]."""
         chain: list[CfgStruct] = []
         seen: set[str] = set()
         current: str | None = sid
@@ -888,10 +855,10 @@ class GameData:
         return self._chain_get(self._resolve_chain(root, sid), path)
 
     def template_of(self, sid: str) -> str | None:
-        """Erstes Template*-Glied in der Vererbungskette eines Items."""
+        """Find the first Template* ancestor in an item's inheritance chain."""
         for node in self._resolve_chain(self.items, sid):
             if node.name.startswith("Template"):
-                # Quest-Templates auf ihr Basis-Template weiterverfolgen
+                # Continue through quest templates to their underlying base template.
                 if node.name.startswith("TemplateQuest"):
                     continue
                 return node.name
@@ -906,7 +873,7 @@ class GameData:
 
     # ------------------------------------------------------------- inventories
     def mutants(self) -> dict[str, float]:
-        """{SID: effektive Vanilla-MaxHP} aller Mutanten-Prototypen."""
+        """Return {SID: effective vanilla MaxHP} for all mutant prototypes."""
         result: dict[str, float] = {}
         for sid, node in self.obj.children.items():
             if sid == "[0]" or "#" in sid:
@@ -924,7 +891,7 @@ class GameData:
     MUTANT_SPEED_KEYS = ("WalkSpeed", "RunSpeed", "SprintSpeed")
 
     def mutant_speeds(self) -> dict[str, dict[str, float]]:
-        """{SID: {SpeedKey: Wert}} aller Mutanten-Prototypen (aufgeloest)."""
+        """Return {SID: {SpeedKey: value}} for all resolved mutant prototypes."""
         result: dict[str, dict[str, float]] = {}
         for sid in self.mutants():
             speeds = {}
@@ -937,14 +904,12 @@ class GameData:
         return result
 
     def mutant_faction(self, sid: str) -> str | None:
-        """Kreatur-Fraktion (= Art) eines Mutanten-Prototyps."""
+        """Return a mutant prototype's creature faction (species)."""
         faction = self._chain_get(self._resolve_chain(self.obj, sid), "Faction")
         return faction if faction in MUTANT_FACTIONS else None
 
     def mutant_regens(self) -> dict[str, float]:
-        """{SID: VitalParams.RegenHP} aller Mutanten-Prototypen mit
-        Regeneration > 0 (2.0.x: 44 von 47 — Mutanten heilen sich, wie
-        die menschlichen NPCs)."""
+        """Return positive VitalParams.RegenHP values for mutant prototypes."""
         result: dict[str, float] = {}
         for sid in self.mutants():
             value = parse_number(
@@ -954,11 +919,10 @@ class GameData:
         return result
 
     def mutant_attack_damages(self, species: str) -> dict[str, tuple[str, float]]:
-        """{Attacken-Struct: (Damage-Pfad, Vanilla-Wert)} einer Mutanten-Art.
+        """Return {attack_struct: (damage_path, vanilla_value)} for one mutant species.
 
-        Damage liegt top-level; nur die ChargeAbility_*-Structs nesten ihn
-        unter DamageParams. Structs mit Damage <= 0 (Utility-Faehigkeiten)
-        werden uebersprungen."""
+        Damage is normally top-level, but ChargeAbility_* uses DamageParams.
+        Skip utility abilities with nonpositive damage."""
         prefixes = SPECIES_ABILITY_PREFIXES.get(species, [])
         result: dict[str, tuple[str, float]] = {}
         for sid, node in self.abilities.children.items():
@@ -971,12 +935,12 @@ class GameData:
                     break
         return result
 
-    # Bloodsucker-Tarnung: Prototypen mit InvisibilityFeatureData
+    # Bloodsucker prototypes with InvisibilityFeatureData.
     INVISIBILITY_KEYS = ("ToVisibleSeconds", "ToInvisibleSeconds",
                         "InvisibilityLossFromDamage")
 
     def invisibility_prototypes(self) -> dict[str, dict[str, float]]:
-        """{SID: {Key: Wert}} aller Prototypen mit eigener Tarnung."""
+        """Return {SID: {key: value}} for prototypes declaring invisibility data."""
         result: dict[str, dict[str, float]] = {}
         for sid, node in self.obj.children.items():
             if "#" in sid:
@@ -993,8 +957,8 @@ class GameData:
                 result[sid] = values
         return result
 
-    # Consumable-Effekte: nur diese Typen sind gefahrlos skalierbar
-    # (Vorzeichen-Regeln siehe docs/V15_DATA_RESEARCH.md)
+    # Scalable consumable-effect types; sign rules are documented in
+    # docs/V15_DATA_RESEARCH.md.
     CONSUMABLE_SAFE_TYPES = {
         "EEffectType::Health", "EEffectType::Bleeding", "EEffectType::Radiation",
         "EEffectType::HungerPoints", "EEffectType::Stamina",
@@ -1002,20 +966,16 @@ class GameData:
         "EEffectType::DegenPsyPoints", "EEffectType::SleepinessPoints",
         "EEffectType::DegenBleeding", "EEffectType::Drunkness",
     }
-    # Bei diesen Typen sind POSITIVE Werte ein Malus (Hunger/Suff steigt) —
-    # nur negative Werte skalieren
+    # Positive values increase hunger/intoxication for these types;
+    # scale only their negative values.
     CONSUMABLE_NEGATIVE_ONLY = {"EEffectType::HungerPoints",
                                 "EEffectType::Drunkness"}
 
     def medical_healing_effects(self) -> set[str]:
-        """Effekt-SIDs der GESUNDHEITS-Wirkung medizinischer Items.
+        """Return positive Health-effect SIDs referenced by medical consumables.
 
-        "Medizinisch" wird live aus den Daten abgeleitet, nicht ueber Namen:
-        ein Consumable gilt als Medizin, wenn es AUCH einen
-        blutungsstillenden Effekt referenziert (Bleeding mit negativem
-        Wert). Das trifft Medkit/ArmyMedkit/EcoMedkit/Bandage — Essen und
-        Getraenke stillen nie Blutungen. Geliefert werden nur deren
-        positive Health-Effekte (das eigentliche Heilen)."""
+        Identify medicine by its negative Bleeding effect, rather than item names.
+        This separates medkits/bandages from food and drinks in the checked data."""
         out: set[str] = set()
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -1043,8 +1003,7 @@ class GameData:
         return out
 
     def consumable_effects(self) -> dict[str, CfgStruct]:
-        """{Effekt-SID: Effekt-Node} aller von Consumables referenzierten,
-        gefahrlos skalierbaren Effekte."""
+        """Return {effect SID: effect node} for supported effects referenced by consumables."""
         sids: set[str] = set()
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -1070,8 +1029,8 @@ class GameData:
             result[sid] = node
         return result
 
-    # Anomalie-Schadens-Effekte je Element-Typ (SID-Sets verifiziert;
-    # Werte werden live gelesen). PSY macht keinen direkten HP-Schaden.
+    # Anomaly damage-effect SIDs by element; values are read live.
+    # PSY effects do not directly damage HP.
     ANOMALY_EFFECT_SETS = {
         "electro": ["ElectroAnomaly", "ElectroAnomalyPrologue"],
         "chemical": ["ChemicalDamage", "SoapBubbleDamage",
@@ -1086,32 +1045,26 @@ class GameData:
                     "DiamondDPS", "DiamondBleeding"],
     }
 
-    # Wetter: diese Sub-Structs gelten als "Regen/Sturm"
+    # Weather substructs classified as rain/storm.
     RAIN_WEATHER_TYPES = ("Stormy", "LightRainy", "Rainy", "Thundery")
 
-    # Das Null-Schema, von dem alle 18 echten Stash-Prototypen erben. NIE
-    # patchen: es enthaelt nur Nullen und ItemPrototypeSID = empty; wuerde
-    # man dort etwas aktivieren, tauchen ueberall Eintraege auf, die auf ein
-    # nicht existierendes Item zeigen (docs/GENERATOR_RESEARCH.md, Warnung 17).
+    # Never patch the zero-valued stash template: its item SID is empty.
+    # Activating it would introduce invalid item references in inheriting stashes.
+    # See docs/GENERATOR_RESEARCH.md.
     STASH_TEMPLATE = "empty"
 
-    # In Vanilla wirkungslos, deshalb nicht patchen (spart ~25 % Patch-Text):
-    # die beiden *_MainLoot-Generatoren stehen in ALLEN Eintraegen auf
-    # MaxSpawnChance = 0.f (von GSC bewusst abgeschaltet), die beiden
-    # *_Corpse-Structs werden im gesamten GameData nirgends referenziert.
+    # Skip inactive vanilla generators: *_MainLoot entries have zero maximum
+    # spawn chance, and the checked *_Corpse structs have no GameData references.
     STASH_UNUSED = {
         "Stash_AmmoSNG_Smart_MainLoot", "Stash_AmmoNATO_Smart_MainLoot",
         "StashMedicine_Corpse", "StashVodka_Corpse",
     }
 
     def stash_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
-        """Alle Smart-Loot-Eintraege der Verstecke/Leichen-Generatoren.
+        """Yield smart-loot entries from stash/corpse generators.
 
-        Liefert (Stash-SID, ItemGenerators-Schluessel, Gruppe,
-        Eintrags-Schluessel, Knoten) — die Schluessel kommen so, wie sie in
-        der Datei stehen. Nichts wird konstruiert: Raenge und Gruppen sind
-        je Struct unterschiedlich belegt (7 Structs haben nur [0], andere
-        [0..3]; einzelnen Raengen fehlen ganze Gruppen)."""
+        Return (stash_SID, generator_key, group_key, entry_key, node), preserving
+        actual keys. Available ranks and groups differ between structs."""
         out: list[tuple[str, str, str, str, CfgStruct]] = []
         for sid, node in self.stashes.children.items():
             if sid == self.STASH_TEMPLATE or sid in self.STASH_UNUSED or "#" in sid:
@@ -1128,73 +1081,56 @@ class GameData:
                         out.append((sid, gen_key, group, entry_key, entry))
         return out
 
-    # ------------------------------------------------- Loot-Mengen (Generator)
-    # ItemGeneratorPrototypes.cfg ist die grosse Loot-Datei (3.085 Prototypen).
-    # Nur MinCount/MaxCount unter PossibleItems duerfen skaliert werden; die
-    # gleichnamigen Felder unter MoneyGenerator sind Kupons und bleiben tabu
-    # (Maximum 72.500 - ein Faktor darauf waere ein Wirtschafts-Exploit).
-    # Der Sicherheitsfilter arbeitet ZWEISTUFIG, weil die Datei selbst keinen
-    # Quest-Marker kennt (docs/GENERATOR_RESEARCH.md, Abschnitt 5):
-    #   Stufe 1  Namensmuster auf Struct-Schluessel UND SID
-    #   Stufe 2  jede ItemPrototypeSID des Blocks gegen ItemPrototypes.cfg
-    # Stufe 1 allein laesst nachweislich Quest-Schluessel und Unikate durch.
+    # Loot quantities: scale MinCount/MaxCount only under PossibleItems.
+    # MoneyGenerator uses the same names for currency and must remain unchanged.
+    # Filter both struct key/SID patterns and referenced ItemPrototypeSIDs;
+    # name filtering alone misses quest items and unique equipment.
+    # See docs/GENERATOR_RESEARCH.md, section 5.
 
-    # Das leere Basis-Template, von dem 1.773 Prototypen erben. NIE patchen.
+    # Empty base template inherited by 1,773 prototypes. Never patch it.
     LOOT_TEMPLATE_KEY = "[0]"
 
-    # Stufe 1: Story-, Belohnungs-, Container-, Haendler- und Dev-Namen.
-    # "Trade" steht mit drin, weil 13 Haendler-Lager (u.a.
-    # MainTraderItemGeneratorV1 = Bestand von 32 Technikern/Medics/Guides)
-    # NICHT ueber TradePrototypes.cfg verlinkt sind und sonst durchrutschen.
+    # Exclude story, reward, container, trader and developer names.
+    # Trade also catches inventories not linked through TradePrototypes.
     LOOT_UNSAFE_NAME = re.compile(
         r"(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)|Quest|QSBIG|GDEQ|Reward|^C_"
         r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena"
         r"|(?:^|_)Key|(?:^|_)Safe|Icon|PDA|Trade"
     )
-    # "GamePass" steht bewusst NICHT in der Blacklist (Review 01.09.): die 17
-    # GamePass_Stash_*-Tabellen sind gewoehnliche Welt-Verstecke der Basis-
-    # Version (167 Container mit SpawnOnStart auf der Hauptkarte, DLC=None),
-    # inhaltlich 1:1-Klone der Stash_Cheap/Medium/Expensive-Tabellen. Die
-    # Inhaltspruefung plus der Geldkarten-Skip decken sie vollstaendig ab.
+    # GamePass_Stash_* tables are ordinary base-game world stashes.
+    # Content validation and currency exclusion cover them; their names alone
+    # are not grounds for exclusion.
 
-    # Dasselbe Muster fuer die HAENDLER-Huelle - natuerlich ohne "Trade",
-    # sonst filtert es genau die Structs weg, um die es geht (der
-    # Trader/Condition-Test hat das gefangen: Huelle schrumpfte auf 2).
+    # Trader traversal uses the same filter without Trade, which would
+    # otherwise exclude the very inventories being collected.
     TRADER_UNSAFE_NAME = re.compile(
         r"(?:^|_)(MQ|EQ|SQ|RSQ|ANCQ)(?=\d|_|$)|Quest|QSBIG|GDEQ|Reward|^C_"
         r"|(?:^|_)BP_|UAID_|Container|Template|Player|Boss|Arena"
         r"|(?:^|_)Key|(?:^|_)Safe|Icon|PDA"
     )
 
-    # Unikat-Konvention auf Item-Ebene: Gun_<Name>_<Klasse> (Unterstrich nach
-    # "Gun"), im Gegensatz zu Serienwaffen wie GunAK74_ST.
+    # Unique weapons use Gun_<name>_<class>; standard weapons use GunAK74_ST, etc.
     LOOT_UNIQUE_ITEM = re.compile(r"^Gun_[A-Z]")
 
-    # Platzhalter-Item; taucht 710x auf und existiert bewusst nicht in
-    # ItemPrototypes.cfg. Kein Grund, einen Block zu verwerfen.
+    # Intentional placeholder SID absent from ItemPrototypes; allow its block.
     LOOT_EMPTY_ITEMS = {"empty", "Empty"}
 
-    # Faellt durch beide Stufen: der Elektrohalsband-Generator (Quest-Sache
-    # ohne IsQuestItem-Marker; doppelte Exemplare koennen den Questfortschritt
-    # blockieren - docs/GENERATOR_RESEARCH.md, Warnung 6).
+    # Explicitly exclude the quest collar generator: neither normal filter
+    # catches it, and duplicate collars can obstruct quest progression.
     LOOT_DENY_SIDS = {"MutantElectrocollarGenerator"}
 
-    # ItemPrototypes.cfg fuehrt ZWEI unabhaengige Quest-Marker. IsQuestItem
-    # allein reicht nicht: 291 Items sind nur ueber IsQuestItemPrototype
-    # markiert, darunter die Notiz-PDAs, die an OnPlayerGetItemEvent haengen.
+    # Resolve both independent quest markers. IsQuestItem alone misses items
+    # marked only by IsQuestItemPrototype, including event-linked PDAs.
     LOOT_QUEST_FLAGS = ("IsQuestItem", "IsQuestItemPrototype")
 
-    # Geld ist in dieser Datei nicht nur der MoneyGenerator-Zweig: es liegt
-    # auch als normales Item in PossibleItems (Geldkarten mit 500 bis 15.000
-    # Kupons). Erkannt wird das am Effekt, nicht am Namen - ein Item ist
-    # Waehrung, wenn einer seiner Aufsammel-Effekte diesen Typ hat.
+    # Currency also appears as PossibleItems money cards. Detect it through
+    # pickup-effect types, independently of item names.
     LOOT_MONEY_EFFECT = "EEffectType::AddMoney"
     LOOT_EFFECT_KEYS = ("EffectOnPickPrototypeSIDs", "EffectPrototypeSIDs")
 
     @cached_property
     def _quest_item_sids(self) -> set[str]:
-        """Alle Item-SIDs mit einem der beiden Quest-Marker (refkey-Kette
-        aufgeloest)."""
+        """Return item SIDs with either quest marker, resolving inherited values."""
         out: set[str] = set()
         for sid in self.items.children:
             for flag in self.LOOT_QUEST_FLAGS:
@@ -1208,11 +1144,7 @@ class GameData:
 
     @cached_property
     def _money_item_sids(self) -> set[str]:
-        """Item-SIDs, die beim Aufsammeln Kupons gutschreiben (Geldkarten).
-
-        Live ueber den Effekt-Typ bestimmt, nicht ueber Namen: erst alle
-        Effekte mit AddMoney sammeln, dann die Items, die einen davon
-        auslesen (auch geerbt)."""
+        """Return items whose resolved pickup effects include AddMoney."""
         money_effects = {
             sid for sid, node in self.effects.children.items()
             if self.LOOT_MONEY_EFFECT in (node.values.get("Type") or "")
@@ -1234,9 +1166,9 @@ class GameData:
 
     @cached_property
     def _generator_key_by_sid(self) -> dict[str, str]:
-        """SID -> Struct-Schluessel. 226 Prototypen heissen [N] statt wie ihre
-        SID; ein Patch MUSS den echten Schluessel treffen, sonst legt bpatch
-        einen neuen Knoten an, statt zu patchen."""
+        """Map SID to the actual struct key.
+
+        Indexed [N] keys must be preserved or bpatch would create a different node."""
         out: dict[str, str] = {}
         for key, node in self.itemgenerators.children.items():
             out.setdefault((node.values.get("SID") or key).strip(), key)
@@ -1245,24 +1177,11 @@ class GameData:
 
     @cached_property
     def _trade_generator_keys(self) -> set[str]:
-        """Alle Generatoren, die Haendler-Bestand erzeugen (transitiv).
+        """Find trader inventory generators excluded from the general loot tweak.
 
-        Zwei Quellen, die unterschiedlich behandelt werden:
-
-        1. Die in TradePrototypes.cfg verlinkten Wurzeln - das ist die echte
-           Handelskette. Von dort wird transitiv weitergegangen, weil sich
-           mehrere Haendler Bausteine wie Trader_T2_Ammo teilen.
-        2. Generatoren mit "Trade" im Namen. Die gehoeren 13x zu Haendlern,
-           die NICHT ueber TradePrototypes verlinkt sind (z.B.
-           MainTraderItemGeneratorV1, der Bestand von 32 Technikern und
-           Medics). Sie werden selbst ausgeschlossen, geben ihre Sperre aber
-           NICHT weiter: sonst reisst z.B. TraderEugene die Bausteine
-           GeneralNPC_Consumables_Recon/_Stormtrooper mit hinaus, die 239
-           bzw. 281 gewoehnliche NPC-Prototypen fuer ihre Medizin und
-           Nahrung benutzen - dann wuerde der Leichen-Loot gar nicht mehr
-           skalieren, also genau das, was der Regler verspricht.
-
-        Haendler-Bestand ist bewusst NICHT Teil des Loot-Reglers."""
+        Traverse roots linked by TradePrototypes transitively. Also exclude
+        generators with Trade in their names, but do not propagate that exclusion:
+        they can share consumable pools with ordinary NPCs."""
         root = self.itemgenerators
         roots: set[str] = set()
         for node in self.trade.children.values():
@@ -1291,12 +1210,10 @@ class GameData:
         return hull
 
     def _loot_block_is_safe(self, node: CfgStruct) -> bool:
-        """Stufe 2: jede ItemPrototypeSID des Blocks inhaltlich pruefen.
+        """Validate every ItemPrototypeSID in a generator.
 
-        Verworfen wird der GANZE Prototyp, sobald ein enthaltenes Item ein
-        Quest-Item oder ein Unikat ist oder in ItemPrototypes.cfg gar nicht
-        vorkommt (dann laesst es sich nicht pruefen - im Zweifel Finger weg;
-        so fallen u.a. E07_MQ01PsySuit und E03_MQ02_HunterNote heraus)."""
+        Reject the entire prototype if any item is a quest item, unique, or absent
+        from ItemPrototypes and therefore unverifiable."""
         for gen_key, gen in node.children.items():
             if gen_key != "ItemGenerator":
                 continue
@@ -1315,8 +1232,7 @@ class GameData:
         return True
 
     def loot_generators(self) -> list[str]:
-        """Struct-Schluessel aller Prototypen, deren Stueckzahlen skaliert
-        werden duerfen (Filter siehe oben)."""
+        """Return generator struct keys eligible for quantity scaling."""
         safe: list[str] = []
         for key, node in self.itemgenerators.children.items():
             sid = (node.values.get("SID") or key).strip()
@@ -1326,7 +1242,7 @@ class GameData:
                 continue
             if key in self._trade_generator_keys:
                 continue
-            if sid.startswith("All"):        # Dev-Sammelgeneratoren (900 Stk.)
+            if sid.startswith("All"):        # Development collection generators (900 items).
                 continue
             if (self.LOOT_UNSAFE_NAME.search(key)
                     or self.LOOT_UNSAFE_NAME.search(sid)):
@@ -1337,27 +1253,18 @@ class GameData:
         return safe
 
     def _loot_item_is_skippable(self, sid: str) -> bool:
-        """Eintraege mit diesem Item ueberspringen, ohne den ganzen Prototyp
-        zu verwerfen.
+        """Skip individual currency entries and unmarked quest-pattern items.
 
-        Zwei Faelle, beide harmlose Einzelposten in sonst normalem Loot:
-        Geldkarten (sonst waere der Regler ein Wirtschafts-Exploit, und die
-        GUI verspricht ausdruecklich, Geld nicht anzufassen) und Items, deren
-        NAME das Quest-Muster trifft, ohne einen Quest-Marker zu tragen -
-        praktisch nur der unsichtbare Marker GuardQuestItem bei 31 Wachen
-        und ein Debug-Artefakt auf der Testkarte."""
+        These isolated entries do not invalidate otherwise ordinary loot pools."""
         if sid in self._money_item_sids:
             return True
         return bool(self.LOOT_UNSAFE_NAME.search(sid))
 
     def loot_count_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
-        """Alle skalierbaren Mengen-Eintraege der sicheren Prototypen.
+        """Yield scalable quantities from eligible generator prototypes.
 
-        Liefert (Struct-Schluessel, Generator-Schluessel, Slot-Schluessel,
-        Item-Schluessel, Knoten). Saemtliche Schluessel kommen aus der Datei:
-        724 Slots heissen Head/BodyArmor/... statt [i]. Betreten wird nur der
-        Zweig ItemGenerator - MoneyGenerator liegt daneben und bleibt
-        unberuehrt."""
+        Return (struct_key, generator_key, slot_key, item_key, node), preserving
+        named and indexed keys. Traverse ItemGenerator, never MoneyGenerator."""
         out: list[tuple[str, str, str, str, CfgStruct]] = []
         root = self.itemgenerators
         for key in self.loot_generators():
@@ -1379,8 +1286,7 @@ class GameData:
                             out.append((key, gen_key, slot_key, item_key, item))
         return out
 
-    # Waffen-Slots fuer den Zustands-Regler (Category am SLOT-Knoten;
-    # Ruestung/Helme/Artefakte/Consumables bleiben bewusst draussen)
+    # Weapon slot categories for condition scaling; exclude armor and other items.
     CONDITION_CATEGORIES = frozenset({
         "EItemGenerationCategory::WeaponPrimary",
         "EItemGenerationCategory::WeaponSecondary",
@@ -1388,11 +1294,10 @@ class GameData:
     })
 
     def loot_durability_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
-        """Zustands-Eintraege (MinDurability+MaxDurability, Max > 0) in
-        Waffen-Slots der SICHEREN Loot-Prototypen. Haendler-Ware ist ueber
-        loot_generators() bereits ausgeschlossen; Eintraege mit nur einem
-        der beiden Schluessel werden uebersprungen (Recherche, Warnung 14:
-        ein Patch darf keinen neuen Schluessel anlegen)."""
+        """Yield weapon condition entries from eligible non-trader loot.
+
+        Require both MinDurability and MaxDurability, with a positive maximum,
+        so patches cannot introduce missing fields."""
         out: list[tuple[str, str, str, str, CfgStruct]] = []
         root = self.itemgenerators
         for key in self.loot_generators():
@@ -1423,7 +1328,7 @@ class GameData:
                         out.append((key, gen_key, slot_key, item_key, item))
         return out
 
-    # Kategorien fuer den NPC-Gear-Quality-Regler (Weight-Lotterien)
+    # Weapon/armor categories for NPC gear-quality weighted pools.
     GEAR_CATEGORIES = frozenset({
         "EItemGenerationCategory::WeaponPrimary",
         "EItemGenerationCategory::WeaponSecondary",
@@ -1433,12 +1338,10 @@ class GameData:
     })
 
     def gear_weight_pools(self):
-        """[(Struct, Gen, Slot, [(Item-Schluessel, Knoten, Weight, Cost)])]
-        aller Waffen-/Ruestungs-Weight-Lotterien (>= 2 Eintraege) in den
-        SICHEREN Loot-Prototypen — das sind die Rang-Loadout-Pools der
-        NPCs. Items ohne aufloesbaren Preis (2.0.x: 18 von ~13.000)
-        bleiben in der Liste, aber mit Cost None (der Builder laesst ihr
-        Gewicht unangetastet)."""
+        """Yield eligible equipment pools with at least two weighted choices.
+
+        Each result is (struct, generator, slot, [(item_key, node, weight, cost)]).
+        Unresolved prices remain None so their weights stay unchanged."""
         out = []
         root = self.itemgenerators
         for key in self.loot_generators():
@@ -1471,11 +1374,10 @@ class GameData:
         return out
 
     def trader_stock_generators(self) -> list[str]:
-        """Struct-Schluessel der Handelsketten-Huelle: transitiv ab den in
-        TradePrototypes verlinkten Wurzeln (docs/GENERATOR_RESEARCH.md,
-        Kap. 7), ohne Dev-Sammler (All*) und ohne Quest-Muster-Treffer.
-        Das ist das GEGENSTUECK zum Loot-Regler, der genau diese Huelle
-        ausschliesst."""
+        """Return transitive trader-generator keys linked from TradePrototypes.
+
+        Exclude All* developer collections and quest-name matches. This is the
+        inventory set excluded by general loot scaling; see GENERATOR_RESEARCH.md."""
         root = self.itemgenerators
         roots: set[str] = set()
         for node in self.trade.children.values():
@@ -1514,9 +1416,9 @@ class GameData:
         return safe
 
     def trader_stock_entries(self) -> list[tuple[str, str, str, str, CfgStruct]]:
-        """Bestands-Eintraege der Handelsketten-Huelle (Mengen und/oder
-        Chance). Geldkarten und Quest-Muster-Items werden je Eintrag
-        uebersprungen; der MoneyGenerator-Zweig wird nie betreten."""
+        """Yield trader stock quantity/chance entries.
+
+        Skip currency and quest-pattern items individually; never traverse MoneyGenerator."""
         out: list[tuple[str, str, str, str, CfgStruct]] = []
         root = self.itemgenerators
         for key in self.trader_stock_generators():
@@ -1543,8 +1445,7 @@ class GameData:
         return out
 
     def trader_wallets(self) -> dict[str, tuple[float, bool]]:
-        """{Trader-SID: (Money, bInfiniteMoney)} aller Laeden mit
-        Money-Feld (2.0.x: 73, davon 59 vanilla unendlich)."""
+        """Return {trader_SID: (Money, bInfiniteMoney)} for traders with a Money field."""
         result: dict[str, tuple[float, bool]] = {}
         for sid, node in self.trade.children.items():
             if sid == "[0]" or "#" in sid:
@@ -1558,8 +1459,7 @@ class GameData:
         return result
 
     def npcs_with_regen(self) -> dict[str, float]:
-        """{SID: RegenHP} aller menschlichen NPC-Prototypen mit
-        Selbstheilung (Mutanten und Player ausgenommen)."""
+        """Return positive RegenHP values for human NPCs, excluding mutants and Player."""
         result: dict[str, float] = {}
         for sid in self.obj.children:
             if sid in ("[0]", "Player") or "#" in sid:
@@ -1574,11 +1474,11 @@ class GameData:
         return result
 
     def player_weapon_wear(self) -> dict[str, float]:
-        """{SID: DurabilityDamagePerShot} aller *_Player-Waffen-Settings."""
+        """Return {SID: DurabilityDamagePerShot} for all *_Player weapon settings."""
         return self._player_weapon_values("DurabilityDamagePerShot")
 
     def player_weapon_dispersion(self) -> dict[str, float]:
-        """{SID: DispersionRadius} aller *_Player-Waffen-Settings."""
+        """Return {SID: DispersionRadius} for all *_Player weapon settings."""
         return self._player_weapon_values("DispersionRadius")
 
     def _player_weapon_values(self, key: str) -> dict[str, float]:
@@ -1595,9 +1495,9 @@ class GameData:
         return result
 
     def weapon_category(self, sid: str) -> str | None:
-        """Kategorie einer Waffe (WeaponGeneralSetup-SID) ueber die
-        refkey-Kette bis zum Kategorie-Template; None = keine Kategorie
-        (Quest-/Sonderwaffen) -> nur globale Regler greifen."""
+        """Resolve a weapon category through its WeaponGeneralSetup refkey chain.
+
+        None indicates a quest/special weapon affected only by global controls."""
         for node in self._resolve_chain(self.weapongeneral, sid):
             if node.name in WEAPON_CATEGORY_OVERRIDES:
                 return WEAPON_CATEGORY_OVERRIDES[node.name]
@@ -1606,14 +1506,11 @@ class GameData:
         return None
 
     def player_weapons(self) -> dict[str, tuple[str | None, str | None]]:
-        """{WGS-SID: (Kategorie, CWS-Struct-SID)} aller Spieler-Waffen.
+        """Return {WGS_SID: (category, CWS_struct_SID)} for player weapons.
 
-        Verknuepfungskette: Item -> PlayerWeaponAttributes
-        (WeaponAttributesPrototypes.cfg) -> DefaultWeaponSettingsSID ->
-        CharacterWeaponSettings-Struct. Der letzte Schritt ist Pflicht:
-        bei 24 Unikaten heisst der CWS-Struct *_Player_WS, nicht *_Player,
-        und mehrere Waffen koennen sich EIN CWS-Struct teilen
-        (z.B. die ganze AK74-Familie -> GunAK74_ST_Player)."""
+        Follow Item -> PlayerWeaponAttributes -> DefaultWeaponSettingsSID -> CWS.
+        Do not infer CWS names: unique weapons may use *_Player_WS, and several
+        weapons can share one CWS struct."""
         result: dict[str, tuple[str | None, str | None]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -1629,20 +1526,18 @@ class GameData:
                 cws = self.resolve(self.weaponattributes, attrs,
                                    "DefaultWeaponSettingsSID") or attrs
             result[wgs] = (self.weapon_category(wgs), cws)
-        # Editions-Waffen ergaenzen (Gabion & Co.); Skins wie
-        # Deluxe_GunAK74_ST zeigen auf ein BASIS-Setup und werden nicht
-        # doppelt gelistet.
+        # Include edition weapons; omit duplicate skins pointing to base-game setups.
         for wgs, (cat, cws, _ed) in self.dlc_player_weapons().items():
             if wgs not in result:
                 result[wgs] = (cat, cws)
         return result
 
-    # ------------------------------------------------------- DLC-Editionen
+    # ------------------------------------------------------- DLC editions
     @cached_property
     def dlc_editions(self) -> dict[str, dict[str, CfgStruct]]:
-        """{Edition: {"items"/"weapongeneral": Baum}} der vorhandenen
-        DLCGameData-Zweige. Ohne Editions-Paks / mit aelterem Cache leer —
-        dann gibt es schlicht keine DLC-Waffen, sonst aendert sich nichts."""
+        """Return installed DLCGameData trees as {edition: {items/weapongeneral: tree}}.
+
+        Missing edition Paks or old caches yield no edition entries."""
         result: dict[str, dict[str, CfgStruct]] = {}
         base = self.dir.parent / "DLCGameData"
         if not base.is_dir():
@@ -1662,9 +1557,8 @@ class GameData:
         return result
 
     def dlc_weapon_chain(self, edition: str, sid: str) -> list[CfgStruct]:
-        """Vererbungskette eines DLC-WGS-Structs: beginnt im Editions-Baum
-        und springt beim refurl auf ../GameData/WeaponData/... in die
-        Basis-Datei (dort geht es per normalem refkey weiter)."""
+        """Follow edition WGS inheritance, crossing refurl into base WeaponData
+        and continuing through the base file's refkey chain."""
         tree = self.dlc_editions.get(edition, {}).get("weapongeneral")
         if tree is None:
             return self._resolve_chain(self.weapongeneral, sid)
@@ -1675,7 +1569,7 @@ class GameData:
             seen.add(current)
             node = tree.children.get(current)
             if node is None:
-                # Kein Struct im Editions-Baum -> in der Basis weiter
+                # Continue in the base file when the edition tree has no matching struct.
                 return chain + self._resolve_chain(self.weapongeneral, current)
             chain.append(node)
             attrs = node.attr_dict()
@@ -1699,10 +1593,9 @@ class GameData:
         return self._chain_get(self.dlc_weapon_chain(edition, sid), path)
 
     def dlc_player_weapons(self) -> dict[str, tuple[str | None, str | None, str]]:
-        """{WGS-SID: (Kategorie, CWS-SID, Edition)} aller Editions-Waffen,
-        deren Setup-Struct WIRKLICH im Editions-Baum liegt (Skins mit
-        Basis-Setup wie Deluxe_GunAK74_ST fallen heraus — sie sind
-        identisch mit der Basis-Waffe)."""
+        """Return {WGS_SID: (category, CWS_SID, edition)} for edition-specific setups.
+
+        Exclude skins that reuse a base-game setup."""
         result: dict[str, tuple[str | None, str | None, str]] = {}
         for edition, trees in self.dlc_editions.items():
             items = trees.get("items")
@@ -1724,15 +1617,12 @@ class GameData:
         return result
 
     def dlc_weapon_editions(self) -> dict[str, str]:
-        """{WGS-SID: Edition} der echten Editions-Setups (fuer Patch-
-        Zuordnung und GUI-Hinweis)."""
+        """Return {WGS_SID: edition} for routing patches and labeling edition setups."""
         return {wgs: ed
                 for wgs, (_c, _w, ed) in self.dlc_player_weapons().items()}
 
     def dlc_item_chain(self, edition: str, sid: str) -> list[CfgStruct]:
-        """Vererbungskette eines DLC-ITEM-Structs: beginnt im Editions-
-        Baum und springt beim refurl auf ../GameData/ItemPrototypes/...
-        in die Basis-ItemPrototypes (dort per refkey weiter)."""
+        """Follow edition item inheritance across refurl into base ItemPrototypes."""
         tree = self.dlc_editions.get(edition, {}).get("items")
         if tree is None:
             return self._resolve_chain(self.items, sid)
@@ -1752,15 +1642,14 @@ class GameData:
             current = nxt
         return chain
 
-    # Schutz-Schluessel (identisch mit ARMOR_PARAM_KEYS in tweaks.py)
+    # Protection keys corresponding to ARMOR_PARAM_KEYS in tweaks.py.
     ARMOR_PROTECTION_KEYS = ("Strike", "Burn", "Shock", "ChemicalBurn",
                              "Radiation", "PSY")
 
     def dlc_player_armors(self) -> dict[str, tuple[str, dict[str, float], str]]:
-        """{SID: (Slot, {Schutzart: Wert}, Edition)} der Editions-
-        Ruestungen. Erkannt am refurl auf .../ArmorPrototypes.cfg; die
-        Schutzwerte kommen aus der Quer-Datei-Kette (die DLC-Structs
-        definieren ihre Protection-Bloecke selbst)."""
+        """Return {SID: (slot, protection_values, edition)} for edition armor.
+
+        Identify it by the ArmorPrototypes refurl and resolve protection across files."""
         result: dict[str, tuple[str, dict[str, float], str]] = {}
         for edition, trees in self.dlc_editions.items():
             items = trees.get("items")
@@ -1792,8 +1681,7 @@ class GameData:
                 for sid, (_s, _v, ed) in self.dlc_player_armors().items()}
 
     def dlc_summary(self) -> str:
-        """Klartext fuer die Statuszeile: welche Editions-Inhalte die
-        Installation mitbringt (der 'DLC-Checker' des Besitzers)."""
+        """Describe installed edition content for the status line."""
         if not self.dlc_editions:
             return ""
         n_guns = len(self.dlc_player_weapons())
@@ -1804,9 +1692,9 @@ class GameData:
                 f"{n_armor} armor pieces.")
 
     def dlc_weapon_general_values(self, path: str) -> dict[tuple[str, str], float]:
-        """{(Edition, SID): Wert} aller DLC-WGS-Structs, die den Pfad
-        SELBST definieren (Wert > 0) — Pendant zu weapon_general_values;
-        geerbte Werte skalieren ueber den Basis-Patch automatisch mit."""
+        """Return {(edition, SID): value} for explicit positive DLC WGS path values.
+
+        Inherited values are already affected by their base patch."""
         result: dict[tuple[str, str], float] = {}
         for edition, trees in self.dlc_editions.items():
             tree = trees.get("weapongeneral")
@@ -1826,25 +1714,23 @@ class GameData:
         return self._parse("UpgradePrototypes.cfg")
 
     def upgrade_sids_with(self, key: str) -> list[str]:
-        """SIDs aller Techniker-Upgrades, deren Sperrliste `key` in Vanilla
-        NICHT leer ist (BlockingUpgradePrototypeSIDs = sich ausschliessende
-        Zweige, RequiredUpgradePrototypeSIDs = Vorstufen/Tiers,
-        RequiredItemPrototypeSIDs = Blaupausen). Nicht-leere Listen stehen
-        als Kind-Struct mit [i]-Eintraegen, leere als leerer Skalar
-        `Key =` - genau so wird eine Liste per bpatch geleert."""
+        """Return technician upgrade SIDs with nonempty prerequisite/blocking lists.
+
+        Nonempty lists use indexed child structs; empty lists use the scalar 'Key ='.
+        Emit that scalar to clear blocking branches, tiers or blueprint requirements."""
         out: list[str] = []
         for sid, node in self.upgrades.children.items():
-            if "#" in sid or sid == "[0]":      # [0] = Basis-Template aller Upgrades
+            if "#" in sid or sid == "[0]":      # [0] is the base template for all upgrades.
                 continue
             child = node.children.get(key)
-            # "" und "empty" sind Platzhalter (3 Ruestungs-Upgrades, [0])
+            # Empty strings and 'empty' are placeholders.
             if child is not None and any(
                     v.strip() not in ("", "empty") for v in child.values.values()):
                 out.append(sid)
         return out
 
-    # ------------------------------------------------ A-Life: Lager + Director
-    # Recherche: docs/ALIFE_SPAWN_RESEARCH.md (03.09.2026) - alle Regeln dort.
+    # ------------------------------------------------ A-Life: lairs and Director
+    # Research and constraints: docs/ALIFE_SPAWN_RESEARCH.md.
     LAIR_RANKS = ("Newbie", "Experienced", "Veteran", "Master")
     LAIR_MUTANT_FACTIONS = frozenset({
         "Blinddog", "MoldyBlinddog", "Bloodsucker", "Boar", "Flesh", "Snork",
@@ -1864,12 +1750,10 @@ class GameData:
         return self._parse("ALifePrototypes/ALifeDirectorScenarioPrototypes.cfg")
 
     def lair_blocks(self) -> list[dict]:
-        """Ein Eintrag je (Lager-Typ, Bewohner-Fraktion, Rang) aus
-        LairPrototypes.cfg (784 in Vanilla): quantity = MaxSpawnQuantity,
-        min_sum = Summe MinQuantityPerArchetype (Untergrenze beim
-        Verkleinern), timers = die drei Respawn-Zeiten als Rohtext,
-        guard = Basis-Wachen-Lager (Guard*), mutant = Mutanten-Fraktion.
-        Das [0]-Template bleibt draussen."""
+        """Yield camp entries by type, resident faction and rank.
+
+        Include MaxSpawnQuantity, summed MinQuantityPerArchetype, raw respawn timers,
+        and guard/mutant flags. Exclude the [0] template."""
         out: list[dict] = []
         for lair, node in self.lairs.children.items():
             if lair == "[0]" or "#" in lair:
@@ -1899,10 +1783,8 @@ class GameData:
                                         for k in self.LAIR_TIMER_KEYS),
                         "guard": lair.startswith("Guard"),
                         "mutant": faction in self.LAIR_MUTANT_FACTIONS,
-                        # 1.33.0: Startbefuellung des Lagers (688x 0.5,
-                        # 100x 1.0) und die Archetyp-Gewichte. Die
-                        # Archetyp-Eintraege sind BENANNT (nicht [i]), ein
-                        # Teil-bpatch ist hier also unbedenklich.
+                        # Initial camp fill and archetype weights. Archetype entries are named,
+                        # so individual fields support partial bpatch updates.
                         "initial": (blk.values.get("InitialSpawnQuantityPercent") or "").strip(),
                         "archetypes": {k: (a.values.get("SpawnWeight") or "").strip()
                                        for k, a in (arch.children.items() if arch else ())},
@@ -1910,9 +1792,9 @@ class GameData:
         return out
 
     def lair_standard_timers(self) -> tuple[str, str, str]:
-        """Das haeufigste Respawn-Timer-Tripel (Vanilla: 180/480/480 in 774
-        von 784 Bloecken) - nur diese Bloecke skaliert der Respawn-Regler,
-        die 10 Story-Lager mit Sofort-Nachfuellung (6/30/30) bleiben tabu."""
+        """Find the most common respawn-timer triple for ordinary camps.
+
+        Scale only matching camps; preserve story camps with immediate refill."""
         counts: dict[tuple[str, str, str], int] = {}
         for blk in self.lair_blocks():
             counts[blk["timers"]] = counts.get(blk["timers"], 0) + 1
@@ -1922,10 +1804,10 @@ class GameData:
         return self.director.children.get("ALifeDirectorPreset")
 
     def director_scenario_tokens(self) -> dict[str, frozenset]:
-        """{Szenario-Struct-Key: Squad-Tokens} - Token = "Human" / "Mutant"
-        (generische Archetypen) oder die konkrete AgentPrototypeSID
-        (Blinddog, Boar, Chimera ...); Menschen-Prototypen (General*/Guard*)
-        werden zu "Human". Rein-Mutanten-Szenarien = kein "Human"-Token."""
+        """Return {scenario_key: squad_tokens}.
+
+        Normalize human prototypes to Human; mutants keep generic Mutant or their
+        concrete prototype SID. A mutant-only scenario has no Human token."""
         d = self.director_preset()
         out: dict[str, frozenset] = {}
         if d is None:
@@ -1952,8 +1834,7 @@ class GameData:
         return {v.split("::")[-1].strip() for v in (node.values.values() if node else ())}
 
     def director_limits(self) -> list[tuple[str, str, str, float]]:
-        """[(Rang-Index, Typ-Index, Agententyp, MaxCount)] aus
-        ALifeScenarioNPCArchetypesLimitsPerPlayerRank (4 Raenge x 16 Typen)."""
+        """Yield (rank_index, type_index, agent_type, MaxCount) from rank limits."""
         d = self.director_preset()
         out: list[tuple[str, str, str, float]] = []
         if d is None:
@@ -1966,12 +1847,10 @@ class GameData:
         return out
 
     def consumable_duration_effects(self, min_seconds: float = 10.0) -> dict[str, str]:
-        """{Effekt-SID: Duration-Rohwert} aller Effekte, die ein Consumable-
-        Item (item_category == "consumable") referenziert und die mindestens
-        min_seconds laufen - Vanilla (>= 10 s): Hercules 300 s (+ Penalty),
-        Zimt 180 s, Vodka-PSY 90 s, PSY-Blocker 60 s, Energydrinks 45 s,
-        Mohn-Schlaf 30 s. Sofort-Effekte (Heilung/Blutstopp/Antirad 1-2 s)
-        und Malus-Effekte (EBeneficial::Negative) bleiben bewusst draussen."""
+        """Return raw durations of beneficial consumable effects lasting min_seconds.
+
+        Exclude instant healing/bleeding/radiation effects and EBeneficial::Negative
+        penalties from this duration control."""
         out: dict[str, str] = {}
         for sid, node in self.items.children.items():
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -1984,8 +1863,8 @@ class GameData:
                 enode = self.effects.children.get(eff)
                 if enode is None or eff in out:
                     continue
-                # Malus-Effekte (Rausch, Stamina-Kater, Hercules-Nachwirkung)
-                # bleiben vanilla - wie beim Consumable-Staerke-Regler
+                # Negative effects: intoxication, stamina hangover and Hercules aftereffects.
+                # Remain vanilla, as with the consumable-strength slider.
                 if (enode.values.get("Positive") or "").strip().endswith("Negative"):
                     continue
                 raw = enode.values.get("Duration")
@@ -1994,10 +1873,9 @@ class GameData:
         return out
 
     def quest_items_with_weight(self) -> dict[str, float]:
-        """{SID: Vanilla-Gewicht} aller Quest-Items (beide Quest-Marker,
-        refkey-Kette) mit Gewicht > 0 - Vanilla: 290 von 327, bis 25 kg.
-        Die Gewichtsregler je Kategorie lassen Quest-Items aus (keine
-        Kategorie), darum eine eigene Checkbox."""
+        """Return positive weights of items carrying either resolved quest marker.
+
+        Quest items lack ordinary weight categories and use a separate control."""
         out: dict[str, float] = {}
         for sid in self._quest_item_sids:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2012,8 +1890,7 @@ class GameData:
         return self._parse("AIPrototypes/ThreatPrototypes.cfg")
 
     def human_npc_sids(self) -> list[str]:
-        """Alle menschlichen NPC-Prototypen (Faction gesetzt, nicht Mutant,
-        nicht Player/[0]) - Basis fuer per-Prototyp-Patches wie das Wanken."""
+        """Return human NPC prototypes, excluding mutant factions, Player and [0]."""
         out: list[str] = []
         for sid in self.obj.children:
             if sid in ("[0]", "Player") or "#" in sid:
@@ -2025,8 +1902,9 @@ class GameData:
         return out
 
     def magazine_items(self) -> dict[str, float]:
-        """{Magazin-Item-SID: Magazine.MaxAmmo} aller konkreten Magazin-
-        Aufsaetze der Basis-ItemPrototypes (Wert > 0; Templates/[0] raus)."""
+        """Return positive Magazine.MaxAmmo values for concrete magazine attachments.
+
+        Exclude templates and [0]."""
         result: dict[str, float] = {}
         for sid, node in self.items.children.items():
             if "#" in sid or sid.startswith("Template") or sid == "[0]":
@@ -2040,14 +1918,10 @@ class GameData:
         return result
 
     def weapon_magazines(self) -> dict[str, list[str]]:
-        """{WGS-SID: [Magazin-Item-SIDs]} - welche Magazin-Aufsaetze eine
-        Waffe benutzt. Quelle ist die Waffe selbst: der Block
-        WeaponReloadTimePerAttachment.[i].AttachPrototypeSID im
-        WeaponGeneralSetup (ueber die refkey-Kette aufgeloest, DLC-Waffen
-        ueber ihre Editions-Kette). Nur Eintraege, die wirklich Magazine
-        sind (magazine_items), z.B. GunAK74_ST -> GunAK74_MagDefault,
-        GunAK74_MagIncreased, GunAK_MagPaired. Ein Magazin kann mehreren
-        Waffen gehoeren (GunAK_MagPaired: AK-Familie)."""
+        """Return {WGS_SID: [magazine_item_SIDs]} from reload attachment entries.
+
+        Resolve WeaponReloadTimePerAttachment through base or edition inheritance
+        and retain real magazine_items. A magazine can be shared by several weapons."""
         mags = self.magazine_items()
 
         def from_chain(chain) -> list[str]:
@@ -2082,15 +1956,10 @@ class GameData:
 
     def weapon_general_values(self, path: str,
                               signed: bool = False) -> dict[str, float]:
-        """{SID: Wert} aller WeaponGeneralSetup-Structs, die den (ggf.
-        verschachtelten) Pfad SELBST definieren. Vererbte Werte skalieren
-        automatisch ueber den Patch des Eltern-Structs mit.
+        """Return explicit WeaponGeneralSetup values at a possibly nested path.
 
-        Vorgabe ist `Wert > 0` — fuer alle Regler, bei denen 0 oder negativ
-        "gibt es nicht" heisst. `signed=True` liefert auch negative und
-        Null-Werte: gebraucht seit 1.32.0 fuer die Aim-Modifikatoren, die in
-        Vanilla durchweg NEGATIV sind (Zielen und Ducken SENKEN Rueckstoss
-        und Streuung, -0.15 bis -1.0)."""
+        Inherited values scale through the parent patch. By default require values
+        above zero; signed=True also includes zero and negative aim/crouch modifiers."""
         result: dict[str, float] = {}
         for sid, node in self.weapongeneral.children.items():
             if "#" in sid:
@@ -2103,16 +1972,12 @@ class GameData:
                 result[sid] = number
         return result
 
-    # ------------------------------------------------------------- Kaliber
-    # Der EINZIGE Ort, an dem steht, welche Patrone eine Waffe frisst:
-    # AmmoCaliber (ein Wert) plus AmmoTypeProjectiles (Liste der erlaubten
-    # Sorten mit ihrem Projektil). Beides im selben Struct wie MaxAmmo.
-    # Wichtig fuer Patches: JEDE Waffe deklariert beides selbst — nachgezaehlt
-    # 92 von 92 Structs, davon 12 Templates auf ::None. Es wird also nichts
-    # geerbt, und ein Patch auf eine Waffe trifft keine andere.
+    # AmmoCaliber and AmmoTypeProjectiles define caliber and allowed projectiles
+    # in the same setup struct as MaxAmmo. Every checked weapon declares both;
+    # patches must target that setup rather than infer caliber from item names.
 
     def weapon_caliber(self, sid: str, edition: str | None = None) -> str | None:
-        """Kaliber einer Waffe ohne das EAmmoCaliber::-Praefix, z.B. "A545"."""
+        """Return weapon caliber without the EAmmoCaliber:: prefix, e.g. A545."""
         raw = (self.dlc_resolve_weapon(edition, sid, "AmmoCaliber")
                if edition is not None
                else self.resolve(self.weapongeneral, sid, "AmmoCaliber"))
@@ -2123,12 +1988,10 @@ class GameData:
 
     def weapon_ammo_slots(self, sid: str,
                           edition: str | None = None) -> dict[str, str]:
-        """{"[0]": "Default", "[1]": "ArmorPiercing", ...} einer Waffe.
+        """Return {array_index: ammo_type} for one weapon.
 
-        Die Indizes sagen NICHTS ueber die Sorte: sechs Scharfschuetzen-
-        gewehre (SVD, SVU, M701, Cavalier, Lynx, Whip) haben auf [0]
-        Supersonic statt Default. Deshalb wird beim Patchen pro Index die
-        dort stehende SORTE gelesen, nie die Position angenommen."""
+        Indices do not imply ammo type: some rifles use Supersonic at [0].
+        Always read the type at each index."""
         chain = (self.dlc_weapon_chain(edition, sid) if edition is not None
                  else self._resolve_chain(self.weapongeneral, sid))
         for node in chain:
@@ -2145,14 +2008,10 @@ class GameData:
         return {}
 
     def ammo_caliber_projectiles(self) -> dict[str, dict[str, str]]:
-        """{Kaliber: {Sorte: Projektil-SID}} — aus den Waffendaten erhoben,
-        nicht aus Namen geraten.
+        """Return {caliber: {ammo_type: projectile_SID}} from weapon data.
 
-        Fast jedes Kaliber benutzt EIN Projektil fuer alle Sorten; Schrot
-        ist die Ausnahme (Default -> P012, AP/HP -> P012F, die Flinten-
-        laufgeschosse). Kaliber, die keine Waffe benutzt, tauchen hier gar
-        nicht erst auf — das haelt 7,62x39 draussen, dessen Munition zwar
-        existiert, aber in keinem Loot-Generator vorkommt."""
+        Buckshot and shotgun slugs use different projectiles. Exclude calibers unused
+        by any weapon, even if an ammunition item exists."""
         result: dict[str, dict[str, str]] = {}
         trees = [self.weapongeneral] + [
             entry["weapongeneral"] for entry in self.dlc_editions.values()
@@ -2180,16 +2039,11 @@ class GameData:
         return {c: t for c, t in result.items() if t}
 
     def caliber_damage_mods(self) -> dict[str, float]:
-        """{Kaliber: DamageMod seiner Standardpatrone}.
+        """Return each caliber's default ammunition DamageMod.
 
-        Der Schaden selbst steht an der WAFFE (BaseDamage in
-        CharacterWeaponSettings — dort kommt das Wort Caliber kein
-        einziges Mal vor). Die Munition liefert nur diesen Multiplikator,
-        und er ist ueber alle Gewehr- und Pistolenkaliber 1.0. Genau eine
-        Ausnahme: Schrot steht bei 0.084, weil eine Schrotpatrone viele
-        Kugeln verschiesst — die Flinte gleicht das mit BaseDamage 50.0
-        gegen 9.5 beim Gewehr aus. Daraus laesst sich vorrechnen, was ein
-        Wechsel mit dem Schaden macht, statt es zu behaupten."""
+        BaseDamage belongs to CharacterWeaponSettings; ammunition supplies a
+        multiplier. Shotgun pellet multipliers differ substantially from rifle/pistol
+        rounds, so caliber conversion needs this value for its damage estimate."""
         result: dict[str, float] = {}
         for node in self.items.children.values():
             if node.values.get("AmmoType") != "EAmmoType::Default":
@@ -2205,12 +2059,9 @@ class GameData:
         return result
 
     def weapon_caliber_users(self, sid: str) -> int:
-        """Wieviele Item-Prototypen (Spieler + NPC + Bosse) sich dieses
-        WeaponGeneralSetup teilen.
+        """Count item prototypes sharing a WeaponGeneralSetup.
 
-        Zaehlt, weil das Kaliber am SETUP haengt: die Spieler-AK-74,
-        Korshunovs AK und die Wach-AK teilen sich eines — wer die eine
-        umstellt, stellt alle drei um. Bei TOZ und PM sind es vier."""
+        Caliber changes affect every linked player, NPC and boss weapon."""
         count = 0
         for node in self.items.children.values():
             if node.values.get("GeneralWeaponSetup") == sid:
@@ -2223,11 +2074,9 @@ class GameData:
     )
 
     def traders(self) -> dict[str, dict[str, dict[str, float]]]:
-        """{Trader-SID: {Generator-Index: {Schluessel: Vanilla-Wert}}}.
+        """Return {trader_SID: {generator_index: {key: vanilla_value}}}.
 
-        Erfasst nur Schluessel aus TRADE_KEYS, die der jeweilige
-        Generator-Eintrag selbst definiert (bpatch-sicher).
-        """
+        Include only explicitly declared TRADE_KEYS."""
         result: dict[str, dict[str, dict[str, float]]] = {}
         for sid, node in self.trade.children.items():
             if sid == "[0]" or "#" in sid:
@@ -2248,24 +2097,18 @@ class GameData:
                 result[sid] = entries
         return result
 
-    # MaxStackCount steht bewusst mit drin: es ist ein echter Wert je
-    # Munitionssorte (Vanilla ueberall 900) und damit im Sorten-Baum
-    # einstellbar wie die vier Mods. GitHub Issue #7 (Molkerr).
+    # MaxStackCount is editable per ammunition type alongside its modifiers
+    # (issue #7).
     AMMO_MOD_KEYS = ("DamageMod", "ArmorPiercingMod", "ArmorDamageMod",
                      "CoverPiercingMod", "MaxStackCount",
-                     # 1.31.0: vier weitere Modifikatoren, die jede der
-                     # 35 Sorten selbst deklariert (gemessen 07.09.2026:
-                     # Bleeding/Recoil ueberall 1.0, Flatness 1.0-1.9,
-                     # WeaponExhaustion 0.8-1.3)
+                     # Each checked ammunition type declares these additional modifiers.
                      "BleedingMod", "RecoilMod", "FlatnessMod",
                      "WeaponExhaustionMod",
-                     # 1.33.0: beim Gegenlesen fremder Mods gefunden
-                     # (Maklane 241, Stalker Unlimited 1453) und selbst
-                     # nachgemessen: je 35 Sorten, 33x 1.0
+                     # These modifiers were identified in community mods and verified in game data.
                      "DispersionMod", "AimDispersionMod")
 
     def ammo_mods(self) -> dict[str, dict[str, float]]:
-        """{SID: {ModKey: aufgeloester Vanilla-Wert}} aller Munitions-Items."""
+        """Return {SID: {ModKey: resolved vanilla value}} for all ammunition items."""
         result: dict[str, dict[str, float]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2282,14 +2125,9 @@ class GameData:
         return result
 
     def stack_counts(self, category: str) -> dict[str, int]:
-        """{SID: Vanilla-MaxStackCount} aller Items EINER Kategorie.
+        """Return vanilla MaxStackCount for one item category.
 
-        Gemessen 07.09.2026 (GitHub Issue #7): der Schluessel steht 1375x in
-        ItemPrototypes.cfg — Munition 900 (35x), Nahrung/Medizin und die
-        meisten Ausruestungsgegenstaende 999, PDAs/Notizen/Schluessel 300000.
-        **Alles mit Vanilla <= 1 bleibt draussen** (Ferngläser, Detektoren,
-        Weird-Artefakte, Geldkarten): die 1 ist dort eine Design-Entscheidung
-        des Spiels, kein Deckel, den jemand anheben wollte."""
+        Exclude values <= 1, which identify intentionally nonstackable items."""
         result: dict[str, int] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2305,15 +2143,10 @@ class GameData:
         return result
 
     def ammo_kinds(self) -> dict[str, tuple[str, str]]:
-        """{SID: (Kaliber-Kuerzel, Munitionsart)} aller Munitions-Items.
+        """Return {SID: (caliber, ammo_type)} using enums without their prefixes.
 
-        Beide Felder stehen als Enum in den Prototypen ("EAmmoCaliber::A545",
-        "EAmmoType::ArmorPiercing"); zurueckgegeben wird nur der Teil hinter
-        "::". Fehlt eines, steht "" drin -- der Baum zeigt das Item trotzdem.
-
-        Bewusst ueber ammo_mods() statt ueber self.items: so kann der Baum
-        strukturell keine Sorte anbieten, die _items_patch nicht kennt.
-        """
+        Missing fields become empty strings. Derive the set from ammo_mods() so
+        the UI cannot offer ammunition unsupported by the item patch builder."""
         result: dict[str, tuple[str, str]] = {}
         for sid in self.ammo_mods():
             cal = self.resolve(self.items, sid, "Caliber") or ""
@@ -2326,8 +2159,9 @@ class GameData:
                              "Radiation", "PSY")
 
     def armor_protection(self) -> dict[str, dict[str, float]]:
-        """{SID: {Schutzart: Wert}} der Spieler-Protection aller Ruestungen/
-        Helme (nur Werte > 0; ProtectionNPC bleibt bewusst unberuehrt)."""
+        """Return positive player Protection values for armor and helmets.
+
+        ProtectionNPC is outside this control."""
         result: dict[str, dict[str, float]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2344,14 +2178,10 @@ class GameData:
         return result
 
     def player_armors(self) -> dict[str, tuple[str, dict[str, float]]]:
-        """{SID: (Slot, {Schutzart: Vanilla-Wert})} aller Ruestungen/Helme,
-        die der SPIELER bekommen kann — fuer den Einzelruestungs-Baum.
+        """Return {SID: (slot, player_protection)} for obtainable armor and helmets.
 
-        NPC-only-Ruestungen (Invisible = true, z.B. NPC_Korshunov_Armor)
-        bleiben draussen: ihre Spieler-Protection ist im Spiel bedeutungslos
-        und wuerde den Baum nur aufblaehen. Der GLOBALE Schutz-Patch laeuft
-        weiter ueber armor_protection() (alle 86) — harmlos und unveraendert.
-        Slot ist "Body" oder "Head" (aus ItemSlotType, aufgeloest)."""
+        Exclude Invisible NPC-only items from the per-item editor. Global protection
+        scaling still uses armor_protection(). Resolve slot as Body or Head."""
         result: dict[str, tuple[str, dict[str, float]]] = {}
         for sid, values in self.armor_protection().items():
             invisible = (self.resolve(self.items, sid, "Invisible") or "")
@@ -2360,7 +2190,7 @@ class GameData:
             slot = (self.resolve(self.items, sid, "ItemSlotType") or "")
             slot = slot.split("::")[-1].strip() or "Body"
             result[sid] = (slot, values)
-        # Editions-Ruestungen (SEVA Monolith & Co.) ergaenzen
+        # Include edition armors such as SEVA Monolith.
         for sid, (slot, values, _ed) in self.dlc_player_armors().items():
             if sid not in result:
                 result[sid] = (slot, values)
@@ -2371,7 +2201,7 @@ class GameData:
                            "AnomalyDetectionRadius")
 
     def detector_items(self) -> dict[str, dict[str, float]]:
-        """{SID: {RadiusKey: Wert}} der Artefakt-Detektor-Items (Echo & Co.)."""
+        """Return artifact detector radii as {SID: {radius_key: value}}."""
         result: dict[str, dict[str, float]] = {}
         for sid in self.items.children:
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2388,7 +2218,7 @@ class GameData:
         return result
 
     def effect_percent(self, sid: str) -> float:
-        """ValueMin eines Effekts als Prozentzahl, z.B. -15 fuer '-15%'."""
+        """Parse an effect's ValueMin percentage, e.g. '-15%' becomes -15."""
         node = self.effects.children.get(sid)
         if node is None:
             return 0.0
@@ -2396,7 +2226,7 @@ class GameData:
         return parse_number(raw)
 
     def gear_durability(self) -> dict[str, tuple[str, float]]:
-        """{SID: (kategorie, vanilla BaseDurability)} fuer Waffen + Ruestung."""
+        """Return {SID: (category, vanilla_BaseDurability)} for weapons and armor."""
         result: dict[str, tuple[str, float]] = {}
         for sid, node in self.items.children.items():
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2408,13 +2238,13 @@ class GameData:
             if dur is None:
                 continue
             value = parse_number(dur)
-            if value <= 1.0:  # 1.0 = Platzhalter des Basis-Structs
+            if value <= 1.0:  # 1.0 is the base struct's placeholder durability.
                 continue
             result[sid] = (cat, value)
         return result
 
     def item_weights(self) -> dict[str, tuple[str, float]]:
-        """{SID: (kategorie, vanilla Weight)} aller Items mit Gewicht > 0."""
+        """Return {SID: (category, vanilla_Weight)} for items with positive weight."""
         result: dict[str, tuple[str, float]] = {}
         for sid, node in self.items.children.items():
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2432,8 +2262,7 @@ class GameData:
         return result
 
     def difficulty_values(self, key_path: str) -> dict[str, float]:
-        """{Difficulty-SID: effektiver Wert} fuer einen Pfad wie
-        "EnvironmentDifficulty.Weapon_BaseDamage" (aufgeloest ueber refkey)."""
+        """Resolve a difficulty path through refkey inheritance for each difficulty SID."""
         result: dict[str, float] = {}
         for sid in self.difficulty.children:
             if sid == "[0]" or "#" in sid:
@@ -2455,25 +2284,22 @@ class GameData:
             return default
         return parse_number(node.get(key), default)
 
-    # ------------------------------------------------------ Emissions-Dauer
+    # ------------------------------------------------------ Emission duration
     def emission_default_timeline(self):
-        """(Struct-Schluessel, Stages-Knoten, AIEvents-Knoten) des
-        DEFAULT-Emissionsprototyps — der einzigen wiederkehrenden Welt-
-        Emission. Die 5 uebrigen Prototypen sind Story-Emissionen
-        (E06/E15) und bleiben tabu. ACHTUNG: der bpatch-Schluessel ist
-        der INDEX ([0]), nicht die SID."""
+        """Return (struct_key, Stages, AIEvents) for the recurring DEFAULT emission.
+
+        Exclude story emissions. The patch key is its array index, not its SID."""
         for key, node in self.emissions.children.items():
             if (node.values.get("SID") or "").strip() == "Default":
                 return (key, node.children.get("Stages"),
                         node.children.get("AIEvents"))
         return (None, None, None)
 
-    # ------------------------------------------- wiederholbare Quest-Timer
+    # ------------------------------------------- Repeatable quest timers
     def repeatable_quest_timers(self) -> dict[str, float]:
-        """{Knoten-SID: InGameHours} aller SetTimer-Knoten von RSQ-Quests
-        (repeatable side quests; Vanilla: 8 Knoten, alle 24 h). Story-
-        und Nebenquest-Timer (E*/SQ*/EQ*) bleiben bewusst draussen.
-        Parst die 75-MB-Datei — nur aufrufen, wenn wirklich noetig."""
+        """Return InGameHours for RSQ SetTimer nodes, excluding story/side quests.
+
+        This requires parsing the large quest file; call lazily."""
         result: dict[str, float] = {}
         for sid, node in self.questnodes.children.items():
             if "#" in sid:
@@ -2492,14 +2318,9 @@ class GameData:
         return result
 
     def ammo_pack_counts(self) -> dict[str, float]:
-        """{Ammo-SID: AmmoPackCount} — wieviele Schuss eine aufgesammelte
-        Packung hergibt.
+        """Return AmmoPackCount for ammunition packs.
 
-        Gemessen 07.09.2026: 35 Structs, davon 30 (13x), 10 (8x), 20 (7x),
-        50 (3x) und **1** bei TemplateAmmo und den drei Werfergranaten
-        (AVOG, AHEDP, APG7V). Die 1 wird wie bei stack_counts() gefiltert:
-        Werfergranaten kommen einzeln, das ist eine Design-Entscheidung des
-        Spiels und keine Grenze, die stoert."""
+        Exclude counts <= 1, including templates and individually collected launcher rounds."""
         result: dict[str, float] = {}
         for sid, node in self.items.children.items():
             if sid == "[0]" or "#" in sid or sid.startswith("Template"):
@@ -2514,19 +2335,12 @@ class GameData:
                 result[sid] = value
         return result
 
-    # --------------------------------------- Mutanten: Attacken-Details
+    # --------------------------------------- Mutant attack details
     def mutant_attack_params(self, keys: tuple[str, ...]) -> dict[str, dict[str, str]]:
-        """{Ability-SID: {Pfad: Roh-Literal}} fuer die genannten Schluessel,
-        NUR an Mutanten-Attacken.
+        """Return {ability_SID: {path: raw_literal}} for selected mutant attack keys.
 
-        Die Auswahl laeuft ueber SPECIES_ABILITY_PREFIXES — dieselbe Liste,
-        die schon der Schadens-Regler je Art benutzt. Wichtig, weil dieselben
-        Schluessel auch an menschlichen und an Boss-Attacken stehen
-        (Human_MeleeAttack, Korshunov_*, Faust_*, Controller_ZombifyNPC) und
-        an den Vorlagen BaseAttackAbility/Default: gemessen 07.09.2026 sind
-        es 143 Mutanten-Attacken gegen 34 andere Traeger, die hier bewusst
-        draussen bleiben. Literale werden roh geliefert (`.1f`, `0.f`), damit
-        der Builder die Schreibweise erhalten kann."""
+        Use SPECIES_ABILITY_PREFIXES to exclude human, boss and template abilities
+        sharing those keys. Preserve raw literals for the patch builder."""
         result: dict[str, dict[str, str]] = {}
         prefixes = tuple(p for lst in SPECIES_ABILITY_PREFIXES.values() for p in lst)
         for sid, node in self.abilities.children.items():
@@ -2546,35 +2360,17 @@ class GameData:
                 result[sid] = found
         return result
 
-    # ------------------------------------ wiederholbare Jobs: Limit je Geber
+    # ------------------------------------ Repeatable jobs: limit per giver
     def repeatable_quest_givers(self) -> list[dict]:
-        """Die acht Auftraggeber wiederholbarer Jobs (RSQ*) mit den zwei
-        Stellschrauben, die neben dem Cooldown-Timer daran haengen.
+        """Discover repeatable-job givers and their pool limits/dialogue links.
 
-        Vanilla-Mechanik, am 07.09.2026 gegen die Spieldaten gemessen: je
-        Geber zaehlt eine eigene Globalvariable die in dieser Runde
-        ausgegebenen Jobs hoch (`Add 1` je Aufgabe). Ein If-Knoten laesst
-        nur weiter, solange der Zaehler `Less 3` ist; der SetTimer-Knoten
-        setzt ihn nach 24 Stunden auf 0 zurueck (das ist der vorhandene
-        Cooldown-Regler). Beim ABGEBEN wird nie heruntergezaehlt — die 3
-        ist also die Zahl der Jobs pro Runde, nicht der gleichzeitig
-        gehaltenen. Gegengeprueft an der Nexus-Mod "New Game Start" (1211),
-        die genau diese Zahl auf 6 setzt.
+        A per-giver variable increments on acceptance and resets with the cooldown;
+        its Less limit counts jobs per round, not currently held jobs. In vanilla,
+        the dialogue rearms from the limit check's False output.
 
-        Zweite Stellschraube: der SetDialog-Knoten des Gebers haengt in
-        Vanilla am FALSE-Ausgang des If-Knotens — der Job-Dialog wird also
-        erst wieder scharf, wenn der Geber LEER ist. Auf True umgehaengt
-        bietet er sofort den naechsten Job an.
-
-        Erkennung bewusst datengetrieben statt ueber die Knotennamen
-        ("...If_LessThen3Tasks" waere ein englischer Name, der mit einem
-        Spiel-Update wandern kann): gesucht wird je Quest der If-Knoten mit
-        einer `Less`-Bedingung auf eine Variable, die in derselben Quest per
-        `Add` hochgezaehlt wird.
-
-        Je Geber ein dict: quest, cap_key/cap_node/cap/cond_path, pool
-        (Zahl der Aufgaben-Container), dialog_key/dialog_node/link_path/pin.
-        Parst die 75-MB-Datei — nur lazy anfassen (wie questnodes)."""
+        Discover the Add/Less relationship within each quest rather than relying
+        on node names. Return cap and connection paths, pool size and relevant nodes.
+        Parsing the large quest file is deferred until needed."""
         groups: dict[str, list[tuple[str, CfgStruct]]] = {}
         for key, node in self.questnodes.children.items():
             quest = (node.values.get("QuestSID") or "").strip()
@@ -2627,12 +2423,8 @@ class GameData:
                 continue
             dialog_key, dialog_node, link_path, pin = dialog
 
-            # 1.33.0: der Knoten, der feuert, wenn der Spieler im Dialog
-            # zusagt. Datengetrieben gesucht (nicht ueber den Namen
-            # "Technical_GetQuest"): ein Technical-Knoten derselben Quest,
-            # dessen Launcher auf den Dialog zeigt und dabei einen Ausgang
-            # mit "confirm" im Namen nennt. Gemessen 07.09.2026: bei allen
-            # acht Gebern genau einer.
+            # Find the acceptance Technical node by its link to the dialogue's
+            # confirm output, rather than a fixed Technical_GetQuest name.
             dialog_sid = (dialog_node.values.get("SID") or "").strip() or dialog_key
             quest_sid = (dialog_node.values.get("QuestSID") or "").strip()
             accept = None
@@ -2652,9 +2444,7 @@ class GameData:
                 if accept:
                     break
 
-            # Naechster freier Launcher-Index am Dialog-Knoten: dort haengen
-            # wir den Wieder-scharf-Knoten an, ohne eine vorhandene
-            # Verdrahtung zu ueberschreiben.
+            # Allocate a free launcher index without replacing existing dialogue links.
             dlg_launchers = dialog_node.children.get("Launchers")
             used = []
             for lkey in (dlg_launchers.children if dlg_launchers else {}):
@@ -2663,13 +2453,8 @@ class GameData:
                     used.append(int(match_idx.group(1)))
             next_launcher = (max(used) + 1) if used else 0
 
-            # 1.34.0: der Aufraeumer der Runde und der End-Knoten dahinter.
-            # Datengetrieben gesucht (nicht ueber die Namen): der
-            # BridgeCleanUp-Knoten derselben Quest und der End-Knoten, dessen
-            # Launcher auf ihn zeigt. Gemessen 08.09.2026: je Geber genau
-            # einer von beiden. Der End-Knoten traegt
-            # `ExcludeAllNodesInContainer` — das ist die Stelle, an der beim
-            # Abgeben EINES Auftrags die anderen mitgerissen werden.
+            # Find the round's BridgeCleanUp and linked End node by graph structure.
+            # End's ExcludeAllNodesInContainer can terminate sibling jobs on hand-in.
             cleanup_sid = end_sid = end_exclude = None
             for key, node in nodes:
                 if (node.values.get("NodeType") or "").strip() == "EQuestNodeType::BridgeCleanUp":
@@ -2708,16 +2493,10 @@ class GameData:
         return givers
 
     def repeatable_job_slots(self, quest_sid: str) -> list[dict]:
-        """Die Auftrags-Behaelter EINES Gebers: [{container, add, pin}].
+        """Discover one giver's job containers as [{container, add, pin}].
 
-        Semantisch, nicht ueber Namen: ein Container-Knoten der Quest,
-        dessen Launcher genau zwei Verbindungen hat - einen
-        Technical-Knoten (das "Add", gesetzt beim Auffuellen des Pools) und
-        einen Condition-Knoten (der "Pin", der auf die Zusage-Phrase des
-        Dialogs wartet). Beide muessen erfuellt sein, erst dann startet der
-        Job. Gemessen 09.09.2026: 6/10/8/9/9/9/9/9 = 69 Slots, deckungsgleich
-        mit den Pool-Groessen der acht Geber. Parst die 75-MB-Datei - nur
-        lazy anfassen (wie questnodes)."""
+        Require a launcher with both pool-add Technical and acceptance Condition
+        connections. Both must complete to start the job. Parse quest nodes lazily."""
         nodes = self.questnodes.children
         slots: list[dict] = []
         for key, node in nodes.items():
@@ -2749,17 +2528,11 @@ class GameData:
         return slots
 
     def job_menu_switch(self, chain_sid: str, accept_sid: str):
-        """(If-Knoten, Menue-Ziel, Abbruch-Ziel) am Anfang der
-        Job-Dialogkette eines Gebers - oder None.
+        """Return (If_node, menu_target, cancel_target) for a job dialogue gate, or None.
 
-        Gemessen 09.09.2026 an allen acht Ketten: der erste Knoten ist ein
-        If mit `NextDialogOptions.True/False`; der True-Zweig traegt eine
-        Bridge-Bedingung `NotEqual` auf die Zusage (`Technical_GetQuest`)
-        und fuehrt ins Job-Menue, der False-Zweig in den Abbruch-Zweig.
-        Solange das Ergebnis der Zusage steht, landet ein wieder
-        geoeffneter Dialog also NICHT im Menue. Erkennung ueber genau diese
-        Bedingung, nicht ueber den Namen (`_If` bei sieben Gebern, `_If_1`
-        bei Warlock). Parst die 31.6-MB-Datei - nur lazy anfassen."""
+        Identify the initial NotEqual bridge condition on quest acceptance, rather
+        than its varying node name. A retained acceptance result routes reopened
+        dialogues to cancellation. Parse DialogPrototypes lazily."""
         def _mentions(node, sid: str) -> bool:
             for value in node.values.values():
                 if (value or "").strip() == sid:
@@ -2786,17 +2559,16 @@ class GameData:
                     (false.values.get("NextDialogSID") or "").strip())
         return None
 
-    # ------------------------------------------------- Fraktionsbeziehungen
-    # Recherche: docs/FACTION_RELATIONS_RESEARCH.md (582 Paare, Stand 2.0.x)
+    # ------------------------------------------------- Faction relationships
+    # Research: docs/FACTION_RELATIONS_RESEARCH.md (582 pairs, 2.0.x snapshot).
 
     def _relations_default(self) -> CfgStruct | None:
         return self.relations.children.get("Default")
 
     def relation_pairs(self) -> dict[str, int]:
-        """{Paar-Schluessel wie "Bandits<->Player": Vanilla-Wert} — die
-        Schluessel-Schreibweise (Reihenfolge der beiden Fraktionen) ist
-        exakt die der Spieldaten; nur diese Schluessel darf ein Patch
-        anfassen (neue Paare anzulegen ist ungetestet)."""
+        """Return existing faction-pair keys and their vanilla relation values.
+
+        Preserve the exact pair order; creation of new pairs is untested."""
         d = self._relations_default()
         if d is None:
             return {}
@@ -2812,9 +2584,9 @@ class GameData:
         return result
 
     def relation_pair_key(self, a: str, b: str) -> str | None:
-        """Vorhandenen Schluessel fuer das Paar (a, b) finden — die
-        Spieldaten kennen je Paar nur EINE Richtung ("Duty<->Freedom"
-        existiert, "Freedom<->Duty" nicht)."""
+        """Find the existing key for pair (a, b), accepting either input order.
+
+        Game data stores only one direction for each pair."""
         pairs = self.relation_pairs()
         for key in (f"{a}<->{b}", f"{b}<->{a}"):
             if key in pairs:
@@ -2822,31 +2594,19 @@ class GameData:
         return None
 
     def relation_version(self) -> int:
-        """Vanilla-RelationVersion (2.0.x: 7). Nur noch gelesen - der Patch
-        schrieb von 1.12.0 bis 1.36.0 Vanilla+1 hinein, seit 09.09.2026
-        nicht mehr (Besitzer-Entscheidung).
+        """Read RelationVersion for diagnostics and mod scanning; never increment it.
 
-        ⚠ **Die Begruendung des Bumps war widerlegt** (08.09.2026, beim
-        Gegenlesen von "Relation System Overhaul", Nexus 2009): Der Zaehler
-        gehoert GSC — RSO liefert in allen acht Varianten `0` aus, waehrend
-        das Spiel auf `7` steht, also zaehlt keine Mod ihn hoch. Daneben
-        steht `RelationUpdateDeltas`, eine Liste von DELTAS je Version; ein
-        Bump ohne passenden Delta-Eintrag hat darum vermutlich keine
-        Wirkung und markiert den Spielstand nur als 'schon auf Version N'.
-        Der Weg, der bestehende Spielstaende wirklich erreicht, ist seit
-        1.36.0 der Schalter `relations_runtime`
-        (`tweaks._relations_runtime_patch`). Der Accessor bleibt fuer den
-        Mod-Scan und die Tests."""
+        The version counter belongs to GSC's RelationUpdateDeltas migration scheme.
+        A counter bump without a matching delta is not a verified save migration.
+        The optional relations_runtime patch is the separate runtime mechanism."""
         d = self._relations_default()
         if d is None:
             return 0
         return int(round(parse_number(d.values.get("RelationVersion"), 0)))
 
     def relation_reaction_tables(self):
-        """[(Tabelle, Index, Knoten)] der 2x8 Reaktions-Tabellen
-        (CharacterReactions = lokal/temporaer, FactionReactions =
-        global/permanent). Die Grenade-Tabelle der FactionReactions ist
-        in Vanilla leer und faellt ueber ihre fehlenden Werte heraus."""
+        """Yield (table, index, node) from local CharacterReactions and global
+        FactionReactions, skipping entries without values."""
         d = self._relations_default()
         out = []
         for table in ("CharacterReactions", "FactionReactions"):
@@ -2856,8 +2616,7 @@ class GameData:
         return out
 
     def faction_rollback_cooldowns(self) -> dict[str, float]:
-        """{Fraktion: Sekunden} aus FactionRollbackCooldowns (Vanilla: 19
-        Eintraege, alle 900)."""
+        """Return faction cooldowns in seconds from FactionRollbackCooldowns."""
         d = self._relations_default()
         if d is None:
             return {}

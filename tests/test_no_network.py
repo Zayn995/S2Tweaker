@@ -1,20 +1,7 @@
-"""Das Programm darf ueberhaupt kein Netz mehr anfassen (seit 1.19.2).
+"""Verify the application and launcher contain no networking implementation.
 
-Ersetzt test_update_check.py. Der Update-Check ist entfernt worden, und
-zwar nicht aus Sicherheitsgefuehl, sondern weil Nexus' Regeln woertlich
-sagen: "Files (especially executables) that connect to the internet to
-download or send information and/or files are prohibited unless where it
-is crucial for the functioning of the mod/utility" — und direkt danach:
-"'auto update' functionality does not qualify as crucial".
-
-Der Wert der Entfernung liegt darin, dass sie NACHPRUEFBAR ist: wer den
-oeffentlichen Quelltext greppt, findet kein urllib und keinen Socket.
-Genau das prueft diese Datei — damit die Zusage nicht beim naechsten
-bequemen Einfall wieder still kaputtgeht.
-
-URL-Zeichenketten sind erlaubt und bleiben: der Oodle-Assistent ZEIGT
-eine Adresse zum Kopieren an. Verboten ist, sie abzurufen.
-"""
+Displayed URLs are allowed for manual copying; fetching them is not part
+of the application."""
 import ast
 import sys
 from pathlib import Path
@@ -34,9 +21,7 @@ VERBOTEN = {"urllib", "socket", "http", "requests", "ssl", "ftplib",
 VERBOTENE_AUFRUFE = {"urlopen", "urlretrieve", "socket", "create_connection",
                      "getaddrinfo", "connect"}
 
-# --- 1) Kein Modul des Pakets importiert etwas Netzfaehiges --------------
-# Mitgeprueft: der Starter des Programmordners (wird als sitecustomize.py
-# ausgeliefert) - er ist Teil dessen, was beim Nutzer laeuft.
+# Check package modules and the distributed sitecustomize launcher for network imports.
 for datei in sorted(PAKET.glob("*.py")) + [ROOT / "tools" / "launcher.py"]:
     baum = ast.parse(datei.read_text(encoding="utf-8-sig"))
     for knoten in ast.walk(baum):
@@ -44,42 +29,38 @@ for datei in sorted(PAKET.glob("*.py")) + [ROOT / "tools" / "launcher.py"]:
             for alias in knoten.names:
                 wurzel = alias.name.split(".")[0]
                 assert wurzel not in VERBOTEN, \
-                    f"{datei.name}:{knoten.lineno} importiert {alias.name}"
+                    f"{datei.name}:{knoten.lineno} imports {alias.name}"
         elif isinstance(knoten, ast.ImportFrom) and knoten.module:
             wurzel = knoten.module.split(".")[0]
             assert wurzel not in VERBOTEN, \
-                f"{datei.name}:{knoten.lineno} importiert aus {knoten.module}"
+                f"{datei.name}:{knoten.lineno} imports from {knoten.module}"
         elif isinstance(knoten, ast.Call):
             ziel = knoten.func
             name = (ziel.attr if isinstance(ziel, ast.Attribute)
                     else ziel.id if isinstance(ziel, ast.Name) else "")
             assert name not in VERBOTENE_AUFRUFE, \
-                f"{datei.name}:{knoten.lineno} ruft {name}() auf"
-print("Kein Netz-Import, kein Netz-Aufruf im Paket  OK")
+                f"{datei.name}:{knoten.lineno} calls {name}()"
+print("No network imports or calls in the package  OK")
 
-# --- 2) Die Symbole der alten Update-Funktion sind wirklich weg ----------
+# Removed update-check symbols must remain absent.
 for name in ("UPDATE_API_URL", "UPDATER_URL", "RELEASES_PAGE",
              "update_verdict", "_version_tuple"):
-    assert not hasattr(gui, name), f"gui.{name} lebt wieder"
-print("Alte Update-Symbole entfernt  OK")
+    assert not hasattr(gui, name), f"gui.{name} has returned"
+print("Old update symbols removed  OK")
 
-# --- 3) Keine alten Update-Knoepfe; Quelltext statt Fenster -------------
+# --- 3) No obsolete update buttons; inspect source without opening windows ---
 gui_tree = ast.parse((PAKET / "gui.py").read_text(encoding="utf-8-sig"))
 attributes = {node.attr for node in ast.walk(gui_tree)
               if isinstance(node, ast.Attribute)}
 assert not attributes & {"btn_update", "btn_updater"}, \
-    "Ein alter Update-Knopf ist zurueck"
-print("Keine Update-Knoepfe im GUI-Quelltext  OK")
+    "An obsolete update button has returned"
+print("No update buttons in GUI source  OK")
 
-# --- 4) Es gibt keinen Updater mehr - nirgends ---------------------------
-# release/update.bat wurde am 05.09.2026 ganz entfernt (Nexus-Pruefung:
-# "ensure your release has any possible network activity removed"). Ein
-# Skript, das ein Release laedt und Programmdateien ersetzt, darf weder
-# im Repo noch im Spieler-ZIP wieder auftauchen.
+# Do not include an updater script in the repository or player archive.
 assert not (ROOT / "release" / "update.bat").exists(), \
-    "release/update.bat ist zurueck - der Updater wurde bewusst entfernt"
+    "release/update.bat has returned - the updater was intentionally removed"
 zips = (ROOT / "tools" / "make_release_zips.py").read_text(encoding="utf-8")
-assert '"update.bat" not in names' in zips, "Gegenprobe im ZIP-Bauer fehlt"
-print("Kein Updater im Repo, keiner im ZIP  OK")
+assert '"update.bat" not in names' in zips, "ZIP builder regression guard missing"
+print("No updater in the repository or ZIP  OK")
 
-print("\nAlles gruen: das Werkzeug kann nicht mehr ins Netz.")
+print("\nAll checks passed: no network access in the tool.")

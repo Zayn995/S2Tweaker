@@ -1,8 +1,8 @@
 # S2Tweaker in-game menu: scope and prerequisites
 
 Status: 2026-09-09. Research only; no working menu has been built.
-The required Zone Kit editor/cooker is unavailable in the checked development
-environment, so the native game component remains pending. A checkbox that
+A native game component requires a compatible Zone Kit editor/cooker and
+a demonstrated asset-loading path. A checkbox that
 only writes metadata would not provide a working menu.
 
 ## Requested behavior
@@ -10,9 +10,8 @@ only writes metadata would not provide a working menu.
 - An optional export checkbox enables our own in-game menu.
 - The menu exposes selected S2Tweaker settings with verified runtime support.
 - Multiple S2Tweaker-generated mods register separately in one menu.
-- No dependency on the third-party MCM framework. Targeted foreign-mod
-  support was explicitly cancelled. The existing general conflict scanner
-  is a separate feature.
+- The design uses native mod interfaces without a third-party MCM dependency.
+  General conflict scanning remains a separate feature.
 - Preserve the approach of selective config patches and signed runtime binaries.
 
 ## Established route and remaining work
@@ -45,6 +44,5 @@ When the prerequisite becomes available, create our own widget/subsystem
 assets and verify two-mod registration, input focus, selected settings,
 conflicts, reset and save/load before integrating the functional checkbox.
 
-Evidence: [local tools](INGAME_RUNTIME_RESEARCH.md) and
-[control candidates](INGAME_CONTROL_CAPABILITIES.md).
+See the [control candidates and API evidence](INGAME_CONTROL_CAPABILITIES.md).
 The earlier 1-18 preview contains no in-game menu.

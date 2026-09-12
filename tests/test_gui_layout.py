@@ -1,5 +1,4 @@
-"""Layout-Test: Scan-Knopf muss auch beim 880x600-Minimum sichtbar sein,
-und waehrend eines Scans sind Browse/Reload gesperrt."""
+"""Check scan-button visibility at minimum window size and browse/reload locks during scans."""
 import sys
 import tempfile
 import time
@@ -14,8 +13,7 @@ from s2tweaker import gui, pakio
 SCRATCH = ROOT / "tests" / "_tmp"
 SCRATCH.mkdir(exist_ok=True)
 gui.SETTINGS_FILE = SCRATCH / "throwaway_settings.json"
-# Frisch starten: eine liegengebliebene Datei (z.B. von einem frueheren
-# Agenten-Lauf) wuerde den Neutral-Check faelschlich ausloesen.
+# Start with clean temporary state so leftovers cannot affect neutrality checks.
 gui.SETTINGS_FILE.unlink(missing_ok=True)
 
 from s2tweaker.gamedata import GameData
@@ -31,23 +29,22 @@ for geom in ("1010x720", "880x600"):
     w = app.btn_scan.winfo_width()
     mapped = bool(app.btn_scan.winfo_ismapped())
     print(f"{geom}: btn_scan mapped={mapped} width={w}px")
-    assert mapped, f"Scan-Knopf bei {geom} unsichtbar"
-    assert w >= 100, f"Scan-Knopf bei {geom} abgeschnitten ({w}px)"
-    # auch die Nachbarn muessen sichtbar bleiben
+    assert mapped, f"Scan button at {geom} invisible"
+    assert w >= 100, f"Scan button at {geom} clipped ({w}px)"
+    # Keep adjacent controls visible.
     for name in ("btn_build", "btn_install", "btn_open", "btn_remove"):
         b = getattr(app, name)
         assert b.winfo_ismapped() and b.winfo_width() > 50, \
-            f"{name} bei {geom}: {b.winfo_width()}px"
-    # Header-Zeile 2 (Suche / Changed only / Oodle-Ampel / FAQ) ebenso.
-    # btn_update gibt es seit 1.19.2 nicht mehr: keine Netzfunktionen.
+            f"{name} at {geom}: {b.winfo_width()}px"
+    # Keep second-row controls visible; there is no network update button.
     for name in ("search_entry", "btn_changed", "btn_faq", "btn_oodle",
                  "btn_scroll"):
         b = getattr(app, name)
         assert b.winfo_ismapped() and b.winfo_width() > 60, \
-            f"{name} bei {geom}: {b.winfo_width()}px"
-print("Layout OK (1010x720 und 880x600)")
+            f"{name} at {geom}: {b.winfo_width()}px"
+print("Layout OK (1010x720 and 880x600)")
 
-# --- Buttons waehrend eines Scans gesperrt -------------------------------
+# --- Buttons remain locked during a scan ---
 with tempfile.TemporaryDirectory(prefix="s2t_lock_") as tmp:
     game_dir = Path(tmp)
     mods = game_dir / "Stalker2" / "Content" / "Paks" / "~mods"
@@ -64,19 +61,19 @@ with tempfile.TemporaryDirectory(prefix="s2t_lock_") as tmp:
     assert str(app.btn_browse.cget("state")) == "disabled"
     assert str(app.btn_confirm.cget("state")) == "disabled"
     assert str(app.btn_scan.cget("state")) == "disabled"
-    # Zweiter Start waehrend des Laufs: stiller No-Op
+    # Ignore an attempt to start a second concurrent scan.
     app._start_modscan()
-    print("waehrend Scan: Browse/Reload/Scan gesperrt  OK")
+    print("While scanning: Browse/Reload/Scan locked  OK")
     t0 = time.time()
     while app._scan_running:
         app.update()
         time.sleep(0.05)
         if time.time() - t0 > 60:
-            raise SystemExit("Scan haengt")
+            raise SystemExit("Scan stalled")
     assert str(app.btn_browse.cget("state")) == "normal"
     assert str(app.btn_confirm.cget("state")) == "normal"
     assert str(app.btn_scan.cget("state")) == "normal"
-    print("nach Scan: alles wieder frei  OK")
+    print("After scan: all controls unlocked  OK")
     for w in [x for x in app.winfo_children()
               if isinstance(x, gui.ctk.CTkToplevel)]:
         w.destroy()

@@ -1,14 +1,7 @@
-"""Regler auf 0 %: Recoil/Spread muessen wirklich patchen.
+"""Check zero recoil/spread factors produce real changes.
 
-Nexus-Bug (Koningkoen, 02.09.2026): "Weapon recoil 0 %" hatte keine
-Wirkung. Ursache: die Waffen-Builder uebersprangen JEDEN Faktor <= 0
-(Schutz vor Division durch null bei invertierten Werten wie Feuerrate)
-- 0 % erzeugte darum gar keinen Patch; "Weapon spread 0 %" ebenso,
-obwohl der Tooltip "laser accuracy" verspricht. Jetzt gilt: 0 ist fuer
-multiplikative Werte erlaubt, invertierte (Feuerrate, Haltbarkeit,
-ADS-Zeit) und negative Faktoren bleiben tabu. Sollmengen werden live
-aus den Vanilla-Daten abgeleitet, nichts ist hardcodiert.
-"""
+Permit zero for multiplicative values while rejecting negative factors and
+zero divisors. Derive expected coverage from live data."""
 import re
 import sys
 from pathlib import Path
@@ -30,7 +23,7 @@ CWS = ("WeaponData/CharacterWeaponSettingsPrototypes/"
 
 
 def values_by_struct(text: str, key: str) -> dict[str, str]:
-    """{Top-Level-SID: Wert} fuer jede Zeile `key = wert` im Patch."""
+    """Extract {top_level_SID: value} for a named leaf from patch text."""
     out, cur = {}, None
     for line in text.splitlines():
         if line and not line.startswith((" ", "struct")):
@@ -42,7 +35,7 @@ def values_by_struct(text: str, key: str) -> dict[str, str]:
     return out
 
 
-# --- 1) Recoil 0 %: jeder selbst definierende Struct auf 0 ------------
+# Set every explicit recoil baseline to zero.
 vals = gd.weapon_general_values("RecoilParams.RecoilRadius")
 assert len(vals) >= 70, len(vals)
 p = build_patches(gd, Settings(recoil_factor=0.0))
@@ -54,12 +47,12 @@ for (ed, sid) in gd.dlc_weapon_general_values("RecoilParams.RecoilRadius"):
     hits = [k for k in p if f"DLCGameData/{ed}/" in k
             and parse_number(values_by_struct(p[k], "RecoilRadius")
                              .get(sid, "1")) == 0]
-    assert hits, f"DLC {ed}/{sid} ohne RecoilRadius-0-Patch"
+    assert hits, f"DLC {ed}/{sid} without a RecoilRadius-zero patch"
 assert any("Weapon recoil" in line
            for line in summarize(Settings(recoil_factor=0.0)))
-print(f"Recoil 0 %: {len(got)} Basis-Structs + DLC auf RecoilRadius 0  OK")
+print(f"Recoil 0 %: {len(got)} base structs + DLC set to RecoilRadius 0  OK")
 
-# --- 2) Spread 0 %: Erstschuss (WGS) + Streuung (CWS) auf 0 -----------
+# Set WGS first-shot and CWS dispersion to zero.
 p = build_patches(gd, Settings(spread_factor=0.0))
 first = gd.weapon_general_values("DispersionParams.FirstShotDispersionRadius")
 got = values_by_struct(p[WGS], "FirstShotDispersionRadius")
@@ -73,20 +66,20 @@ expected_cws = {
 got_cws = values_by_struct(p[CWS], "DispersionRadius")
 assert set(got_cws) == expected_cws, (expected_cws ^ set(got_cws))
 assert all(parse_number(v) == 0 for v in got_cws.values())
-print(f"Spread 0 %: {len(got)} Erstschuss- + {len(got_cws)} "
-      "Streuungs-Structs auf 0  OK")
+print(f"Spread 0 %: {len(got)} first-shot + {len(got_cws)} "
+      "Dispersion structs set to zero  OK")
 
-# --- 3) Guards bleiben: invertierte Werte und negative Faktoren --------
+# Retain guards on inverse values and negative factors.
 assert not build_patches(gd, Settings(
     weapon_category_factors={"rifle": {"firerate": 0.0}})), \
-    "Feuerrate 0 darf nicht teilen"
+    "Fire rate 0 must not cause division"
 assert not build_patches(gd, Settings(durability_factor=0.0))
 assert not build_patches(gd, Settings(aim_time_factor=0.0))
 assert not build_patches(gd, Settings(recoil_factor=-1.0))
 assert not build_patches(gd, Settings(spread_factor=-0.5))
-# 100 % bleibt neutral
+# 100% remains neutral.
 assert not build_patches(gd, Settings(recoil_factor=1.0, spread_factor=1.0))
-print("Guards: Feuerrate/Haltbarkeit/ADS-Zeit 0 und negative Faktoren "
-      "-> kein Patch  OK")
+print("Guards: fire rate/durability/ADS duration 0 and negative factors "
+      "-> no patch  OK")
 
 print("\nZERO-FACTORS-TEST OK")

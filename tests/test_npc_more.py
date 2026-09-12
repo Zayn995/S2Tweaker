@@ -1,8 +1,6 @@
-"""Stealth-Paket, NPC-Wachsamkeit/Mut/Wanken, Difficulty-Einzeiler (03.09.2026,
-Vorschlag nach dem NPC-Scan). Sollwerte live aus vanilla/; Anker: Pose-
-Koeffizienten (Crouch 0.75/0.1, Sprint 1.2/1.0), Wetter Fogy 0.7/0.4,
-Threat-Aktionen 200/500/700/350, Taktik Bandits 2/1.
-"""
+"""Check player stealth, NPC threat/courage/stagger and difficulty controls.
+
+Derive expectations from installed vanilla data."""
 import sys
 from pathlib import Path
 
@@ -30,7 +28,7 @@ def ai(p):
     return cfgparse.parse(p[AIG]).children["AISettings"]
 
 
-# --- 1) Crouch stealth x2: Pose-Eintraege komplett, Player-Koeffizienten ---
+# --- 1) Crouch stealth x2: complete pose entries, player coefficients ---
 p = build_patches(gd, Settings(crouch_stealth_factor=2.0))
 assert set(p) == {AIG, OBJ}, set(p)
 poses = ai(p).children["CharacterPoseSettings"].children
@@ -40,9 +38,9 @@ assert poses["[1]"].values == {"Pose": "EStateTag::Crouch", "VisibilityCoef": "0
 assert poses["[0]"].values["Pose"] == "EStateTag::LowCrouchInPlace"
 pl = cfgparse.parse(p[OBJ]).children["Player"].children["StealthParams"].values
 assert pl == {"VisibilityCrouchCoef": "0.15", "NoiseCrouchCoef": "0.15"}, pl
-print("Crouch stealth x2: 2 Posen komplett + Player 0.3 -> 0.15  OK")
+print("Crouch stealth x2: 2 complete poses + player 0.3 -> 0.15  OK")
 
-# --- 2) Movement noise x0: Walk/Run/Sprint/None, Sichtbarkeit unveraendert ---
+# --- 2) Movement noise x0: Walk/Run/Sprint/None, visibility unchanged ---
 p = build_patches(gd, Settings(movement_noise_factor=0.0))
 poses = ai(p).children["CharacterPoseSettings"].children
 assert {e.values["Pose"].split("::")[-1] for e in poses.values()} == {"Walk", "Run", "Sprint", "None"}
@@ -50,9 +48,9 @@ assert all(e.values["NoiseCoef"] == "0.0" for e in poses.values())
 sprint = next(e for e in poses.values() if e.values["Pose"].endswith("Sprint"))
 assert sprint.values["VisibilityCoef"] == "1.2"
 assert OBJ not in p
-print("Movement noise x0: 4 Posen lautlos, Sichtbarkeit unveraendert  OK")
+print("Movement noise x0: 4 silent poses, visibility unchanged  OK")
 
-# --- 3) Wetter x2 / x0: Abschlaege verdoppelt bzw. weg, Clearly nie im Patch ---
+# --- 3) Weather x2 / x0: double/remove penalties, exclude Clearly ---
 p = build_patches(gd, Settings(weather_stealth_factor=2.0))
 w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
 assert "Clearly" not in w
@@ -75,24 +73,22 @@ for sid, values in w.items():
 p = build_patches(gd, Settings(weather_stealth_factor=0.0))
 w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
 assert all(v[k] == "1.0" for v in w.values() for k in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"))
-print("Wetter x2 / x0: aktuelle Vanilla-Abschlaege verdoppelt, Deckel 0.05, x0 = alles 1.0  OK")
+print("Weather x2 / x0: live vanilla penalties doubled, floor 0.05, x0 = all 1.0  OK")
 
-# --- 4) Taschenlampe x0 ------------------------------------------------------
+# --- 4) Flashlight x0 ---
 p = build_patches(gd, Settings(flashlight_stealth_factor=0.0))
 fl = ai(p).children["PlayerFlashlightVisionSettings"].values
 assert fl == {"FlashlightMinVisionScorePerSecond": "0.0f", "FlashlightMaxVisionScorePerSecond": "0.0f"}, fl
 assert cfgparse.parse(p[OBJ]).children["Player"].children["StealthParams"].values == {"FlashLightCoef": "0.0"}
-print("Taschenlampe x0: Sichtpunkte 0 + Player-Koeffizient 0  OK")
+print("Flashlight x0: vision points 0 and player coefficient 0  OK")
 
-# --- 5) Wachsamkeit x2 + Suchzeit x2: nur DefaultNPC, komplette Aktionen ---
+# Scale DefaultNPC vigilance/search time with complete action entries.
 p = build_patches(gd, Settings(npc_alertness_factor=2.0, npc_search_time_factor=2.0))
 assert list(p) == [THR]
 root = cfgparse.parse(p[THR])
-assert list(root.children) == ["[1]"], list(root.children)     # DefaultNPC, nicht Boss/Mutanten
+assert list(root.children) == ["[1]"], list(root.children)     # Exclude boss and mutant profiles.
 prof = root.children["[1]"]
-# Seit 04.09. wird das Index-Profil [1] KOMPLETT ausgegeben (siehe
-# test_index_entries): die zwei skalierten Werte wie erwartet, alle
-# uebrigen Top-Level-Werte exakt Vanilla.
+# Emit the complete indexed threat profile, preserving unchanged top-level values.
 assert prof.values["DefaultThreatValueFreezeTimeSeconds"] == "60.0", prof.values
 assert prof.values["DefaultThreatValueLossPerSecond"] == "15.0", prof.values
 vanilla_prof = {k: v.strip() for k, v in gd.threats.children["[1]"].values.items()}
@@ -104,11 +100,11 @@ acts = {a.values["Type"].split("::")[-1]: a.values for a in prof.children["Actio
 assert acts["TurnHead"]["ThreatLevelValueMin"] == "100" and acts["CallAllies"]["ThreatLevelValueMin"] == "350"
 assert acts["SearchEnemy"]["ThreatValueFreezeTimeSeconds"] == "60.0" and acts["SearchEnemy"]["ThreatValueLossPerSecond"] == "10.0"
 assert all(set(a) >= {"Type", "ThreatLevelValueMin", "ThreatLevelValueMax"} for a in acts.values())
-# Wachsamkeit x0.5 mit Deckel MaxThreatLevelValue
+# Clamp reduced-vigilance thresholds to MaxThreatLevelValue.
 p = build_patches(gd, Settings(npc_alertness_factor=0.5))
 acts = {a.values["Type"].split("::")[-1]: a.values for a in cfgparse.parse(p[THR]).children["[1]"].children["Actions"].children.values()}
 assert acts["CallAllies"]["ThreatLevelValueMin"] == "1000" and acts["TurnHead"]["ThreatLevelValueMin"] == "400"
-print("Wachsamkeit x2 / x0.5 + Suchzeit x2: DefaultNPC, Aktionen komplett, Deckel 1000  OK")
+print("Awareness x2 / x0.5 + search time x2: DefaultNPC, complete actions, cap 1000  OK")
 
 # Issue #13: new 1000% ceiling scales the live baseline without changing
 # the anomaly event's zero confidence time or empty RelationLevels.
@@ -124,24 +120,24 @@ for node in search.walk():
         assert node.values['RelationLevels'] == ''
 print('Search time 1000%: live scaling and unchanged anomaly entry OK')
 
-# --- 6) Mut x2: drei Menschen-Typen, Mutant tabu -----------------------------
+# --- 6) Courage x2: three human types, mutants excluded ---
 p = build_patches(gd, Settings(npc_courage_factor=2.0))
 tac = ai(p).children["CombatTacticsSettings"].children["CombatTacticsParamsPerFactions"].children
 assert set(tac) == {"Bandits", "Monolith", "Humanoid"}, set(tac)
 assert tac["Bandits"].values == {"ConfidenceToAttack": "1.0f", "ConfidenceToRetreat": "0.5f"}
-assert tac["Monolith"].values == {"ConfidenceToAttack": "0.25f"}      # Retreat 0 bleibt weg
-print("Mut x2: Bandits 2/1 -> 1/0.5, Monolith-Rueckzug 0 bleibt, Mutant tabu  OK")
+assert tac["Monolith"].values == {"ConfidenceToAttack": "0.25f"}      # Retreat zero remains excluded.
+print("Courage x2: Bandits 2/1 -> 1/0.5, Monolith retreat stays zero, mutants excluded  OK")
 
-# --- 7) Wanken x0.5: menschliche Prototypen, Mutanten/Player tabu -------------
+# --- 7) Stagger x0.5: human prototypes, mutants/player excluded ---
 p = build_patches(gd, Settings(npc_stagger_factor=0.5))
 root = cfgparse.parse(p[OBJ])
 humans = set(gd.human_npc_sids())
 assert set(root.children) <= humans and len(root.children) >= 1500, len(root.children)
 assert "Player" not in root.children and "Bloodsucker" not in root.children
 assert parse_number(root.children["GeneralNPC_Neutral_Recon"].values["CriticalDamageThreshold"]) == 20
-print(f"Wanken x0.5: {len(root.children)} menschliche Prototypen, Neutral_Recon 40 -> 20  OK")
+print(f"Stagger x0.5: {len(root.children)} human prototypes, Neutral_Recon 40 -> 20  OK")
 
-# --- 8) Difficulty: Cooldowns x, Rang +2 additiv -----------------------------
+# --- 8) Difficulty: cooldown factors, additive rank +2 ---
 p = build_patches(gd, Settings(npc_weapon_rank_add=2, npc_attack_cooldown_factor=1.5,
                                mutant_attack_cooldown_factor=2.0))
 assert list(p) == [DIF]
@@ -152,15 +148,15 @@ for sid, node in root.children.items():
     assert npc == {"NPC_AttackCooldown": "1.5", "NPC_Weapon_Rank_Add": "2"}, (sid, npc)
     assert node.children["MutantCombatDifficulty"].values == {"Mutant_AttackCooldown": "2.0"}
 assert not build_patches(gd, Settings(npc_weapon_rank_add=0))
-print(f"Difficulty: {len(root.children)} Schwierigkeiten, Cooldowns + Rang +2  OK")
+print(f"Difficulty: {len(root.children)} difficulties, cooldowns and rank +2  OK")
 
-# --- 9) Director-Deckel: [i]-Eintraege komplett (AgentType + MaxCount) --------
+# --- 9) Director limits: complete [i] entries with AgentType + MaxCount ---
 p = build_patches(gd, Settings(encounter_pack_factor=2.0))
 lim = (cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
        .children["ALifeScenarioNPCArchetypesLimitsPerPlayerRank"])
 entry = lim.children["[0]"].children["Restrictions"].children["[0]"].values
 assert set(entry) == {"AgentType", "MaxCount"} and entry["AgentType"].startswith("EAgentType::"), entry
-print("Director-Deckel: komplette [i]-Eintraege  OK")
+print("Director limits: complete [i] entries  OK")
 
 # --- 10) Neutral + Summary --------------------------------------------------
 assert not build_patches(gd, Settings())
@@ -174,6 +170,6 @@ for needle in ("Crouch stealth", "Movement noise", "Bad-weather stealth", "Flash
                "NPC attack cooldown", "NPC weapon rank +1", "Mutant attack cooldown"):
     assert any(needle in l for l in lines), (needle, lines)
 assert set(build_patches(gd, s)) == {AIG, OBJ, THR, DIF}
-print("Neutral = kein Patch, 11 Summary-Zeilen, 4 Patch-Dateien  OK")
+print("Neutral = no patch, 11 summary lines, 4 patch files  OK")
 
 print("\nNPC-MORE-TEST OK")

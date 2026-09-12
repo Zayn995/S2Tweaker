@@ -1,21 +1,8 @@
-"""Der Programmordner OHNE PyInstaller (seit 1.21.0): baut nach
-tests/_tmp/dist und prueft die Zusagen, die README, FAQ und Nexus-Texte
-machen.
+"""Build a portable folder under tests/_tmp and verify its distribution contract.
 
-Hintergrund (05.09.2026): 1.20.0 stand bei VirusTotal auf 2/70, und die
-beiden Treffer galten dem Anhang, den PyInstaller an seinen Starter
-haengt - der nackte Starter selbst war bei allen Scannern sauber. Seitdem
-ist S2Tweaker.exe die unveraenderte, von der Python Software Foundation
-signierte pythonw.exe; alles andere liegt lesbar in _internal. Diese
-Suite haelt fest, was das Paket enthalten muss und was nicht.
-tools/build_exe.py macht dieselben Gegenproben selbst und dazu den
-Selbsttest (Fenster aufbauen); hier wird der Bau als Ganzes von aussen
-angestossen, so wie CI und build.bat es tun.
-
-Dauer: rund eine halbe Minute (die Standardbibliothek wird kompiliert).
-Braucht keine Spieldaten, aber eine python.org-Installation als
-Interpreter (pythonw.exe, DLLs\\, tcl\\ neben python.exe).
-"""
+Check the unchanged signed pythonw.exe, runtime layout, forbidden modules
+and absence of user data. Requires a python.org installation, not game data.
+The build performs its own headless self-test."""
 import hashlib
 import shutil
 import subprocess
@@ -30,7 +17,7 @@ if DIST.exists():
 
 r = subprocess.run([sys.executable, str(ROOT / "tools" / "build_exe.py"),
                     "--distpath", str(DIST)], cwd=ROOT)
-assert r.returncode == 0, "tools/build_exe.py ist fehlgeschlagen"
+assert r.returncode == 0, "tools/build_exe.py failed"
 app = DIST / "S2Tweaker"
 internal = app / "_internal"
 ver = f"{sys.version_info.major}{sys.version_info.minor}"
@@ -40,15 +27,15 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-# --- 1) Der Starter ist Byte fuer Byte pythonw.exe ----------------------
+# Launcher must be byte-identical to pythonw.exe.
 assert sha(app / "S2Tweaker.exe") == sha(Path(sys.base_prefix) / "pythonw.exe")
-print("S2Tweaker.exe == pythonw.exe der Python-Installation  OK")
+print("S2Tweaker.exe matches the Python installation's pythonw.exe  OK")
 
-# --- 2) Genau EINE ausfuehrbare Datei (seit 05.09.2026 kein repak.exe) ---
+# Exactly one executable; no repak binary.
 exes = sorted(p.relative_to(app).as_posix() for p in app.rglob("*.exe"))
 assert exes == ["S2Tweaker.exe"], exes
 
-# --- 3) Kein Netz, kein TLS, kein OpenSSL, kein PyInstaller -------------
+# No network/TLS/OpenSSL/PyInstaller components.
 names = [p.name.lower() for p in app.rglob("*")]
 for bad in ("_ssl", "_socket", "_hashlib", "libssl", "libcrypto", "sqlite",
             "_multiprocessing", "pyimod", "base_library.zip"):
@@ -63,17 +50,17 @@ for bad in ("ssl.pyc", "socket.pyc", "asyncio/__init__.pyc",
             "sqlite3/__init__.pyc", "test/__init__.pyc",
             "idlelib/__init__.pyc", "ensurepip/__init__.pyc"):
     assert bad not in zipped, bad
-print("Layout: eine EXE, keine Netz-/TLS-Module, Stdlib-Zip  OK")
+print("Layout: one EXE, no network/TLS modules, standard library ZIP  OK")
 
-# --- 4) Suchpfad und Starter --------------------------------------------
+# Module search path and startup module.
 pth = (app / f"python{ver}._pth").read_text(encoding="ascii").splitlines()
 assert pth == [f"_internal\\python{ver}.zip", "_internal", "import site"], pth
 assert (internal / "sitecustomize.py").read_bytes() == \
     (ROOT / "tools" / "launcher.py").read_bytes(), \
-    "sitecustomize.py weicht von tools/launcher.py ab"
-print("._pth und sitecustomize.py  OK")
+    "sitecustomize.py differs from tools/launcher.py"
+print("._pth and sitecustomize.py  OK")
 
-# --- 5) Quelltext lesbar + vorkompiliert, Beigaben, Lizenzen ------------
+# --- 5) Readable and precompiled source, resources, licenses ---
 for rel in ("s2tweaker/gui.py", "s2tweaker/__pycache__",
             "customtkinter/__init__.py", "darkdetect/__init__.py",
             "packaging/version.py", "assets/icon.ico",
@@ -83,21 +70,20 @@ for rel in ("s2tweaker/gui.py", "s2tweaker/__pycache__",
     assert (internal / rel).exists(), rel
 pycs = sorted((internal / "s2tweaker" / "__pycache__").glob(f"*.cpython-{ver}.pyc"))
 assert len(pycs) >= 10, pycs
-# Vorkompiliert mit unchecked-hash (Flag-Bits 0b01): wird ohne Blick auf
-# den Zeitstempel der .py benutzt, das Programm schreibt beim Start nichts.
+# Use unchecked-hash bytecode so startup does not depend on source timestamps.
 flags = int.from_bytes(pycs[0].read_bytes()[4:8], "little")
-assert flags & 0b11 == 0b01, f"pyc-Flags {flags:#x} (erwartet unchecked-hash)"
-print("Quelltext + __pycache__ (unchecked-hash), Beigaben, Lizenzen  OK")
+assert flags & 0b11 == 0b01, f"pyc-Flags {flags:#x} (expected unchecked-hash)"
+print("Source and __pycache__ (unchecked-hash), supporting files, licenses  OK")
 
-# --- 6) Keine Nutzerdaten und keine Reste des Selbsttests im Paket ------
+# No user data or self-test leftovers in the distribution.
 for junk in ("settings.json", "cache", "output", "presets",
              "S2Tweaker_error.log"):
     assert not (app / junk).exists(), junk
 
-# --- 7) Groesse: kleiner Starter, nichts eingebettet --------------------
+# --- 7) Size: small launcher, no embedded payload ---
 exe_size = (app / "S2Tweaker.exe").stat().st_size
 assert exe_size < 200_000, exe_size
 total = sum(p.stat().st_size for p in app.rglob("*") if p.is_file())
-print(f"Groesse: Starter {exe_size:,} B, Ordner gesamt {total:,} B")
+print(f"Size: launcher {exe_size:,} B, total directory size {total:,} B")
 
-print("\nBAU-LAYOUT-TEST OK")
+print("\nBUILD LAYOUT TEST PASSED")

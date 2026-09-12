@@ -1,10 +1,6 @@
-"""Steam-Workshop-Scan: Pfad-Erkennung, Namen, E2E ueber einen Fake-Steam-Baum.
+"""Check Workshop discovery, naming and scan integration with a temporary Steam tree.
 
-Der Fake-Baum bildet die echte Ablage nach (verifiziert 02.09. am Spiel):
-<Bibliothek>\\steamapps\\workshop\\content\\1643320\\<item>\\Windows\\
-{New,Override}Content\\Windows\\Stalker2\\Mods\\<Name>\\Content\\Paks\\...
-Wie immer: SETTINGS_FILE umbiegen, nie _on_close/_save_ui_settings rufen.
-"""
+Include nested Windows NewContent/OverrideContent layouts and temporary settings."""
 import sys
 import tempfile
 import time
@@ -31,16 +27,16 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     mods.mkdir(parents=True)
     ws = lib / "steamapps" / "workshop" / "content" / "1643320"
 
-    # --- 1) Pfad-Erkennung ------------------------------------------------
+    # --- 1) Path detection ---
     assert game.steam_workshop_dir(game_dir) is None, \
-        "ohne Workshop-Ordner muss None kommen"
+        "Missing Workshop directory must return None"
     ws.mkdir(parents=True)
     assert game.steam_workshop_dir(game_dir) == ws
     assert game.steam_workshop_dir(Path(tmp)) is None, \
-        "Nicht-Steam-Pfad darf keinen Workshop melden"
+        "Non-Steam path must not report a Workshop directory"
     print("steam_workshop_dir OK")
 
-    # --- 2) Fake-Workshop-Inhalte bauen ----------------------------------
+    # --- 2) Create fake Workshop content ---
     def item_paks(item: str, mod: str, kind: str) -> Path:
         d = (ws / item / "Windows" / kind / "Windows" / "Stalker2" / "Mods"
              / mod / "Content" / "Paks" / "Windows")
@@ -50,10 +46,8 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     gd = GameData(VANILLA)
     fake = build_patches(gd, Settings(mod_name="CoolMod",
                                       player_damage_factor=2.0))
-    # CoolMod wie ein echtes Abo seit dem Layout-Wechsel: ZWEIMAL (neuer
-    # OverrideContent-Pfad + alter Pfad direkt unter Stalker2/Mods), beide
-    # als IoStore-Trio (.utoc/.ucas daneben, die .ucas 48 Bytes = leer —
-    # genau so lagen 12 der 15 echten Abos des Besitzers am 04.09. vor).
+    # Represent both old and new Workshop layouts for the same mod,
+    # including readable Pak entries with sibling IoStore containers.
     d = item_paks("111", "CoolMod", "OverrideContent")
     pak = d / "CoolModStalker2-Windows-OverrideContent.pak"
     pakio.pack_mod(fake, pak)
@@ -67,8 +61,7 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     pak2.with_suffix(".utoc").write_bytes(b"\0" * 240)
     pak2.with_suffix(".ucas").write_bytes(b"\0" * 48)
 
-    # Kaputte Pak MIT .utoc: bleibt unlesbar — wegen der Pak, nicht wegen
-    # des Containers.
+    # A malformed Pak remains unreadable regardless of sibling IoStore files.
     d = item_paks("222", "IoMod", "NewContent")
     (d / "IoModStalker2-Windows-NewContent.pak").write_bytes(b"junk")
     (d / "IoModStalker2-Windows-NewContent.utoc").write_bytes(b"")
@@ -76,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     (ws / "333").mkdir()
     (ws / "333" / "loose.pak").write_bytes(b"junk")
 
-    # Reine Asset-Mod: gueltige Pak ohne cfg, Inhalt sitzt in der .ucas
+    # Asset-only mod: valid Pak without cfg, with cooked content in IoStore.
     d = item_paks("444", "AssetOnly", "NewContent")
     pak3 = d / "AssetOnlyStalker2-Windows-NewContent.pak"
     pakio.pack_mod({"readme.txt": "assets live in the .ucas"}, pak3)
@@ -90,9 +83,9 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     assert names == ["333 (Workshop)", "AssetOnly (Workshop, new content)",
                      "CoolMod (Workshop)", "CoolMod (Workshop)",
                      "IoMod (Workshop, new content)"], names
-    print("find_workshop_paks + Namen OK:", names)
+    print("find_workshop_paks and names OK:", names)
 
-    # --- 2b) scan_pak: ein IoStore-Trio ist LESBAR (Fix 04.09.) -----------
+    # Scan loose cfg data from a Pak even with IoStore siblings.
     info = modscan.scan_pak(pak)
     assert info.readable and info.packed_assets and info.n_cfg == 1, \
         vars(info)
@@ -105,9 +98,9 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     assert info.note == modscan.PACKED_NO_CFG_NOTE, info.note
     info = modscan.scan_pak(ws / "333" / "loose.pak")
     assert not info.readable and "can't read" in info.note, vars(info)
-    print("scan_pak: IoStore-Trio lesbar, Asset-only ehrlich, Junk kaputt  OK")
+    print("scan_pak: IoStore trio readable, asset-only notice, invalid data rejected  OK")
 
-    # --- 2c) merge_same_name: doppelte Abos werden EIN Eintrag ------------
+    # Merge duplicated subscriptions into one result.
     a, b = modscan.scan_pak(pak), modscan.scan_pak(pak2)
     a.name = b.name = "CoolMod (Workshop)"
     a.source = b.source = "workshop"
@@ -120,8 +113,7 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     assert "2 pak files" in m.note and m.note.count("packed assets") == 1, \
         m.note
     assert merged[1].n_paks == 1 and merged[1].note == ""
-    # Haelfte ohne cfg + Haelfte mit cfg: "no config" faellt weg, Paare
-    # sind die Vereinigung
+    # Remove no-config notes when another component contains cfg; union changed pairs.
     x = modscan.ModInfo(name="M", path=pak3, packed_assets=True,
                         note=modscan.PACKED_NO_CFG_NOTE)
     y = modscan.ModInfo(name="M", path=pak, n_cfg=2, packed_assets=True,
@@ -131,7 +123,7 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     (m2,) = modscan.merge_same_name([x, y])
     assert m2.n_cfg == 2 and m2.pairs == {("A", "b"), ("C", "d")}, vars(m2)
     assert "no config" not in m2.note and "packed assets" in m2.note, m2.note
-    # Kaputte + heile Haelfte: Eintrag lesbar, Fehler bleibt als Notiz
+    # Corrupt and valid halves: entry readable, error retained as a note.
     broken = modscan.ModInfo(name="N", path=pak, readable=False,
                              note="contains data I can't read (x)")
     fine = modscan.ModInfo(name="N", path=pak2, n_cfg=1)
@@ -140,7 +132,7 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
         vars(m3)
     print("merge_same_name OK:", m.note)
 
-    # --- 3) E2E: Scan sieht die Workshop-Mods -----------------------------
+    # Check Workshop mods through the full scan path.
     app = gui.App()
     app.gd = gd
     app.game_dir = game_dir
@@ -151,14 +143,14 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
         app.update()
         time.sleep(0.05)
         if time.time() - t0 > 60:
-            raise SystemExit("Workshop-Scan haengt")
+            raise SystemExit("Workshop scan stalled")
     by_name = {i.name: i for i in app.modscan_results}
     assert "CoolMod (Workshop)" in by_name, by_name.keys()
     assert by_name["CoolMod (Workshop)"].readable
     assert by_name["CoolMod (Workshop)"].source == "workshop"
     assert not by_name["IoMod (Workshop, new content)"].readable
     assert "can't read" in by_name["IoMod (Workshop, new content)"].note
-    # Genau EIN Treffer trotz zwei CoolMod-Paks (merge_same_name im Worker)
+    # Exactly ONE match despite two CoolMod paks (merge_same_name in worker).
     assert app.mod_conflicts.get("pdmg") == ["CoolMod (Workshop)"], \
         app.mod_conflicts.get("pdmg")
     cool = [i for i in app.modscan_results if i.name == "CoolMod (Workshop)"]
@@ -172,9 +164,9 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
     assert len(app.modscan_results) == 4, \
         [i.name for i in app.modscan_results]
     assert app._mods_unknown == set(by_name), app._mods_unknown
-    assert not app._mods_after, "Workshop-Mods duerfen nicht in _mods_after"
+    assert not app._mods_after, "Workshop mods must not appear in _mods_after"
 
-    # Tooltip: bei verstelltem Regler ehrlich "load order unknown"
+    # Disclose unknown Workshop load order in conflict tooltips.
     row = app.sliders["pdmg"]
     row.set(2.0)
     row.set_conflict(app.mod_conflicts["pdmg"], app._mods_after,
@@ -183,12 +175,12 @@ with tempfile.TemporaryDirectory(prefix="s2t_ws_") as tmp:
         row._dot_tip
     print("Tooltip:", row._dot_tip)
 
-    # Report nennt die Workshop-Sonderstellung
+    # Report Workshop ordering separately.
     report = app._build_compat_report()
     assert "Steam Workshop mod - activation and load order" in report
     assert "CoolMod (Workshop)" in report
     assert "note: " + modscan.PACKED_NOTE in report, \
-        "Packed-Assets-Notiz fehlt im Report"
+        "Packed-assets note missing from report"
     assert modscan.PACKED_NO_CFG_NOTE in report
     for w in [x for x in app.winfo_children()
               if isinstance(x, gui.ctk.CTkToplevel)]:

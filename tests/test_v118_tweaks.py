@@ -1,9 +1,6 @@
-"""v1.18-Paket (Nexus-Beliebtheits-Recherche 03.09.2026): Tageslaenge,
-Wirkdauer von Verbrauchsguetern, Artefakte je Feld + Respawn, Quest-Items
-ohne Gewicht. Sollwerte live aus vanilla/; Anker sind nur die bekannten
-Vanilla-Groessen (RealToGameTimeCoef 24, Energydrink 45 s, Count 1, Cooldown
-3/15).
-"""
+"""Check day length, consumable durations, artifact count/respawn and quest-item weight.
+
+Expected values come from installed data."""
 import re
 import sys
 from pathlib import Path
@@ -38,7 +35,7 @@ def leaves(root, key):
     return out
 
 
-# --- 1) Tageslaenge ------------------------------------------------------
+# --- 1) Day length ------------------------------------------------------
 assert gd.corevar("RealToGameTimeCoef", 0) == 24
 p = build_patches(gd, Settings(day_length_factor=2.0))
 assert list(p) == [CORE], list(p)
@@ -49,11 +46,11 @@ p = build_patches(gd, Settings(day_length_factor=2.5))
 assert "RealToGameTimeCoef = 9.6" in p[CORE]
 print("Tageslaenge: 24 -> 12 / 48 / 9.6  OK")
 
-# --- 2) Wirkdauer: nur laufende, nicht-negative Consumable-Effekte -------
+# Extend only ongoing nonnegative consumable effects.
 dur = gd.consumable_duration_effects()
 assert 8 <= len(dur) <= 30, len(dur)
 assert "EnergeticStamina" in dur and "HerculesWeight" in dur
-assert "MedkitHealing3" not in dur and "Antirad4" not in dur   # 1-2 s = Sofort
+assert "MedkitHealing3" not in dur and "Antirad4" not in dur   # 1–2 s counts as immediate.
 assert "VodkaStaminaPenalty" not in dur                        # Negative
 assert all(parse_number(v) >= 10 for v in dur.values())
 p = build_patches(gd, Settings(consumable_duration_factor=3.0))
@@ -62,9 +59,9 @@ root = cfgparse.parse(p[EFF])
 assert set(root.children) == set(dur), set(root.children) ^ set(dur)
 assert root.children["EnergeticStamina"].values["Duration"] == "135.0"
 assert root.children["HerculesWeight"].values["Duration"] == "900.0f"
-print(f"Wirkdauer x3: {len(dur)} laufende Effekte, Sofort-/Malus-Effekte tabu  OK")
+print(f"Effect duration x3: {len(dur)} ongoing effects, immediate effects and penalties excluded  OK")
 
-# --- 3) Artefakte je Feld + Respawn --------------------------------------
+# --- 3) Artifacts per field and respawn ---
 spawners = [s for s in gd.artifactspawners.children if s != "Empty" and "#" not in s]
 p = build_patches(gd, Settings(artifact_count_factor=2.0))
 assert list(p) == [ART]
@@ -79,15 +76,15 @@ assert all(v == "5" for _p, v in leaves(cfgparse.parse(p[ART]), "Count"))
 p = build_patches(gd, Settings(artifact_respawn_factor=2.0))
 root = cfgparse.parse(p[ART])
 cds = leaves(root, "MinCooldown") + leaves(root, "MaxCooldown")
-assert cds and all(parse_number(v) > 0 for _p, v in cds)      # Nullen bleiben
+assert cds and all(parse_number(v) > 0 for _p, v in cds)      # Preserve zeros.
 chunk = root.children["ChunkMeatArtifactSpawner"].children["Newbie"].values
 assert chunk["MinCooldown"] == "1.5f" and chunk["MaxCooldown"] == "7.5f", chunk
 n_cd = sum(1 for s in spawners for r in gd.artifactspawners.children[s].children.values()
            if parse_number(r.values.get("MinCooldown")) > 0)
 assert len(leaves(root, "MinCooldown")) == n_cd
-print(f"Artefakte: {len(counts)} Rang-Bloecke Count 2, {n_cd} Cooldowns halbiert, Nullen tabu  OK")
+print(f"Artifacts: {len(counts)} rank blocks Count 2, {n_cd} cooldowns halved, zero values excluded  OK")
 
-# --- 4) Quest-Items ohne Gewicht -----------------------------------------
+# --- 4) Weightless quest items ---
 qw = gd.quest_items_with_weight()
 assert len(qw) >= 250 and max(qw.values()) >= 10, (len(qw), max(qw.values()))
 p = build_patches(gd, Settings(quest_items_weightless=True))
@@ -96,7 +93,7 @@ root = cfgparse.parse(p[ITEMS])
 assert set(root.children) == set(qw)
 assert all(n.values == {"Weight": "0.0"} for n in root.children.values())
 assert "GunAK74_ST" not in root.children and "Medkit" not in root.children
-print(f"Quest-Items: {len(qw)} Items auf 0.0 kg, Rest unangetastet  OK")
+print(f"Quest-Items: {len(qw)} items set to 0.0 kg, others unchanged  OK")
 
 # --- 5) Neutral + summarize ----------------------------------------------
 assert not build_patches(gd, Settings())
@@ -108,6 +105,6 @@ for needle in ("Day length", "Consumable effect duration", "Artifacts per anomal
                "Artifact respawn speed", "Quest items weigh nothing"):
     assert any(needle in l for l in lines), (needle, lines)
 assert set(build_patches(gd, s)) == {CORE, EFF, ART, ITEMS}
-print("Neutral = kein Patch, 5 Summary-Zeilen, 4 Patch-Dateien  OK")
+print("Neutral = no patch, 5 summary lines, 4 patch files  OK")
 
 print("\nV118-TWEAKS-TEST OK")

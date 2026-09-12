@@ -1,9 +1,5 @@
-"""Release-Kurztest der GUI ohne Klicken (Rezept aus HANDOVER.md).
-
-Prueft die Punkte aus der Skill release-version, Schritt 2:
-Waffenbaum, Ammo-Tab (inkl. Vanilla-0-Sorte), Presets, "nothing to patch",
-und den neuen Loot-Regler.
-"""
+"""Manual GUI release smoke checks for weapon/ammunition trees, presets,
+neutral output and loot controls."""
 import sys
 from pathlib import Path
 
@@ -16,8 +12,7 @@ from s2tweaker import gui
 SCRATCH = ROOT / "tests" / "_tmp"
 SCRATCH.mkdir(exist_ok=True)
 gui.SETTINGS_FILE = SCRATCH / "throwaway_settings.json"
-# Frisch starten: eine liegengebliebene Datei (z.B. von einem frueheren
-# Agenten-Lauf) wuerde den Neutral-Check faelschlich ausloesen.
+# Start with clean temporary state so leftovers cannot affect neutrality checks.
 gui.SETTINGS_FILE.unlink(missing_ok=True)
 
 from s2tweaker import __version__
@@ -29,11 +24,11 @@ app.gd = GameData(VANILLA)
 app.update()
 print("version:", __version__, "| window title:", app.title())
 
-# --- Grundzustand: nichts zu patchen -----------------------------------
-assert not build_patches(app.gd, app._collect()), "Neutral erzeugt Patches!"
+# --- Default state: nothing to patch ---
+assert not build_patches(app.gd, app._collect()), "Neutral settings produce patches"
 print("neutral -> nothing to patch  OK")
 
-# --- Waffenbaum --------------------------------------------------------
+# --- Weapon tree ---
 app._set_body_state(True)
 app._iw_populate()
 app.update()
@@ -48,7 +43,7 @@ assert any("WeaponData" in k for k in out), list(out)
 print("weapon override patches:", [k.split('/')[-1] for k in out])
 app.weapon_overrides.clear()
 
-# --- Ammo-Baum ---------------------------------------------------------
+# --- Ammunition tree ---------------------------------------------------------
 app._ia_populate()
 app.update()
 kinds = app.gd.ammo_kinds()
@@ -60,7 +55,7 @@ out = build_patches(app.gd, s)
 assert any("ItemPrototypes" in k for k in out), list(out)
 print("ammo override patches OK")
 
-# Vanilla-0-Sorte: darf keinen wirksamen Patch erzeugen
+# A type with a vanilla value of zero must not produce an effective patch.
 app.ammo_overrides.clear()
 zero = [sid for sid in kinds
         if not float(app.gd.resolve(app.gd.items, sid, "ArmorPiercingMod") or 0)]
@@ -68,11 +63,11 @@ print("rounds with ArmorPiercingMod == 0:", len(zero), zero[:3])
 if zero:
     app.ammo_overrides[zero[0]] = {"piercing": 3.0}
     out = build_patches(app.gd, app._collect())
-    assert not out, f"0 x factor erzeugt Patch: {list(out)}"
+    assert not out, f"0 x factor produces a patch: {list(out)}"
     print(f"{zero[0]}: piercing x3 -> nothing to patch  OK")
     app.ammo_overrides.clear()
 
-# --- Loot-Regler -------------------------------------------------------
+# --- Loot sliders ---
 app.sliders["loot_amount"].set(200)
 app.update()
 s = app._collect()
@@ -82,7 +77,7 @@ assert key, list(out)
 print(f"loot slider 200 %: {key[0].split('/')[-1]}  {len(out[key[0]]):,} chars, "
       f"{out[key[0]].count(chr(10)):,} lines")
 
-# --- Presets: speichern, alles verstellen, laden ------------------------
+# --- Presets: save, change everything, load ---
 state = app._ui_state()
 app.sliders["loot_amount"].set(400)
 app.sliders["hp"].set(250)

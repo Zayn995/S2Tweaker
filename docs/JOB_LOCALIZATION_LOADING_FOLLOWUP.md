@@ -1,6 +1,6 @@
 # Job localization loading follow-up
 
-Audit date: 2026-09-11. Installed game data: 2.0.5. This is follow-up research for [Molkerr's 1.40.0 report in issue #9](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5639882302). The reporter says the added artifact effects work, but the isolated journal text still does not translate. This document records a private candidate, not an in-game verified repair.
+Audit date: 2026-09-11. Installed game data: 2.0.5. This is follow-up research for [Molkerr's 1.40.0 report in issue #9](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5639882302). The reporter says the added artifact effects work, but the isolated journal text still does not translate. This document records a repair candidate that was not verified in-game at the audit date.
 
 ## What the existing result establishes
 
@@ -94,4 +94,4 @@ The generated resources must be rebuilt after game updates. The native target pa
 
 For a controlled test, keep the 1.40.0 job graph and its isolated IDs unchanged, add the native-path translation candidate, and avoid another translation replacement mod. Check a missing isolated title and stage that appear in the reporter's footage, then check ordinary quests/menu text for regressions. Do not combine this translation test with a speculative marker or stage-identity change. Retest journal persistence and return-to-giver behavior, but do not attribute a marker result to localization alone.
 
-**Conclusion:** A live-generated, byte-preserving version-3 replacement for every installed `Game.locres` is technically feasible and locally validated. Its loading and rendering remain experimental until the owner or reporter confirms them in the game. It increases generated Pak size and introduces an explicit whole-file translation-mod conflict.
+**Conclusion:** A live-generated, byte-preserving version-3 replacement for every installed `Game.locres` is technically feasible and locally validated. Its loading and rendering remain experimental until confirmed by an in-game test. It increases generated Pak size and introduces an explicit whole-file translation-mod conflict.

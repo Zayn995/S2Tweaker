@@ -1,29 +1,8 @@
-"""Verdrahtungs-Pruefung OHNE Fenster (neu am 08.09.2026).
+"""Verify control wiring without creating a GUI window.
 
-Besitzer, nachdem die Batterie zwanzig Minuten und zwanzig Fenster
-gebraucht hatte: "bau es richtig unter 5 minuten nur das was muss" und
-"nicht 1000 mal oeffnen schliessen".
-
-**Warum das geht.** Die alten GUI-Suiten bauen ein komplettes App-Fenster,
-nur um an Widgets zu wackeln. Die Fragen, die beim Einbauen eines Reglers
-wirklich schiefgehen, sind aber Verdrahtungsfragen — und die stehen im
-Quelltext und in der Settings-Datenklasse:
-
-  1. Steht der Regler in der Feldtabelle (SLIDER_FIELDS / CHECK_FIELDS)?
-  2. Wird sein Feld in `_collect()` ueberhaupt eingesammelt? Genau das war
-     der Fehler von 1.16.1: `rq_cooldown` wurde nie gelesen, der Regler war
-     tot, und keine Suite hat es gemerkt.
-  3. Bewirkt er etwas — kommt bei verstelltem Wert ein Patch heraus?
-  4. Steht er in der Tweak-Liste, die der Benutzer nach dem Bauen sieht?
-  5. Und andersherum: erzeugt die Vanilla-Stellung wirklich NICHTS?
-
-Punkt 1, 2 und 5 sind statisch bzw. reine Datenpruefungen, 3 und 4 laufen
-ueber `build_patches`/`summarize`. Kein Tk, kein Fenster, kein Fokus-Klau.
-
-Nicht geprueft werden Aussehen, Layout-Breiten, Designs, Mausrad und Dialoge.
-Automatische Laeufe oeffnen keine Fenster. --static-only prueft die
-Feldverdrahtung ohne Spieldaten und wird von der CI verwendet.
-"""
+Check field registration, collection, patch generation, summaries and neutral
+output. --static-only omits game-data checks for CI. Appearance and input
+interaction remain separate visual checks."""
 import ast
 import sys
 import time
@@ -35,7 +14,7 @@ VANILLA = ROOT / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
 
 from s2tweaker.gamedata import GameData
 from s2tweaker.tweaks import Settings, build_patches, input_ini, summarize
-# NUR das Modul, KEIN App(): der Import baut kein Fenster.
+# Import the module without constructing App.
 from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
 
 ok = 0
@@ -48,8 +27,7 @@ def check(cond, msg):
     print(f"  OK  {msg}")
 
 
-# --- 1) Was sammelt _collect() wirklich ein? ----------------------------
-# Statisch aus dem Quelltext gelesen, nicht durch Klicken.
+# Read _collect wiring statically from source.
 source = (ROOT / "s2tweaker" / "gui.py").read_text(encoding="utf-8")
 tree = ast.parse(source)
 collect = None
@@ -57,7 +35,7 @@ for node in ast.walk(tree):
     if isinstance(node, ast.FunctionDef) and node.name == "_collect":
         collect = node
         break
-assert collect is not None, "_collect() nicht gefunden"
+assert collect is not None, "_collect() not found"
 collected = set()
 for node in ast.walk(collect):
     if isinstance(node, ast.keyword) and node.arg:
@@ -66,39 +44,34 @@ for node in ast.walk(collect):
 fields = set(SLIDER_FIELDS.values()) | set(CHECK_FIELDS.values())
 missing = sorted(fields - collected)
 check(not missing,
-      f"jedes der {len(fields)} Bedienelemente wird in _collect() eingesammelt"
-      + (f" - FEHLT: {missing}" if missing else ""))
+      f"Each of the {len(fields)} controls is collected by _collect()"
+      + (f" - MISSING: {missing}" if missing else ""))
 
 known = {f.name for f in Settings.__dataclass_fields__.values()}
 unknown = sorted(f for f in fields if f not in known)
-check(not unknown, f"jede Feldtabelle zeigt auf ein echtes Settings-Feld{unknown}")
+check(not unknown, f"Each field table points to an existing Settings field{unknown}")
 
 if "--static-only" in sys.argv:
-    print("STATISCHE VERDRAHTUNG GRUEN (ohne Spieldaten und Fenster)")
+    print("STATIC WIRING PASSED (without game data or windows)")
     sys.exit(0)
 
 gd = GameData(str(VANILLA))
 
-# --- 2) Vanilla erzeugt nichts -----------------------------------------
+# --- 2) Vanilla produces nothing ---
 check(build_patches(gd, Settings(mod_name="S2Tweaker")) == {},
-      "Vanilla-Stellung erzeugt keine einzige Patchdatei")
-check(not summarize(Settings()), "Vanilla-Stellung erzeugt keine Tweak-Zeile")
-check(input_ini(Settings()) is None, "Vanilla-Stellung erzeugt keine INI")
+      "Vanilla settings produce no patch files")
+check(not summarize(Settings()), "Vanilla settings produce no tweak-list lines")
+check(input_ini(Settings()) is None, "Vanilla settings produce no INI")
 
-# --- 3) Jedes Bedienelement bewirkt etwas ------------------------------
-# Sonden: fuer Faktoren das Doppelte bzw. die Haelfte des Vanilla-Werts,
-# fuer Absolutwerte eine Stufe daneben, fuer Schalter True.
-SPECIAL = {                      # Regler, deren Vanilla-Wert 0 oder Deckel ist
+# Probe each control with upward/downward factors or changed absolute values.
+SPECIAL = {                      # Special probes for zero baselines or capped defaults.
     "fall_damage_pct": 50.0, "fast_travel_lock": 0.0, "slow_run_threshold_pct": 25.0,
     "evening_start_hour": 22.0, "armor_deflect_chance_pct": 50.0,
     "npc_weapon_rank_add": 2.0, "scope_sway_pct": 50.0,
     "trader_min_durability_pct": 0.0, "hud_compass": 2.0, "hud_crosshair": 2.0,
     "hud_body_markers": 2.0, "hud_stash_markers": 2.0, "pistol_slot_level": 3.0,
 }
-# Bewusst wirkungslos ALLEIN (Begruendung jeweils im Code):
-#   stat_bars_follow spiegelt nur die Waffenregler
-#   no_mouse_smoothing/no_view_acceleration schreiben eine INI statt cfg
-#   relations_runtime braucht mindestens ein verstelltes Beziehungs-Paar
+# Handle dependent stat bars/runtime relations and separate INI output explicitly.
 ALONE_EMPTY = {"stat_bars_follow", "artifact_stat_labels_follow", "no_mouse_smoothing", "no_view_acceleration",
                "relations_runtime"}
 
@@ -121,14 +94,14 @@ for field in sorted(fields):
         if isinstance(default, int):
             probe = int(probe) or 1
     else:
-        continue                      # dicts (Baeume) haben eigene Suiten
+        continue                      # Tree dictionaries have dedicated suites.
     extra = COUPLED.get(field, {})
     s = Settings(mod_name="S2Tweaker", **{field: probe}, **extra)
     if extra:
         check(build_patches(gd, s) != build_patches(gd, Settings(**extra)),
               f"dependent control {field} changes its enabled feature")
     if not build_patches(gd, s) and field not in ALONE_EMPTY:
-        # zweite Sonde in die andere Richtung (Deckel!)
+        # Probe the opposite direction to cover capped values.
         if isinstance(default, (int, float)) and not isinstance(default, bool):
             s2 = Settings(mod_name="S2Tweaker", **{field: type(default)(default * 0.5)})
             if build_patches(gd, s2):
@@ -138,13 +111,13 @@ for field in sorted(fields):
         else:
             dead.append(field)
     if field in ALONE_EMPTY:
-        # muss wenigstens eine INI oder eine Zeile erzeugen
+        # Require an INI output or a patch line.
         if not (input_ini(s) or summarize(s)):
             dead.append(field)
     if not summarize(s):
         no_line.append(field)
-check(not dead, f"jedes Bedienelement erzeugt einen Patch{dead}")
-check(not no_line, f"jedes Bedienelement steht in der Tweak-Liste{no_line}")
-print(f"      ({len(fields)} Bedienelemente in {time.time() - t0:.1f}s, ohne ein Fenster)")
+check(not dead, f"Each control produces a patch{dead}")
+check(not no_line, f"Each control appears in the tweak list{no_line}")
+print(f"      ({len(fields)} controls in {time.time() - t0:.1f}s, without opening a window)")
 
-print(f"\n=== {ok} Pruefungen gruen ===")
+print(f"\n=== {ok} checks passed ===")

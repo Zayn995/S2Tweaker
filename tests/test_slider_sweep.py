@@ -1,30 +1,7 @@
-"""Regler-Rundumpruefung: schreibt JEDER angebotene Regler etwas, und
-sind die erzeugten Zahlen erklaerbar?
+"""Check offered controls for neutral output, effective endpoints and monotonic scaling.
 
-Hintergrund: zwei Nexus-Bugs derselben Sorte (max25091997 02.09.2026,
-"Repeatable quest cooldown" ohne Wirkung; Koningkoen 03.09.2026, "Weapon
-recoil" bei genau 0 % ohne Wirkung) waren BLINDGAENGER — ein Regler stand
-in der GUI und sogar in der Tweak-Liste, aber es entstand kein Patch. Die
-bisherigen Suiten pruefen je einen Regler gezielt und konnten das nicht
-sehen. Diese Suite geht stattdessen BREIT ueber alles, was die Oberflaeche
-anbietet, und prueft drei Regeln:
-
-  1. Vanilla-Stellung erzeugt gar nichts (die _neq-Grundregel).
-  2. Jeder angebotene Regler / jede Checkbox erzeugt an ihren Endpunkten
-     mindestens eine Patch-Datei UND eine Zeile in der Tweak-Liste.
-     Das gilt auch fuer die Override-Baeume - und zwar genau fuer die
-     Parameter, die der Baum fuer dieses Objekt ANBIETET (Munition,
-     Ruestung, Mutanten und seit dem Waffenbaum-Fix auch Waffen blenden
-     Parameter aus, die es in den Spieldaten nicht gibt).
-  3. Die erzeugten Zahlen folgen ueber drei Sonden einem Gesetz: linear
-     im Reglerwert (Faktor, Absolutwert, Stealth-Koeffizient), linear in
-     1/Reglerwert (invertiert) oder wenigstens monoton (Rundung auf
-     Ganzzahlen, Deckel wie 100 % Fundchance, Boeden wie die
-     Lager-Mindestbesetzung). Erratische Werte fallen auf.
-
-Braucht die Vanilla-Daten. Wie immer: SETTINGS_FILE umbiegen, nie
-_on_close/_save_ui_settings rufen.
-"""
+Include supported per-item parameters. Compare linear, inverse and bounded
+behavior across probes. Requires vanilla data and temporary GUI settings."""
 import math
 import re
 import sys
@@ -53,7 +30,7 @@ MUT_PARAMS = ("hp", "speed", "damage", "regen")
 
 
 def leaves(patches: dict[str, str]) -> dict[tuple, str]:
-    """{(Datei, Pfad-Tupel): Rohwert} aus dem erzeugten Patch-Text."""
+    """Parse generated patches into {(file, path_tuple): raw_value}."""
     out: dict[tuple, str] = {}
     for fname, text in patches.items():
         stack: list[str] = []
@@ -76,11 +53,11 @@ def leaves(patches: dict[str, str]) -> dict[tuple, str]:
 
 
 def explained(xs: list[float], es: list[float]) -> bool:
-    """Folgt die Wertereihe einem Gesetz - oder ist sie wenigstens monoton?"""
+    """Check linear/inverse relationships or at least monotonic progression."""
     if not all(math.isfinite(e) for e in es):
         return False
     if max(es) - min(es) <= 1e-9:
-        return True                                    # konstant (Deckel)
+        return True                                    # Constant value at cap.
     for transform in (lambda x: x, lambda x: 1.0 / x if x else None):
         ts = [transform(x) for x in xs]
         if any(t is None for t in ts) or ts[1] == ts[0]:
@@ -92,7 +69,7 @@ def explained(xs: list[float], es: list[float]) -> bool:
             return True
     up = all(y >= x - 1e-9 for x, y in zip(es, es[1:]))
     down = all(y <= x + 1e-9 for x, y in zip(es, es[1:]))
-    return up or down                                  # Rundung / Saettigung
+    return up or down                                  # Rounding / saturation.
 
 
 def law_violations(probes: list[dict], xs: list[float]) -> list[str]:
@@ -109,13 +86,13 @@ def law_violations(probes: list[dict], xs: list[float]) -> list[str]:
     return bad
 
 
-# --- 1) Vanilla-Stellung erzeugt nichts ---------------------------------
+# --- 1) Vanilla settings produce nothing ---
 assert not build_patches(gd, Settings()), \
-    "Settings() in Vanilla-Stellung erzeugt Patches"
-print("Vanilla-Stellung: 0 Patch-Dateien  OK")
+    "Settings() at vanilla produces patches"
+print("Vanilla settings: 0 patch files  OK")
 
 
-# --- 2) Feste Regler: GUI -> Settings -> Patch --------------------------
+# --- 2) Fixed sliders: GUI -> Settings -> patch ---
 app = gui.App()
 app.update()
 
@@ -135,12 +112,8 @@ for key, field in SLIDER_FIELDS.items():
 for key, field in CHECK_FIELDS.items():
     app.checks[key].select()
     s = app._collect()
-    # stat_bars spiegelt nur die Waffenregler: allein verstellt erzeugt
-    # es bewusst keinen Patch (Begruendung in gui.footprint_settings).
-    # 1.35.0: no_mouse_smooth/no_view_accel erzeugen bewusst KEINE cfg,
-    # sondern Stalker2/Config/UserInput.ini (tweaks.input_ini).
-    # 1.36.0: relations_runtime wirkt erst zusammen mit einem verstellten
-    # Beziehungs-Paar (eigene Suite test_relations_runtime.py).
+    # Handle dependent-only stat bars/runtime relations and separate INI output
+    # outside ordinary standalone cfg-control checks.
     if (not build_patches(gd, s) and key not in
             ("stat_bars", "art_stat_labels", "no_mouse_smooth", "no_view_accel",
              "relations_runtime")):
@@ -154,13 +127,13 @@ try:
     app.destroy()
 except Exception:
     pass
-assert not dead, f"Regler ohne jeden Patch (Blindgaenger): {dead}"
-assert not no_line, f"Regler ohne Zeile in der Tweak-Liste: {no_line}"
-print(f"{len(SLIDER_FIELDS)} Regler + {len(CHECK_FIELDS)} Checkboxen: "
-      "jede Stellung erzeugt Patch + Tweak-Zeile  OK")
+assert not dead, f"Sliders producing no patch: {dead}"
+assert not no_line, f"Sliders missing from the tweak list: {no_line}"
+print(f"{len(SLIDER_FIELDS)} sliders + {len(CHECK_FIELDS)} Checkboxen: "
+      "Each setting produces a patch and summary line  OK")
 
 
-# --- 3) Override-Baeume: was angeboten wird, muss auch patchen ----------
+# Every offered override parameter must generate an applicable patch.
 def probe(**kw) -> dict:
     return build_patches(gd, Settings(**kw))
 
@@ -168,7 +141,7 @@ def probe(**kw) -> dict:
 offered = 0
 blind = []
 for wgs, (cat, cws) in sorted(gd.player_weapons().items()):
-    if not cat:                       # steht nicht im Baum (z. B. MeleeStub)
+    if not cat:                       # Item is not offered in the tree.
         continue
     for param in weapon_available_params(gd, cws):
         offered += 1
@@ -188,7 +161,7 @@ armor_values.update({sid: values
                      for sid, (_slot, values, _ed) in gd.dlc_player_armors().items()})
 for sid, values in sorted(armor_values.items()):
     for param in ARMOR_PARAMS:
-        if param not in values:       # Vanilla 0: der Baum bietet nichts an
+        if param not in values:       # Zero baseline: no control offered.
             continue
         offered += 1
         if not probe(armor_overrides={sid: {param: 2.0}}):
@@ -199,30 +172,30 @@ damaging = {sp for sp in species if gd.mutant_attack_damages(sp)}
 for sp in species:
     for param in MUT_PARAMS:
         if param == "damage" and sp not in damaging:
-            continue              # Rat/Poltergeist/"Mutant" haben keine Attacken
+            continue              # These species lack direct damage attacks.
         offered += 1
         if not probe(mutant_overrides={sp: {param: 2.0}}):
             blind.append(f"mutant {sp}.{param}")
 
-assert not blind, f"Angebotene Overrides ohne Patch: {blind}"
-print(f"{offered} angebotene Override-Regler: alle erzeugen einen Patch  OK")
+assert not blind, f"Available overrides without a patch: {blind}"
+print(f"{offered} available override sliders: all produce a patch  OK")
 
 
-# --- 4) Fraktionspaare treffen ihren Zielwert exakt ---------------------
+# --- 4) Faction pairs reach their exact target values ---------------------
 pairs = gd.relation_pairs()
-assert pairs, "keine Fraktionspaare gefunden"
+assert pairs, "No faction pairs found"
 wrong = []
 for key, vanilla in sorted(pairs.items()):
     target = int(vanilla) + 500
     hits = [v for leaf, v in leaves(probe(faction_relations={key: target})).items()
             if leaf[1][-1] == key]
     if not hits or int(parse_number(hits[0])) != target:
-        wrong.append(f"{key}: {hits or 'kein Patch'} statt {target}")
-assert not wrong, f"Fraktionspaare mit falschem Wert: {wrong[:5]}"
-print(f"{len(pairs)} Fraktionspaare treffen ihren Zielwert exakt  OK")
+        wrong.append(f"{key}: {hits or "no patch"} instead of {target}")
+assert not wrong, f"Faction pairs with incorrect values: {wrong[:5]}"
+print(f"{len(pairs)} Faction pairs reach their exact target values  OK")
 
 
-# --- 5) Drei-Punkt-Gesetz fuer jeden festen Regler ----------------------
+# Check three-point behavior for each fixed control.
 violations = []
 for key, field in SLIDER_FIELDS.items():
     default = float(getattr(Settings(), field))
@@ -233,13 +206,13 @@ for key, field in SLIDER_FIELDS.items():
               for x in xs]
     for bad in law_violations(probes, xs):
         violations.append(f"{key}: {bad}")
-assert not violations, ("Erzeugte Werte folgen keinem Gesetz:\n  "
+assert not violations, ("Generated values do not follow any expected rule:\n  "
                         + "\n  ".join(violations[:10]))
-print(f"{len(SLIDER_FIELDS)} Regler: alle erzeugten Werte folgen ihrem "
+print(f"{len(SLIDER_FIELDS)} sliders: all generated values follow their "
       "Gesetz (linear / invers / monoton)  OK")
 
 
-# --- 6) Kaskade: Einzelwaffe schlaegt Kategorie ------------------------
+# --- 6) Cascade: individual weapon overrides category ---
 rifle = next(s for s, (c, _) in sorted(gd.player_weapons().items()) if c == "rifle")
 only_cat = leaves(probe(weapon_category_factors={"rifle": {"damage": 2.0}}))
 with_one = leaves(probe(weapon_category_factors={"rifle": {"damage": 2.0}},
@@ -247,25 +220,24 @@ with_one = leaves(probe(weapon_category_factors={"rifle": {"damage": 2.0}},
 differing = [leaf for leaf in set(only_cat) | set(with_one)
              if only_cat.get(leaf) != with_one.get(leaf)]
 assert len(differing) == 1, \
-    f"Einzelwaffen-Override aendert {len(differing)} Blaetter statt 1: {differing[:5]}"
+    f"Individual weapon override changes {len(differing)} leaves instead of 1: {differing[:5]}"
 base = parse_number(gd.resolve(gd.weaponsettings,
                                gd.player_weapons()[rifle][1], "BaseDamage"))
 assert abs(parse_number(with_one[differing[0]]) - base * 3.0) < 1e-6, \
-    f"Kaskade: {differing[0]} = {with_one[differing[0]]}, erwartet {base * 3.0}"
+    f"Cascade: {differing[0]} = {with_one[differing[0]]}, erwartet {base * 3.0}"
 assert abs(parse_number(only_cat[differing[0]]) - base * 2.0) < 1e-6
-print(f"Kaskade {rifle}: Einzelwaffe x3 schlaegt Kategorie x2, "
-      "Rest der Kategorie unveraendert  OK")
+print(f"Cascade {rifle}: individual weapon x3 overrides category x2, "
+      "Rest of category unchanged  OK")
 
 
-# --- 7) Waffen ohne Abnutzungswert bieten keinen Durability-Regler -----
-#     (die beiden Unterlauf-Granatwerfer und der Buckshot-Launcher)
+# Weapons without wear values must not offer durability controls.
 without = [wgs for wgs, (cat, cws) in gd.player_weapons().items()
            if cat and "durability" not in weapon_available_params(gd, cws)]
-assert without, ("kein Waffen-CWS ohne DurabilityDamagePerShot gefunden - "
-                 "Spieldaten geaendert? Dann diesen Test anpassen.")
+assert without, ("No weapon CWS without DurabilityDamagePerShot found - "
+                 "Game data changed? Update this test accordingly.")
 for wgs in without:
     assert not probe(weapon_overrides={wgs: {"durability": 2.0}}), \
-        f"{wgs} hat doch einen Abnutzungswert"
-print(f"{len(without)} Waffen ohne Abnutzungswert: kein Durability-Regler  OK")
+        f"{wgs} does have a wear value"
+print(f"{len(without)} weapons without wear values: no durability slider  OK")
 
-print("\nREGLER-RUNDUMPRUEFUNG OK")
+print("\nSLIDER SWEEP PASSED")

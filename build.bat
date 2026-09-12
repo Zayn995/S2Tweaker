@@ -1,27 +1,18 @@
 @echo off
-rem Baut dist\S2Tweaker\ (S2Tweaker.exe + DLLs + _internal), braucht:
-rem     pip install -r requirements.txt
-rem und eine python.org-Installation als "python" (pythonw.exe, DLLs\,
-rem Lib\, tcl\ nebeneinander) - deren signierte pythonw.exe WIRD der Starter.
-rem
-rem Die eigentliche Bau-Anweisung steht in tools\build_exe.py - GENAU EINE
-rem Stelle, weil der GitHub-Actions-Workflow (.github\workflows\build.yml)
-rem dasselbe Skript aufruft. Zwei Kopien waeren irgendwann
-rem auseinandergelaufen, und darauf beruht die Zusage, dass die
-rem veroeffentlichte Datei aus genau diesem Quellcode stammt.
-rem
-rem Seit 1.21.0 OHNE PyInstaller (Begruendung im Kopf von build_exe.py,
-rem kurz: die Virenscanner-Treffer galten PyInstallers eigener Kennung).
-rem Das Skript prueft seinen Ordner selbst und startet ihn einmal
-rem probeweise - dabei geht kurz ein Fenster auf und wieder zu.
+rem Build dist\S2Tweaker\ with the signed pythonw.exe launcher and readable code.
+rem Requires: pip install -r requirements.txt
+rem Use a full python.org installation as "python" (pythonw.exe, DLLs, Lib, tcl).
+rem tools\build_exe.py owns the build steps and verifies the resulting directory.
+rem GitHub CI refreshes a hash-pinned runtime with tools\refresh_portable.py.
+rem The local build performs a brief launch check that opens an application window.
 python tools\build_exe.py || goto :error
 echo.
-echo Fertig: dist\S2Tweaker\S2Tweaker.exe
+echo Done: dist\S2Tweaker\S2Tweaker.exe
 pause
 exit /b 0
 
 :error
 echo.
-echo BUILD FEHLGESCHLAGEN.
+echo BUILD FAILED.
 pause
 exit /b 1

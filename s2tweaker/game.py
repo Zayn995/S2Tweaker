@@ -1,4 +1,4 @@
-"""Spiel-Installation finden (Steam/GOG/Xbox) und Pfade bereitstellen."""
+"""Locate Steam/GOG/Xbox game installations and related paths."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def _steam_roots() -> list[Path]:
     for base in (Path(r"C:\Program Files (x86)\Steam"), Path(r"C:\Games\Steam")):
         if base.is_dir():
             roots.append(base)
-    # Alle Steam-Bibliotheken aus libraryfolders.vdf einsammeln
+    # Collect Steam libraries from libraryfolders.vdf.
     extra = []
     for root in roots:
         vdf = root / "steamapps" / "libraryfolders.vdf"
@@ -28,7 +28,7 @@ def _steam_roots() -> list[Path]:
 
 
 def find_game() -> Path | None:
-    """Installationsordner des Spiels suchen."""
+    """Find the game installation directory."""
     candidates: list[Path] = []
     for lib in _steam_roots():
         candidates.append(lib / "steamapps" / "common" / GAME_DIR_NAME)
@@ -54,17 +54,15 @@ def mods_dir(game: Path) -> Path:
     return paks_dir(game) / "~mods"
 
 
-# Steam-App-ID von S.T.A.L.K.E.R. 2 — Ablage abonnierter Workshop-Mods.
+# S.T.A.L.K.E.R. 2 Steam app ID; subscribed Workshop content.
 STEAM_WORKSHOP_APPID = "1643320"
 
 
 def steam_workshop_dir(game: Path) -> Path | None:
-    """Workshop-Ablage der Steam-Bibliothek dieser Installation, oder None.
+    """Return this Steam installation's Workshop directory, or None.
 
-    Steam legt abonnierte Mods NICHT in ~mods ab, sondern in
-    <Bibliothek>\\steamapps\\workshop\\content\\1643320\\<item-id>\\ —
-    das Spiel liest sie von dort (verifiziert 02.09.: nichts wird in den
-    Spielordner kopiert). GOG-Installationen haben keinen Workshop."""
+    Subscribed mods are read from steamapps/workshop/content/1643320/<item-id>/,
+    separately from ~mods. GOG installations have no Steam Workshop directory."""
     parts = [p.lower().rstrip("\\/") for p in game.parts]
     if len(parts) >= 3 and parts[-2] == "common" and parts[-3] == "steamapps":
         ws = (game.parent.parent / "workshop" / "content"

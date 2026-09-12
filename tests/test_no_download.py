@@ -1,20 +1,7 @@
-"""Das Werkzeug laedt NICHTS nach — weder wir noch das mitgelieferte repak.
+"""Verify library discovery is local-only and missing Oodle produces setup guidance.
 
-Hintergrund (04.09.2026): Bis dahin holte S2Tweaker die proprietaere
-oo2core_9_win64.dll bei Bedarf selbst aus dem Netz, und die
-Upstream-repak.exe konnte das ebenfalls. Ein Programm, das zur Laufzeit
-eine Bibliothek herunterlaedt und als nativen Code ausfuehrt, zeigt exakt
-das Verhalten eines Droppers — einer der Gruende, warum Virenscanner
-solche Werkzeuge markieren, und der Nexus-Support die Datei nicht
-freigeben konnte.
-
-Seitdem gilt: die DLL wird nur noch LOKAL gesucht, und fehlt sie, bekommt
-der Nutzer einen Klartext-Dialog mit Link und Zielordner. Ein repak.exe
-gibt es seit 05.09.2026 gar nicht mehr: Paks liest und schreibt
-s2tweaker/pakfile.py in reinem Python, die DLL wird per ctypes geladen.
-
-Dieser Test haelt beide Haelften fest. Er braucht weder Spiel noch Netz.
-"""
+Pak handling uses Python, with no bundled repak executable. No game or
+network access is required by this suite."""
 import re
 import sys
 from pathlib import Path
@@ -30,17 +17,17 @@ gui.SETTINGS_FILE.unlink(missing_ok=True)
 
 from s2tweaker import pakio
 
-# --- 1) In unserem Code gibt es keinen Download-Weg mehr ----------------
+# --- 1) No download path in application code ---
 src = (ROOT / "s2tweaker" / "pakio.py").read_text(encoding="utf-8")
 for verboten in ("urllib", "urlopen", "_download_oodle", "requests."):
-    assert verboten not in src, f"pakio.py enthaelt wieder {verboten!r}"
-assert not hasattr(pakio, "_download_oodle"), "Download-Funktion ist zurueck"
-print("pakio.py: kein Download-Code  OK")
+    assert verboten not in src, f"pakio.py contains again: {verboten!r}"
+assert not hasattr(pakio, "_download_oodle"), "Download function has returned"
+print("pakio.py: no download code  OK")
 
-# --- 2) Fehlt die DLL, kommt die Anleitung (kein stiller Versuch) -------
+# Missing Oodle must produce the manual setup guide.
 missing = SCRATCH / "kein_oodle"
 missing.mkdir(exist_ok=True)
-(missing / "repak.exe").write_bytes(b"nur eine Attrappe")
+(missing / "repak.exe").write_bytes(b"dummy fixture")
 real_candidates = pakio._local_oodle_candidates
 real_cache = pakio.oodle_cache_dir
 pakio._local_oodle_candidates = lambda pak=None: []
@@ -50,46 +37,43 @@ try:
 except pakio.OodleError as exc:
     text = str(exc)
     assert "never downloads it" in text, text[:200]
-    assert pakio.OODLE_URL in text, "Bezugsquelle fehlt im Hilfetext"
-    assert "Confirm & load game data" in text, "Handlungsanweisung fehlt"
-    # Genannt wird der Ordner mit S2Tweaker.exe — NICHT der interne
-    # Ablageort neben repak.exe. Sonst widerspricht der Fehlertext dem
-    # Assistenten und dem Bild darin.
-    assert str(pakio.app_dir()) in text, "Zielordner wird nicht genannt"
-    assert "_internal" not in text, "Fehlertext nennt wieder _internal"
+    assert pakio.OODLE_URL in text, "Source link missing from help text"
+    assert "Confirm & load game data" in text, "Action instructions missing"
+    # Name the S2Tweaker.exe directory consistently with the illustrated guide.
+    assert str(pakio.app_dir()) in text, "Destination folder not mentioned"
+    assert "_internal" not in text, "Error text names _internal again"
 else:
-    raise AssertionError("ensure_oodle() ist ohne DLL durchgelaufen")
+    raise AssertionError("ensure_oodle() succeeded without the DLL")
 finally:
     pakio._local_oodle_candidates = real_candidates
     pakio.oodle_cache_dir = real_cache
-print("ensure_oodle: klare Anleitung statt Download  OK")
+print("ensure_oodle: clear instructions instead of a download  OK")
 
-# --- 3) Kein repak.exe mehr: Paks liest und schreibt reines Python -----
+# Pak handling must not require repak.exe.
 src = (ROOT / "s2tweaker" / "pakio.py").read_text(encoding="utf-8")
-assert "subprocess" not in src, "pakio.py ruft wieder ein externes Programm auf"
-assert not (ROOT / "tools" / "build_repak.py").exists(), "tools/build_repak.py ist zurueck"
+assert "subprocess" not in src, "pakio.py invokes an external program again"
+assert not (ROOT / "tools" / "build_repak.py").exists(), "tools/build_repak.py has returned"
 from s2tweaker import pakfile
 assert pakfile.PakFile and pakfile.write_pak and pakfile.load_oodle
-print("pakio/pakfile: kein externes Programm, kein repak-Bauskript  OK")
+print("pakio/pakfile: no external program, no repak build script  OK")
 
-# --- 4) Der Assistent erscheint genau dann, wenn die DLL fehlt ---------
+# Show the setup guide when the library is absent.
 app = gui.App()
 app.update()
 real_avail = pakio.oodle_available
 try:
     pakio.oodle_available = lambda pak=None: True
     app._check_oodle_present()
-    assert getattr(app, "_oodle_win", None) is None,         "Assistent kam, obwohl die Bibliothek da ist"
+    assert getattr(app, "_oodle_win", None) is None,         "Wizard appeared although the library is present"
 
     pakio.oodle_available = lambda pak=None: False
     app._check_oodle_present()
     win = getattr(app, "_oodle_win", None)
-    assert win is not None and win.winfo_exists(), "Assistent kam nicht"
+    assert win is not None and win.winfo_exists(), "Wizard did not appear"
     app.update()
 
     def texte(w):
-        """Alle sichtbaren Texte einsammeln — auch den Inhalt von
-        Eingabefeldern, in denen die Links stehen."""
+        """Collect visible text, including link-entry contents."""
         out = []
         for child in w.winfo_children():
             try:
@@ -108,7 +92,7 @@ try:
         return out
 
     def klick(label, w=None):
-        """Knopf mit dieser Beschriftung druecken (beliebig tief)."""
+        """Invoke a button with this label anywhere in the widget tree."""
         for child in (w or win).winfo_children():
             try:
                 if label in str(child.cget("text")) and hasattr(child, "invoke"):
@@ -120,58 +104,53 @@ try:
                 return True
         return False
 
-    # Seite 1: Warnung, Entschuldigung, Kopierknopf, Link
+    # Page 1: warning, apology, copy button, link.
     seite1 = " ".join(texte(win))
-    assert "Without this file" in seite1, "gelbe Warnung fehlt"
-    assert "Sorry that this is on you" in seite1, "Entschuldigung fehlt"
-    assert "Copy" in seite1, "Kopierknopf fehlt"
-    assert "Step 1 of 3" in seite1, "Schrittanzeige fehlt"
-    # Kurzfassung fuer Nicht-Leser (Besitzer, 05.09.2026) auf jeder Seite
-    assert "TL;DR" in seite1 and "Press “Copy” below" in seite1, "TL;DR Seite 1 fehlt"
-    # Kopierknopf fuellt die Zwischenablage und quittiert
-    assert klick("Copy"), "Kopierknopf nicht gefunden"
+    assert "Without this file" in seite1, "Yellow warning missing"
+    assert "Sorry that this is on you" in seite1, "Apology missing"
+    assert "Copy" in seite1, "Copy button missing"
+    assert "Step 1 of 3" in seite1, "Step indicator missing"
+    # Each guide page has a short action summary.
+    assert "TL;DR" in seite1 and "Press “Copy” below" in seite1, "TL;DR missing from page 1"
+    # The copy button must populate the clipboard and acknowledge completion.
+    assert klick("Copy"), "Copy button not found"
     app.update()
-    assert app.clipboard_get() == pakio.OODLE_URL, "Link nicht in der Ablage"
-    assert "Copied" in " ".join(texte(win)), "Knopf quittiert den Klick nicht"
+    assert app.clipboard_get() == pakio.OODLE_URL, "Link not copied to clipboard"
+    assert "Copied" in " ".join(texte(win)), "Button does not acknowledge the click"
 
-    # Seite 2: Browser-Bild + Hinweis auf die Sicherheitsabfrage
-    assert klick("Next"), "Weiter-Knopf fehlt"
+    # The download page includes its browser illustration and security-prompt guidance.
+    assert klick("Next"), "Next button missing"
     app.update()
     seite2 = " ".join(texte(win))
     assert "Step 2 of 3" in seite2
-    assert "unverified" in seite2, "Hinweis zur Browser-Warnung fehlt"
-    assert "TL;DR" in seite2 and "say yes" in seite2, "TL;DR Seite 2 fehlt"
+    assert "unverified" in seite2, "Browser warning notice missing"
+    assert "TL;DR" in seite2 and "say yes" in seite2, "TL;DR missing from page 2"
 
-    # Seite 3: Zielordner + Neustart
+    # Page 3: destination folder and restart.
     assert klick("Next")
     app.update()
     seite3 = " ".join(texte(win))
     assert "Step 3 of 3" in seite3
-    assert "restart S2Tweaker" in seite3, "Neustart-Hinweis fehlt"
-    assert "TL;DR" in seite3 and "Restart S2Tweaker. Done." in seite3, "TL;DR Seite 3 fehlt"
-    # Der genannte Ordner MUSS der mit S2Tweaker.exe sein. Frueher stand
-    # dort der Ordner von repak.exe — im Ordner-Build also `_internal`,
-    # und damit widersprach das Feld dem Bild und dem Satz daneben
-    # ("not into the _internal folder"). Genau das darf nicht zurueckkommen.
-    assert str(gui.app_dir()) in seite3, "Zielordner fehlt oder ist falsch"
+    assert "restart S2Tweaker" in seite3, "Restart notice missing"
+    assert "TL;DR" in seite3 and "Restart S2Tweaker. Done." in seite3, "TL;DR missing from page 3"
+    # The destination must be the executable folder, matching the accompanying text.
+    assert str(gui.app_dir()) in seite3, "Destination folder missing or incorrect"
     assert "_internal" not in str(app._oodle_target_dir()), \
-        "Der Assistent nennt wieder den _internal-Ordner als Ablageort"
+        "Wizard incorrectly names _internal as the destination folder again"
     assert app._oodle_target_dir() == gui.app_dir()
 
-    # Seite 3 ist die letzte: kein "Next" mehr, sondern "Done".
-    # Frueher folgte hier eine vierte Seite fuer update.bat. Die ist mit
-    # 1.19.2 weg, weil die Update-Funktion selbst weg ist.
-    assert "Done" in seite3, "Abschluss-Knopf fehlt"
-    assert "update.bat" not in seite3, "Der Assistent bewirbt wieder den Updater"
+    # The final page uses Done; no removed updater page remains.
+    assert "Done" in seite3, "Finish button missing"
+    assert "update.bat" not in seite3, "Wizard advertises the removed updater again"
 finally:
     pakio.oodle_available = real_avail
     try:
         app.destroy()
     except Exception:
         pass
-print("Assistent: 3 Seiten, Warnung, Entschuldigung, Kopieren, Neustart  OK")
+print("Wizard: 3 pages, warning, apology, copy, restart  OK")
 
-# --- 4c) Die Ampeln zeigen beide Zustaende ------------------------------
+# --- 4c) Status indicators display both states ---
 app2 = gui.App()
 app2.update()
 real_avail2 = pakio.oodle_available
@@ -182,20 +161,20 @@ try:
     pakio.oodle_available = lambda pak=None: False
     app2._refresh_oodle_badge()
     assert "missing" in app2.btn_oodle.cget("text"), app2.btn_oodle.cget("text")
-    assert not hasattr(app2, "btn_updater"),         "Die Updater-Ampel ist zurueck - die Update-Funktion ist weg"
+    assert not hasattr(app2, "btn_updater"),         "Updater indicator has returned although the updater was removed"
 finally:
     pakio.oodle_available = real_avail2
     try:
         app2.destroy()
     except Exception:
         pass
-print("Ampel: Oodle ready/missing, keine Updater-Ampel mehr  OK")
+print("Status: Oodle ready/missing, no updater indicator  OK")
 
-# --- 4b) Die Bilder liegen bei -----------------------------------------
+# Bundle the guide illustrations.
 for name in ("oodle_browser.png", "oodle_folder.png"):
     img = ROOT / "assets" / "help" / name
-    assert img.is_file() and img.stat().st_size > 5000, f"{name} fehlt"
+    assert img.is_file() and img.stat().st_size > 5000, f"{name} missing"
 assert gui._asset("help", "oodle_browser.png").is_file()
-print("Assistenten-Bilder vorhanden  OK")
+print("Wizard images present  OK")
 
-print("\nKEIN-DOWNLOAD-TEST OK")
+print("\nNO DOWNLOAD TEST PASSED")

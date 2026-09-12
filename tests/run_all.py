@@ -1,34 +1,12 @@
-"""Testbatterie mit echten Exit-Codes.
+"""Run headless suites in isolated processes with checked exit codes.
 
-    python tests/run_all.py              # alle Headless-Suiten, KEIN Fenster
-    python tests/run_all.py --only editor_state -j 2   # gezielte Headless-Auswahl
+Examples:
+    python tests/run_all.py
+    python tests/run_all.py --only editor_state -j 2
 
-Umgebaut am 08.09.2026 (Besitzer: "bau es richtig unter 5 minuten nur das
-was muss", "nicht 1000 mal oeffnen schliessen", "teste doch einfach per hand
-was getestet werden muss").
-
-**Es gibt keinen automatischen Lauf mehr, der Fenster aufmacht.** Die rund
-zwanzig Suiten, die ein echtes App-Fenster bauen, sind aus jeder Auswahl
-draussen — auch aus `--all`. Sie pruefen Aussehen, Layout und Designs; das
-bewegt sich seit Releases nicht mehr, `test_theme` hat sich dabei
-regelmaessig aufgehaengt, und parallel haben die Fenster sich gegenseitig
-den Fokus geklaut. Was am Aussehen neu ist, sieht man schneller mit einem
-Blick ins laufende Programm.
-
-Was die Fenster-Suiten inhaltlich absicherten, prueft `test_wiring.py` ohne
-Tk: steht jeder Regler in der Feldtabelle, wird er in `_collect()`
-eingesammelt (der tote Regler aus 1.16.0), bewirkt er etwas, steht er in der
-Tweak-Liste.
-
-Der Lauf ist parallel (-jN oder -j N, Vorgabe 4) mit Zeitlimit je Suite.
-Auch `--only` ueberspringt Fenster-Suiten und meldet die ausgelassenen Namen.
-
-Braucht die Vanilla-Daten (vanilla/-Ordner im Repo, oder einmal die GUI
-laden lassen und den Cache-Inhalt dorthin kopieren). Jeder Test laeuft als
-eigener Prozess — ein Absturz in einer Suite reisst so nicht den Rest
-mit. Exit-Code 0 = alles gruen. Die Lehre hinter diesem Runner: Pipes wie
-"| tail" verschlucken Exit-Codes; hier wird jeder Code einzeln geprueft.
-"""
+Requires local vanilla data for game-data suites. Exclude window-based suites
+from all selections, including --all; run visual checks separately.
+Use bounded parallel workers and per-suite timeouts."""
 import ast
 import concurrent.futures
 import os
@@ -39,6 +17,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_public_files.py",
     "test_detail_controls.py",
     "test_artifact_additions.py",
     "test_job_localization.py",
@@ -123,12 +102,12 @@ ALL = ORDER + ["test_generate.py"]
 
 
 def path_of(name):
-    """test_generate.py liegt im Wurzelverzeichnis, alles andere in tests/."""
+    """test_generate.py is at the repository root; other suites are in tests/."""
     return HERE.parent / name if name == "test_generate.py" else HERE / name
 
 
 def _imports(path):
-    """Welche s2tweaker-Module importiert diese Datei direkt?"""
+    """Which s2tweaker modules does this file import directly?"""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (OSError, SyntaxError):
@@ -148,13 +127,7 @@ def _imports(path):
 
 
 def affected_by(changed):
-    """Suiten, die von den geaenderten Dateien betroffen sein KOENNEN.
-
-    Ueber den echten Import-Graphen, nicht ueber eine von Hand gepflegte
-    Tabelle: ein geaendertes Modul zieht alle Module nach sich, die es
-    importieren, und am Ende jede Suite, die eines davon benutzt.
-    Lieber eine Suite zu viel als eine zu wenig - darum transitiv.
-    Fuer den Stand VOR einem Release gilt weiter der volle Lauf."""
+    """Find potentially affected suites through transitive imports of changed modules."""
     deps = {m.stem: _imports(m)
             for m in (HERE.parent / "s2tweaker").glob("*.py")}
     hit = {Path(c).stem for c in changed
@@ -176,8 +149,7 @@ def affected_by(changed):
 
 
 def opens_window(name):
-    """Baut diese Suite ein echtes App-Fenster? Aus dem Quelltext gelesen,
-    damit eine neue Suite von selbst richtig einsortiert wird."""
+    """Detect suites constructing real app windows from their source."""
     try:
         return "gui.App()" in path_of(name).read_text(encoding="utf-8")
     except OSError:
@@ -185,17 +157,11 @@ def opens_window(name):
 
 
 args = sys.argv[1:]
-# Gehoert zum Release, nicht in jeden Lauf: baut den kompletten
-# Programmordner (27 s) und startet ihn zur Probe.
+# Full portable-build verification is a separate release check.
 RELEASE_ONLY = ["test_build_layout.py"]
 WINDOW = [n for n in ALL if opens_window(n) or n in RELEASE_ONLY]
 picked = [n for n in ALL if n not in WINDOW]
-# Auch --all laesst die Fenster-Suiten aus (Besitzer 08.09.2026: "die theme
-# kacke haengt sich auf, die muss nicht mehr getestet werden" / "teste doch
-# einfach per hand was getestet werden muss"). Sie parallel laufen zu lassen
-# war zusaetzlich falsch: die Fenster klauen sich gegenseitig den Fokus, und
-# eines davon reisst dann den Lauf mit. Wer sie doch braucht, ruft sie
-# einzeln auf - dann laufen sie garantiert seriell (siehe unten).
+# Exclude window suites from --all as well; individual manual runs remain available.
 if "--only" in args:
     pats = []
     for argument in args[args.index("--only") + 1:]:
@@ -206,25 +172,19 @@ if "--only" in args:
     picked = [n for n in matches if n not in WINDOW]
     skipped = [n for n in matches if n in WINDOW]
     if skipped:
-        print("Fenster-/Release-Suiten ausgeschlossen:", ", ".join(skipped))
+        print("Window/release suites excluded:", ", ".join(skipped))
     if not picked:
-        print("Kein Treffer fuer:", " ".join(pats))
+        print("No match for:", " ".join(pats))
         sys.exit(2)
 
 env = dict(os.environ, PYTHONIOENCODING="utf-8")
 failed = []
 times = []
 t_all = time.time()
-# Zeitlimit je Suite: die laengste (test_theme) braucht rund 6,5 Minuten,
-# 15 Minuten sind also grosszuegig. Haengt eine Suite - typisch, wenn eins
-# der echten Testfenster geschlossen wird -, bricht sie ab und der Rest
-# laeuft weiter, statt den ganzen Lauf zu blockieren.
+# Enforce per-suite timeouts so a stalled process cannot block the full run.
 TIMEOUT = 900
 
-# Parallel, aber NUR ohne Fenster. Fenster-Suiten parallel laufen zu lassen
-# war ein Fehler: sie klauen sich gegenseitig den Fokus, und dann haengt oder
-# stirbt eine. Sobald eine gewaehlte Suite ein Fenster baut, faellt der Lauf
-# automatisch auf EINEN Prozess zurueck.
+# Parallelize headless suites only; window-based selection requires serial execution.
 SLOW_FIRST = ["test_key_families.py", "test_modscan_filter.py",
               "test_build_layout.py", "test_wiring.py", "test_v128_tweaks.py",
               "test_orphan_sids.py"]
@@ -232,7 +192,7 @@ SLOW_FIRST = ["test_key_families.py", "test_modscan_filter.py",
 
 def _jobs():
     if any(opens_window(n) for n in picked):
-        print("Fenster-Suite dabei -> seriell (Fenster stoeren sich sonst)")
+        print("GUI suites selected -> serial execution to avoid window interference.")
         return 1
     for index, a in enumerate(args):
         if a.startswith("-j"):
@@ -252,14 +212,14 @@ def run_one(name):
                            errors="replace", timeout=TIMEOUT)
         code, out = r.returncode, r.stdout + "\n" + r.stderr
     except subprocess.TimeoutExpired:
-        code, out = -1, f"TIMEOUT nach {TIMEOUT} s - Testfenster geschlossen?"
+        code, out = -1, f"TIMEOUT after {TIMEOUT} s - Did the test process stop responding?"
     return name, code, out, time.time() - t0
 
 
 jobs = _jobs()
 order = ([n for n in SLOW_FIRST if n in picked]
          + [n for n in picked if n not in SLOW_FIRST])
-print(f"{len(order)} Suiten, {jobs} parallel")
+print(f"{len(order)} suites, {jobs} parallel")
 done = 0
 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
     for name, code, out, dt in pool.map(run_one, order):
@@ -272,11 +232,11 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
             for line in out.strip().splitlines()[-12:]:
                 print("      " + line)
 print()
-print(f"Gesamt {(time.time() - t_all) / 60:.1f} min. Die fuenf laengsten:")
+print(f"Total {(time.time() - t_all) / 60:.1f} min. The five slowest:")
 for dt, name in sorted(times, reverse=True)[:5]:
     print(f"   {dt:5.1f}s  {name}")
 print()
 if failed:
-    print("ROT:", ", ".join(failed))
+    print("FAIL:", ", ".join(failed))
     sys.exit(1)
-print(f"ALLE {len(picked)} SUITEN GRUEN")
+print(f"ALL {len(picked)} SUITES PASSED")

@@ -1,48 +1,15 @@
-"""Fremde Mods in ~mods scannen und mit den eigenen Reglern abgleichen.
+"""Scan other mods and compare their cfg changes with control footprints.
 
-Ablauf (GUI ruft das hier auf, siehe gui.App._run_modscan):
-  1. .pak-Dateien in ~mods finden, auch in Unterordnern: UE5 laedt Paks
-     rekursiv, und Spieler sortieren ihre Mods gern selbst in
-     Unterordner (z.B. ~mods\\oxa\\). Eigene Ausgabe-Pak ausnehmen.
-  2. Je Pak nur die cfg-Eintraege unter GameData/DLCGameData listen und in
-     EINEM gebuendelten repak-Aufruf extrahieren — NIE die ganze Pak
-     (Overhaul-Mods sind bis zu 2 GB gross).
-  3. Aus jeder cfg die Menge der (Top-Level-Struct, Blattname)-Paare ziehen.
-  4. Die GUI vergleicht diese Paare mit dem "Fussabdruck" jedes Reglers
-     (tweaks.build_patches mit genau EINEM verstellten Regler).
+Read only GameData/DLCGameData cfg entries. Match (top-level struct, leaf)
+to cover arbitrary patch filenames and legacy refkey targets. For full
+struct copies, omit values equal to known vanilla baselines.
 
-Verglichen wird bewusst auf (Top-Level-Struct + Blattname), NICHT auf dem
-vollen Pfad: fremde Mods patchen denselben Wert oft ueber eine andere
-Dateiablage oder Verschachtelung (volle Struct-Kopien statt {bpatch},
-andere Patch-Ordner, das offizielle "Base.cfg_patch_<Mod>"-Namensschema
-ohne .cfg-Endung, Legacy-refkey-Patches unter freiem Namen). Drei
-Verfeinerungen halten die Trefferqualitaet hoch:
+Top-level Weight is item mass; nested loot weights have a separate marker.
+Positional loot lists also depend on item identity and ordering.
 
-  - Legacy-Patches (refkey=<SID> statt {bpatch}) werden zusaetzlich unter
-    ihrem ZIEL-Prototyp gezaehlt — der eigene Struct-Name ist frei waehlbar.
-  - Vollkopien (Structs OHNE {bpatch}) wiederholen fast alle Vanilla-Werte;
-    gezaehlt wird dort nur, was sich vom Vanilla-Wert unterscheidet (Index
-    ueber die bereits geparsten Spieldaten; Unbekanntes bleibt vorsichtig
-    drin). Sonst markiert eine 60-MB-Vollkopie fast jeden Regler.
-  - "Weight" zaehlt nur direkt unter dem Top-Struct: in ItemPrototypes ist
-    das die Masse (kg), tiefer verschachtelt ist es ueberall die
-    Auswahl-Lotterie (PackOfItemsGroup, Loot-Listen) — eine andere Mechanik.
-    Loot-list lottery weights receive a separate scan marker. Positional
-    loot patches also depend on the item identity at their array index;
-    rearranged foreign lists are therefore reported even if their sets
-    of item names and numeric values stayed the same.
-
-IoStore-Mods (.pak mit .ucas/.utoc daneben) werden ueber ihren .pak-Teil
-gescannt: UE5 legt nur gekochte Assets in .ucas/.utoc ab, lose Dateien wie
-cfg-Patches bleiben in der .pak (das Spiel haelt es genauso — die Vanilla-
-cfgs liegen in pakchunk0-Windows.pak neben einer .ucas). Verifiziert 04.09.
-an 15 Workshop-Abos: 12 tragen echte cfg-Patches in der .pak, die .ucas ist
-meist 48 Bytes (leer). Nur die gepackten Assets bleiben uninspiziert — das
-sagt die Notiz je Mod. Bis dahin wurden solche Paks pauschal als "contains
-data I can't read (IoStore format)" gemeldet, womit der komplette Workshop
-am Scan vorbeilief. Doppelte Abos (alter + neuer Workshop-Pfad, gleicher
-Mod-Name) legt merge_same_name() zu EINEM Eintrag zusammen.
-"""
+Read loose cfg entries from the Pak even when sibling IoStore containers
+exist. Cooked assets in .ucas/.utoc remain uninspected. Merge duplicated
+Workshop layouts by display name and source."""
 
 from __future__ import annotations
 
@@ -54,12 +21,10 @@ from pathlib import Path
 from . import cfgparse, loot_conflicts, pakio, vendor_bin2cfg
 from .cfgparse import CfgStruct
 
-# DLC-Konfigs liegen in einem Schwester-Ordner; kein Regler patcht dort,
-# aber der Ergebnis-Dialog soll nicht "no config changes" behaupten.
+# Include sibling DLC configs when reporting changed configuration files.
 GAMEDATA_MARKERS = ("/GameLite/GameData/", "/GameLite/DLCGameData/")
 
-# Notizen, die der Ergebnis-Dialog und der Report woertlich zeigen.
-# Regel: KEIN "; " im Text — _join_notes() trennt daran.
+# Notes appear verbatim in reports; avoid '; ' because _join_notes uses it as a separator.
 NO_CFG_NOTE = "no config changes (probably meshes, textures or audio)"
 PACKED_NOTE = ("also ships packed assets (IoStore .ucas/.utoc) this tool "
                "can't inspect - only its config changes are compared")
@@ -110,9 +75,7 @@ class _VanillaIndex(dict):
             # like other unavailable trees in build_vanilla_index.
             return
 
-# Diese gd-Attribute (alle cached_property) bilden den Vanilla-Index fuer
-# den Werte-Vergleich bei Vollkopien. Nur Dateien, die das Tool ohnehin
-# kennt — mehr braucht der Abgleich nicht, denn nur dort liegen Regler.
+# Use already known cached GameData properties for full-copy baseline comparisons.
 _GD_TREES = (
     "obj", "items", "difficulty", "weightparams", "effectmax", "effects",
     "floatproviders", "weaponsettings", "weaponattributes", "trade",
@@ -120,44 +83,40 @@ _GD_TREES = (
     "hearingsensors", "visionscanners", "camerashake", "artifactspawners",
     "passivedetectors", "fasttravel", "boolproviders", "abilities", "melee",
     "weatherselection", "itemgenerators", "relations",
-    # 1.28.0: die zwei neuen Textdateien - ohne Index zaehlte eine fremde
-    # Vollkopie von CoreVariablesCustom jeden Schluessel als Aenderung
+    # Index unbinarized core overrides so full copies do not mark unchanged values.
     "corevarscustom", "quicksave",
-    # 1.28.0 P3: NPC-Zielwahl + Deckungsprofile
+    # NPC target selection and cover profiles.
     "enemyevaluators", "coverevaluators",
-    # 1.28.0 P4: Witterung
+    # Mutant scent detection.
     "flairsensors",
-    # 1.28.0 P5: Trupp-Ausbreitung, A-Life-Policy, Fraktions-Ausbreitung
+    # Squad expansion, A-Life policy and faction expansion.
     "needspresets", "alifepolicy", "alifefactions",
-    # 1.28.0 P6: Stacheldraht, Behaelter, Physik, Wetterketten, Himmel
-    # (SingletonConstants wird wie CoreVariables als Textdatei gefuehrt)
+    # Index barbed wire, destructibles, physics, weather chains and sky constants.
     "barbedwire", "destructibles", "physicsinteractions", "weatherchains",
     "singletonconstants",
-    # 1.28.0 P7: Welt-Loot-Haufen
+    # World loot piles.
     "packofitems",
 )
 
 
 @dataclass
 class ModInfo:
-    """Ergebnis des Scans EINER fremden Pak."""
+    """Scan result for one external Pak."""
 
-    name: str                       # Dateiname ohne .pak
+    name: str                       # Filename without .pak.
     path: Path
     readable: bool = True
-    note: str = ""                  # z.B. "contains data I can't read"
-    n_cfg: int = 0                  # gefundene cfg-Dateien unter GameData
-    pairs: set = field(default_factory=set)       # {(TopStruct, Blattname)}
+    note: str = ""                  # For example, "contains data I can't read".
+    n_cfg: int = 0                  # CFG files found under GameData.
+    pairs: set = field(default_factory=set)       # {(top-level struct, leaf name)}
     base_names: set = field(default_factory=set)  # {"DifficultyPrototypes", ...}
     source: str = "~mods"           # "~mods" | "workshop"
-    packed_assets: bool = False     # .ucas/.utoc daneben (IoStore-Assets)
-    n_paks: int = 1                 # > 1, wenn merge_same_name() zusammenlegte
+    packed_assets: bool = False     # Adjacent .ucas/.utoc files for IoStore assets.
+    n_paks: int = 1                 # Greater than 1 when merge_same_name() combined entries.
 
 
 def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
-    """Alle fremden .pak-Dateien in ~mods, REKURSIV: UE5 mountet auch
-    Unterordner, und Spieler legen sich dort gern eine eigene Ordnung
-    an (manche Mods liefern Unterordner auch selbst mit)."""
+    """Find external Paks recursively under ~mods, excluding this tool's output."""
     if not mods_dir.is_dir():
         return []
     excl = {n.lower() for n in exclude_names}
@@ -168,21 +127,16 @@ def find_mod_paks(mods_dir: Path, exclude_names: set[str]) -> list[Path]:
 
 
 def find_workshop_paks(workshop_dir: Path | None) -> list[Path]:
-    """Alle .pak-Dateien abonnierter Steam-Workshop-Mods (rekursiv — die
-    Struktur ist tief: <id>\\Windows\\{New,Override}Content\\...\\Paks\\...).
-    Verifiziert 02.09.: das Spiel liest sie direkt von dort, kopiert wird
-    nichts in den Spielordner."""
+    """Find subscribed Steam Workshop Paks recursively in their original locations."""
     if workshop_dir is None or not workshop_dir.is_dir():
         return []
     return sorted(workshop_dir.rglob("*.pak"))
 
 
 def workshop_mod_name(pak: Path, workshop_dir: Path) -> str:
-    """Anzeigename einer Workshop-Pak: der Mod-Ordner unter Stalker2/Mods/
-    (letztes Vorkommen — so heisst die Mod wirklich), sonst die Item-ID.
-    NewContent-Paks (neue Assets, Mount ausserhalb GameData) werden im
-    Namen unterschieden, damit die zwei Paks einer Mod im Dialog nicht
-    identisch heissen."""
+    """Derive the Workshop name from its last Stalker2/Mods/ path segment or item ID.
+
+    Distinguish NewContent Paks so separate parts of a mod have distinct labels."""
     parts = pak.parts
     name = None
     for i in range(len(parts) - 2):
@@ -198,15 +152,15 @@ def workshop_mod_name(pak: Path, workshop_dir: Path) -> str:
 
 
 def is_iostore(pak: Path) -> bool:
-    """Liegt ein IoStore-Container (.utoc/.ucas) neben der Pak? Dann traegt
-    die Mod gepackte Assets, die der Scan nicht sehen kann. Die .pak selbst
-    bleibt lesbar — dort liegen bei UE5 die losen Dateien (cfg-Patches)."""
+    """Detect sibling IoStore containers whose cooked assets the scan cannot inspect.
+
+    The Pak's loose cfg entries remain readable."""
     return (pak.with_suffix(".utoc").is_file()
             or pak.with_suffix(".ucas").is_file())
 
 
 def _join_notes(*notes: str) -> str:
-    """Notizen mit "; " verketten, Dubletten und Leeres weglassen."""
+    """Join distinct, nonempty notes with '; '."""
     seen: list[str] = []
     for note in notes:
         for part in note.split("; "):
@@ -217,15 +171,10 @@ def _join_notes(*notes: str) -> str:
 
 
 def merge_same_name(infos: list["ModInfo"]) -> list["ModInfo"]:
-    """Paks mit demselben Anzeigenamen (und derselben Quelle) zu EINEM
-    Eintrag zusammenlegen. Anlass: Steam-Workshop-Abos liegen seit dem
-    Layout-Wechsel oft doppelt vor — einmal im alten Pfad direkt unter
-    Stalker2/Mods/<Name>/ und einmal unter Windows/OverrideContent/... —
-    mit (fast) identischem Inhalt. Getrennt gezaehlt stuende jede Mod
-    zweimal im Dialog und in jeder Tooltip-Liste. Vereinigt werden Paare
-    und Basisnamen; lesbar ist der Eintrag, sobald EINE Pak lesbar war;
-    n_cfg ist das Maximum (identische Dateien nicht doppelt zaehlen).
-    Reihenfolge bleibt die des Erstvorkommens, der Pfad der erste."""
+    """Merge Paks sharing a display name and source.
+
+    Union changed pairs and basenames, retain the first path/order, and use the
+    largest cfg count. Any readable component makes the merged entry readable."""
     merged: dict[tuple[str, str], ModInfo] = {}
     for info in infos:
         key = (info.name, info.source)
@@ -245,8 +194,7 @@ def merge_same_name(infos: list["ModInfo"]) -> list["ModInfo"]:
         if info.n_paks == 1:
             continue
         if info.n_cfg:
-            # "keine cfg" einer Haelfte gilt nicht mehr, wenn die andere
-            # welche hat.
+            # Remove a no-config note when another component contains configs.
             info.note = "; ".join(
                 p for p in info.note.split("; ")
                 if p not in (NO_CFG_NOTE, PACKED_NO_CFG_NOTE))
@@ -257,8 +205,7 @@ def merge_same_name(infos: list["ModInfo"]) -> list["ModInfo"]:
 
 
 def _short_error(exc: Exception) -> str:
-    """Fehlertext auf EINE kurze Zeile eindampfen — repak wirft sonst 1,7 KB
-    Roh-stderr, die im Ergebnis-Dialog landen wuerden."""
+    """Reduce verbose extraction errors to one short display line."""
     text = str(exc).strip()
     if "version unsupported" in text or "trying version" in text:
         return "not a readable .pak file"
@@ -267,7 +214,7 @@ def _short_error(exc: Exception) -> str:
 
 
 def _split_marker(path: str) -> str | None:
-    """Pfad hinter dem GameData-/DLCGameData-Marker, sonst None."""
+    """Return the path after the GameData/DLCGameData marker, or None."""
     norm = path.replace("\\", "/")
     for marker in GAMEDATA_MARKERS:
         if marker in norm:
@@ -276,15 +223,12 @@ def _split_marker(path: str) -> str | None:
 
 
 def _is_cfg_name(name: str) -> bool:
-    """Config-Datei? ENTHAELT .cfg statt endswith: das offizielle
-    Patch-Namensschema ist "Base.cfg_patch_<Mod>" OHNE weitere Endung
-    (docs/SPEC.md, Abschnitt 0) — endswith(".cfg") uebersieht es."""
+    """Recognize .cfg anywhere in filenames, including Base.cfg_patch_<Mod>."""
     return ".cfg" in name
 
 
 def _norm_value(raw: str) -> str:
-    """Wert fuer den Vanilla-Vergleich normalisieren: 1 / 1. / 1.0 / 1.f
-    sind dieselbe Zahl, True/False/false dieselben Booleans."""
+    """Normalize equivalent numeric spellings and case-insensitive boolean literals."""
     v = raw.strip().rstrip(";").strip()
     if v.endswith("%"):
         core = v[:-1].strip()
@@ -356,15 +300,13 @@ def _effect_list_pairs(root: CfgStruct, vanilla=None, *, footprint=False) -> set
 
 
 def build_vanilla_index(gd) -> dict[tuple[str, str], set[str]]:
-    """(Top-Level-Struct, Blattname) -> {normalisierte Vanilla-Werte} ueber
-    alle Spieldaten-Dateien, die das Tool kennt. Grundlage fuer den
-    "hat die Vollkopie den Wert wirklich geaendert?"-Vergleich."""
+    """Index normalized vanilla values by (top-level struct, leaf) across known files."""
     index = _VanillaIndex(getattr(gd, "dir", None))
     for attr in _GD_TREES:
         try:
             tree = getattr(gd, attr)
         except Exception:
-            continue                     # Datei fehlt im Dev-Dump: tolerieren
+            continue                     # Allow missing files in the development dump.
         if attr == "itemgenerators":
             index.loot_layouts = loot_conflicts.build_loot_index(tree)
         elif attr == "items":
@@ -381,15 +323,10 @@ def build_vanilla_index(gd) -> dict[tuple[str, str], set[str]]:
 
 def collect_pairs(root: CfgStruct,
                   vanilla_index: dict | None = None) -> set[tuple[str, str]]:
-    """(Top-Level-Struct, Blattname)-Paare einer geparsten cfg.
+    """Collect (top-level struct, leaf) pairs from parsed cfg.
 
-    - "#n"-Suffixe des Parsers (doppelte Namen) werden entfernt.
-    - Legacy-Patches ({refkey=<SID>} mit freiem Struct-Namen) zaehlen
-      ZUSAETZLICH unter ihrem Ziel-Prototyp.
-    - Structs ohne {bpatch} gelten als Vollkopie: mit vanilla_index werden
-      nur Werte gezaehlt, die sich von Vanilla unterscheiden (unbekannte
-      Paare bleiben vorsichtig drin).
-    - "Weight" nur direkt unter dem Top-Struct (siehe Modul-Docstring)."""
+    Remove duplicate-name suffixes, include legacy refkey targets, and exclude
+    known unchanged values in full copies. Treat only top-level Weight as mass."""
     pairs: set[tuple[str, str]] = set()
     for top_key, top in root.children.items():
         if (isinstance(vanilla_index, _VanillaIndex)
@@ -415,17 +352,14 @@ def collect_pairs(root: CfgStruct,
                 if key == "Weight" and node is not top:
                     continue
                 if check_vanilla:
-                    # Geprueft wird gegen den EIGENEN Namen; nur wenn der in
-                    # Vanilla unbekannt ist (Legacy-Patch unter freiem
-                    # Namen), gegen das refkey-Ziel. Beides zugleich waere
-                    # falsch: ein erbender Struct (Hard erbt von Empty)
-                    # saehe sonst jeden eigenen Wert als "geaendert", weil
-                    # er vom Basis-Wert abweicht.
+                    # Compare against the struct's own vanilla identity first; use its refkey
+                    # target only for unknown legacy names. Comparing both would misclassify
+                    # legitimate inherited overrides as changes.
                     vals = vanilla_index.get((own, key))
                     if vals is None and refkey in names:
                         vals = vanilla_index.get((refkey, key))
                     if vals is not None and _norm_value(value) in vals:
-                        continue         # Vollkopie wiederholt Vanilla
+                        continue         # Whole-file copy repeats vanilla values.
                 for name in names:
                     pairs.add((name, key))
     # Original values can be the same set after an item moves to another
@@ -438,31 +372,29 @@ def collect_pairs(root: CfgStruct,
 
 
 def base_segments(rel_after_gamedata: str) -> set[str]:
-    """Alle Pfadsegmente eines GameData-Eintrags, um ".cfg"-Endungen
-    bereinigt. Dient nur als billiger Vorfilter fuer die teuren Regler
-    ("kommt ItemGeneratorPrototypes in dieser Mod ueberhaupt vor?") —
-    der eigentliche Vergleich laeuft ueber die (Struct, Blatt)-Paare."""
+    """Return GameData path segments without .cfg suffixes for cheap scan prefilters.
+
+    Actual matching still uses struct/leaf pairs."""
     return {part.split(".cfg")[0]
             for part in rel_after_gamedata.split("/") if part}
 
 
 def _escape_glob(entry: str) -> str:
-    """repak -i ist ein GLOB-Muster, kein Literal: "[...]" ist eine
-    Zeichenklasse. "[" zuerst escapen macht alle uebrigen "]" literal
-    (mehr Sonderzeichen sind in Windows-Dateinamen nicht erlaubt)."""
+    """Escape opening brackets for glob-based extraction filters.
+
+    Brackets in literal paths must not become character classes."""
     return entry.replace("\\", "/").replace("[", "[[]")
 
 
 def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> ModInfo:
-    """Eine fremde Pak scannen: cfg-Eintraege listen, entpacken, parsen."""
+    """Scan another mod's pak: list, extract and parse CFG entries."""
     info = ModInfo(name=pak.stem, path=pak)
-    # .utoc/.ucas daneben heisst NICHT "unlesbar": die cfg-Patches liegen
-    # im .pak-Teil, nur die gepackten Assets bleiben unsichtbar (Notiz).
+    # Sibling IoStore containers do not prevent reading loose cfg patches from the Pak.
     info.packed_assets = is_iostore(pak)
 
     try:
         entries = pakio.list_pak(pak)
-    except Exception as exc:  # kaputte/unlesbare Pak: melden, nicht crashen
+    except Exception as exc:  # Report unreadable Paks without aborting the scan.
         info.readable = False
         info.note = f"contains data I can't read ({_short_error(exc)})"
         return info
@@ -481,17 +413,14 @@ def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> Mod
             progress(f"Scanning {pak.name} "
                      f"({info.n_cfg} config file{'s' if info.n_cfg != 1 else ''}) ...")
         try:
-            # EIN gebuendelter repak-Aufruf statt einem Prozess pro Datei —
-            # nur die cfg-Eintraege werden extrahiert, nie die ganze Pak.
+            # Extract all selected cfg entries together, never the entire Pak.
             pakio.unpack_many(pak, out,
                               [_escape_glob(e) for e in cfg_entries])
         except Exception as exc:
             info.readable = False
             info.note = f"contains data I can't read ({_short_error(exc)})"
             return info
-        # Statt die Ablage je Eintrag zu erraten (Mount-Points variieren je
-        # Mod), einfach ALLES Extrahierte einsammeln — mehr als die
-        # angeforderten cfg-Eintraege kann nicht dort liegen.
+        # Collect extracted files without assuming a fixed mount-point layout.
         parsed = 0
         for extracted in sorted(out.rglob("*")):
             if not extracted.is_file() or not _is_cfg_name(extracted.name):
@@ -509,14 +438,13 @@ def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> Mod
                         "utf-8-sig", errors="replace")
                 root = cfgparse.parse(text)
             except Exception:
-                # Einzelne kaputte Datei: den Rest der Pak trotzdem werten
+                # Continue scanning other entries after an individual parse failure.
                 info.note = "some files could not be read"
                 continue
             parsed += 1
             info.pairs |= collect_pairs(root, vanilla_index)
             info.base_names |= base_segments(rel)
-        # Sicherheitsnetz: repak "erfolgreich", aber Dateien fehlen (z.B.
-        # ein nicht abgefangenes Muster-Problem) -> nie stilles Alles-ok.
+        # Report missing requested files even if extraction otherwise succeeded.
         if parsed < info.n_cfg and not info.note:
             info.note = "some files could not be read"
     if info.packed_assets:
@@ -525,15 +453,10 @@ def scan_pak(pak: Path, progress=None, vanilla_index: dict | None = None) -> Mod
 
 
 def pairs_from_patches(patches: dict[str, str]) -> set[tuple[str, str]]:
-    """Fussabdruck eines Reglers: (Top-Struct, Blattname)-Paare aus den von
-    tweaks.build_patches erzeugten Patch-Texten.
+    """Collect generated (top-level struct, leaf) patch footprints.
 
-    "Type" fliegt heraus: einzelne Builder emittieren den Feldtyp als
-    unveraenderten ANKER neben dem eigentlichen Wert (z.B. die
-    Hearing-Patches). Im Fussabdruck wuerde ('Default', 'Type') sonst jede
-    Mod treffen, die irgendein Struct namens Default mit einem Type-Feld
-    patcht (nachgewiesen: RelationPrototypes). Die Mod-Seite behaelt ihre
-    Type-Paare — nur der Fussabdruck verzichtet darauf."""
+    Omit unchanged Type anchors from this side of the comparison; otherwise
+    unrelated Default structs sharing a Type field could produce false conflicts."""
     pairs: set[tuple[str, str]] = set()
     for text in patches.values():
         root = cfgparse.parse(text)

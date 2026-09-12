@@ -1,9 +1,7 @@
-"""Index-adressierte Top-Level-Eintraege ([0], [1] ...) werden KOMPLETT
-ausgegeben — Wetter-Vorlagen (Regen-/Emissions-Regler) und das DefaultNPC-
-Profil in ThreatPrototypes. Anlass: Nexus-Wetterbericht 04.09. („seit 1.6.1
-aendert sich das Wetter nicht mehr"). Ob das Spiel solche Eintraege beim
-{bpatch} zusammenfuehrt oder ersetzt, ist unbelegt; komplett ist unter
-beiden Lesarten richtig. Benannte Prototypen bleiben Teil-Patches."""
+"""Verify complete indexed top-level entries for weather and NPC threat profiles.
+
+Partial merge/replacement semantics remain unverified; named prototypes
+still use sparse field patches."""
 import sys
 from pathlib import Path
 
@@ -22,7 +20,7 @@ gd = GameData(VANILLA)
 
 
 def keyset(d: dict, prefix: str = "") -> set:
-    """Alle Pfade eines verschachtelten dicts (Structs und Blaetter)."""
+    """Yield all nested dictionary paths, including structs and leaves."""
     out = set()
     for k, v in d.items():
         out.add(prefix + k)
@@ -41,7 +39,7 @@ ws = gd.weatherselection
 idx = [k for k in ws.children if k.startswith("[")]
 assert idx == ["[0]", "[1]", "[2]", "[3]", "[35]"], idx
 
-# --- 0) Helfer: refkey-Vererbung wird aufgeloest --------------------------
+# Check same-file refkey resolution.
 full1 = _resolved_struct(ws, ws.children["[1]"])
 assert full1["SID"] == "BaseWeatherHistory", full1["SID"]
 for wtype in ("Clearly", "Cloudy", "Fogy", "Stormy", "LightRainy", "Rainy",
@@ -51,11 +49,9 @@ for wtype in ("Clearly", "Cloudy", "Fogy", "Stormy", "LightRainy", "Rainy",
         "WeatherDurationMax", "MaximumRepeatAmount",
         "MaximumCooldownWeatherAmount", "bAllowInDialogueTransition"}, (
         wtype, sorted(full1[wtype]))
-print("_resolved_struct: [1] mit allen 10 Wetterarten x 7 Schluesseln  OK")
+print("_resolved_struct: [1] with all 10 weather types x 7 keys  OK")
 
-# --- 1) Regen-Regler x2 ---------------------------------------------------
-# Nur Vorlagen MIT Regen-Gewicht > 0 werden gepatcht ([2]/[3]/[35] sind
-# Quest-/Sonderwetter ohne Regen und bleiben unangetastet).
+# Patch only weather templates with positive rain weights; preserve special weather.
 root = weather_root(build_patches(gd, Settings(rain_factor=2.0)))
 patched_idx = [k for k in root.children if k.startswith("[")]
 assert set(patched_idx) >= {"[0]", "[1]"}, patched_idx
@@ -85,11 +81,11 @@ for k in named:
     leaves = {leaf for sub in d.values() for leaf in sub}
     assert leaves == {"BlendWeight"}, (k, leaves)
     assert set(d) <= set(gd.RAIN_WEATHER_TYPES), (k, sorted(d))
-print(f"Regen x2: {len(patched_idx)} von {len(idx)} Index-Vorlagen gepatcht, "
-      f"alle komplett (nur Regen-Gewichte veraendert), {len(named)} Regionen "
-      "als reiner BlendWeight-Teilpatch  OK")
+print(f"Regen x2: {len(patched_idx)} of {len(idx)} indexed templates patched, "
+      f"all complete (only rain weights changed), {len(named)} Regionen "
+      "As a BlendWeight-only partial patch  OK")
 
-# --- 2) Emissions-Regler x2 ----------------------------------------------
+# --- 2) Emission slider x2 ---
 root = weather_root(build_patches(gd, Settings(emission_factor=2.0)))
 patched_idx = [k for k in root.children if k.startswith("[")]
 assert set(patched_idx) >= {"[0]", "[1]"}, patched_idx
@@ -102,7 +98,7 @@ for k in patched_idx:
                ) < 1e-6, (k, got["Emission"])
     got["Emission"]["BlendWeightIncrease"] = want["Emission"]["BlendWeightIncrease"]
     assert got == want, k
-print("Emission x2: Index-Vorlagen komplett, nur BlendWeightIncrease verdoppelt  OK")
+print("Emission x2: complete indexed templates, only BlendWeightIncrease doubled  OK")
 
 # --- 3) ThreatPrototypes [1] = DefaultNPC ----------------------------------
 p = build_patches(gd, Settings(npc_alertness_factor=2.0))
@@ -117,16 +113,16 @@ want = _resolved_struct(gd.threats, prof)
 assert keyset(got) == keyset(want), (keyset(want) ^ keyset(got))
 changed = [i for i, e in got["Actions"].items()
            if e["ThreatLevelValueMin"] != want["Actions"][i]["ThreatLevelValueMin"]]
-assert changed, "keine Schwelle veraendert?"
+assert changed, "No threshold changed?"
 for i in changed:
     assert int(got["Actions"][i]["ThreatLevelValueMin"]) == max(1, round(
         parse_number(want["Actions"][i]["ThreatLevelValueMin"]) / 2)), i
 for k2, v in want.items():
     if k2 != "Actions":
         assert got[k2] == v, k2
-print(f"ThreatPrototypes [1]: komplett ausgegeben, {len(changed)} Schwellen "
-      "halbiert, alles ausserhalb Actions identisch  OK")
+print(f"ThreatPrototypes [1]: emitted completely, {len(changed)} Schwellen "
+      "halved, everything outside Actions identical  OK")
 
-# --- 4) Neutral bleibt neutral ---------------------------------------------
+# --- 4) Neutral remains neutral ---
 assert not build_patches(gd, Settings())
 print("\nINDEX-ENTRIES-TEST OK")

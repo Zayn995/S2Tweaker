@@ -1,12 +1,7 @@
-"""Techniker-Upgrade-Sperren (UpgradePrototypes.cfg) - drei Checkboxen
-(Wunsch des Besitzers 03.09.2026, Vorbilder: Nexus-Mods 2549 "Take Both
-Upgrades" und 2545 "Unrestricted Upgrades" + NoTiers).
+"""Check clearing technician prerequisite/blocking lists.
 
-Prueft: Inventar der Sperrlisten (live, Platzhalter "" / "empty" zaehlen als
-leer, [0]-Template bleibt draussen), Patch-Format (`Key =` ohne Leerzeichen
-dahinter - `[0] = empty` funktioniert laut Mod-Autor nicht), Parser-Roundtrip
-und Mod-Scan-Fussabdruck, Neutralzustand.
-"""
+Verify live inventory, empty-scalar syntax, parser roundtrip, scan coverage
+and neutral output; exclude placeholders and the base template."""
 import sys
 from pathlib import Path
 
@@ -24,7 +19,7 @@ assert "UpgradePrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 13
 gd = GameData(VANILLA)
 KEY = "UpgradePrototypes/UpgradePrototypes_patch_S2Tweaker.cfg"
 
-# --- 1) Inventar ---------------------------------------------------------
+# --- 1) Inventory ---------------------------------------------------------
 n_up = sum(1 for k in gd.upgrades.children if "#" not in k and k != "[0]")
 assert n_up >= 1000, n_up
 sets = {key: set(gd.upgrade_sids_with(key)) for key in UPGRADE_LOCK_KEYS.values()}
@@ -32,18 +27,17 @@ assert len(sets["BlockingUpgradePrototypeSIDs"]) >= 400
 assert len(sets["RequiredUpgradePrototypeSIDs"]) >= 600
 assert len(sets["RequiredItemPrototypeSIDs"]) >= 90
 assert "[0]" not in {s for v in sets.values() for s in v}
-# Bekannter Anker: BulletProof 2 der Duty-Ruestung sperrt DecreaseArmorWeight
-# und braucht BulletProof 1
+# Check a known upgrade's mutually exclusive and prerequisite branches.
 ex = "DutyArmor_4_E1_BulletProof2Upgrade"
 assert ex in sets["BlockingUpgradePrototypeSIDs"] and ex in sets["RequiredUpgradePrototypeSIDs"]
-# Platzhalter-Listen ("" / "empty") zaehlen NICHT als Sperre
+# Placeholder lists ("" / "empty") do not count as restrictions.
 ph = "Seva_Neutral_PSY_Right_3_2"
 assert ph in gd.upgrades.children and ph not in sets["BlockingUpgradePrototypeSIDs"]
-print(f"Inventar: {n_up} Upgrades, Sperren "
+print(f"Inventory: {n_up} Upgrades, locks "
       + ", ".join(f"{k.replace('PrototypeSIDs', '')}={len(v)}" for k, v in sets.items())
       + "  OK")
 
-# --- 2) Eine Box: genau diese Liste, Format `Key =` -----------------------
+# --- 2) One checkbox: exactly that list, `Key =` format ---
 s = Settings(upgrades_take_both=True)
 p = build_patches(gd, s)
 assert list(p) == [KEY], list(p)
@@ -59,10 +53,10 @@ pairs = modscan.pairs_from_patches(p)
 assert pairs == {(sid, "BlockingUpgradePrototypeSIDs")
                  for sid in sets["BlockingUpgradePrototypeSIDs"]}
 assert any("mutually exclusive" in line for line in summarize(s))
-print(f"Take both: {len(root.children)} Structs, `Key =` ohne Leerzeichen, "
+print(f"Take both: {len(root.children)} structs, `Key =` without trailing whitespace, "
       "Roundtrip + Fussabdruck  OK")
 
-# --- 3) Alle drei Boxen: Vereinigung, je Struct die passenden Schluessel --
+# Combine all three options with the appropriate fields per upgrade.
 s3 = Settings(upgrades_take_both=True, upgrades_no_blueprint=True,
               upgrades_no_tiers=True)
 root = cfgparse.parse(build_patches(gd, s3)[KEY])
@@ -72,14 +66,14 @@ for sid, node in root.children.items():
     expected = {key for key, v in sets.items() if sid in v}
     assert set(node.values) == expected, (sid, node.values, expected)
 assert len([l for l in summarize(s3) if l.startswith("Upgrades:")]) == 3
-print(f"Alle drei: {len(union)} Structs, Schluessel je Upgrade korrekt  OK")
+print(f"All three: {len(union)} structs, correct keys per upgrade  OK")
 
-# --- 4) Neutral + Einzelboxen unabhaengig --------------------------------
+# --- 4) Neutral and independent checkboxes ---
 assert not build_patches(gd, Settings())
 only_tiers = cfgparse.parse(build_patches(gd, Settings(upgrades_no_tiers=True))[KEY])
 assert set(only_tiers.children) == sets["RequiredUpgradePrototypeSIDs"]
 only_bp = cfgparse.parse(build_patches(gd, Settings(upgrades_no_blueprint=True))[KEY])
 assert set(only_bp.children) == sets["RequiredItemPrototypeSIDs"]
-print("Neutral = kein Patch, Boxen unabhaengig  OK")
+print("Neutral = no patch, checkboxes independent  OK")
 
 print("\nUPGRADES-TEST OK")

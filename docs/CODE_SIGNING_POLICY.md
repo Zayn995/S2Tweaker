@@ -1,10 +1,6 @@
 # Code signing policy
 
-*This page says who builds S2Tweaker, how a release is produced and what is
-signed by whom. It follows the layout the SignPath Foundation asks of
-projects it signs for, so that an application there could reuse it; no
-such application has been made. It is linked from the
-[README](../README.md).*
+This page describes release provenance and the signatures on bundled binaries.
 
 ## Who builds and signs S2Tweaker
 
@@ -18,7 +14,7 @@ behind it and no paid work involved.
 | **Approvers** (approve a release for signing) | the owners of `Zayn995/S2Tweaker` |
 
 All roles are held by the same maintainer, who works under the pseudonym
-**Zayn995**. Multi-factor authentication is enabled on the GitHub account.
+**Zayn995**.
 
 ## How a release is built
 
@@ -61,8 +57,8 @@ Each release is approved manually.
 
 ## Third-party binaries
 
-Two things in the shipped folder are not built from this repository's
-source, and both are stated openly:
+The runtime components described above come from python.org. The following
+format reference and external dependency are not bundled:
 
 - **No repak.exe since 1.23.0.** Until 1.22.0 the folder carried a repak
   binary compiled from source by the workflow — the only unsigned

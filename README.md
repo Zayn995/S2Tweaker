@@ -328,7 +328,6 @@ it extracts from the game on "Confirm & load game data".
 
 ![Microsoft's verdict on repak.exe, 2026-09-05](docs/img/virustotal_microsoft_wacatac.jpg)
 
-**From the author:** I hate Microsoft for this. A machine-learning verdict with no explanation, on a file compiled in public from open source, flipping between "clean" and "trojan" for two builds that differ in a timestamp. And no, I am not buying a damn code-signing certificate to make it stop: it costs money every year, it would put my real name on every file, and Microsoft itself says that even the expensive EV kind no longer buys SmartScreen reputation. The answer is to ship nothing a classifier can guess about: readable code, and binaries signed by the Python Software Foundation.
 
 ## Adding a new tweak (3 steps)
 
@@ -351,14 +350,23 @@ the *installed* version, and never hardcode game numbers.
 
 ## Legal / contributor notes
 
+Public documentation, code comments and diagnostic messages use English.
+Game localization data and language-test fixtures retain their original text.
+Personal working notes, conversations and assistant configuration stay outside
+the public repository and release archives.
+Run `python tools/public_files.py` before publishing. CI checks both tracked
+files and the portable artifact, and the ZIP builder rejects known private paths
+before creating either archive. Multilingual search aliases remain supported.
+
 - **Never commit or upload extracted game files** (`vanilla/`, `cache/`) —
   that content is copyrighted by GSC Game World. `.gitignore` covers this.
 - Released builds are produced by GitHub Actions from this repository, not
   on a personal machine — see the
   [code signing policy](docs/CODE_SIGNING_POLICY.md) for who builds and
-  approves a release, and for the two third-party binaries involved.
-- Tool code is MIT (see [LICENSE](LICENSE)). Bundled: repak (MIT OR
-  Apache-2.0), cfg.bin decoder based on public-domain code by
+  approves a release, and for the bundled runtime components.
+- Tool code is MIT (see [LICENSE](LICENSE)). The Pak implementation uses
+  repak as a format reference; no repak executable is bundled. Other components
+  include the cfg.bin decoder based on public-domain code by
   joric/sdwvit/thexii, the Python runtime (PSF licence), Tcl/Tk (BSD-style),
   customtkinter (MIT), darkdetect (BSD-3), packaging (Apache-2.0 OR BSD-2).
   Their licence texts ship with the tool in `_internal/licenses/`, listed in

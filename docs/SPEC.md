@@ -1,5 +1,9 @@
 # S.T.A.L.K.E.R. 2 Tweak Generator — Implementation Specification
 
+Historical design research. Version-specific assumptions and proposed fallbacks
+below are not a description of every current feature. See README.md and the
+feature-specific documents for the implemented behavior.
+
 **Target game version:** 2.0.3 (released 2026-08-26; Update 2.0 "Back to the Zone" 2026-08-20 upgraded the engine UE 5.1 → UE 5.5.4 and shipped with the "Cost of Hope" DLC).
 **Deliverable:** Windows GUI tool that renders sliders/checkboxes and emits a single mod `.pak` into the game's `~mods` folder.
 **Core finding:** every requested feature except bullet time is implementable through GSC's text `.cfg` GameData system, packaged as a plain legacy pak. Bullet time is out of cfg scope (see §4).
@@ -36,11 +40,11 @@ Player : struct.begin {bpatch}
 struct.end
 ```
 
-**Naming - resolved (06.09.2026, official Zone Kit Phase 2 PDFs "How to apply modifications to vanilla .cfg files" and "How to patch contents of a .cfg file", supplied by the owner):** there are two official ways and S2Tweaker already uses both. (1) Non-prototype files (`Credits.cfg`, `CoreVariables.cfg`, `AIGlobals.cfg`): a `Base.cfg_patch_<Mod>` file **next to** the base file; the game looks for `Base.cfg_patch_*` in the same directory (our `CoreVariables.cfg_patch_<Mod>.cfg` / `AIGlobals.cfg_patch_<Mod>.cfg` match that wildcard). (2) Prototype files (`CharacterWeaponSettingsPrototypes.cfg`, `AnomalyPrototypes.cfg`, `SpawnActorPrototypes.cfg`, ...): a plain `.cfg` with a **unique name inside the prototype's subfolder**, e.g. `WeaponData/CharacterWeaponSettingsPrototypes/BuffedAK.cfg`; every file in that folder is applied as a patch (our `<Base>/<Base>_patch_<Mod>.cfg`). Same doc: `removenode` only works inside `{bpatch}`; the engine detects patch conflicts (re-adding a removed node, removing or replacing a node another patch modified) and logs them under `LogParserNodePatching`; `-ProtoLoadingMode=2` applies patches synchronously for readable logs. The old "contradiction" between the doc example and sdwvit's convention was only the prototype/non-prototype distinction.
+**Naming - resolved (06.09.2026, official Zone Kit Phase 2 PDFs "How to apply modifications to vanilla .cfg files" and "How to patch contents of a .cfg file"):** there are two official ways and S2Tweaker already uses both. (1) Non-prototype files (`Credits.cfg`, `CoreVariables.cfg`, `AIGlobals.cfg`): a `Base.cfg_patch_<Mod>` file **next to** the base file; the game looks for `Base.cfg_patch_*` in the same directory (our `CoreVariables.cfg_patch_<Mod>.cfg` / `AIGlobals.cfg_patch_<Mod>.cfg` match that wildcard). (2) Prototype files (`CharacterWeaponSettingsPrototypes.cfg`, `AnomalyPrototypes.cfg`, `SpawnActorPrototypes.cfg`, ...): a plain `.cfg` with a **unique name inside the prototype's subfolder**, e.g. `WeaponData/CharacterWeaponSettingsPrototypes/BuffedAK.cfg`; every file in that folder is applied as a patch (our `<Base>/<Base>_patch_<Mod>.cfg`). Same doc: `removenode` only works inside `{bpatch}`; the engine detects patch conflicts (re-adding a removed node, removing or replacing a node another patch modified) and logs them under `LogParserNodePatching`; `-ProtoLoadingMode=2` applies patches synchronously for readable logs. The old "contradiction" between the doc example and sdwvit's convention was only the prototype/non-prototype distinction.
 
 Fallback/legacy mechanism (pre-1.6, still works): `refurl`/`refkey` inheritance — `MyName : struct.begin {refurl=../CoreVariables.cfg;refkey=DefaultConfig}` listing only changed keys; `{bskipref}` to replace an inherited array wholesale; same-SID full-struct override wins by load order ("Cfg files are loaded alphabetically, and what is below can use and override what is above"). Caveats: reference operators only work on structs with an SID; `CoreVariables.cfg`/`AIGlobals.cfg` `DefaultConfig` structs historically resisted refurl overrides (Nexus article 138, https://www.nexusmods.com/stalker2heartofchornobyl/articles/138; modding.wiki/en/stalker2heartofchornobyl/developers/ConfigFiles); joric: "refkey on structure with refkey works badly and leads to errors and crashes"; `[*]` auto-index lists cannot be inherited via refkey. One modding.wiki example writes `ref=` instead of `refurl=` — treat as a typo; vanilla files use `refurl=`. **Prefer `{bpatch}` everywhere; use refurl/bskipref only where bpatch is awkward.**
 
-Open question (both agents): merge order when multiple `.cfg_patch_*` files from different mods hit the same base cfg is undocumented (presumed alphabetical).
+Open question: merge order when multiple `.cfg_patch_*` files from different mods hit the same base cfg is undocumented (presumed alphabetical).
 
 ---
 
@@ -214,7 +218,7 @@ Sources: https://github.com/chrisvblemos/stalker2cfg · https://raw.githubuserco
 
 ### 1.13 Mutant damage × multiplier (slider)
 
-**Recommended route — single global key:** `DifficultyPrototypes.cfg` → `Mutant_BaseDamage` per difficulty struct, multiplier on mutant damage vs player. Vanilla: 1.1.3-era — Easy 0.55 (one agent read 0.5), Medium 1.0, Hard 1.35; Jan-2026 dump — Easy 0.35, Hard 1.35, Stalker 1.5. ⚠ drift again — read live values, multiply, bpatch every difficulty struct. Companion `Mutant_AttackCooldown` scales attack frequency.
+**Recommended route — single global key:** `DifficultyPrototypes.cfg` → `Mutant_BaseDamage` per difficulty struct, multiplier on mutant damage vs player. Vanilla: 1.1.3-era — Easy 0.55 (another source reported 0.5), Medium 1.0, Hard 1.35; Jan-2026 dump — Easy 0.35, Hard 1.35, Stalker 1.5. ⚠ drift again — read live values, multiply, bpatch every difficulty struct. Companion `Mutant_AttackCooldown` scales attack frequency.
 
 **Alternative per-attack route:** `AbilityPrototypes/<Mutant>Abilities.cfg` (BlindDog, Bloodsucker, Boar, Burer, Cat, Chimera, Controller, Deer, Flesh, Poltergeist, PseudoDog, Pseudogiant, Snork, Tushkan + Faust/Korshunov/Strelok/Human), key `Damage` per attack struct (siblings: `ArmorDamage`, `ArmorPiercing`, `Bleeding`, `BleedingChanceIncrement`, `DamageSource`, `DamageType`, `NPCDamageMultiplier`, `HitDetectionDistance`, `MaxAttacksInSeries`). Vanilla examples (1.1.3): Bloodsucker_RunAttack_Base 23, Bloodsucker_JumpAttack 32, Bloodsucker_ClawAttack 18, Bloodsucker_TurnAttack 23 (ArmorDamage 1, ArmorPiercing 2.f, Bleeding 30.0f); Boar_RunAttack_Base 30, Boar_ClawAttack 20, Boar_TurnAttack 10, ChargeAbility_Boar 30.f; Chimera claw/run/turn 35, ShortJump 30, LongJump 45, FlyThrough 40 (ArmorPiercing 4.f). Base template `BaseAttackAbility` in `AbilityPrototypes.cfg` has `NPCDamageMultiplier = 2.f` (mutants hit human NPCs at 2× the player-facing value). Note: `MutantBase.cfg`'s `AttackParams.MeleeDamage = 60.0` / `MutantAttackParams.JumpAttack.Damage = 40.0` appear to be legacy/fallback defaults — real damage lives in the ability cfgs (medium confidence).
 
@@ -242,7 +246,7 @@ Sources: https://raw.githubusercontent.com/chrisvblemos/stalker2cfg/main/Stalker
 2. Pack with **repak** (trumank, v0.2.3, released 2026-01-02, Apache-2.0/MIT, Windows x64 binary `repak_cli-x86_64-pc-windows-msvc.zip` — https://github.com/trumank/repak/releases; bundle it, licensing permits):
    `repak pack zzz_TweakGen_1000_P` → `zzz_TweakGen_1000_P.pak`.
    Defaults (from `repak_cli/src/main.rs`) are correct for STALKER 2: `--version V8B`, `--mount-point "../../../"` (relative to `Stalker2/Content/Paks/`, so `Stalker2/Content/...` resolves to game root), `--path-hash-seed 0`. Output is unencrypted/uncompressed — exactly what the game accepts for mods. Community bats (v3fish StalkerPakTool, BossPack Repak.bat) pass no flags.
-   ⚠ **Contradiction flag:** one research agent reports the community-standard command as `repak pack --version V11 <folder>/ <name>_P.pak`; the packaging agent verified the widely-used bats use the **default V8B** and the game mounts it. Both apparently load; default to no version flag (V8B), keep `--version V11` as a config escape hatch. No post-2.0 failure reports for either (update was 8 days old at research time).
+   ⚠ **Contradiction flag:** one reference describes the community-standard command as `repak pack --version V11 <folder>/ <name>_P.pak`; the inspected packaging scripts use the **default V8B** and the game mounts it. Both apparently load; default to no version flag (V8B), keep `--version V11` as a config escape hatch. No post-2.0 failure reports for either (update was 8 days old at research time).
 3. Install to `<GameInstall>\Stalker2\Content\Paks\~mods\` (create if missing; subfolders allowed). GSC officially acknowledges this path (2.0 FAQ: "For custom mods — delete Stalker2/Content/Paks/~mods").
 
 ### 2.2 Naming and load order
@@ -276,7 +280,7 @@ Sources: https://www.stalker2.com/news/mods-cost-of-hope-update-2-0-faq · https
 
 **Extraction pipeline (first run / on game update detected):**
 1. `repak unpack <install>\Stalker2\Content\Paks\pakchunk0-Windows.pak -o <cache>` — extract only `Stalker2/Content/GameLite/GameData/**` (skip the ~80k SpawnActorPrototypes files; pre-1.6 full extract was ~7 GB, 5–15 min per mod 1591).
-   ⚠ **Contradiction flag (AES):** packaging agent says shipping paks are AES-encrypted, key `0x33A604DF49A07FFD4A4C919962161F5C35A134D37EFA98DB37A34F6450D7D386` (hardcoded in v3fish StalkerPakTool and Stalker2PakCfgMergeTool, dumped via AESDumpster); dumps agent cites securitronlinux ("I did not need it to extract the files") + hwkmod that no key is needed and nothing changed in 2.0. **Resolution: try without key first; on failure retry with `--aes-key 0x33A604DF...D386`.** Whether the key changed with 2.0 is unverified (no reports of a change).
+   ⚠ **Contradiction flag (AES):** one reference describes shipping paks as AES-encrypted, key `0x33A604DF49A07FFD4A4C919962161F5C35A134D37EFA98DB37A34F6450D7D386` (hardcoded in v3fish StalkerPakTool and Stalker2PakCfgMergeTool, dumped via AESDumpster); other references include securitronlinux ("I did not need it to extract the files") + hwkmod that no key is needed and nothing changed in 2.0. **Resolution: try without key first; on failure retry with `--aes-key 0x33A604DF...D386`.** Whether the key changed with 2.0 is unverified (no reports of a change).
 2. Since patch 1.6 (2025-09-24) GameData ships as **binary `.cfg.bin`** (some entire folders packed into single `.cfg.bin`; "151k files → 117"). Convert with **joric's `bin2cfg.py`** (https://github.com/joric/stalker/blob/main/scripts/bin2cfg.py — updated for 2.0.3, "Now all data is 100% converted") or **sdwvit's `s2cfgtojson` npm package** (`Struct.fromBinary(buffer)` → `.toString()`; repo pushed 2026-08-27, includes binCfgParser — https://github.com/sdwvit/S2CfgToJSON). If the tool is .NET/C#, port or shell out to one of these; also reusable as the cfg *parser* for reading values.
 3. Parse the resulting text cfgs (custom format: `Name : struct.begin {refurl=...;refkey=...}` / `struct.end`, SIDs, `[*]`/`[n]` array entries, `//` comments) to resolve inherited values (refkey chains like `[0] → TemplateGrenade → GrenadeRGD5`).
 
@@ -321,13 +325,13 @@ assets or script loader are included in S2Tweaker.
 
 ## 6. Explicit contradiction register
 
-| # | Topic | Agent A | Agent B | Resolution |
+| # | Topic | Evidence A | Evidence B | Resolution |
 |---|---|---|---|---|
 | 1 | AES on pakchunk0 | Encrypted; key `0x33A604DF49A07FFD4A4C919962161F5C35A134D37EFA98DB37A34F6450D7D386` required | Unencrypted; "did not need it"; "no change in 2.0" | Try keyless, retry with key |
 | 2 | repak pack version | Defaults (V8B), no flags — verified in community bats + repak source | "community-standard `--version V11`" | Default V8B; V11 config fallback |
 | 3 | Chimera/Pseudogiant MaxHP | 2500/4000 (1.1.3 raw dump) | 1400/2500 (mod 1748 page) | Patch drift; read live values |
 | 4 | Weapon_BaseDamage Easy | 1.2 (1.1.3) | 1.3 (Jan-2026 dump) | Drift; read live |
-| 5 | Mutant_BaseDamage Easy | 0.5 (agent 2) / 0.55 (agent 6) | 0.35 (Jan-2026 dump, agent 5) | Drift + read discrepancy; read live |
+| 5 | Mutant_BaseDamage Easy | 0.5 / 0.55 (different source readings) | 0.35 (Jan-2026 dump) | Drift + read discrepancy; read live |
 | 6 | BaseRepairCostModifier launch value | 1.0 at launch (low-conf web claim) | 0.7 in 1.1.3 dump (verified) | Use 0.7 |
 | 7 | Patch-file naming | Official: `Base.cfg_patch_x` beside base file | Proven mods: `Base/Base_patch_x.cfg` subfolder | Resolved 06.09.2026: both official - `.cfg_patch_*` for non-prototype files, unique `.cfg` in the subfolder for prototype files (Zone Kit Phase 2 PDF) |
 | 8 | `refurl` vs `ref=` | modding.wiki one example `ref=` | vanilla + article 138 `refurl=` | Use `refurl=` (typo) |

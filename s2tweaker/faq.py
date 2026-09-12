@@ -1,18 +1,7 @@
-"""Inhalt des eingebauten FAQ-Fensters (GUI: gui.App._show_faq).
+"""Searchable FAQ content used by gui.App._show_faq.
 
-Nur Daten, kein Code: eine Liste von Eintraegen mit Frage (q), Antwort (a)
-und unsichtbaren Suchbegriffen (k) — Synonyme, Tippfehler-Varianten und
-Spieler-Vokabular, damit die Suche auch "health pack" findet, wenn der
-Regler "Consumable strength" heisst. Genau daraus ist das FAQ entstanden:
-ein Nexus-Nutzer suchte die Medkit-Heilung und kam nicht auf den Namen.
-
-Regeln fuer neue Eintraege:
-- Englisch (alles Oeffentliche ist englisch), kurze Frage, ehrliche Antwort.
-- Keine Vanilla-Zahlen versprechen, die das naechste Spiel-Update aendert —
-  das Tool liest live; Zahlen nur als "currently/vanilla ~X" nennen.
-- Nichts behaupten, was nicht implementiert oder getestet ist. Die
-  "not play-tested"-Ehrlichkeit gilt auch hier.
-"""
+Each entry contains a question (q), answer (a), and hidden keywords (k).
+Keywords include synonyms and common spelling variants for feature discovery."""
 
 FAQ_ENTRIES = [
     {

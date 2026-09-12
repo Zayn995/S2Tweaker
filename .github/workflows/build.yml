@@ -1,19 +1,5 @@
-# Baut S2Tweaker auf GitHub statt auf einem Privatrechner.
-#
-# Warum es das gibt (04.09.2026): der Nexus-Support konnte die hochgeladene
-# Datei nicht freigeben, weil Virenscanner sie als Malware markierten. Teil
-# der Antwort darauf ist Nachvollziehbarkeit — jede veroeffentlichte Datei
-# soll beweisbar aus DIESEM oeffentlichen Quellcode stammen und nicht aus
-# einem Ordner auf einem Laptop.
-#
-# Seit 1.21.0 (05.09.2026) gibt es keinen PyInstaller mehr: S2Tweaker.exe
-# ist die unveraenderte, von der Python Software Foundation signierte
-# pythonw.exe der python.org-Installation, und der Python-Code liegt lesbar
-# daneben. Seit 1.37.1 wird die Laufzeit aus dem per SHA-256 festgelegten
-# Release 1.36.1 uebernommen: tools/refresh_portable.py setzt den aktuellen
-# Quellcode ein und vergleicht alle EXE/DLL/PYD. So kann ein Runner-Update
-# den signierten Starter nicht austauschen. Der fensterlose Selbsttest und
-# die Signaturpruefung laufen danach gegen genau diesen Programmordner.
+# Build public sources with a hash-pinned, signed portable Python runtime.
+# Verify source content, runtime identity and signatures before uploading artifacts.
 name: build
 
 on:
@@ -36,74 +22,74 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Abhaengigkeiten
+      - name: Check public repository files
+        run: python tools/public_files.py
+
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Tests ohne Spieldaten
-        # Die volle Batterie braucht den vanilla/-Ordner mit extrahierten
-        # GameData. Die duerfen nie ins Repo (GSC-Copyright), also laeuft
-        # hier nur, was ohne sie auskommt; der Rest vor jedem Release lokal.
+      - name: Run tests without game data
+        # Game-data suites run locally because extracted GSC files are not public.
         run: python tests/run_ci.py
 
-      - name: Bisherige Laufzeit per festem Release-Hash laden
+      - name: Download the hash-pinned baseline runtime
         shell: pwsh
         run: |
           $archive = "baseline.zip"
           Invoke-WebRequest -Uri "https://github.com/Zayn995/S2Tweaker/releases/download/v1.36.1/S2Tweaker_v1.36.1.zip" -OutFile $archive
           $expected = "0B2E9F1ECB6B95DA788D8DE72625C58F2784CEB1E4B00878EE81F518AFEB7CB8"
-          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw "Baseline-ZIP stimmt nicht mit 1.36.1 ueberein" }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw "Baseline ZIP does not match 1.36.1" }
           Expand-Archive -LiteralPath $archive -DestinationPath baseline
 
-      - name: Aktuellen Quellcode mit unveraenderter Laufzeit zusammenstellen
+      - name: Assemble current sources with the unchanged runtime
         run: python tools/refresh_portable.py --base baseline --output dist/S2Tweaker --expected-starter-sha D72294FB338BC2FC8896D25A7395A4DB466425427E1559E77185D5135A830681
 
-      - name: Portable-Selbsttest ohne Fenster
+      - name: Run the headless portable self-test
         shell: pwsh
         run: |
           $env:S2TWEAKER_SELFTEST = Join-Path $PWD "dist/selftest.txt"
           try {
             $process = Start-Process -FilePath (Join-Path $PWD "dist/S2Tweaker/S2Tweaker.exe") -WindowStyle Hidden -PassThru
-            if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Portable-Selbsttest Timeout" }
+            if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Portable self-test timed out" }
             Get-Content $env:S2TWEAKER_SELFTEST
-            if ($process.ExitCode -ne 0) { throw "Portable-Selbsttest fehlgeschlagen: $($process.ExitCode)" }
-            if ((Get-Content $env:S2TWEAKER_SELFTEST -Tail 1) -ne "OK") { throw "Selbsttest nicht abgeschlossen" }
+            if ($process.ExitCode -ne 0) { throw "Portable self-test failed: $($process.ExitCode)" }
+            if ((Get-Content $env:S2TWEAKER_SELFTEST -Tail 1) -ne "OK") { throw "Self-test did not complete" }
           } finally { Remove-Item Env:S2TWEAKER_SELFTEST -ErrorAction SilentlyContinue }
 
-      - name: Gegenprobe — signierter Starter, keine Netzmodule
-        # Unabhaengig vom Bau-Skript, mit Windows-Bordmitteln: der Starter
-        # muss Byte fuer Byte der Starter aus 1.36.1 sein und von der
-        # Python Software Foundation signiert; jede DLL/PYD muss gueltig
-        # signiert sein - ohne Ausnahme (seit 05.09.2026 gibt es kein repak.exe
-        # mehr; Paks liest und schreibt s2tweaker/pakfile.py in reinem Python);
-        # und nichts, was Netz oder TLS kann, darf im Paket liegen.
+      - name: Verify signed launcher and absence of networking modules
+        # Independently verify the pinned starter, all binary signatures and
+        # the absence of networking modules in the portable directory.
         shell: pwsh
         run: |
           $dist = "dist/S2Tweaker"
           $exe = "$dist/S2Tweaker.exe"
-          if (-not (Test-Path $exe)) { throw "EXE fehlt: $exe" }
+          if (-not (Test-Path $exe)) { throw "EXE missing: $exe" }
           $py = "baseline/S2Tweaker.exe"
           $h1 = (Get-FileHash $exe -Algorithm SHA256).Hash
           $h2 = (Get-FileHash $py -Algorithm SHA256).Hash
           "S2Tweaker.exe : $h1"
           "1.36.1 starter: $h2"
-          if ($h1 -ne $h2) { throw "S2Tweaker.exe ist nicht der unveraenderte 1.36.1-Starter" }
+          if ($h1 -ne $h2) { throw "S2Tweaker.exe is not the unchanged 1.36.1 launcher" }
           $sig = Get-AuthenticodeSignature $exe
-          "Signatur      : $($sig.Status) / $($sig.SignerCertificate.Subject)"
+          "Signature     : $($sig.Status) / $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
-            throw "Starter nicht gueltig von der Python Software Foundation signiert"
+            throw "Launcher does not have a valid Python Software Foundation signature"
           }
           $bins = Get-ChildItem $dist -Recurse -Include *.exe,*.dll,*.pyd
           $unsigned = @($bins | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' })
-          "Binaerdateien : $($bins.Count), davon unsigniert: $($unsigned.Name -join ', ')"
-          if ($unsigned.Count -gt 0) { throw "Unsignierte Binaerdatei im Paket" }
-          if (Get-ChildItem $dist -Recurse -Filter repak.exe) { throw "repak.exe im Paket" }
+          "Binary files : $($bins.Count), unsigned: $($unsigned.Name -join ', ')"
+          if ($unsigned.Count -gt 0) { throw "Unsigned binary in the package" }
+          if (Get-ChildItem $dist -Recurse -Filter repak.exe) { throw "repak.exe in the package" }
           foreach ($bad in '_ssl', '_socket', '_hashlib', 'libssl', 'libcrypto', 'sqlite3', '_multiprocessing') {
-            if (Get-ChildItem $dist -Recurse -Filter "$bad*") { throw "$bad* im Paket" }
+            if (Get-ChildItem $dist -Recurse -Filter "$bad*") { throw "$bad* in the package" }
           }
-          if (-not (Test-Path "$dist/_internal/sitecustomize.py")) { throw "Starter-Modul fehlt" }
-          "Groesse       : $((Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum).Sum) Bytes"
+          if (-not (Test-Path "$dist/_internal/sitecustomize.py")) { throw "Launcher module missing" }
+          "Size          : $((Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum).Sum) Bytes"
 
-      - name: Pruefberichte als Artefakt
+      - name: Check public artifact files
+        run: python tools/public_files.py dist/S2Tweaker
+
+      - name: Upload verification reports
         uses: actions/upload-artifact@v4
         with:
           name: verification-${{ github.sha }}
@@ -112,7 +98,7 @@ jobs:
             dist/selftest.txt
           if-no-files-found: error
 
-      - name: Programmordner als Artefakt
+      - name: Upload the portable application
         uses: actions/upload-artifact@v4
         with:
           name: S2Tweaker-${{ github.sha }}

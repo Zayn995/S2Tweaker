@@ -1,9 +1,6 @@
-"""1.24.0-Paket (06.09.2026): Artefakt-Slots je Ruestung, Kamerawackeln beim
-Schiessen, ADS-Zoom, Klettertempo, Startgeld, Aim-Assist-Schalter fuer Maus
-und Gamepad. Sollwerte live aus vanilla/; Anker sind nur die bekannten
-Vanilla-Groessen (Slots 0-5, Scale 1.0, FOV 0.92/0.83, ClimbSpeedCoef 0.6,
-PlayerStartingMoney 0, Empty-Kegel).
-"""
+"""Check artifact slots, firing shake, ADS zoom, climbing, starting money and aim assist.
+
+Expected values come from installed data."""
 import sys
 from pathlib import Path
 
@@ -37,17 +34,17 @@ def values(node, key):
     return out
 
 
-# --- 0) Neutral: keine der neuen Dateien/Schluessel --------------------
+# Neutral output must omit all added fields/files.
 neutral = build_patches(gd, Settings(mod_name="S2Tweaker"))
-assert AIM not in neutral, "Aim-Assist-Patch ohne Schalter"
+assert AIM not in neutral, "Aim-assist patch without the toggle"
 for name in (ITEMS, SHAKE, SETUP, OBJ, CORE):
     text = neutral.get(name, "")
     for key in ("ArtifactSlots", "ShootCameraShake", "AimingFOVModifier",
                 "ClimbSpeedCoef", "PlayerStartingMoney"):
-        assert key not in text, f"{key} im Neutralzustand ({name})"
-print("Neutral: keine 1.24.0-Schluessel  OK")
+        assert key not in text, f"{key} at neutral ({name})"
+print("Neutral: no 1.24.0 keys  OK")
 
-# --- 1) Artefakt-Slots: +2, Deckel 5, Helme unberuehrt ------------------
+# --- 1) Artifact slots: +2, cap 5, helmets unchanged ---
 slots = gd.armor_artifact_slots()
 assert 40 <= len(slots) <= 120, len(slots)
 assert all(0 <= v <= 5 for v, _ed in slots.values())
@@ -56,24 +53,24 @@ got = values(parsed(p, ITEMS), "ArtifactSlots")
 checked = 0
 for sid, (vanilla, edition) in slots.items():
     if edition is not None:
-        continue                     # Editions-Ruestungen liegen im DLC-Zweig
+        continue                     # Edition armors use the DLC branch.
     expected = min(5, vanilla + 2)
     if expected == vanilla:
-        assert sid not in got, f"{sid}: 5-Slot-Ruestung wurde gepatcht"
+        assert sid not in got, f"{sid}: armor with 5 slots was patched"
     else:
         assert got.get(sid) == str(expected), (sid, vanilla, got.get(sid))
         checked += 1
 assert checked >= 35, checked
 helmets = [sid for sid, (slot, _v) in gd.player_armors().items() if slot == "Head"]
-assert helmets and not any(h in got for h in helmets), "Helm gepatcht"
+assert helmets and not any(h in got for h in helmets), "Helmet was patched"
 five = [sid for sid, (v, ed) in slots.items() if v == 5 and ed is None]
 assert five and not any(sid in got for sid in five)
 dlc_names = [n for n in p if n.startswith("//GameLite/DLCGameData/")]
 if any(ed for _v, ed in slots.values()):
-    assert any("ArtifactSlots" in p[n] for n in dlc_names), "DLC-Ruestungen ohne Slot-Patch"
-print(f"Artefakt-Slots: {checked} Ruestungen +2 (Deckel 5), {len(helmets)} Helme unberuehrt  OK")
+    assert any("ArtifactSlots" in p[n] for n in dlc_names), "DLC armors have no slot patch"
+print(f"Artefakt-Slots: {checked} armors +2 (cap 5), {len(helmets)} helmets unchanged  OK")
 
-# --- 2) Kamerawackeln beim Schiessen ------------------------------------
+# --- 2) Camera shake while firing ---
 p = build_patches(gd, Settings(mod_name="S2Tweaker", shooting_shake_factor=0.5))
 got = values(parsed(p, SHAKE), "Scale")
 shoot = [n for n in gd.camerashake.children
@@ -83,13 +80,13 @@ for name in shoot:
     vanilla = parse_number(gd.camerashake.children[name].get("Scale"), 1.0)
     assert abs(parse_number(got[name]) - vanilla * 0.5) < 1e-6, (name, got.get(name))
 assert set(got) == set(shoot), set(got) ^ set(shoot)
-assert "ProjectileHitCameraShake" not in got, "Aim Punch ohne Regler mitgepatcht"
+assert "ProjectileHitCameraShake" not in got, "Aim punch patched without changing its slider"
 p2 = build_patches(gd, Settings(mod_name="S2Tweaker", shooting_shake_factor=0.5, aim_punch_factor=2.0))
 got2 = values(parsed(p2, SHAKE), "Scale")
 assert "ProjectileHitCameraShake" in got2 and len(got2) == len(shoot) + 1
-print(f"Kamerawackeln: {len(shoot)} Schuss-Eintraege halbiert, Treffer-Wackeln getrennt  OK")
+print(f"Kamerawackeln: {len(shoot)} firing entries halved, hit shake separate  OK")
 
-# --- 3) ADS-Zoom: 0 = kein Zoom, 2 = doppelt, Deckel 0.2 ----------------
+# Check ADS zoom neutral/disabled/scaled values and lower bound.
 fov = gd.weapon_general_values("AimingFOVModifier")
 assert len(fov) >= 80, len(fov)
 p0 = build_patches(gd, Settings(mod_name="S2Tweaker", ads_zoom_factor=0.0))
@@ -102,9 +99,9 @@ for sid, vanilla in fov.items():
     assert abs(parse_number(got2[sid]) - expected) < 1e-6, (sid, vanilla, got2[sid])
 off = values(parsed(p2, SETUP), "OffsetAimingFOVModifier")
 assert len(off) >= 80, len(off)
-print(f"ADS-Zoom: {len(fov)} Waffen, 0 % -> 1.0, 200 % -> 0.84 bei 0.92  OK")
+print(f"ADS-Zoom: {len(fov)} weapons, 0% -> 1.0, 200% -> 0.84 from 0.92  OK")
 
-# --- 4) Klettertempo ------------------------------------------------------
+# --- 4) Climbing speed ------------------------------------------------------
 vanilla_climb = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.ClimbSpeedCoef"))
 assert abs(vanilla_climb - 0.6) < 1e-6, vanilla_climb
 p = build_patches(gd, Settings(mod_name="S2Tweaker", climb_speed_factor=2.0))
@@ -112,14 +109,14 @@ climb = parsed(p, OBJ).children["Player"].children["MovementParams"].values["Cli
 assert abs(parse_number(climb) - 1.2) < 1e-6, climb
 print("Klettertempo: 0.6 -> 1.2  OK")
 
-# --- 5) Startgeld ----------------------------------------------------------
+# --- 5) Starting money ----------------------------------------------------------
 assert gd.corevar("PlayerStartingMoney", -1.0) == 0.0
 p = build_patches(gd, Settings(mod_name="S2Tweaker", starting_money=5000))
 assert "PlayerStartingMoney = 5000" in p[CORE], p[CORE]
 assert "PlayerStartingMoney" not in build_patches(gd, Settings(mod_name="S2Tweaker", starting_money=0)).get(CORE, "")
 print("Startgeld: 0 -> 5000  OK")
 
-# --- 6) Aim Assist: Maus und Gamepad getrennt ----------------------------
+# Mouse and gamepad aim assist remain independent.
 presets = [n for n in gd.aimassist.children if "#" not in n and n != "Empty"]
 mouse = [n for n in presets if "Mouse" in n]
 pad = [n for n in presets if "Gamepad" in n]
@@ -133,15 +130,15 @@ for name in mouse:
     assert cfg.values.get("StickinessAimAssistConeSID", "").strip() == empty
     magnet = cfg.children.get("MagnetismAimAssistConeSIDs")
     assert magnet is not None and all(v.strip() == empty for v in magnet.values.values())
-    assert "SnappingAimAssistConeSID" not in cfg.values, "Snapping war schon Empty - darf nicht auftauchen"
+    assert "SnappingAimAssistConeSID" not in cfg.values, "Snapping was already Empty and must not appear"
 p = build_patches(gd, Settings(mod_name="S2Tweaker", no_aim_assist_gamepad=True))
 node = parsed(p, AIM)
 assert set(node.children) == set(pad), set(node.children) ^ set(pad)
 p = build_patches(gd, Settings(mod_name="S2Tweaker", no_aim_assist_mouse=True, no_aim_assist_gamepad=True))
 assert set(parsed(p, AIM).children) == set(mouse) | set(pad)
-print(f"Aim Assist: {len(mouse)} Maus- und {len(pad)} Gamepad-Presets getrennt auf {empty}  OK")
+print(f"Aim Assist: {len(mouse)} mouse and {len(pad)} gamepad presets separately set to {empty}  OK")
 
-# --- 7) Zusammenfassung ---------------------------------------------------
+# --- 7) Summary ---
 text = summarize(Settings(mod_name="S2Tweaker", artifact_slots_bonus=1, shooting_shake_factor=0.0,
                           ads_zoom_factor=0.0, climb_speed_factor=1.5, starting_money=1000,
                           no_aim_assist_mouse=True, no_aim_assist_gamepad=True))
@@ -149,6 +146,6 @@ joined = "\n".join(text) if isinstance(text, (list, tuple)) else str(text)
 for needle in ("Artifact slots +1", "Shooting camera shake", "ADS zoom", "Ladder climb speed",
                "Starting money 1000", "Aim assist off (mouse)", "Aim assist off (gamepad)"):
     assert needle in joined, needle
-print("Zusammenfassung nennt alle sieben  OK")
+print("Summary includes all seven controls  OK")
 
 print("\nV124-TEST OK")

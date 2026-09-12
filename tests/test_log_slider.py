@@ -1,12 +1,6 @@
-"""Logarithmischer "Max health"-Regler (GitHub Issue #4, NooB9496, 03.09.2026).
+"""Check the logarithmic health rail, value mapping, bounds, presets and patches.
 
-Der Regler geht jetzt von 50 bis 100000 auf einer log10-Schiene; get()/set()
-sprechen weiter Werte (3 signifikante Stellen), Persistenz/Presets/Import
-merken davon nichts. Prueft Mapping, Randfaelle, Roundtrip ueber
-_ui_state/_apply_ui_state und den erzeugten Patch.
-
-Wie immer: SETTINGS_FILE umbiegen, nie _on_close/_save_ui_settings rufen.
-"""
+Use temporary settings; serialization still stores ordinary numeric values."""
 import math
 import sys
 from pathlib import Path
@@ -30,34 +24,33 @@ app.gd = GameData(VANILLA)
 app.update()
 hp = app.sliders["hp"]
 
-# --- 1) Der HP-Regler ist log, alle anderen linear; lo/hi in Werten -----
+# Only health uses the logarithmic rail; bounds remain in value units.
 assert hp.log and hp.lo == 50 and hp.hi == 100000, (hp.log, hp.lo, hp.hi)
 others = [k for k, r in app.sliders.items() if r.log and k != "hp"]
 assert not others, others
 assert app.sliders["sp"].lo == 50 and app.sliders["sp"].hi == 1000
 assert all(hasattr(r, "lo") and hasattr(r, "hi") for r in app.sliders.values())
-print("HP-Regler log 50..100000, Rest linear, lo/hi ueberall  OK")
+print("HP slider logarithmic 50..100000, others linear, lo/hi defined throughout  OK")
 
-# --- 2) Mapping: set(x) -> get() == x fuer 3-stellige Werte, Clamp ------
+# Check mapping and clamping of three-significant-digit values.
 for value in (50, 100, 250, 999, 1000, 4560, 25000, 100000):
     hp.set(value)
     assert abs(hp.get() - value) < 1e-9, (value, hp.get())
 hp.set(99999)
-assert hp.get() == 99999, hp.get()           # seit 1.29.0 exakt (Zahlenfeld)
-# Die 3-Stellen-Rundung gilt weiter fuer die SCHIENE: wer mit der Maus
-# zieht, landet auf runden Zahlen statt auf 99999 oder 251.
+assert hp.get() == 99999, hp.get()           # Exact typed value from the numeric entry.
+# Rail interaction rounds to three significant figures.
 hp.slider.set(math.log10(99999))
 hp._on_rail()
 assert hp.get() == 100000, hp.get()
 hp.set(20)
-assert hp.get() == 50, hp.get()              # unter Minimum -> Minimum
+assert hp.get() == 50, hp.get()              # Below minimum -> minimum.
 hp.set(500000)
-assert hp.get() == 100000, hp.get()          # ueber Maximum -> Maximum
+assert hp.get() == 100000, hp.get()          # Above maximum -> maximum.
 hp.reset()
 assert hp.get() == 100 and "(vanilla)" in hp.value_label.cget("text")
-print("Mapping exakt (100/250/999/1000/4560/25000/100000), Clamp, Reset  OK")
+print("Exact mapping (100/250/999/1000/4560/25000/100000), clamp, reset  OK")
 
-# --- 3) Roundtrip ueber Preset-Zustand + Patch -------------------------
+# --- 3) Preset-state and patch roundtrip ---
 hp.set(100000)
 state = app._ui_state()
 assert state["sliders"]["hp"] == 100000, state["sliders"]["hp"]
@@ -73,7 +66,7 @@ assert key, list(p)
 assert "MaxHP = 100000" in p[key[0]], p[key[0]][:300]
 hp.reset()
 assert not build_patches(app.gd, app._collect())
-print("Roundtrip Preset -> Regler -> Settings -> Patch (MaxHP = 100000)  OK")
+print("Roundtrip preset -> slider -> Settings -> patch (MaxHP = 100000)  OK")
 
 try:
     app.destroy()

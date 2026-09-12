@@ -1,12 +1,7 @@
-"""1.28.0 Kern-Sweep (06.09.2026, docs/CORE_SWEEP_RESEARCH.md): ein Block je
-Paket P1..P8. Sollwerte live aus vanilla/; Anker sind nur die bekannten
-Vanilla-Groessen (Limp-Schwellen 25/65, Blutung 10, QuickSave 300 s ...).
+"""Check core control families against installed game data.
 
-P1 (Spieler: Koerper, Sicht, Speichern): Humpel-Schwellen (Array komplett),
-Blutung je Treffer, Schadens-Bildschirmeffekte (15 Prozessoren), Taschenlampe
-im Dialog, Schnellspeicher-Fenster (neue Textdatei), eingefaltete Schluessel
-in sechs vorhandene Regler und die CoreVariablesCustom-Versicherung.
-"""
+Cover complete indexed entries, related field composition, neutral output
+and mirrored CoreVariablesCustom values; see CORE_SWEEP_RESEARCH.md."""
 import sys
 from pathlib import Path
 
@@ -42,12 +37,12 @@ def core_values(**kw) -> dict:
 
 
 # =========================================================================
-# P1 - Spieler: Koerper, Sicht, Speichern
+# P1 - Player: body, vision, saving.
 # =========================================================================
 
-# --- P1.0) Dateien, Schema, Mod-Scan, Live-Werte == Defaults ---------------
+# --- P1.0) Files, schema, mod scan, live values match defaults ---
 assert "QuickSaveVariables.cfg" in NEEDED_FILES and "CoreVariablesCustom.cfg" in NEEDED_FILES
-assert CACHE_SCHEMA >= 22, "zwei neue Dateien ohne Schema-Bump"
+assert CACHE_SCHEMA >= 22, "Two new files without schema bump"
 assert "corevarscustom" in _GD_TREES and "quicksave" in _GD_TREES, _GD_TREES
 qs_live = parse_number(gd.quicksave.children["DefaultConfig"].values["QuickSaveOverwriteTime"])
 assert abs(qs_live - Settings().quicksave_overwrite_min * 60.0) < 1e-9, qs_live
@@ -57,46 +52,46 @@ for key in COREVARS_CUSTOM_KEYS:
     assert parse_number(custom_live[key]) == parse_number(core_live[key]), key
 limp_live = gd.corevars.children["DefaultConfig"].children["LimpEffectSIDToThresholdMap"].children
 assert [e.values["EffectSID"] for e in limp_live.values()] == ["WeakLimp", "MediumLimp"]
-print(f"P1.0 Dateien: Schema {CACHE_SCHEMA}, QuickSave live {qs_live:g} s = Default, "
-      f"CustomConfigOverride wiederholt {len(COREVARS_CUSTOM_KEYS)} Schluessel identisch  OK")
+print(f"P1.0 Files: schema {CACHE_SCHEMA}, QuickSave live {qs_live:g} s = Default, "
+      f"CustomConfigOverride repeated {len(COREVARS_CUSTOM_KEYS)} identical keys  OK")
 
-# --- P1.1) Neutral erzeugt nichts ------------------------------------------
+# --- P1.1) Neutral produces nothing ---
 neutral = build_patches(gd, S())
 assert not neutral, sorted(neutral)
-print("P1.1 Neutral: keine Patch-Datei  OK")
+print("P1.1 Neutral: no patch file  OK")
 
-# --- P1.2) Humpeln nach harter Landung (Array KOMPLETT) ---------------------
+# --- P1.2) Limping after a hard landing: complete array ---
 core = parsed(build_patches(gd, S(limp_threshold_factor=2.0)), CORE).children["DefaultConfig"]
 arr = core.children["LimpEffectSIDToThresholdMap"].children
 assert set(arr) == {"[0]", "[1]"}, set(arr)
 assert arr["[0]"].values == {"EffectSID": "WeakLimp", "Threshold": "50.0"}, arr["[0]"].values
 assert arr["[1]"].values == {"EffectSID": "MediumLimp", "Threshold": "130.0"}, arr["[1]"].values
-assert not core.values, core.values                                        # sonst nichts
+assert not core.values, core.values                                        # Nothing else.
 arr = parsed(build_patches(gd, S(no_landing_limp=True)), CORE).children["DefaultConfig"] \
     .children["LimpEffectSIDToThresholdMap"].children
 assert arr["[0]"].values == {"EffectSID": "WeakLimp", "Threshold": "25000.0"}, arr["[0]"].values
 assert arr["[1]"].values["Threshold"] == "65000.0"
 arr = parsed(build_patches(gd, S(no_landing_limp=True, limp_threshold_factor=3.0)), CORE) \
     .children["DefaultConfig"].children["LimpEffectSIDToThresholdMap"].children
-assert arr["[1]"].values["Threshold"] == "65000.0"                          # Schalter schlaegt Regler
+assert arr["[1]"].values["Threshold"] == "65000.0"                          # Toggle takes precedence over slider.
 assert CORE not in build_patches(gd, S(limp_threshold_factor=1.0))
 text = build_patches(gd, S(limp_threshold_factor=2.0))[CORE]
 assert "LimpEffectSIDToThresholdMap : struct.begin {bpatch}" in text and "[0] : struct.begin {bpatch}" in text
-print("P1.2 Humpeln: x2 -> 50/130, Schalter -> 25000/65000, beide Eintraege komplett  OK")
+print("P1.2 Limping: x2 -> 50/130, toggle -> 25000/65000, both entries complete  OK")
 
-# --- P1.3) Blutung je Treffer + nicht durchschlagende Treffer -------------
+# Bleeding from penetrating and nonpenetrating hits.
 core = core_values(bleeding_hit_factor=0.0, bleeding_nonpen_factor=2.0)
 assert core["VitalBaseBleedingValue"] == "0.0", core
 assert core["BleedingChanceNonPenetrationMod"] == "2.0" == core["BleedingPointsNonPenetrationMod"], core
 assert len(core) == 3, core
 assert core_values(bleeding_hit_factor=2.5) == {"VitalBaseBleedingValue": "25.0"}
-print("P1.3 Blutung: je Treffer x0 / x2.5, nicht durchschlagend x2 (beide Schluessel)  OK")
+print("P1.3 Bleeding: per hit x0 / x2.5, nonpenetrating x2 (both keys)  OK")
 
-# --- P1.4) Schadens-Bildschirmeffekte: 15 Prozessoren, jeder einzeln --------
+# --- P1.4) Damage screen effects: 15 processors, individually ---
 assert len(DAMAGE_SCREEN_PROCESSORS) == 15, DAMAGE_SCREEN_PROCESSORS
 for sid in DAMAGE_SCREEN_PROCESSORS:
-    node = gd.posteffects.children[sid]                                     # existiert live
-    assert parse_number(node.values["Intensity"]) == 1.0, (sid, node.values)   # deklariert selbst
+    node = gd.posteffects.children[sid]                                     # Present in live data.
+    assert parse_number(node.values["Intensity"]) == 1.0, (sid, node.values)   # Self-defined.
 pfx = parsed(build_patches(gd, S(damage_screen_factor=0.5)), PFX)
 assert set(pfx.children) == set(DAMAGE_SCREEN_PROCESSORS), set(pfx.children) ^ set(DAMAGE_SCREEN_PROCESSORS)
 assert all(n.values == {"Intensity": "0.5"} for n in pfx.children.values())
@@ -105,16 +100,16 @@ for sid in ("GameplayGasEffectProcessor", "NVGElectroIntensityEffectProcessor",
     assert sid not in pfx.children, sid
 assert parsed(build_patches(gd, S(damage_screen_factor=0.0)), PFX) \
     .children["BottomLeftDamageEffectProcessor"].values["Intensity"] == "0.0"
-assert PFX not in build_patches(gd, S(damage_screen_factor=1.5))            # Deckel 1.0 = Vanilla
+assert PFX not in build_patches(gd, S(damage_screen_factor=1.5))            # cap 1.0 = Vanilla
 both = parsed(build_patches(gd, S(damage_screen_factor=0.3, crouch_vignette_factor=0.0)), PFX)
 assert both.children["CrouchEffectProcessor"].values["Intensity"] == "0.0" and len(both.children) == 16
-print("P1.4 Bildschirmeffekte: 15 Prozessoren x0.5, 0 %, Deckel, neben der Duck-Vignette  OK")
+print("P1.4 Screen effects: 15 processors x0.5, 0%, caps, alongside crouch vignette  OK")
 
-# --- P1.5) Taschenlampe im Dialog ------------------------------------------
+# --- P1.5) Flashlight during dialog ---
 assert core_values(flashlight_dialog_bright=True) == {"FlashlightDialogIntensityPercent": "1.0"}
 print("P1.5 Taschenlampe: 0.525 -> 1.0  OK")
 
-# --- P1.6) Schnellspeicher-Fenster (neue Textdatei) ------------------------
+# --- P1.6) Quicksave window: new text file ---
 p = build_patches(gd, S(quicksave_overwrite_min=0))
 text = p[QS]
 assert "DefaultConfig : struct.begin {bpatch}" in text and "QuickSaveOverwriteTime = 0" in text, text
@@ -125,7 +120,7 @@ assert QS not in build_patches(gd, S(quicksave_overwrite_min=5))            # = 
 assert QS not in build_patches(gd, S(quicksave_overwrite_min=-1))
 print("P1.6 Schnellspeicher: 0 min -> 0, 30 min -> 1800, 5 min = Vanilla  OK")
 
-# --- P1.7) Einfalten in vorhandene Regler ----------------------------------
+# --- P1.7) Integrate with existing sliders ---
 core = core_values(no_overweight_penalty=True)
 assert core == {"InventorySPOverweightDrainCoef": "0.0", "InventorySPDrainCoef": "0.0"}, core
 p = build_patches(gd, S(stamina_jump=0.5))
@@ -144,16 +139,16 @@ assert core["MutantLootContainerInteractRange"] == "240.0" and core["DragDeadBod
 assert core["MutantLootInteractHeightMax"] == "180.0f" and "MutantLootInteractHeightMin" not in core, core
 assert len(core) == 7, core
 core = core_values(corpse_drag_factor=2.0)
-assert core == {"DraggingCorpseSpeedCoef": "1.0", "DeadBodyPickUpTime": "1.0"}, core   # Deckel / invers
+assert core == {"DraggingCorpseSpeedCoef": "1.0", "DeadBodyPickUpTime": "1.0"}, core   # cap / inverse
 core = core_values(corpse_drag_factor=0.5)
 assert core == {"DraggingCorpseSpeedCoef": "0.3", "DeadBodyPickUpTime": "4.0"}, core
 core = core_values(map_reveal_factor=2.0)
 assert core == {"MarkerShowingDistance": "60000.0", "MarkerRevealingDistance": "6000.0",
                 "MarkerExploringDistance": "4000.0"}, core
-print("P1.7 Eingefaltet: Traglast-Drain, Lande-Ausdauer, 5 Leiter-Raten, 5 Reichweiten, "
-      "Leichen-Greifzeit (invers), 3 Marker-Distanzen  OK")
+print("P1.7 Collapsed: encumbrance drain, landing stamina, 5 ladder rates, 5 ranges, "
+      "Corpse interaction duration (inverse), 3 marker distances  OK")
 
-# --- P1.8) Versicherung CoreVariablesCustom: genau dann, wenn einer der vier --
+# Mirror core overrides only when their corresponding fields change.
 for kw, keys in ((dict(max_carry_weight=200), {"InventoryPenaltyLessWeight"}),
                  (dict(penalty_start_weight=60), {"InventoryPenaltyLessWeight"}),
                  (dict(no_overweight_penalty=True), {"InventorySPOverweightDrainCoef", "InventorySPDrainCoef"}),
@@ -164,16 +159,16 @@ for kw, keys in ((dict(max_carry_weight=200), {"InventoryPenaltyLessWeight"}),
     core = parsed(p, CORE).children["DefaultConfig"].values
     cus = parsed(p, CUSTOM).children["CustomConfigOverride"].values
     assert set(cus) == keys, (kw, cus)
-    assert all(cus[k] == core[k] for k in keys), (kw, cus, core)           # identisch mit DefaultConfig
+    assert all(cus[k] == core[k] for k in keys), (kw, cus, core)           # Match the patched DefaultConfig value.
     assert "CustomConfigOverride : struct.begin {bpatch}" in p[CUSTOM] and p[CUSTOM].count("struct.end") == 1
     assert "MediumEffectStartUI" not in cus and "bGSCEnsure" not in cus
 for kw in (dict(repair_cost_factor=0.5), dict(limp_threshold_factor=2.0), dict(flashlight_dialog_bright=True),
            dict(interaction_range_factor=2.0), dict(day_length_factor=2.0)):
     p = build_patches(gd, S(**kw))
     assert CORE in p and CUSTOM not in p, kw
-print("P1.8 Versicherung: erscheint genau bei den vier Schluesseln, Werte identisch  OK")
+print("P1.8 Confirmation: appears for exactly four keys, identical values  OK")
 
-# --- P1.9) Zusammenfassung --------------------------------------------------
+# --- P1.9) Summary ---
 joined = "\n".join(summarize(S(limp_threshold_factor=2.0, bleeding_hit_factor=0.5, bleeding_nonpen_factor=0.0,
                                damage_screen_factor=0.0, flashlight_dialog_bright=True,
                                quicksave_overwrite_min=0)))
@@ -184,25 +179,23 @@ switch = "\n".join(summarize(S(no_landing_limp=True, limp_threshold_factor=2.0))
 assert "Never limp" in switch and "Limp threshold" not in switch, switch
 assert not any(k in "\n".join(summarize(S())) for k in ("Limp", "Bleeding per", "Damage screen",
                                                         "Flashlight stays", "Quicksave"))
-print("P1.9 Zusammenfassung: 6 Zeilen vorhanden, Schalter ersetzt den Regler, neutral leer  OK")
+print("P1.9 Summary: 6 lines present, toggle replaces slider, neutral empty  OK")
 
-# =========================================================================
-# P2 - Ruestung und Trefferrechnung
-# =========================================================================
+# Armor and hit calculations.
 
-# --- P2.0) Live-Werte == Defaults, Neutral leer ------------------------------
+# --- P2.0) Live values match defaults, neutral output empty ---
 arr_live = gd.corevars.children["DefaultConfig"].children["StrikeGrenadeResistCoefs"].children
 assert [e.values["ProtectionStrike"] for e in arr_live.values()] == ["0.f", "1.f", "2.f", "3.f", "4.f"]
 for key in ("ArmorDurabilityParamsCoef", "HelmetDurabilityParamsCoef"):
     assert abs(gd.corevar(key) - Settings().armor_wear_coef) < 1e-9, (key, gd.corevar(key))
 assert abs(gd.corevar("StrikeAnomalyArmorDifferenceCoef") - 1.0) < 1e-9
 assert not build_patches(gd, S(grenade_resist_factor=1.0, armor_wear_coef=0.7, anomaly_armor_difference_factor=1.0))
-print("P2.0 Live: 5 Strike-Stufen, Abnutzungs-Koeffizienten = Default 0.7, Neutral leer  OK")
+print("P2.0 Live: 5 Strike levels, wear coefficients match default 0.7, neutral empty  OK")
 
-# --- P2.1) Granatenschutz: Array KOMPLETT, Literal f, Deckel 1.0 -------------
+# --- P2.1) Grenade protection: complete array, f suffix, cap 1.0 ---
 def resist(factor):
     core = parsed(build_patches(gd, S(grenade_resist_factor=factor)), CORE).children["DefaultConfig"]
-    assert not core.values, core.values                                      # sonst nichts
+    assert not core.values, core.values                                      # Nothing else.
     return core.children["StrikeGrenadeResistCoefs"].children
 
 arr = resist(2.0)
@@ -210,7 +203,7 @@ assert set(arr) == {"[0]", "[1]", "[2]", "[3]", "[4]"}, set(arr)
 assert arr["[0]"].values == {"ProtectionStrike": "0.f", "GrenadeDamageResist": "0.0f"}, arr["[0]"].values
 assert arr["[1]"].values == {"ProtectionStrike": "1.f", "GrenadeDamageResist": "0.2f"}, arr["[1]"].values
 assert arr["[2]"].values["GrenadeDamageResist"] == "0.4f" and arr["[3]"].values["GrenadeDamageResist"] == "0.8f"
-assert arr["[4]"].values == {"ProtectionStrike": "4.f", "GrenadeDamageResist": "1.0f"}, arr["[4]"].values  # Deckel
+assert arr["[4]"].values == {"ProtectionStrike": "4.f", "GrenadeDamageResist": "1.0f"}, arr["[4]"].values  # cap
 arr = resist(0.0)
 assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f"] * 5
 arr = resist(3.0)
@@ -218,39 +211,39 @@ assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f", "0.3f
 text = build_patches(gd, S(grenade_resist_factor=0.5))[CORE]
 assert "StrikeGrenadeResistCoefs : struct.begin {bpatch}" in text and text.count("[") == 5, text
 assert CORE not in build_patches(gd, S(grenade_resist_factor=1.0))
-print("P2.1 Granatenschutz: x2 -> 0/0.2/0.4/0.8/1.0f (Deckel), x0 -> alles 0, x3 gedeckelt, Eintraege komplett  OK")
+print("P2.1 Grenade protection: x2 -> 0/0.2/0.4/0.8/1.0f (capped), x0 -> all zero, x3 capped, complete entries  OK")
 
-# --- P2.2) Absolutregler Abnutzung (beide Koeffizienten, Suffix f) ------------
+# --- P2.2) Absolute wear control: both coefficients, f suffix ---
 assert core_values(armor_wear_coef=0.3) == {"ArmorDurabilityParamsCoef": "0.3f", "HelmetDurabilityParamsCoef": "0.3f"}
 assert core_values(armor_wear_coef=1.0) == {"ArmorDurabilityParamsCoef": "1.0f", "HelmetDurabilityParamsCoef": "1.0f"}
 assert core_values(armor_wear_coef=0.0)["HelmetDurabilityParamsCoef"] == "0.0f"
-assert core_values(armor_wear_coef=1.4)["ArmorDurabilityParamsCoef"] == "1.0f"        # geklemmt
+assert core_values(armor_wear_coef=1.4)["ArmorDurabilityParamsCoef"] == "1.0f"        # Clamped
 assert CORE not in build_patches(gd, S(armor_wear_coef=0.7))                           # = Vanilla live
-print("P2.2 Abnutzung: 0.3 / 1.0 / 0.0 fuer Ruestung + Helm, 0.7 = Vanilla, >1 geklemmt  OK")
+print("P2.2 Wear: 0.3 / 1.0 / 0.0 for armor + helmet, 0.7 = vanilla, >1 clamped  OK")
 
-# --- P2.3) Ruestung gegen Anomalie-Schlag --------------------------------------
+# --- P2.3) Armor against anomaly strikes ---
 assert core_values(anomaly_armor_difference_factor=2.0) == {"StrikeAnomalyArmorDifferenceCoef": "2.0"}
 assert core_values(anomaly_armor_difference_factor=0.0) == {"StrikeAnomalyArmorDifferenceCoef": "0.0"}
 assert core_values(anomaly_armor_difference_factor=0.5) == {"StrikeAnomalyArmorDifferenceCoef": "0.5"}
-print("P2.3 Anomalie-Schlag: x2 / x0 / x0.5, Geschwister unangetastet  OK")
+print("P2.3 Anomaly strike: x2 / x0 / x0.5, sibling keys unchanged  OK")
 
-# --- P2.4) Zusammenfassung ----------------------------------------------------
+# --- P2.4) Summary ---
 joined = "\n".join(summarize(S(grenade_resist_factor=0.0, armor_wear_coef=0.3, anomaly_armor_difference_factor=2.0)))
 for needle in ("grenade resistance", "wear coefficient 0.3", "anomaly strike"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("grenade", "wear coefficient", "anomaly strike"))
-print("P2.4 Zusammenfassung: 3 Zeilen vorhanden, neutral leer  OK")
+print("P2.4 Summary: 3 lines present, neutral empty  OK")
 
 # =========================================================================
-# P3 - NPC-Verhalten im Kampf
+# P3 - NPC combat behavior.
 # =========================================================================
 EE = "EnemyEvaluatorPrototypes/EnemyEvaluatorPrototypes_patch_S2Tweaker.cfg"
 CE = "CoverEvaluatorPrototypes/CoverEvaluatorPrototypes_patch_S2Tweaker.cfg"
 BOSSES = ("BossCoverEvaluator", "StrelokCoverEvaluator", "ScarCoverEvaluator", "KorshunovCoverEvaluator")
 
-# --- P3.0) Dateien, Schema bleibt 22, Mod-Scan, Live == Default -----------------
+# --- P3.0) Files, schema stays 22, mod scan, live values match defaults ---
 assert "EnemyEvaluatorPrototypes.cfg.bin" in NEEDED_FILES and "CoverEvaluatorPrototypes.cfg.bin" in NEEDED_FILES
-assert CACHE_SCHEMA >= 22, "Schema 22 galt fuer das ganze 1.28.0-Release (1.36.0: 23, DialogPrototypes)"
+assert CACHE_SCHEMA >= 22, "Schema 22 covered all of 1.28.0 (1.36.0: 23, DialogPrototypes)"
 assert "enemyevaluators" in _GD_TREES and "coverevaluators" in _GD_TREES
 for key, field in (("ChanceToGetHealOverTimeWhenWounded", "wounded_heal_chance"),
                    ("CooldownOnFallingWounded", "wounded_cooldown_s"),
@@ -266,20 +259,20 @@ assert not build_patches(gd, S(wounded_heal_chance=70, wounded_cooldown_s=300, w
                                wounded_heal_threshold=35, npc_player_focus_factor=1.0,
                                npc_retarget_cooldown_factor=1.0, npc_damage_memory_factor=1.0,
                                cover_distance_factor=1.0, cover_path_factor=1.0))
-print("P3.0 Dateien: Schema 22, [0]-Evaluator + DefaultCoverEvaluator live, Absolutwerte = Default, Neutral leer  OK")
+print("P3.0 Files: schema 22, live [0] evaluator + DefaultCoverEvaluator, absolute values match defaults, neutral empty  OK")
 
-# --- P3.1) Verwundete NPCs: Absolutwerte ganzzahlig, Faktor mit f, Tabus -------
+# Wounded NPC values, numeric formatting and exclusions.
 core = core_values(wounded_heal_chance=0, wounded_cooldown_s=60, wounded_regen_factor=2.0, wounded_heal_threshold=50)
 assert core == {"ChanceToGetHealOverTimeWhenWounded": "0", "CooldownOnFallingWounded": "60",
                 "WoundedStateHealthRegen": "10.0f", "HpThresholdToHealWound": "50"}, core
-assert core_values(wounded_heal_chance=150) == {"ChanceToGetHealOverTimeWhenWounded": "100"}   # geklemmt
+assert core_values(wounded_heal_chance=150) == {"ChanceToGetHealOverTimeWhenWounded": "100"}   # Clamped
 assert core_values(wounded_regen_factor=0.0) == {"WoundedStateHealthRegen": "0.0f"}
 text = build_patches(gd, S(wounded_heal_chance=0, wounded_cooldown_s=30, wounded_heal_threshold=95))[CORE]
 assert "UnkillableNPCWoundedStateResurrectionTime" not in text and "WoundHitAreasThresholds" not in text
 assert CORE not in build_patches(gd, S(wounded_cooldown_s=300))
-print("P3.1 Verwundete: Chance 0 / 100 (Klemme), Cooldown 60, Regen x2 = 10.0f, Schwelle 50, Tabus unberuehrt  OK")
+print("P3.1 Wounded: chance 0 / 100 (clamped), cooldown 60, regeneration x2 = 10.0f, threshold 50, excluded values unchanged  OK")
 
-# --- P3.2) Zielwahl: das einzige Struct [0] in {bpatch}-Form ----------------------
+# Patch the indexed target evaluator.
 p = build_patches(gd, S(npc_player_focus_factor=2.0, npc_retarget_cooldown_factor=0.5, npc_damage_memory_factor=2.0))
 text = p[EE]
 assert text.startswith("[0] : struct.begin {bpatch}") and text.count("struct.begin") == 1, text
@@ -287,10 +280,10 @@ assert parsed(p, EE).children["[0]"].values == {"NotPlayerCoeff": "0.3", "Change
                                                 "DamageAccumulationDurationSeconds": "14.0"}, text
 assert parsed(build_patches(gd, S(npc_player_focus_factor=0.0)), EE).children["[0]"].values == {"NotPlayerCoeff": "0.0"}
 assert EE not in build_patches(gd, S(npc_player_focus_factor=1.0))
-assert "DistanceCoeff" not in text and "RangeSearchPathToEnemies" not in text          # nur die drei
-print("P3.2 Zielwahl: [0] {bpatch}, NotPlayerCoeff x2 / x0, Zielwechsel x0.5, Gedaechtnis x2  OK")
+assert "DistanceCoeff" not in text and "RangeSearchPathToEnemies" not in text          # Only these three keys.
+print("P3.2 Target selection: [0] {bpatch}, NotPlayerCoeff x2 / x0, target switching x0.5, memory x2  OK")
 
-# --- P3.3) Deckung: nur DefaultCoverEvaluator, Bosse fehlen, Min <= Max ------------
+# Default cover evaluation only; preserve bosses and ordered bounds.
 p = build_patches(gd, S(cover_distance_factor=0.5, cover_path_factor=2.0))
 ce = parsed(p, CE)
 assert list(ce.children) == ["DefaultCoverEvaluator"], list(ce.children)
@@ -298,7 +291,7 @@ for other in BOSSES + ("AttackCoverEvaluator", "ZombieCoverEvaluator", "DLC01_Zu
                        "LeaveCrossfireCoverEvaluator", "ExplosivesCoverSettings"):
     assert other not in p[CE], other
 d = ce.children["DefaultCoverEvaluator"]
-assert d.values == {"MaxPathLength": "4000"}, d.values                                   # ganzzahlig
+assert d.values == {"MaxPathLength": "4000"}, d.values                                   # integer
 assert d.children["DefaultCoverSettings"].values == {"MinDistanceToEnemy": "400.0f", "MaxDistanceToEnemy": "3500.0f"}
 assert "DefaultCoverEvaluator : struct.begin {bpatch}" in p[CE] and "DefaultCoverSettings : struct.begin {bpatch}" in p[CE]
 d = parsed(build_patches(gd, S(cover_distance_factor=2.0)), CE).children["DefaultCoverEvaluator"]
@@ -306,9 +299,9 @@ v = d.children["DefaultCoverSettings"].values
 assert parse_number(v["MinDistanceToEnemy"]) <= parse_number(v["MaxDistanceToEnemy"]) and v["MaxDistanceToEnemy"] == "14000.0f"
 assert "MaxPathLength" not in d.values
 assert CE not in build_patches(gd, S(cover_distance_factor=1.0, cover_path_factor=1.0))
-print("P3.3 Deckung: nur DefaultCoverEvaluator, Bosse/Sonderkinder fehlen, 400/3500f + Pfad 4000, Min <= Max  OK")
+print("P3.3 Cover: DefaultCoverEvaluator only, bosses/special children excluded, 400/3500f + path 4000, Min <= Max  OK")
 
-# --- P3.4) Zusammenfassung -----------------------------------------------------
+# --- P3.4) Summary ---
 joined = "\n".join(summarize(S(wounded_heal_chance=0, wounded_cooldown_s=60, wounded_regen_factor=2.0,
                                wounded_heal_threshold=50, npc_player_focus_factor=2.0,
                                npc_retarget_cooldown_factor=0.5, npc_damage_memory_factor=2.0,
@@ -317,16 +310,16 @@ for needle in ("Wounded NPCs recover 0 %", "cooldown 60 s", "Wounded NPC health 
                "focus on the player", "target-switch", "damage memory", "cover distance", "cover search path"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("Wounded", "focus on the player", "cover"))
-print("P3.4 Zusammenfassung: 9 Zeilen vorhanden, neutral leer  OK")
+print("P3.4 Summary: 9 lines present, neutral empty  OK")
 
 # =========================================================================
-# P4 - Mutanten
+# P4 - Mutants
 # =========================================================================
 from s2tweaker.tweaks import FLAIR_SENSOR_SKIP, FLAIR_SENSOR_KEYS   # noqa: E402
 FL = "AIPrototypes/FlairSensorPrototypes/FlairSensorPrototypes_patch_S2Tweaker.cfg"
 TARGET = ["BlindDogFlairSensor", "ChimeraFlairSensor", "FleshFlairSensor", "PoltergeistFlairSensor"]
 
-# --- P4.0) Datei, Schema 22, Mod-Scan, Sensorliste live: 6 aktive, 2 Tabu ---------
+# --- P4.0) File, schema 22, mod scan, live sensors: 6 active, 2 excluded ---
 assert "AIPrototypes/FlairSensorPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
 assert "flairsensors" in _GD_TREES
 active = sorted(sid for sid, n in gd.flairsensors.children.items()
@@ -337,9 +330,9 @@ assert all("FrontSensingRadius" in gd.flairsensors.children[s].values for s in (
 assert "FrontSensingRadius" not in gd.flairsensors.children["PoltergeistFlairSensor"].values
 assert gd.corevars.children["DefaultConfig"].values["UseMutantLootWithoutWidget"].strip() == "true"
 assert not build_patches(gd, S(mutant_smell_factor=1.0, burer_fire_interval_factor=1.0))
-print("P4.0 Witterung: 6 aktive Sensoren live, 2 davon Tabu, Front* nur bei 3, Widget-Flag true, Neutral leer  OK")
+print("P4.0 Scent: 6 live active sensors, 2 excluded, Front* only on 3, widget flag true, neutral empty  OK")
 
-# --- P4.1) Geruch x0.5: vier Sensoren, nur vorhandene Schluessel, Suffix f ---------
+# Scale only existing scent-sensor fields with their suffixes.
 p = build_patches(gd, S(mutant_smell_factor=0.5))
 fl = parsed(p, FL)
 assert sorted(fl.children) == TARGET, sorted(fl.children)
@@ -352,16 +345,16 @@ for other in sorted(FLAIR_SENSOR_SKIP) + ["DugaSniperFlairSensor", "GuardNPCFlai
     assert other not in p[FL], other
 assert "FrontSensingAngle" not in p[FL] and "IsActive" not in p[FL] and "MaxFlairPoints" not in p[FL]
 assert FL not in build_patches(gd, S(mutant_smell_factor=1.0))
-print("P4.1 Geruch x0.5: BlindDog 2000/55/2000/200f, Poltergeist ohne Front*, Tabu-Sensoren fehlen  OK")
+print("P4.1 Scent x0.5: BlindDog 2000/55/2000/200f, Poltergeist without Front*, excluded sensors absent  OK")
 
-# --- P4.2) Schalter: IsActive = false auf genau den vier erlaubten -------------------
+# Disable only the supported active scent sensors.
 fl = parsed(build_patches(gd, S(mutants_no_smell=True)), FL)
 assert sorted(fl.children) == TARGET and all(n.values == {"IsActive": "false"} for n in fl.children.values())
 both = parsed(build_patches(gd, S(mutants_no_smell=True, mutant_smell_factor=2.0)), FL)
 assert both.children["FleshFlairSensor"].values["IsActive"] == "false" and both.children["FleshFlairSensor"].values["SensingRadius"] == "4000.0f"
-print("P4.2 Schalter: genau die vier erlaubten Sensoren auf IsActive = false  OK")
+print("P4.2 Toggle: exactly four allowed sensors set to IsActive = false  OK")
 
-# --- P4.3) Burer-Waffenfeuer: zehn benannte Unter-Structs ----------------------------
+# --- P4.3) Burer weapon fire: ten named substructs ---
 AMMO = ["A012", "AVOG", "AGA", "APG7V", "AHEDP", "A762Sniper", "A762NATO", "A918", "A919", "A045"]
 p = build_patches(gd, S(burer_fire_interval_factor=2.0))
 iv = parsed(p, CORE).children["DefaultConfig"].children["PossessedWeaponFireIntervals"].children
@@ -373,29 +366,27 @@ assert parsed(p, CORE).children["DefaultConfig"].values == {}
 iv = parsed(build_patches(gd, S(burer_fire_interval_factor=0.5)), CORE).children["DefaultConfig"] \
     .children["PossessedWeaponFireIntervals"].children
 assert iv["A919"].values == {"FireInterval": "0.25"} and iv["APG7V"].values == {"FireInterval": "2.0"}
-print("P4.3 Burer: 10 Munitionsarten x2 (1 -> 2.0, 4 -> 8.0), x0.5 (0.5 -> 0.25)  OK")
+print("P4.3 Burer: 10 ammo types x2 (1 -> 2.0, 4 -> 8.0), x0.5 (0.5 -> 0.25)  OK")
 
-# --- P4.4) Ausweiden mit Loot-Fenster ----------------------------------------------------
+# Mutant looting with an inventory window.
 assert core_values(mutant_loot_widget=True) == {"UseMutantLootWithoutWidget": "false"}
-print("P4.4 Ausweiden: UseMutantLootWithoutWidget true -> false  OK")
+print("P4.4 Skinning: UseMutantLootWithoutWidget true -> false  OK")
 
-# --- P4.5) Zusammenfassung ----------------------------------------------------------------
+# --- P4.5) Summary ---
 joined = "\n".join(summarize(S(mutant_smell_factor=0.5, mutants_no_smell=True, burer_fire_interval_factor=2.0,
                                mutant_loot_widget=True)))
 for needle in ("sense of smell", "cannot smell", "Burer weapon fire", "loot window"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("smell", "Burer", "loot window"))
-print("P4.5 Zusammenfassung: 4 Zeilen vorhanden, neutral leer  OK")
+print("P4.5 Summary: 4 lines present, neutral empty  OK")
 
-# =========================================================================
-# P5 - A-Life und Leichen
-# =========================================================================
+# A-Life and corpses.
 NEEDS = "NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_S2Tweaker.cfg"
 POL = "ALifePrototypes/ALifePolicyPrototypes/ALifePolicyPrototypes_patch_S2Tweaker.cfg"
 FAC = ("ALifePrototypes/ALifePopulationManagerFactionPrototypes/"
        "ALifePopulationManagerFactionPrototypes_patch_S2Tweaker.cfg")
 
-# --- P5.0) Dateien, Schema 22, Mod-Scan, Live == Default, Neutral leer -------------
+# --- P5.0) Files, schema 22, mod scan, live values match defaults, neutral empty ---
 for name in ("NPCNeedsPresetPrototypes.cfg.bin", "ALifePrototypes/ALifePolicyPrototypes.cfg.bin",
              "ALifePrototypes/ALifePopulationManagerFactionPrototypes.cfg.bin"):
     assert name in NEEDED_FILES, name
@@ -413,9 +404,9 @@ assert len(exp_live) == 16 and ("MutantGenericNeedsPreset", "[1]") in exp_live, 
 assert not build_patches(gd, S(squad_expansion_factor=1.0, refill_cooldown_factor=1.0, refill_distance_factor=1.0,
                                corpse_budget=30, faction_battle_chance=50, faction_expansion_pace_factor=1.0,
                                corpse_distance_factor=1.0, alife_corpse_hardcap=1500))
-print("P5.0 Dateien: drei neue, Schema 22, 16 Expansion-Eintraege live (MutantGeneric unter [1]), 29 Fraktionen, Neutral leer  OK")
+print("P5.0 Files: three new, schema 22, 16 live expansion entries (MutantGeneric at [1]), 29 factions, neutral empty  OK")
 
-# --- P5.1) Trupp-Ausbreitung: 16 Presets, Eintrag komplett, Sonderwerte ------------
+# --- P5.1) Squad expansion: 16 presets, complete entries, special values ---
 p = build_patches(gd, S(squad_expansion_factor=2.0))
 nd = parsed(p, NEEDS)
 assert len(nd.children) == 16, sorted(nd.children)
@@ -437,9 +428,9 @@ assert NEEDS not in build_patches(gd, S(squad_expansion_factor=1.0))
 quarter = parsed(build_patches(gd, S(squad_expansion_factor=0.25)), NEEDS).children["DutyNeedsPreset_Guard"] \
     .children["GoalNeeds"].children["[0]"].values
 assert quarter["MinIncreasePerMinute"] == "1.5" and quarter["MaxIncreasePerMinute"] == "2.5"
-print("P5.1 Ausbreitung: 16 Presets x2 (6/10 -> 12/20, Zombie 2/6, MutantGeneric [1] 14/22), Eintraege komplett  OK")
+print("P5.1 Expansion: 16 presets x2 (6/10 -> 12/20, Zombie 2/6, MutantGeneric [1] 14/22), complete entries  OK")
 
-# --- P5.2) A-Life-Policy: Cooldowns, Distanzband (Min <= Max, ganzzahlig), Budget --
+# --- P5.2) A-Life policy: cooldowns, integer distance range, budget ---
 p = build_patches(gd, S(refill_cooldown_factor=0.5, refill_distance_factor=2.0, corpse_budget=60))
 pol = parsed(p, POL)
 assert list(pol.children) == ["Default"] and pol.children["Default"].values == {
@@ -450,9 +441,9 @@ d = parsed(build_patches(gd, S(refill_distance_factor=0.5)), POL).children["Defa
 assert d == {"MinRefillDistance": "10000", "MaxRefillDistance": "12500"} and int(d["MinRefillDistance"]) <= int(d["MaxRefillDistance"])
 assert POL not in build_patches(gd, S(corpse_budget=30, refill_cooldown_factor=1.0))
 assert parsed(build_patches(gd, S(corpse_budget=5)), POL).children["Default"].values == {"MaxCorpsePerRadius": "5"}
-print("P5.2 Policy: Cooldowns x0.5 = 180/60f, Distanz x2 = 40000/50000, x0.5 = 10000/12500, Budget 60/5, Extinction tabu  OK")
+print("P5.2 Policy: Cooldowns x0.5 = 180/60f, Distance x2 = 40000/50000, x0.5 = 10000/12500, Budget 60/5, extinction settings unchanged  OK")
 
-# --- P5.3) Fraktions-Ausbreitung: 29 Kinder, Lagerbaender tabu, Tempo invers ------
+# --- P5.3) Faction expansion: 29 children, camp bands excluded, inverse speed ---
 p = build_patches(gd, S(faction_battle_chance=80, faction_expansion_pace_factor=2.0))
 fac = parsed(p, FAC)
 assert p[FAC].startswith("ALifePopulationManagerPreset : struct.begin {bpatch}")
@@ -466,9 +457,9 @@ assert parsed(build_patches(gd, S(faction_expansion_pace_factor=0.5)), FAC).chil
 assert FAC not in build_patches(gd, S(faction_battle_chance=50, faction_expansion_pace_factor=1.0))
 assert parsed(build_patches(gd, S(faction_battle_chance=0)), FAC).children["ALifePopulationManagerPreset"] \
     .children["Factions"].children["Bandits"].values == {"ALifeLairExpansionBattleChance": "0"}
-print("P5.3 Fraktionen: 29 x Kampfchance 80 / 0, Tempo x2 -> 25.0f (invers), Lagerbaender fehlen  OK")
+print("P5.3 Factions: 29 x combat chance 80 / 0, speed x2 -> 25.0f (inverse), camp ranges absent  OK")
 
-# --- P5.4) Leichen-Distanzen (Quadrat-Regel), eingefaltete Zeiten, Hardcap --------
+# --- P5.4) Corpse distances: squared scaling, integrated timers, hard cap ---
 core = core_values(corpse_distance_factor=2.0)
 assert core == {"CorpseOfflineSquaredDistance": "400000000.0",
                 "CorpseOfflineTimeConditionSquaredDistance": "100000000.0",
@@ -481,10 +472,10 @@ assert core["CorpseOffscreenLifetime"] == "6.0" and core["CorpseDespawnToOffline
 assert core_values(alife_corpse_hardcap=3000) == {"AlifeCorpsesHardcap": "3000"}
 text = build_patches(gd, S(corpse_distance_factor=2.0, corpse_time_factor=2.0, alife_corpse_hardcap=500))[CORE]
 assert "LowMemoryProfile" not in text and "CorpseRagdollQuestProtection" not in text
-assert text.count("struct.begin") == 1                                            # nur DefaultConfig
-print("P5.4 Leichen: Distanz x2 -> x4 auf die Quadrate + 60000, x0.5 -> x0.25, Zeiten falten 6.0/1.0, Hardcap 3000  OK")
+assert text.count("struct.begin") == 1                                            # DefaultConfig only.
+print("P5.4 Corpses: distance x2 -> x4 for squares + 60000, x0.5 -> x0.25, time ordering 6.0/1.0, hard cap 3000  OK")
 
-# --- P5.5) Zusammenfassung ---------------------------------------------------------
+# --- P5.5) Summary ---
 joined = "\n".join(summarize(S(squad_expansion_factor=2.0, refill_cooldown_factor=0.5, refill_distance_factor=2.0,
                                corpse_budget=60, faction_battle_chance=80, faction_expansion_pace_factor=2.0,
                                corpse_distance_factor=2.0, alife_corpse_hardcap=3000)))
@@ -492,11 +483,9 @@ for needle in ("squad expansion", "refill cooldown", "refill distance", "corpse 
                "expansion pace", "Corpse distance", "hard cap 3000"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("squad expansion", "refill", "corpse budget", "hard cap"))
-print("P5.5 Zusammenfassung: 8 Zeilen vorhanden, neutral leer  OK")
+print("P5.5 Summary: 8 lines present, neutral empty  OK")
 
-# =========================================================================
-# P6 - Welt und Atmosphaere
-# =========================================================================
+# World and atmosphere.
 from s2tweaker.tweaks import RADIATION_PRESETS_OK, CAMP_LIFE_NEEDS, SKY_KEYS   # noqa: E402
 BW = "BarbedWirePrototypes/BarbedWirePrototypes_patch_S2Tweaker.cfg"
 DES = "DestructibleObjectPrototypes/DestructibleObjectPrototypes_patch_S2Tweaker.cfg"
@@ -505,7 +494,7 @@ WCH = "WeatherChainPrototypes/WeatherChainPrototypes_patch_S2Tweaker.cfg"
 SKY = "SingletonConstants.cfg_patch_S2Tweaker.cfg"
 NEEDS = "NPCNeedsPresetPrototypes/NPCNeedsPresetPrototypes_patch_S2Tweaker.cfg"
 
-# --- P6.0) Dateien, Schema 22, Mod-Scan, Neutral leer ------------------------------
+# --- P6.0) Files, schema 22, mod scan, neutral empty ---
 for name in ("BarbedWirePrototypes.cfg.bin", "DestructibleObjectPrototypes.cfg.bin",
              "PhysicsInteractionPrototypes.cfg.bin", "WeatherChainPrototypes.cfg.bin",
              "SingletonConstants.cfg"):
@@ -516,9 +505,9 @@ for tree in ("barbedwire", "destructibles", "physicsinteractions", "weatherchain
 assert not build_patches(gd, S(radiation_dose_factor=1.0, barbed_wire_factor=1.0, explosive_container_factor=1.0,
                                push_force_factor=1.0, weather_transition_factor=1.0, moon_brightness_factor=1.0,
                                music_combat_threshold=20, music_combat_lifetime=25, camp_life_factor=1.0))
-print("P6.0 Dateien: fuenf neue, Schema 22, Mod-Scan kennt alle, Neutral leer  OK")
+print("P6.0 Files: five new, schema 22, all known to mod scan, neutral empty  OK")
 
-# --- P6.1) Strahlungsfelder: nur 4 Presets, Deadly/RadBlock/Custom fehlen -----------
+# Scale ordinary radiation presets; exclude Deadly, RadBlock and Custom.
 p = build_patches(gd, S(radiation_dose_factor=2.0, radiation_filter_factor=2.0, geiger_volume_factor=0.5))
 rad = parsed(p, CORE).children["DefaultConfig"].children["RadiationPresetValues"].children
 assert sorted(rad) == ["[0]", "[1]", "[2]", "[6]"], sorted(rad)
@@ -531,15 +520,15 @@ assert rad["[6]"].values["GeigerRadiationIntensity"] == "0.1f" and rad["[6]"].va
 for tabu in ("Deadly", "RadBlock", "Custom", "RadBlockFieldDamage", "EffectPrototypeSIDs"):
     assert tabu not in p[CORE], tabu
 assert CORE not in build_patches(gd, S(radiation_dose_factor=1.0))
-print("P6.1 Strahlung: [0]/[1]/[2]/[6] komplett, Dosis x2, Filter gedeckelt 1.0f, Geiger x0.5, Todeszonen fehlen  OK")
+print("P6.1 Radiation: complete [0]/[1]/[2]/[6], dose x2, filter capped at 1.0f, Geiger x0.5, death zones absent  OK")
 
-# --- P6.2) Kampfmusik: Absolutwerte live verglichen, Suffix f ------------------------
+# --- P6.2) Combat music: absolute values compared with live data, f suffix ---
 assert core_values(music_combat_threshold=50, music_combat_lifetime=10) == {
     "MusicManagerCombatScoreThreshold": "50.0f", "MusicManagerCombatEnemyAttackActionLifetimeSeconds": "10.0f"}
 assert CORE not in build_patches(gd, S(music_combat_threshold=20, music_combat_lifetime=25))
-print("P6.2 Kampfmusik: Schwelle 50.0f, Nachlauf 10.0f, Vanilla erzeugt nichts  OK")
+print("P6.2 Combat music: threshold 50.0f, delay 10.0f, vanilla produces nothing  OK")
 
-# --- P6.3) Stacheldraht: beide Prototypen, Basis [0] bleibt -------------------------
+# --- P6.3) Barbed wire: both prototypes, base [0] unchanged ---
 bw = parsed(build_patches(gd, S(barbed_wire_factor=2.0)), BW)
 assert sorted(bw.children) == ["LimitingBarbedWire", "OverlappableBarbedWire"], sorted(bw.children)
 assert bw.children["LimitingBarbedWire"].values == {"Damage": "20.0", "BleedingValue": "50.0",
@@ -549,11 +538,11 @@ bw = parsed(build_patches(gd, S(barbed_wire_factor=0.0)), BW)
 assert bw.children["LimitingBarbedWire"].values == {"Damage": "0.0", "BleedingValue": "0.0",
                                                     "ArmorDamage": "0.0", "BleedingChance": "0.0"}
 assert parsed(build_patches(gd, S(barbed_wire_factor=20.0)), BW).children["LimitingBarbedWire"] \
-    .values["BleedingChance"] == "1.0"                                      # Deckel
+    .values["BleedingChance"] == "1.0"                                      # cap
 assert "ArmorPiercing" not in build_patches(gd, S(barbed_wire_factor=2.0))[BW]
-print("P6.3 Stacheldraht: beide Prototypen x2 / x0, Chance gedeckelt 1.0, Basis [0] unberuehrt  OK")
+print("P6.3 Barbed wire: both prototypes x2 / x0, chance capped at 1.0, base [0] unchanged  OK")
 
-# --- P6.4) Explodierende Behaelter: 22 Exp-Structs, Phase komplett -------------------
+# --- P6.4) Explosive containers: 22 explosion structs, complete phase ---
 live_exp = [k for k, n in gd.destructibles.children.items()
             if (n.values.get("SID") or "").startswith("Exp_") or "_Exp_" in (n.values.get("SID") or "")]
 assert len(live_exp) == 22, len(live_exp)
@@ -565,25 +554,25 @@ assert first == {"DamageIgnoranceThreshold": "3.0", "DamageDestroyThreshold": "2
 assert "DestructibleActions" not in p[DES] and "AssetPath" not in p[DES] and "OriginalMesh" not in p[DES]
 assert "ObjectPhaseSettings : struct.begin {bpatch}" in p[DES]
 assert DES not in build_patches(gd, S(explosive_container_factor=1.0))
-print(f"P6.4 Behaelter: {len(des.children)} Exp-Prototypen, Schwelle 40 -> 20, Phase mit beiden Skalaren, Assets draussen  OK")
+print(f"P6.4 Containers: {len(des.children)} explosion prototypes, threshold 40 -> 20, phase with both scalars, assets excluded  OK")
 
-# --- P6.5) Schubkraft: alle 88 Prototypen -------------------------------------------
+# --- P6.5) Impulse: all 88 prototypes ---
 phy = parsed(build_patches(gd, S(push_force_factor=2.0)), PHY)
 assert len(phy.children) == 88 and len(gd.physicsinteractions.children) == 88, len(phy.children)
 assert phy.children["Empty"].values == {"PlayerPushImpulse": "2000.0"}
 assert all(list(n.values) == ["PlayerPushImpulse"] for n in phy.children.values())
 assert PHY not in build_patches(gd, S(push_force_factor=1.0))
-print("P6.5 Schubkraft: alle 88 Prototypen x2, nur der eine Schluessel  OK")
+print("P6.5 Impulse: all 88 prototypes x2, only the single key  OK")
 
-# --- P6.6) Wetteruebergaenge: 22 Multiplikatoren, beide Ebenen komplett, invers -----
+# --- P6.6) Weather transitions: 22 multipliers, both levels complete, inverse ---
 p = build_patches(gd, S(weather_transition_factor=2.0))
 wch = parsed(p, WCH)
 total = 0
 for n in wch.children.values():
     for st in n.children["TransitionSteps"].children.values():
-        assert "WeatherChainWeight" in st.values, st.values          # Ebene 1 komplett
+        assert "WeatherChainWeight" in st.values, st.values          # Complete first level.
         for ch in st.children["WeatherChains"].children.values():
-            assert "WeatherType" in ch.values, ch.values             # Ebene 2 komplett
+            assert "WeatherType" in ch.values, ch.values             # Complete second level.
             assert ch.values["WeatherTransitionTimeMultiplier"] == "0.5"
             total += 1
 assert total == 22, total
@@ -592,13 +581,13 @@ assert parsed(build_patches(gd, S(weather_transition_factor=0.5)), WCH).children
     .children["TransitionSteps"].children["[0]"].children["WeatherChains"].children["[0]"] \
     .values["WeatherTransitionTimeMultiplier"] == "2.0"
 assert WCH not in build_patches(gd, S(weather_transition_factor=1.0))
-print(f"P6.6 Wetter: {total} Multiplikatoren invers (x2 -> 0.5), Gewichte mitgeschrieben und unveraendert  OK")
+print(f"P6.6 Weather: {total} inverse multipliers (x2 -> 0.5), weights emitted unchanged  OK")
 
-# --- P6.7) Nacht und Himmel: eigene Patchdatei in GameData/, Tabus fehlen -----------
+# Use a separate sky patch with protected keys absent.
 assert len(SKY_KEYS) == 6
 p = build_patches(gd, S(moon_brightness_factor=2.0, sun_brightness_factor=0.5, stars_brightness_factor=5.0,
                         cloud_opacity_factor=2.0, cloud_speed_factor=3.0, dusk_length_factor=0.5))
-assert SKY in p and "/" not in SKY                                    # direkt in GameData/
+assert SKY in p and "/" not in SKY                                    # Directly in GameData/.
 sky = parsed(p, SKY).children["TimeManager"].values
 assert sky == {"MoonLightMaxBrightness": "2.092f", "SunLightMaxBrightness": "1.57f",
                "StarsBrightness": "0.5f", "CloudOpacity": "1.0f", "CloudSpeed": "3.0f",
@@ -607,19 +596,18 @@ assert "TimeManager : struct.begin {bpatch}" in p[SKY]
 for tabu in ("Latitude", "Longitude", "TimeZone", "NorthOffsetAngle", "StartYear", "StartHour", "InputManager"):
     assert tabu not in p[SKY], tabu
 assert SKY not in build_patches(gd, S(moon_brightness_factor=1.0))
-print("P6.7 Himmel: SingletonConstants.cfg_patch_* in GameData/, 6 Schluessel mit Suffix f, Wolken gedeckelt, Tabus fehlen  OK")
+print("P6.7 Sky: SingletonConstants.cfg_patch_* in GameData/, 6 keys with f suffix, clouds capped, excluded keys absent  OK")
 
-# --- P6.8) Lagerleben: nur die acht Beduerfnisse, Eintrag komplett ------------------
+# Patch only supported camp needs with complete entries.
 assert len(CAMP_LIFE_NEEDS) == 8
 p = build_patches(gd, S(camp_life_factor=2.0))
 nd = parsed(p, NEEDS)
-# 25 echte Presets - die Recherche zaehlte 26 inklusive der Basis [0],
-# die der Builder wie ueberall ueberspringt.
+# Exclude the [0] template from concrete preset counts.
 assert len(nd.children) == 25 == len(gd.needspresets.children) - 1, len(nd.children)
 assert "[0]" not in nd.children
 seen = set()
 for node in nd.children.values():
-    assert "GoalNeeds" not in node.children                       # ohne Expansion-Regler
+    assert "GoalNeeds" not in node.children                       # Without the expansion slider.
     for e in node.children["Needs"].children.values():
         t = e.values["NeedType"]
         seen.add(t)
@@ -628,20 +616,19 @@ for node in nd.children.values():
 assert seen == set(CAMP_LIFE_NEEDS), sorted(seen)
 guitar = next(e.values for e in nd.children["NeutralsNeedsPreset"].children["Needs"].children.values()
               if e.values["NeedType"] == "EContextualActionNeeds::Guitar")
-# Neutrals: Gitarre 5/15 (die Ausreisser aus par. 2.6) -> x2, Suffix f bleibt
+# Scale the nonstandard Neutrals guitar values while retaining suffixes.
 assert guitar["IncreaseRateMin"] == "10.0f" and guitar["IncreaseRateMax"] == "30.0f", guitar
 assert guitar["Radius"] == "5500.f" and guitar["MaxCount"] == "1", guitar
-# Tabu-Beduerfnisse als VOLLE Enum-Namen pruefen: "Guard" allein steckt auch
-# in Preset-Namen wie DutyNeedsPreset_Guard.
+# Match excluded needs by full enum name, avoiding unrelated preset-name substrings.
 for tabu in ("Patrolling", "Emission", "Work", "Guard", "Monolog", "RunOnTalking",
              "WeaponCleaning", "PDA", "Idle", "Detector"):
     assert "EContextualActionNeeds::" + tabu not in p[NEEDS], tabu
 both = parsed(build_patches(gd, S(camp_life_factor=2.0, squad_expansion_factor=2.0)), NEEDS)
 assert "GoalNeeds" in both.children["HumanGenericNeedsPreset"].children
 assert "Needs" in both.children["HumanGenericNeedsPreset"].children
-print("P6.8 Lagerleben: 25 Presets, nur die 8 Beduerfnisse, Eintraege komplett, mit Expansion zusammen  OK")
+print("P6.8 Camp life: 25 presets, only 8 needs, complete entries, combined with expansion  OK")
 
-# --- P6.9) Zusammenfassung -----------------------------------------------------------
+# --- P6.9) Summary ---
 joined = "\n".join(summarize(S(radiation_dose_factor=2.0, radiation_filter_factor=0.0, geiger_volume_factor=2.0,
                                barbed_wire_factor=0.0, explosive_container_factor=0.5, push_force_factor=2.0,
                                weather_transition_factor=2.0, moon_brightness_factor=2.0, sun_brightness_factor=2.0,
@@ -654,21 +641,19 @@ for needle in ("Radiation dose", "Radiation screen filter", "Geiger", "Barbed wi
                "Camp life"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("Radiation dose", "Barbed", "Moon", "Camp life", "music"))
-print("P6.9 Zusammenfassung: 16 Zeilen vorhanden, neutral leer  OK")
+print("P6.9 Summary: 16 lines present, neutral empty  OK")
 
-# =========================================================================
-# P7 - Artefakte und Loot
-# =========================================================================
+# Artifacts and loot.
 ITEMS = "ItemPrototypes/ItemPrototypes_patch_S2Tweaker.cfg"
 POI = "PackOfItemsGroupPrototypes/PackOfItemsGroupPrototypes_patch_S2Tweaker.cfg"
 
-# --- P7.0) Live-Bestand der Artefakt-Schluessel ------------------------------------
+# Verify artifact field inventory.
 assert "PackOfItemsGroupPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
 assert "packofitems" in _GD_TREES
 arts = {sid: n for sid, n in gd.items.children.items() if "#" not in sid and "Strafe" in n.values}
 assert len(arts) == 154, len(arts)
 for key in ("Radius", "PlayerDistance", "JumpSeriesDelay"):
-    assert all(key in n.values for n in arts.values()), key      # jedes deklariert selbst
+    assert all(key in n.values for n in arts.values()), key      # Each defines its own values.
 strafe_true = [s for s, n in arts.items() if n.values["Strafe"].strip() == "true"]
 assert len(strafe_true) == 146 and len(arts) - len(strafe_true) == 8
 radii = sorted({n.values["Radius"].strip() for n in arts.values()})
@@ -679,18 +664,18 @@ assert gd.corevars.children["DefaultConfig"].values["ArtifactStrafeMinDistance"]
 assert not build_patches(gd, S(artifact_radius_factor=1.0, artifact_keepaway_factor=1.0,
                                artifact_hop_pause_factor=1.0, loot_reroll_radius_factor=1.0,
                                loot_reroll_timer_factor=1.0))
-print(f"P7.0 Artefakte: {len(arts)} Structs, alle selbstdeklarierend, 146 huepfen, Radien {radii}, Neutral leer  OK")
+print(f"P7.0 Artifacts: {len(arts)} structs, all self-defined, 146 jump, radii {radii}, neutral empty  OK")
 
-# --- P7.1) Sichtbarkeits-Radius ----------------------------------------------------
+# --- P7.1) Visibility radius ---
 it = parsed(build_patches(gd, S(artifact_radius_factor=19.0)), ITEMS)
 assert len(it.children) == 154, len(it.children)
 assert it.children["TemplateArtifact"].values == {"Radius": "760.0"}
 assert it.children["AArtifactWeirdBall"].values == {"Radius": "190.0"}      # Vanilla 10
 assert all(list(n.values) == ["Radius"] for n in it.children.values())
 assert ITEMS not in build_patches(gd, S(artifact_radius_factor=1.0))
-print("P7.1 Radius: 154 Artefakte x19 (40 -> 760, 10 -> 190), nur der eine Schluessel  OK")
+print("P7.1 Radius: 154 artifacts x19 (40 -> 760, 10 -> 190), only the single key  OK")
 
-# --- P7.2) Huepfen: Schalter trifft nur die 146 true-Structs ------------------------
+# Disable jumping only where enabled in vanilla.
 it = parsed(build_patches(gd, S(artifacts_no_hop=True)), ITEMS)
 assert len(it.children) == 146, len(it.children)
 assert all(n.values == {"Strafe": "false"} for n in it.children.values())
@@ -698,27 +683,25 @@ for keeper in ("AArtifactWeirdBall", "AArtifactWeirdFlower", "CPrologArtifactSlu
                "QuestArtifactHeartofChornobyl"):
     assert keeper not in it.children, keeper
 assert "TemplateArtifact" in it.children
-print("P7.2 Huepfen: Schalter trifft genau die 146 true-Artefakte, die 8 false bleiben  OK")
+print("P7.2 Jumping: toggle reaches exactly 146 true artifacts, 8 false entries remain  OK")
 
-# --- P7.3) Keep-away und Huepf-Pause, inkl. Ausreisser und Null-Werte ---------------
+# Check keep-away/jump delays, including unusual values and zero.
 p = build_patches(gd, S(artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0))
 it = parsed(p, ITEMS)
-# 1.35.0: die zwei Regler nehmen je einen zweiten Schluessel derselben
-# Familie mit - ReturnDistanceValue (10000) haengt am Abstand, JumpDelay
-# (6.0/3.0, die Pause zwischen EINZELNEN Spruengen) an der Pause. Damit ist
-# die Huepf-Familie vollstaendig; Details in tests/test_v135_tweaks.py.
+# Compose ReturnDistanceValue with spacing and JumpDelay with pause controls;
+# see test_v135_tweaks.py for the complete jump family.
 assert it.children["TemplateArtifact"].values == {
     "PlayerDistance": "500.0", "ReturnDistanceValue": "5000.0",
     "JumpSeriesDelay": "90.0", "JumpDelay": "12.0"}, \
     it.children["TemplateArtifact"].values
-assert it.children["QuestArtifactCrystalThorn"].values["PlayerDistance"] == "50000.0"   # Ausreisser mitskaliert
+assert it.children["QuestArtifactCrystalThorn"].values["PlayerDistance"] == "50000.0"   # Outlier is scaled too.
 zero = [s for s, n in arts.items() if parse_number(n.values["JumpSeriesDelay"]) == 0]
 assert zero and all("JumpSeriesDelay" not in it.children[s].values for s in zero if s in it.children)
 core = parsed(p, CORE).children["DefaultConfig"].values
 assert core == {"ArtifactStrafeMinDistance": "300.0"}, core
-print(f"P7.3 Huepf-Werte: Distanz x0.5 (auch der 100000-Ausreisser), Pause x2, {len(zero)} Null-Werte uebersprungen  OK")
+print(f"P7.3 Jump values: distance x0.5 (including the 100000 outlier), pause x2, {len(zero)} zero values skipped  OK")
 
-# --- P7.4) Seltene Artefakt-Verstecke ----------------------------------------------
+# --- P7.4) Rare artifact stashes ---
 live = gd.packofitems.children["ArtifactUncommon"].children["PackOfItemsSettings"]
 live_items = live.children["[0]"].children["Items"].children
 assert len(live_items) == 20 and {e.values["Weight"] for e in live_items.values()} == {"0"}
@@ -734,14 +717,14 @@ assert "ArtifactUncommon : struct.begin {bpatch}" in p[POI]
 for other in ("Medkits", "Stimulator", "Drink", "Food", "empty"):
     assert other not in p[POI], other
 assert POI not in build_patches(gd, S())
-print("P7.4 Verstecke: nur ArtifactUncommon, 20 Eintraege komplett auf Weight 1, andere Gruppen unberuehrt  OK")
+print("P7.4 Stashes: ArtifactUncommon only, 20 complete entries set to Weight 1, other groups unchanged  OK")
 
-# --- P7.5) Loot-Neuauslosung beim Rangaufstieg --------------------------------------
+# --- P7.5) Reroll loot on rank increase ---
 assert core_values(loot_reroll_radius_factor=2.0, loot_reroll_timer_factor=0.5) == {
     "RegenerateItemsOnRankUpdateRadius": "80000.0f", "RegenerateItemsOnRankUpdateTimer": "5.0f"}
-print("P7.5 Neuauslosung: Radius 80000.0f, Verzoegerung 5.0f  OK")
+print("P7.5 Reroll: radius 80000.0f, delay 5.0f  OK")
 
-# --- P7.6) Zusammenfassung -----------------------------------------------------------
+# --- P7.6) Summary ---
 joined = "\n".join(summarize(S(artifact_radius_factor=19.0, artifacts_no_hop=True,
                                artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0,
                                artifact_caches_drop=True, loot_reroll_radius_factor=2.0,
@@ -750,45 +733,41 @@ for needle in ("visibility radius", "don't hop away", "keep-away", "hop pause",
                "caches actually drop", "re-roll radius", "re-roll delay"):
     assert needle in joined, (needle, joined)
 assert not any(k in "\n".join(summarize(S())) for k in ("visibility radius", "hop", "caches", "re-roll"))
-print("P7.6 Zusammenfassung: 7 Zeilen vorhanden, neutral leer  OK")
+print("P7.6 Summary: 7 lines present, neutral empty  OK")
 
-# =========================================================================
-# P8 Teil A - Haendler und Wirtschaft
-# =========================================================================
+# Traders and economy.
 NPCP = "NPCPrototypes/NPCPrototypes_patch_S2Tweaker.cfg"
 TRADE = "TradePrototypes/TradePrototypes_patch_S2Tweaker.cfg"
 TRADERS9 = ["Eger", "Guron", "Koldun", "KoldunM", "Sinak", "drabadan", "sulc",
             "supack_trader_selma_0", "trader_assistent_medulin_0"]
 
-# --- P8.0) Datei, Schema 22, Mod-Scan bewusst OHNE NPCPrototypes ------------------
+# --- P8.0) File, schema 22, mod scan intentionally excludes NPCPrototypes ---
 assert "NPCPrototypes.cfg.bin" in NEEDED_FILES and CACHE_SCHEMA >= 22
-# Bewusste Ausnahme: die 1.8-MB-Datei bleibt aus dem Vanilla-Index des
-# Mod-Scans draussen (wie QuestNodePrototypes) - sie wuerde jeden Scan
-# spuerbar verlangsamen, ohne dass dort Regler haengen.
+# Keep large lazily parsed files outside the eager vanilla scan index.
 assert "npcprototypes" not in _GD_TREES
 assert int(gd.corevar("InfotopicRefreshHours")) == Settings().infotopic_refresh_hours
 rep = gd.corevars.children["DefaultConfig"].children["ReputationRepairCostModifiers"].children
 assert [e.values["Modifier"] for e in rep.values()] == ["2.0", "1.5", "1.0", "0.75"]
 assert not build_patches(gd, S(repair_cost_reputation=False, infotopic_refresh_hours=24))
-print("P8.0 Datei: NPCPrototypes in NEEDED_FILES, bewusst nicht im Mod-Scan, Live-Werte = Default  OK")
+print("P8.0 File: NPCPrototypes in NEEDED_FILES, intentionally excluded from mod scan, live values match defaults  OK")
 
-# --- P8.1) Reparaturpreis je Ruf: Array komplett, alle vier auf 1.0 ----------------
+# Emit complete reputation repair entries at the neutral modifier.
 p = build_patches(gd, S(repair_cost_reputation=True))
 arr = parsed(p, CORE).children["DefaultConfig"].children["ReputationRepairCostModifiers"].children
 assert sorted(arr) == ["[0]", "[1]", "[2]", "[3]"], sorted(arr)
 assert arr["[0]"].values == {"RelationLevel": "ERelationLevel::Enemy", "Modifier": "1.0"}
 assert arr["[3]"].values == {"RelationLevel": "ERelationLevel::Friend", "Modifier": "1.0"}
 assert all(e.values["Modifier"] == "1.0" for e in arr.values())
-assert "BaseRepairCostModifier" not in p[CORE]                    # der Preisregler bleibt getrennt
-print("P8.1 Reparatur-Ruf: alle vier Stufen auf 1.0, RelationLevel mitgeschrieben  OK")
+assert "BaseRepairCostModifier" not in p[CORE]                    # The general price control remains separate.
+print("P8.1 Repair reputation: all four levels set to 1.0, RelationLevel included  OK")
 
-# --- P8.2) Geruechte-Auffrischung (absolut, ganzzahlig) ----------------------------
+# --- P8.2) Rumor refresh: absolute integer ---
 assert core_values(infotopic_refresh_hours=6) == {"InfotopicRefreshHours": "6"}
 assert core_values(infotopic_refresh_hours=72) == {"InfotopicRefreshHours": "72"}
 assert CORE not in build_patches(gd, S(infotopic_refresh_hours=24))
-print("P8.2 Geruechte: 6 h / 72 h, Vanilla 24 erzeugt nichts  OK")
+print("P8.2 Rumors: 6 h / 72 h, vanilla 24 produces nothing  OK")
 
-# --- P8.3) Haendler auf NPC-Ebene: Koeffizienten und Geldbeutel aus Spieldaten ----
+# Check NPC trader coefficients and wallets against live data.
 live_buy = {s for s, n in gd.npcprototypes.children.items() if "BuyCoefficient" in n.values}
 live_sell = {s for s, n in gd.npcprototypes.children.items() if "SellCoefficient" in n.values}
 assert sorted(live_buy) == TRADERS9 and live_buy == live_sell, sorted(live_buy)
@@ -805,42 +784,40 @@ for sid in live_money:
     before = parse_number(gd.npcprototypes.children[sid].values["Money"])
     assert parse_number(np_.children[sid].values["Money"]) == round(before * 2), sid
 assert np_.children["Eger"].values == {"Money": "40000"}
-assert all("." not in n.values["Money"] for n in np_.children.values())      # ganzzahlig
+assert all("." not in n.values["Money"] for n in np_.children.values())      # integer
 p = build_patches(gd, S(trader_buy_price_factor=2.0))
-assert TRADE in p and NPCP in p                     # beide Ebenen bekommen denselben Faktor
-assert NPCP not in build_patches(gd, S(trader_min_durability_pct=0))   # anderer Regler, keine NPC-Datei
-print(f"P8.3 Haendler: 9 Koeffizienten (0.8 -> 1.6 / 2.0 -> 1.0), {len(live_money)} Geldbeutel x2, beide Ebenen  OK")
+assert TRADE in p and NPCP in p                     # Both levels receive the same factor.
+assert NPCP not in build_patches(gd, S(trader_min_durability_pct=0))   # Unrelated controls must not emit NPC patches.
+print(f"P8.3 Traders: 9 coefficients (0.8 -> 1.6 / 2.0 -> 1.0), {len(live_money)} wallets x2, both levels  OK")
 
-# --- P8.4) Die 1.8-MB-Datei wird nur bei aktivem Regler geparst --------------------
+# Parse the large NPC file only when needed.
 fresh = GameData(VANILLA)
 assert not build_patches(fresh, S())
-assert "npcprototypes" not in fresh.__dict__, "Neutral hat die 1.8-MB-Datei geparst"
+assert "npcprototypes" not in fresh.__dict__, "Neutral setting parsed the 1.8-MB file"
 build_patches(fresh, S(trader_money_factor=2.0))
 assert "npcprototypes" in fresh.__dict__
-print("P8.4 Lazy: NPCPrototypes bleibt neutral ungeparst, wird bei aktivem Regler geladen  OK")
+print("P8.4 Lazy loading: NPCPrototypes remains unparsed at neutral, loads when slider is active  OK")
 
-# --- P8.5) Zusammenfassung ----------------------------------------------------------
+# --- P8.5) Summary ---
 joined = "\n".join(summarize(S(repair_cost_reputation=True, infotopic_refresh_hours=6)))
 assert "Reputation does not affect repair prices" in joined and "rumours refresh every 6 h" in joined
 assert not any(k in "\n".join(summarize(S())) for k in ("Reputation does not", "rumours refresh"))
-print("P8.5 Zusammenfassung: 2 Zeilen vorhanden, neutral leer  OK")
+print("P8.5 Summary: 2 lines present, neutral empty  OK")
 
-# =========================================================================
-# 1.29.0 - Waffe ziehen und wegstecken
-# =========================================================================
+# Weapon draw and holster controls.
 WGS = "WeaponData/WeaponGeneralSetupPrototypes/WeaponGeneralSetupPrototypes_patch_S2Tweaker.cfg"
 EQUIP_KEYS = ("ShowEquipmentTime", "HideEquipmentTime")
 
-# --- 1) Live-Bestand: 92 Basis-Waffen, alle auf 1.0 ------------------------------
+# Check the installed base-weapon timing inventory.
 live = {sid: n.values for sid, n in gd.weapongeneral.children.items()
         if "#" not in sid and "ShowEquipmentTime" in n.values}
 assert len(live) == 92, len(live)
 assert {v["ShowEquipmentTime"] for v in live.values()} == {"1.0"}
 assert {v["HideEquipmentTime"] for v in live.values()} == {"1.0"}
 assert not build_patches(gd, S(equip_speed_factor=1.0))
-print(f"1.29.0 Live: {len(live)} Waffen mit Zieh-/Wegsteck-Zeit, alle 1.0, Neutral leer  OK")
+print(f"1.29.0 Live: {len(live)} weapons with draw/holster duration, all 1.0, neutral empty  OK")
 
-# --- 2) Zeit / Faktor, Basis- und Editions-Waffen ---------------------------------
+# Scale base and edition timings inversely.
 p = build_patches(gd, S(equip_speed_factor=2.0))
 wgs = parsed(p, WGS)
 assert len(wgs.children) == 92, len(wgs.children)
@@ -855,9 +832,9 @@ assert all(v == "0.5" for k in dlc for n in parsed(p, k).children.values()
 half = parsed(build_patches(gd, S(equip_speed_factor=0.5)), WGS)
 assert next(iter(half.children.values())).values["ShowEquipmentTime"] == "2.0"
 assert "FireInterval" not in p[WGS] and "ReloadTimeMultiplier" not in p[WGS]
-print(f"1.29.0 Regler: 92 Basis- + {n_dlc} Editions-Waffen, x2 -> 0.5 s, x0.5 -> 2.0 s  OK")
+print(f"1.29.0 Sliders: 92 base + {n_dlc} edition weapons, x2 -> 0.5 s, x0.5 -> 2.0 s  OK")
 
-# --- 3) Uebersprungene Schuss-Animationen -------------------------------------------
+# --- 3) Skipped firing animations ---
 live_skip = {sid: n.values["ShootingAnimationNumberToSkip"]
              for sid, n in gd.weapongeneral.children.items()
              if "#" not in sid and "ShootingAnimationNumberToSkip" in n.values}
@@ -870,14 +847,14 @@ dlc = [k for k in p if k.startswith("//GameLite/DLCGameData/") and "WeaponGenera
 assert sum(len(parsed(p, k).children) for k in dlc) == 11, dlc
 assert parsed(build_patches(gd, S(shooting_anim_skip=3)), WGS).children["Default"] \
     .values["ShootingAnimationNumberToSkip"] == "3"
-assert WGS not in build_patches(gd, S(shooting_anim_skip=0))          # Vanilla = kein Patch
-print("1.29.0 Anim-Skip: 92 Basis- + 11 Editions-Waffen auf 1 bzw. 3, ganzzahlig, Vanilla leer  OK")
+assert WGS not in build_patches(gd, S(shooting_anim_skip=0))          # Vanilla emits no patch.
+print("1.29.0 Animation skip: 92 base + 11 edition weapons set to 1 or 3, integers, vanilla empty  OK")
 
-# --- 4) Zusammenfassung ------------------------------------------------------------
+# --- 4) Summary ---
 assert "Weapon draw & holster speed × 2" in "\n".join(summarize(S(equip_speed_factor=2.0)))
 assert "Skip 1 shooting animation" in "\n".join(summarize(S(shooting_anim_skip=1)))
 assert "draw & holster" not in "\n".join(summarize(S()))
 assert "Skip" not in "\n".join(summarize(S()))
-print("1.29.0 Zusammenfassung: zwei Zeilen vorhanden, neutral leer  OK")
+print("1.29.0 Summary: two lines present, neutral empty  OK")
 
 print("\n1.28.0-TEST OK")

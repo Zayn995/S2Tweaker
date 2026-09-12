@@ -1,10 +1,7 @@
-"""A-Life-Spawn-Regler: Lager (LairPrototypes.cfg) + Director
-(ALifeDirectorScenarioPrototypes.cfg). Recherche: docs/ALIFE_SPAWN_RESEARCH.md.
+"""Check A-Life camp/director controls against installed vanilla data.
 
-Sollmengen live aus vanilla/; Plausibilitaets-Anker sind nur die bekannten
-Vanilla-Groessen (784 Rang-Bloecke, Standard-Timer 180/480/480, Global-
-Gewichte BlinddogPack 10 / TushkanPack 5 / ChimeraSingle 2 / BloodsuckerSingle 0).
-"""
+Recorded counts/timers are regression anchors; derive expected patches live.
+See docs/ALIFE_SPAWN_RESEARCH.md."""
 import re
 import sys
 from pathlib import Path
@@ -29,7 +26,7 @@ DIR = ("ALifePrototypes/ALifeDirectorScenarioPrototypes/"
 
 
 def leaf_values(root, key: str) -> list[tuple[list[str], str]]:
-    """[(Pfad, Wert)] aller Blaetter namens key im geparsten Patch."""
+    """Return [(path, value)] for all leaves named key in the parsed patch."""
     out = []
 
     def walk(node, path):
@@ -42,7 +39,7 @@ def leaf_values(root, key: str) -> list[tuple[list[str], str]]:
     return out
 
 
-# --- 1) Inventar ----------------------------------------------------------
+# --- 1) Inventory ----------------------------------------------------------
 blocks = gd.lair_blocks()
 assert len(blocks) >= 700, len(blocks)
 n_mut = sum(1 for b in blocks if b["mutant"] and not b["guard"])
@@ -57,10 +54,10 @@ toks = gd.director_scenario_tokens()
 assert len(toks) >= 60 and toks["BlinddogPack"] == {"Blinddog"} and "Human" in toks["HumansVsMutants"]
 assert "Chimera" in gd.director_prohibited() and "Blinddog" not in gd.director_prohibited()
 assert len(gd.director_limits()) == 64
-print(f"Inventar: {len(blocks)} Lager-Bloecke ({n_mut} Mutanten, {n_hum} Menschen, "
-      f"{n_guard} Guard), {n_std} mit Standard-Timern, {len(toks)} Szenarien  OK")
+print(f"Inventory: {len(blocks)} lair blocks ({n_mut} mutants, {n_hum} humans, "
+      f"{n_guard} Guard), {n_std} with default timers, {len(toks)} scenarios  OK")
 
-# --- 2) Lager-Bestand Mutanten x2: nur Mutanten, keine Guard-Lager ---------
+# Double mutant camp population, excluding human and Guard camps.
 p = build_patches(gd, Settings(lair_mutant_factor=2.0))
 assert list(p) == [LAIR], list(p)
 root = cfgparse.parse(p[LAIR])
@@ -75,9 +72,9 @@ for path, v in got:
 vals = {tuple(path): int(v) for path, v in got}
 assert vals[("Tushkan", "Preset", "PossibleInhabitantFactions", "Tushkan",
              "SpawnSettingsPerPlayerRanks", "Master")] == 48
-print(f"Lager Mutanten x2: {len(got)} Bloecke, Guard unangetastet, Tushkan Master 48  OK")
+print(f"Mutant lairs x2: {len(got)} blocks, Guard unangetastet, Tushkan Master 48  OK")
 
-# --- 3) Lager-Bestand Menschen x0.5: Untergrenze Summe MinQuantity ---------
+# --- 3) Human lair population x0.5: floor from summed MinQuantity ---------
 p = build_patches(gd, Settings(lair_human_factor=0.5))
 got = leaf_values(cfgparse.parse(p[LAIR]), "MaxSpawnQuantity")
 assert all(not b["mutant"] for path, _v in got for b in [by_key[(path[0], path[3], path[5])]])
@@ -85,24 +82,24 @@ for path, v in got:
     b = by_key[(path[0], path[3], path[5])]
     floor = min(b["quantity"], b["min_sum"])
     assert int(v) >= max(1, floor), (path, v, b)
-# Freedom Newbie: Vanilla 6 < Summe 7 -> bleibt 6 (Luecke nicht vergroessern)
+# Preserve an existing Freedom/Newbie minimum-count discrepancy without worsening it.
 freedom = [v for path, v in got if path[0] == "Freedom" and path[5] == "Newbie"]
 assert freedom == [], freedom
-print(f"Lager Menschen x0.5: {len(got)} Bloecke, Untergrenze greift (Freedom/Newbie bleibt 6)  OK")
+print(f"Human lairs x0.5: {len(got)} blocks, lower bound enforced (Freedom/Newbie stays at 6)  OK")
 
-# --- 4) Respawn x2: nur Standard-Bloecke, alle drei Timer halbiert ---------
+# Double ordinary respawn speed by halving all three timers.
 p = build_patches(gd, Settings(lair_respawn_factor=2.0))
 root = cfgparse.parse(p[LAIR])
 for key, vanilla in zip(gd.LAIR_TIMER_KEYS, std):
     got = leaf_values(root, key)
     assert len(got) == n_std, (key, len(got), n_std)
     assert all(abs(parse_number(v) - parse_number(vanilla) / 2) < 1e-6 for _p, v in got)
-# Story-Lager (6/30/30) fehlen im Patch
+# Story camps (6/30/30) are absent from the patch.
 assert not any(path[0] == "SultanBandits" and path[5] == "Newbie"
                for path, _v in leaf_values(root, "WipeRespawnTimeoutSeconds"))
-print(f"Respawn x2: {n_std} Bloecke x 3 Timer halbiert, Story-Lager tabu  OK")
+print(f"Respawn x2: {n_std} blocks x 3 timers halved, story lairs excluded  OK")
 
-# --- 5) Director: Frequenz x2 -----------------------------------------------
+# --- 5) Director frequency x2 ---
 p = build_patches(gd, Settings(encounter_frequency_factor=2.0))
 assert list(p) == [DIR], list(p)
 root = cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
@@ -111,33 +108,33 @@ glob = root.children["ScenarioGroups"].children["Global"].values
 assert glob["SpawnDelayMin"] == "30" and glob["SpawnDelayMax"] == "45"
 assert int(glob["SpawnDelayMin"]) <= int(glob["SpawnDelayMax"])
 assert "ScenarioSIDs" not in root.children["ScenarioGroups"].children["Global"].children
-print("Frequenz x2: Defaults + 13 Gruppen halbiert, Min <= Max  OK")
+print("Frequency x2: defaults + 13 groups halved, Min <= Max  OK")
 
-# --- 6) Mutanten-Anteil + Art-Regler ---------------------------------------
+# --- 6) Mutant share and per-species controls ---
 p = build_patches(gd, Settings(encounter_mutant_factor=2.0))
 root = cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
 sids = root.children["ScenarioGroups"].children["Global"].children["ScenarioSIDs"].children
 assert sids["BlinddogPack"].values["ScenarioWeight"] == "20"
 assert sids["TushkanPack"].values["ScenarioWeight"] == "10"
 assert sids["ChimeraSingle"].values["ScenarioWeight"] == "4"
-assert "BloodsuckerSingle" not in sids            # Vanilla 0 bleibt 0
+assert "BloodsuckerSingle" not in sids            # Preserve vanilla zero.
 assert "HumansVsMutants" not in sids and "HumansVsHumans" not in sids
 weights = leaf_values(root, "ScenarioWeight")
 assert all(int(v) >= 1 for _p, v in weights)
-# Art-Regler: Blinddog x0 schlaegt Anteil x2 nur bei reinen Blinddog-Szenarien
+# Species factor zero overrides the mutant factor only for pure-species scenarios.
 p = build_patches(gd, Settings(encounter_mutant_factor=2.0, enc_blinddog_factor=0.0))
 sids = (cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
         .children["ScenarioGroups"].children["Global"].children["ScenarioSIDs"].children)
 assert sids["BlinddogPack"].values["ScenarioWeight"] == "0"
 assert sids["BoarPack"].values["ScenarioWeight"] == "20"
-# Anteil 0 % = alle rein-Mutanten-Gewichte 0, Menschen unangetastet
+# Share 0%: zero all mutant-only weights, leave humans unchanged.
 p = build_patches(gd, Settings(encounter_mutant_factor=0.0))
 weights = leaf_values(cfgparse.parse(p[DIR]), "ScenarioWeight")
 assert weights and all(v == "0" for _p, v in weights)
 assert all("Human" not in toks[path[-1]] for path, _v in weights)
-print("Mutanten-Anteil x2 / Art x0 / Anteil 0 %: Gewichte korrekt, Menschen tabu  OK")
+print("Mutant share x2 / species x0 / share 0%: correct weights, humans unchanged  OK")
 
-# --- 7) Rudel-Groesse: verbotene Typen bleiben, 0 bleibt 0 ------------------
+# --- 7) Pack size: preserve prohibited types and zero values ---
 p = build_patches(gd, Settings(encounter_pack_factor=2.0))
 root = cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
 counts = leaf_values(root, "MaxCount")
@@ -148,9 +145,9 @@ for path, v in counts:
     assert atype not in banned and c > 0 and int(v) == int(round(c * 2)), (path, v, atype, c)
 n_allowed = sum(1 for ri, ti, atype, c in gd.director_limits() if atype not in banned and c > 0)
 assert len(counts) == n_allowed, (len(counts), n_allowed)
-print(f"Rudel x2: {len(counts)} Deckel skaliert, {len(banned)} verbotene Typen + Nullen tabu  OK")
+print(f"Pack x2: {len(counts)} limits scaled, {len(banned)} excluded types and zero values unchanged  OK")
 
-# --- 8) Neutral, summarize, alle Regler zusammen ---------------------------
+# --- 8) Neutral, summary, all sliders combined ---
 assert not build_patches(gd, Settings())
 s = Settings(lair_mutant_factor=1.5, lair_human_factor=1.5, lair_respawn_factor=2.0,
              encounter_frequency_factor=2.0, encounter_mutant_factor=1.5,
@@ -160,6 +157,6 @@ assert set(p) == {LAIR, DIR}
 lines = summarize(s)
 assert sum(1 for l in lines if l.startswith(("Lair", "Random encounters", "Encounters:"))) == 7, lines
 assert len(ENCOUNTER_KINDS) == 6
-print("Neutral = kein Patch, Kombination -> 2 Dateien, 7 Summary-Zeilen  OK")
+print("Neutral = no patch; combined settings -> 2 files, 7 summary lines  OK")
 
 print("\nALIFE-SPAWNS-TEST OK")

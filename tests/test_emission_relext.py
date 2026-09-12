@@ -1,5 +1,5 @@
-"""Emissions-Dauer (Zeitstreckung) + Fraktions-Ausbau Stufe 2
-(Reaktionsstaerke, Handels-Schwelle)."""
+"""Emission duration (time scaling) and additional faction controls:
+reaction strength and trading threshold."""
 import re
 import sys
 from pathlib import Path
@@ -17,14 +17,14 @@ gd = GameData(VANILLA)
 EM_KEY = "EmissionPrototypes/EmissionPrototypes_patch_S2Tweaker.cfg"
 REL_KEY = "RelationPrototypes/RelationPrototypes_patch_S2Tweaker.cfg"
 
-# --- 1) Emission: Default-Prototyp gefunden, Story bleibt tabu ----------
+# --- 1) Emission: default prototype found, story entries excluded ---
 key, stages, aievents = gd.emission_default_timeline()
 assert key == "[0]", key
 assert stages is not None and len(stages.children) == 5
 assert aievents is not None and len(aievents.children) == 4
-print("Timeline: Default = [0], 5 Stufen, 4 AI-Events  OK")
+print("Timeline: Default = [0], 5 stages, 4 AI events  OK")
 
-# --- 2) Zeitstreckung x2: alle Zeiten x2, ActivateQuest-Dauer bleibt ----
+# --- 2) Time scaling x2: all times x2, ActivateQuest duration unchanged ---
 p = build_patches(gd, Settings(emission_duration_factor=2.0))
 assert list(p) == [EM_KEY], list(p)
 text = p[EM_KEY]
@@ -36,36 +36,36 @@ for frag in ("PhaseDuration = 120", "PhaseStartTime = 240",
              "PhaseDuration = 40", "AIEventStartTime = 260",
              "AIEventStartTime = 16", "AIEventStartTime = 20"):
     assert frag in text, (frag, text)
-# ActivateQuest: Dauer 1.0 darf NICHT skaliert werden
+# Preserve the ActivateQuest duration.
 assert "PhaseDuration = 2\n" not in text.replace("\r", ""), text
-# Nullen erzeugen keine Zeilen, Story-Prototypen fehlen komplett
+# Emit no zero-value changes or story-prototype patches.
 n_structs = sum(1 for line in text.splitlines()
                 if line and not line.startswith((" ", "struct")))
 assert n_structs == 1, n_structs
-print("Zeitstreckung x2: 60->120, 120->240, AI 130->260, "
-      "ActivateQuest-Dauer unangetastet, NUR [0]  OK")
+print("Timeline scaling x2: 60->120, 120->240, AI 130->260, "
+      "ActivateQuest duration unchanged, ONLY [0]  OK")
 
-# --- 3) Neutral + Grenzen -----------------------------------------------
+# --- 3) Neutral and bounds ---
 assert not build_patches(gd, Settings(emission_duration_factor=1.0))
 assert not build_patches(gd, Settings(emission_duration_factor=-1.0))
 half = build_patches(gd, Settings(emission_duration_factor=0.5))[EM_KEY]
 assert "PhaseDuration = 30" in half and "AIEventStartTime = 65" in half
-print("Neutral/negativ = kein Patch; x0.5 = 30/65  OK")
+print("Neutral/negative = no patch; x0.5 = 30/65  OK")
 
-# --- 4) Reaktionsstaerke: vorzeichen-erhaltend, Nullen bleiben ----------
+# --- 4) Reaction strength: preserve signs and zeros ---
 p = build_patches(gd, Settings(relation_reaction_factor=2.0))
 text = p[REL_KEY]
 assert "CharacterReactions" in text and "FactionReactions" in text
-# Kill-Tabelle vanilla: Neutral->Friend = -2000 (Character) / -10 (Faction)
+# Vanilla Kill table: Neutral->Friend = -2000 (Character) / -10 (Faction).
 assert "Neutral->Friend = -4000" in text
 assert "Neutral->Friend = -20" in text
-assert "RelationVersion" not in text, "Mechanik-Wert darf Version nicht bumpen"
-assert re.search(r"= 0\b", text) is None, "Nullen duerfen keine Zeilen erzeugen"
+assert "RelationVersion" not in text, "Mechanics value must not bump the version"
+assert re.search(r"= 0\b", text) is None, "Zero values must not produce lines"
 vals = [int(m) for m in re.findall(r"-> \S+ (?:= (-?\d+))", text) if m]
-print(f"Reaktionsstaerke x2: {text.count('->')} Deltas skaliert, "
-      "Vorzeichen erhalten, kein Version-Bump  OK")
+print(f"Reaction strength x2: {text.count('->')} deltas scaled, "
+      "Signs preserved, no version bump  OK")
 
-# --- 5) Handels-Schwelle -------------------------------------------------
+# --- 5) Trading threshold ---
 p = build_patches(gd, Settings(trade_min_level=2))
 assert p[REL_KEY].count("MinRelationLevelToTrade = ERelationLevel::Neutral") == 1
 p = build_patches(gd, Settings(trade_min_level=0))
@@ -77,6 +77,6 @@ lines = " | ".join(summarize(Settings(trade_min_level=3,
 for frag in ("Trading requires standing: Friend", "Reputation reaction",
              "Emission duration"):
     assert frag in lines, (frag, lines)
-print("Handels-Schwelle (Neutral/Enemy/vanilla) + summarize  OK")
+print("Trading threshold (Neutral/Enemy/vanilla) and summary  OK")
 
 print("\nEMISSION/RELATIONS-EXT-TEST OK")

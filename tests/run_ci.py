@@ -1,16 +1,7 @@
-"""Die Suiten, die OHNE Spieldaten laufen — fuer GitHub Actions.
+"""Run CI suites that need neither game data nor application windows.
 
-    python tests/run_ci.py
-
-`tests/run_all.py` braucht den `vanilla/`-Ordner (extrahierte GameData).
-Der darf NIE ins Repo (GSC-Copyright, siehe CLAUDE.md), also kann die CI
-die volle Batterie nicht fahren. Diese Suiten pruefen ohne Fenster die
-Feldverdrahtung, das Netzwerkverbot, Pak-Roundtrips sowie Editor-Profile,
-Undo/Redo und Sicherung/Wiederherstellung eigener Paks.
-
-Die vollstaendige Batterie laeuft weiterhin lokal vor jedem
-Release — die release-version-Skill besteht darauf.
-"""
+The full game-data suite runs locally because extracted GSC files must not
+be published. Coverage includes wiring, offline behavior, Paks and editor state."""
 import os
 import subprocess
 import sys
@@ -18,6 +9,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_public_files.py",
     "test_detail_controls.py",
     "test_artifact_additions.py",
     "test_job_localization.py",
@@ -32,7 +24,7 @@ ORDER = [
     "test_optional_spawn_cache.py",
     "test_wiring.py",
     "test_no_network.py",
-    "test_pakfile.py",      # Pak-Roundtrip in reinem Python; der Spieldaten-Teil ueberspringt sich selbst
+    "test_pakfile.py",      # Pure-Python Pak roundtrip; the game-data portion skips when unavailable.
     "test_editor_state.py",
     "test_mod_library.py",
     "test_workbench_headless.py",
@@ -53,6 +45,6 @@ for name in ORDER:
 
 print()
 if failed:
-    print("ROT:", ", ".join(failed))
+    print("FAIL:", ", ".join(failed))
     sys.exit(1)
-print(f"ALLE {len(ORDER)} CI-SUITEN GRUEN (ohne Fenster; volle Batterie lokal)")
+print(f"ALL {len(ORDER)} CI SUITES PASSED (headless; full suite available locally)")

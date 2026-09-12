@@ -1,8 +1,8 @@
 # Optional helmet detail controls: consumer and integration audit
 
 2026-09-11; research only against the installed 2.0.5 CFG snapshot and current
-1.40.1 equipment implementation. The owner authorized additional options,
-without animation changes. This audit changes no application code and does
+1.40.1 equipment implementation. The scope is additional equipment options
+that do not require animation changes. This audit changes no application code and does
 not perform a game test. It covers optional helmets and the camp-profile
 descendant check; NPC firing/animation timing and NVG behavior are outside scope.
 

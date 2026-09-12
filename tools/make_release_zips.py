@@ -1,54 +1,41 @@
-"""Release-ZIPs bauen: Spieler-ZIP (Programmordner + README) und Source-ZIP.
+"""Build player and source release ZIPs.
 
-    python tools/make_release_zips.py 1.11.0
-    python tools/make_release_zips.py 1.11.0 --dist C:\\pfad\\zu\\S2Tweaker
-
-Das Spieler-ZIP enthaelt den ganzen Programmordner FLACH in der
-ZIP-Wurzel (Aufbau: tools/build_exe.py):
-
-    S2Tweaker.exe          (= signierte pythonw.exe, unveraendert)
-    python3XX.dll, vcruntime140*.dll, python3XX._pth
-    _internal\\...
-    README.txt
-
-Fuer den Spieler: entpacken, S2Tweaker.exe doppelklicken. Zum
-Aktualisieren das neue ZIP ueber den alten Ordner entpacken - Einstellungen,
-Presets, Cache und Output sind nicht im ZIP und bleiben unberuehrt.
-
-Das Source-ZIP entsteht aus `git ls-files`, also exakt der versionierten
-Menge — damit koennen vanilla/, cache/, dist/, settings.json und die
-proprietaere Oodle-DLL gar nicht erst hineinrutschen (.gitignore schuetzt).
-Release-ZIPs und Screenshots werden zusaetzlich ausgefiltert.
-
---dist: Ausweich-Ordner angeben, wenn dist\\ durch eine laufende Instanz
-gesperrt war und mit --distpath woanders gebaut wurde.
-"""
+Player files are rooted at S2Tweaker.exe with _internal and README.txt.
+Source files come from git ls-files, excluding release ZIPs, screenshots
+and binaries. --dist selects an alternative portable build directory."""
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+if __package__:
+    from .public_files import validate_public_paths
+else:
+    from public_files import validate_public_paths
 
 REPO = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        raise SystemExit("Aufruf: python tools/make_release_zips.py <version> "
-                         "[--dist <pfad>]")
+        raise SystemExit("Usage: python tools/make_release_zips.py <version> "
+                         "[--dist <path>]")
     version = sys.argv[1]
     app = REPO / "dist" / "S2Tweaker"
     if "--dist" in sys.argv:
         app = Path(sys.argv[sys.argv.index("--dist") + 1])
     if not (app / "S2Tweaker.exe").is_file():
-        raise SystemExit(f"Programmordner fehlt: {app} — erst build.bat "
-                         "laufen lassen (oder --dist angeben).")
+        raise SystemExit(f"Application folder missing: {app} — run build.bat "
+                         "first or specify --dist.")
 
-    tracked = subprocess.run(["git", "ls-files"], cwd=REPO,
+    tracked = subprocess.run(["git", "ls-files", "-z"], cwd=REPO,
                              capture_output=True, text=True,
-                             check=True).stdout.splitlines()
-    # Binaerteile gehoeren nicht ins Source-ZIP: tools/repak.exe ist seit
-    # 05.09.2026 ohnehin nicht mehr versioniert (ein lokal gebautes Exemplar
-    # trug den Benutzernamen des Bau-Rechners in sich), aber sicher ist sicher.
+                             encoding="utf-8", check=True).stdout.rstrip("\0").split("\0")
+    # Validate both inventories before creating either archive.
+    validate_public_paths(tracked)
+    player_files = sorted(path for path in app.rglob("*") if path.is_file())
+    validate_public_paths(path.relative_to(app).as_posix() for path in player_files)
+    # Exclude runtime binaries from the source archive.
     source_files = [f for f in tracked
                     if not f.endswith((".zip", ".exe", ".dll", ".pyd"))
                     and not f.startswith("release/screenshots")]
@@ -56,30 +43,25 @@ def main() -> None:
     out = REPO / "release"
     player = out / f"S2Tweaker_v{version}.zip"
     with zipfile.ZipFile(player, "w", zipfile.ZIP_DEFLATED) as z:
-        for path in sorted(app.rglob("*")):
-            if path.is_file():
-                z.write(path, path.relative_to(app).as_posix())
+        for path in player_files:
+            z.write(path, path.relative_to(app).as_posix())
         z.write(out / "README.txt", "README.txt")
     print(f"{player.name}: {player.stat().st_size:,} bytes")
 
-    # Gegenprobe Spieler-ZIP: der Starter liegt in der Wurzel und die
-    # Laufzeit ist wirklich dabei (ein leeres _internal gaebe eine EXE,
-    # die beim Doppelklick sofort stirbt).
+    # Verify the player ZIP contains its root launcher and populated runtime.
     with zipfile.ZipFile(player) as z:
         names = z.namelist()
     assert "S2Tweaker.exe" in names, names[:10]
     internal = [n for n in names if n.startswith("_internal/")]
-    assert len(internal) > 100, f"nur {len(internal)} Dateien in _internal/"
+    assert len(internal) > 100, f"only {len(internal)} files in _internal/"
     assert "README.txt" in names, names[:10]
-    # Einen Updater gibt es seit 05.09.2026 nirgends mehr (Nexus-Pruefung);
-    # ein Skript, das ein Release laedt und Programmdateien ersetzt, darf
-    # auch nicht still ins Paket zurueckkehren.
-    assert "update.bat" not in names, "update.bat gehoert nicht ins Spieler-ZIP"
-    # Seit 1.21.0: Suchpfad-Datei und Starter-Modul muessen dabei sein,
-    # Netz-/TLS-Module und Nutzerdaten (Reste einer Startprobe) nicht.
+    # No updater script belongs in the player archive.
+    assert "update.bat" not in names, "update.bat does not belong in the player ZIP"
+    # Require the search-path file and launcher module; exclude network modules
+    # and user data.
     assert any(n.startswith("python3") and n.endswith("._pth") for n in names), \
-        "python3XX._pth fehlt - der Starter faende seinen Code nicht"
-    assert "_internal/sitecustomize.py" in names, "Starter-Modul fehlt"
+        "python3XX._pth missing; launcher would not find its code"
+    assert "_internal/sitecustomize.py" in names, "Launcher module missing"
     verboten = [n for n in names if n.rsplit("/", 1)[-1].lower().startswith(
         ("_ssl", "_socket", "_hashlib", "libssl", "libcrypto", "sqlite3"))]
     assert not verboten, verboten
@@ -87,15 +69,15 @@ def main() -> None:
              if n.split("/")[0] in ("settings.json", "editor.json", "pak_history",
                                       "cache", "output", "presets", "S2Tweaker_error.log")]
     assert not reste, reste
-    print(f"Gegenprobe: S2Tweaker.exe + ._pth + {len(internal)} Dateien in "
-          "_internal/ + README, ohne Updater/Netzmodule/Nutzerdaten OK")
+    print(f"Verification: S2Tweaker.exe + ._pth + {len(internal)} files in "
+          "_internal/ + README, no updater/network modules/user data  OK")
 
     src = out / f"S2Tweaker_v{version}_source.zip"
     with zipfile.ZipFile(src, "w", zipfile.ZIP_DEFLATED) as z:
         for rel in source_files:
             z.write(REPO / rel, rel)
     print(f"{src.name}: {src.stat().st_size:,} bytes, "
-          f"{len(source_files)} Dateien")
+          f"{len(source_files)} files")
 
     with zipfile.ZipFile(src) as z:
         names = z.namelist()
@@ -105,7 +87,7 @@ def main() -> None:
                  or "oo2core" in n or n.endswith(("settings.json", "editor.json"))
                  or n.lower().endswith((".exe", ".dll", ".pyd"))]
     assert not forbidden, forbidden
-    print("Gegenprobe: keine vanilla/cache/dist/oo2core/settings-Dateien OK")
+    print("Verification: no vanilla/cache/dist/oo2core/settings files  OK")
 
 
 if __name__ == "__main__":

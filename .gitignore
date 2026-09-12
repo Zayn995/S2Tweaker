@@ -1,68 +1,53 @@
-# NEVER upload extracted game files (copyrighted GSC content)
+# Extracted game data and proprietary libraries must never be published.
 vanilla/
 cache/
+oo2core*
+tools/oo2core*
 
-# Per-user data
+# Personal settings and generated content.
 settings.json
 editor.json
 pak_history/
 presets/
 output/
 out/
-release/NEXUS_SUPPORT_EMAIL.txt
-release/NEXUS_SUPPORT_EMAIL_NACHTRAG.txt
-release/NEXUS_SUPPORT_EMAIL_NACHTRAG2.txt
-release/NEXUS_SUPPORT_EMAIL_NACHTRAG3.txt
-release/NEXUS_SUPPORT_EMAIL_STATUS.txt
-release/ZILLYA_FALSE_POSITIVE.txt
-# Internes Testprotokoll und der jederzeit neu erzeugbare Nexus-Header
-TESTPROTOKOLL.md
-release/NEXUS_HEADER.png
-release/NEXUS_SUPPORT_EMAIL_NACHTRAG.txt
-
-# Proprietary Oodle DLL (fetched at runtime, never redistributable).
-# Deliberately without a .dll suffix so half-finished downloads
-# (oo2core_9_win64.dll.<pid>.part) can never slip into a commit either.
-tools/oo2core*
 .s2tweaker_write_test
 **/.s2tweaker_write_test
 
-# Build artifacts. tools/repak.exe ist seit 05.09.2026 KEIN Repo-Inhalt
-# mehr: ein lokal gebautes Binaerteil trug den Windows-Benutzernamen des
-# Bau-Rechners in sich (Cargo-Pfade). Es entsteht per tools/build_repak.py
-# - reproduzierbar, in der CI vor jedem Bau.
+# Local assistant instructions, conversations and working notes.
+AGENTS.md
+CLAUDE.md
+.agents/
+.claude/
+.codex/
+.codex-remote-attachments/
+HANDOVER.md
+docs/ROADMAP.md
+docs/INGAME_RUNTIME_RESEARCH.md
+TESTPROTOKOLL.md
+release/NEXUS_SUPPORT_EMAIL*.txt
+release/NEXUS_REPLIES.txt
+release/DEFENDER_FALSE_POSITIVE.txt
+release/ZILLYA_FALSE_POSITIVE.txt
+release/SIGNPATH_APPLICATION.txt
+release/ISSUE_6_ANTWORT.txt
+
+# Build artifacts and temporary test files.
 tools/repak.exe
 build/
 build_check/
 dist/
 __pycache__/
 *.spec
-release/*.zip
-
-# Stray test paks
 *.pak
+release/*.zip
+tests/_tmp/
 
-# Screenshots: jederzeit per tools/make_screenshots.py neu erzeugbar
+# Locally generated promotional artwork and private source images.
 release/screenshots/
-tests/_tmp/
-tests/_tmp/
-
-# Interne Arbeitsdokumente: bleiben LOKAL im Ordner, nie auf GitHub.
-# Sie enthalten Rechnernamen, Benutzerpfade, private Notizen und interne
-# Vorgaenge (u. a. die Nexus-Moderation, die der Staff ausdruecklich nicht
-# oeffentlich diskutiert sehen will). Wandern zwischen den Rechnern mit dem
-# Ordner, nicht ueber das Repo.
-HANDOVER.md
-docs/ROADMAP.md
-.claude/
-release/NEXUS_REPLIES.txt
-release/DEFENDER_FALSE_POSITIVE.txt
-release/SIGNPATH_APPLICATION.txt
-release/ISSUE_6_ANTWORT.txt
-
-# Nexus-Icon (Meme-Gesichter, nur lokal; NEXUS_ICON.png jederzeit per tools/make_icon.py neu)
+release/NEXUS_HEADER.png
 release/NEXUS_ICON*.png
 
-# Fremde Mods zum Gegenlesen (nie committen - fremdes Copyright)
+# Third-party mods retained locally for research, never redistributed.
 fremd mods/
 ZoneCheats*.zip

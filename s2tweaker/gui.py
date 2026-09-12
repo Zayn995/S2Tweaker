@@ -1,4 +1,4 @@
-"""S2Tweaker GUI (customtkinter, dunkel, englische Oberflaeche)."""
+"""S2Tweaker GUI: customtkinter, dark theme, English interface."""
 
 from __future__ import annotations
 
@@ -53,33 +53,20 @@ from .tweaks import (
 
 APP_TITLE = f"S2Tweaker {__version__} – S.T.A.L.K.E.R. 2 Mod Generator"
 
-# KEIN Netzwerkcode. Seit 1.19.2 stellt das Programm ueberhaupt keine
-# Verbindung mehr her — auch nicht auf Knopfdruck. Grund: Nexus' eigene
-# Regeln nennen internetfaehige Programme unzulaessig, "unless where it is
-# crucial", und sagen ausdruecklich, dass "'auto update' functionality does
-# not qualify as crucial". Ohne urllib laesst sich das im oeffentlichen
-# Quelltext mit einem einzigen grep nachpruefen — und genau diese
-# Nachpruefbarkeit ist gegenueber Moderation und Virenscannern mehr wert
-# als der Komfort eines Update-Knopfes. Nicht wieder einbauen.
+# The application has no networking code. Downloads and updates are manual.
 
 
 def app_dir() -> Path:
-    """Ordner der EXE (gefroren) bzw. des Projekts (Entwicklung).
+    """Return the portable executable directory, or project root in development.
 
-    Das Tool ist PORTABLE: Einstellungen, Cache und Output liegen alle
-    neben der EXE — Ordner loeschen entfernt alles restlos.
-    """
+    Settings, cache and output are stored there."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
 
 def _asset(*parts: str) -> Path:
-    """Pfad zu einer mitgelieferten Datei (Bilder, Icon).
-
-    Der `assets`-Ordner liegt neben dem Paket: im Repo `assets/`, im
-    ausgelieferten Programmordner `_internal/assets/` (tools/build_exe.py
-    kopiert ihn dorthin). Derselbe Weg in beiden Faellen."""
+    """Locate a bundled asset in assets/ or the portable _internal/assets/ directory."""
     return Path(__file__).resolve().parent.parent / "assets" / Path(*parts)
 
 
@@ -97,31 +84,25 @@ def presets_dir() -> Path:
 
 SETTINGS_FILE = app_dir() / "settings.json"
 
-# Eingebettetes Manifest an der Pak-WURZEL (nicht unter GameData — dort
-# scannt das Spiel nach Configs; an der Wurzel ist die Datei garantiert
-# wirkungslos). Macht jede gebaute Pak zu einem wieder ladbaren Preset.
+# Store the preset manifest at the Pak root, outside the GameData config tree.
 MANIFEST_NAME = "S2Tweaker_Manifest.json"
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 
-# Werkseinstellung JETZT festhalten (nach set_default_color_theme, vor dem
-# ersten Widget): "Default" fuehrt sonst nicht exakt hierher zurueck.
+# Capture factory colors before constructing widgets so Default restores them.
 theme.snapshot()
-# Und sofort das Standard-Design setzen — schwarzer Grund, dunkle Karten.
+# Apply the default dark theme.
 theme._theme_defaults(theme.get(theme.DEFAULT_NAME))
 
-# Farben, die das Design mitzieht. Modul-Globale, weil sie an rund 60
-# Stellen beim BAUEN der Widgets gelesen werden; _set_theme bindet sie neu.
-PANEL = theme.get(theme.DEFAULT_NAME)["panel"]     # Karten
-PANEL2 = theme.get(theme.DEFAULT_NAME)["panel2"]   # zweite Ebene
+# Theme globals are read while constructing widgets and rebound by _set_theme.
+PANEL = theme.get(theme.DEFAULT_NAME)["panel"]     # Maps
+PANEL2 = theme.get(theme.DEFAULT_NAME)["panel2"]   # Second level.
 PANEL2_HOVER = theme.get(theme.DEFAULT_NAME)["panel2_hover"]
-MUTED = theme.get(theme.DEFAULT_NAME)["secondary"]  # Erklaerzeilen
+MUTED = theme.get(theme.DEFAULT_NAME)["secondary"]  # Explanatory lines
 
-# --- Systemfarben: in JEDEM Design gleich (theme.py ist die Quelle) ------
-# Gruen = bereit/erfolgreich, Rot = zerstoerend, Bernstein = Warnung. Ohne
-# diese feste Ebene waere im Duty-Design ein roter "Remove from ~mods" nicht
-# mehr von einem roten Bestaetigen-Knopf zu unterscheiden.
+# Semantic colors stay fixed across themes: green for success, red for
+# destructive actions and amber for warnings. Source: theme.py.
 OK_GREEN = theme.SUCCESS
 OK_GREEN_HOVER = theme.SUCCESS_HOVER
 BAD_RED = theme.DANGER
@@ -134,34 +115,24 @@ ATTENTION_HOVER = theme.ATTENTION_HOVER
 ATTENTION_BORDER = theme.ATTENTION_BORDER
 SYS_BORDER = theme.SYSTEM_BORDER_WIDTH
 
-# Grundschrift eine Stufe groesser (Besitzer 06.09.: "Schrift allgemein ein
-# wenig groesser"). Muss VOR dem ersten Widget stehen: CTkFont() liest die
-# Groesse beim Erzeugen aus dem Thema.
-ctk.ThemeManager.theme["CTkFont"]["size"] = 14   # war 13
-# Die ausdruecklich gesetzten Groessen im Rest der Datei (Erklaerungszeilen,
-# Baum-Zeilen, Ueberschriften) wurden im selben Zug um genau 1 angehoben,
-# damit das Groessenverhaeltnis untereinander gleich bleibt.
+# Set the base font before constructing widgets; CTkFont reads it at creation.
+ctk.ThemeManager.theme["CTkFont"]["size"] = 14   # Reduced from the previous size of 13.
+# Explicit widget font sizes follow the same relative size scale.
 
 PAD = {"padx": 12, "pady": 3}
 
-# Akzent des aktiven Designs: Suchtreffer, Override-Marker im Waffenbaum,
-# "Changed only". WARNUNGEN benutzen ihn NICHT mehr — die haben mit
-# WARN_AMBER ihre eigene, feste Farbe, damit eine Warnung in jedem Design
-# als Warnung erkennbar bleibt.
+# Use the theme accent for search hits and overrides.
+# Warnings use fixed WARN_AMBER so their meaning survives theme changes.
 ACCENT = theme.DEFAULT_ACCENT
 
-# Mod-Scan-Markierungen: bewusst WEDER rot (Gefahr/Remove-Knopf) NOCH das
-# Bernstein der Warnhinweise und Suchtreffer — beides hat schon eine
-# Bedeutung. Blau = reine Information, Violett = Warnstufe.
-MARK_INFO = "#5da8dc"   # fremde Mod aendert den Wert, Regler steht auf (vanilla)
-MARK_WARN = "#b07fe0"   # fremde Mod aendert den Wert UND der Regler ist verstellt
+# Mod-scan markers: blue for information, violet for conflicts.
+# Keep them distinct from destructive actions and general warnings.
+MARK_INFO = "#5da8dc"   # Another mod changes this value; the control is at vanilla.
+MARK_WARN = "#b07fe0"   # Another mod changes this value and the control is adjusted.
 
-# --- Fraktionsbeziehungen (Tab "Factions") -------------------------------
-# Kuratierte Haupt-Fraktionen: (cfg-SID, englischer PDA-Anzeigename).
-# Story-/Boss-/Arena-Fraktionen bleiben bewusst draussen
-# (docs/FACTION_RELATIONS_RESEARCH.md, Abschnitt WARNUNGEN). "Mutant"
-# ist die Schirm-Fraktion aller Mutanten und steht als letzte, damit
-# jeder Fraktions-Block seine "vs. Mutants"-Zeile bekommt.
+# Main faction SIDs and English PDA names; exclude story, boss and arena
+# factions. Mutant is last so each block gets a vs. Mutants row.
+# See docs/FACTION_RELATIONS_RESEARCH.md.
 FACTION_CHOICES = [
     ("Neutrals", "Loners"),
     ("Bandits", "Bandits"),
@@ -180,10 +151,9 @@ FACTION_CHOICES = [
 
 
 def relation_level(value: float) -> str:
-    """Kurzer Levelname zur Zahl (RelationLevelRanges der Spieldaten:
-    <= -800 Enemy, -799..-201 Disaffection, -200..200 Neutral, ab 201
-    Friend). "wary" statt "Disaffection", damit es neben den Slider passt;
-    der Sektions-Hinweis nennt den offiziellen Begriff."""
+    """Return a compact relation-level label.
+
+    Use wary for Disaffection; the section description gives the official term."""
     v = int(round(value))
     if v <= -800:
         return "enemy"
@@ -198,8 +168,7 @@ def fmt_relation(value: float) -> str:
     return f"{int(round(value))} · {relation_level(value)}"
 
 
-# Anzeigenamen (Waffen + Ruestungen): s2tweaker/names.py — verifizierte
-# Community-Masterliste des Besitzers (02.09.). Reine UI-/Suchhilfe.
+# Weapon/armor display names from names.py are used only for UI and search.
 from .names import WEAPON_ALIASES
 
 
@@ -209,19 +178,19 @@ def weapon_display(sid: str) -> str:
 
 
 def weapon_sid_hit(sid: str, query: str) -> bool:
-    """Suchtreffer auf SID ODER Anzeigenamen (AKM-74S, Riemann & Co.)."""
+    """Match either a SID or its display name."""
     return (query in sid.lower()
             or query in WEAPON_ALIASES.get(sid, "").lower())
 
 
 def fmt_trade_level(value: float) -> str:
-    """Handels-Schwelle als Levelname (0..3; Vanilla = Disaffected)."""
+    """Trading threshold as a level name (0..3; vanilla = Disaffected)."""
     level = max(0, min(3, int(round(value))))
     return ("Enemy", "Disaffected", "Neutral", "Friend")[level]
 
 
-# --- Mutanten-Tab: Arten-Baum --------------------------------------------
-MUT_PARAM_LABELS = {  # Reihenfolge = Regler-Reihenfolge je Art
+# --- Mutants tab: species tree --------------------------------------------
+MUT_PARAM_LABELS = {  # Order matches the sliders for each species.
     "hp": "Health",
     "speed": "Speed",
     "damage": "Damage (each attack)",
@@ -229,9 +198,7 @@ MUT_PARAM_LABELS = {  # Reihenfolge = Regler-Reihenfolge je Art
     "protection": "Physical protection",
 }
 
-# Reine ANZEIGE-Gruppierung (nach Groesse/Charakter, keine Spielwerte);
-# Arten, die hier nicht stehen (kuenftige Spiel-Patches, "Mutant"-Generika),
-# landen automatisch im Block "Other species".
+# Display-only species grouping; unknown species go to Other species.
 MUT_GROUPS = [
     ("small", "Small critters",
      ["Rat", "Tushkan", "Blinddog", "MoldyBlinddog", "Bayun"]),
@@ -257,10 +224,7 @@ def mutant_species_label(species: str) -> str:
 
 
 class FaqRow:
-    """Eine Frage im FAQ-Fenster: Frage-Knopf, Antwort klappt auf.
-
-    Die Suche laeuft ueber q + a + die unsichtbaren Schlagworte (k) aus
-    faq.py — so findet "health pack" auch den Consumable-Regler."""
+    """Expandable FAQ question, searchable through question, answer and keywords."""
 
     def __init__(self, parent, entry: dict, font_q, font_a):
         self.entry = entry
@@ -294,10 +258,9 @@ class FaqRow:
 
 
 class HoverTip:
-    """Minimaler Hover-Tooltip (fuer die Scan-Punkte an Reglern/Checkboxen).
+    """Hover tooltip for conflict markers.
 
-    text_fn wird erst beim Zeigen ausgewertet — der Text eines Punkts
-    aendert sich mit dem Reglerzustand (Info- vs. Warnstufe)."""
+    Evaluate text_fn when shown because marker severity follows the current value."""
 
     def __init__(self, widget, text_fn):
         self.widget = widget
@@ -324,39 +287,33 @@ class HoverTip:
             self.tip = None
 
 
-# Schrittweiten, die auf einer Skala "rund" aussehen: 1, 2, 2.5 und 5 mal
-# einer Zehnerpotenz. In 1/10000-Einheiten, damit alles ganzzahlig bleibt.
+# Preferred step sizes: 1, 2, 2.5 and 5 times powers of ten.
+# Use units of 1/10000 for integer arithmetic.
 _NICE_STEPS = sorted(m * 10 ** e for e in range(0, 10)
                      for m in (1, 2, 25, 5) if m * 10 ** e <= 10 ** 9)
 
 
 def grid_steps(lo: float, hi: float, default: float, step: float) -> int:
-    """Anzahl Rasten fuer die Schiene — so, dass der VANILLA-WERT auf einer
-    Raste liegt.
+    """Choose slider steps that land exactly on the vanilla value.
 
-    customtkinter kennt keine Schrittweite, sondern nur eine Anzahl Rasten:
-    es rastet auf lo + k*(hi-lo)/n. Geht (hi-lo)/Schritt nicht glatt auf,
-    liegt der Vanilla-Wert zwischen zwei Rasten und ist mit der Maus nicht
-    mehr einstellbar — ein neu gestartetes Werkzeug wuerde dann schon ohne
-    Zutun des Benutzers patchen (gemessen 06.09.: 74 von 376 Reglern).
-    Darum wird der gewuenschte Schritt hier auf den naechstkleineren
-    verkleinert, der sowohl in die Spanne als auch genau auf den
-    Vanilla-Wert passt; runde Schritte (0.05, 5, 10 ...) haben Vorrang."""
+    CTkSlider uses lo + k*(hi-lo)/n. Reduce the requested step until both the
+    range and vanilla offset fit, preferring round increments. Otherwise an
+    untouched slider could emit a patch after snapping off its default."""
     span = hi - lo
     if span <= 0 or step <= 0:
         return 1
-    unit = 10000                      # Rechnen in 1/10000, alles ganzzahlig
+    unit = 10000                      # Calculate in integer units of 1/10000.
     span_i = int(round(span * unit))
     off_i = int(round((default - lo) * unit))
     if span_i <= 0:
         return 1
-    # Groesster Schritt, der Spanne UND Vanilla-Wert trifft
+    # Largest step dividing both the range and vanilla offset.
     base = span_i if off_i <= 0 or off_i >= span_i else math.gcd(span_i, off_i)
     want = max(1, int(round(step * unit)))
     fits = [d for d in _NICE_STEPS if d <= want and base % d == 0]
     if fits:
         return max(1, span_i // fits[-1])
-    # Kein runder Teiler: den groessten beliebigen Teiler <= want nehmen
+    # No rounded divisor: use the largest available divisor <= want.
     for k in range(max(1, -(-base // want)), base + 1):
         if base % k == 0:
             return max(1, span_i // (base // k))
@@ -364,25 +321,14 @@ def grid_steps(lo: float, hi: float, default: float, step: float) -> int:
 
 
 class SliderRow:
-    """Label + Slider + Zahlenfeld + Wertanzeige + Reset auf Vanilla.
+    """Labeled slider with numeric entry, value display and vanilla reset.
 
-    Der Wert wird SELBST gehalten (`self._value`), nicht aus der Schiene
-    gelesen. Nur so kann das Zahlenfeld Werte zwischen zwei Rasten
-    annehmen ("custom Zahlen") und der Vanilla-Wert exakt getroffen werden.
-    Die Schiene zeigt dann die naechstgelegene Raste — der gemeldete Wert
-    bleibt der eingetippte."""
+    self._value is authoritative: typed values can lie between visual steps.
+    The rail shows the nearest step without changing the entered value."""
 
-    # Scrollrad-Schalter (Besitzer 06.09.: "scrollen im Menue ohne
-    # ausversehen slider verschieben"). customtkinter haengt das Mausrad an
-    # die Schiene SELBST; das Blaettern der Seite kommt dagegen aus einer
-    # bind_all-Bindung des Scroll-Rahmens. Loesen wir also nur die Bindung
-    # der Schiene, bleibt das Blaettern erhalten und nur das versehentliche
-    # Verstellen hoert auf. Klassenweit, damit auch die erst spaeter
-    # aufgeklappten Baum-Regler (Waffen, Munition ...) sofort mitziehen.
-    # Startwert False: beim ersten Start blaettert das Rad NUR, es verstellt
-    # keinen Regler (Besitzer 06.09., Praezisierung: "das mousewheel soll
-    # beim ersten start automatisch keine slider verschieben und rot sein.
-    # Wenn man es aktiviert geht beides scrollen und slider moven").
+    # Mouse-wheel slider adjustment is off by default and shared across rows.
+    # Unbind only the rail handler so page scrolling remains available; newly
+    # expanded rows inherit the current mode.
     _wheel_enabled = False
     _instances: "weakref.WeakSet" = weakref.WeakSet()
 
@@ -393,7 +339,7 @@ class SliderRow:
             try:
                 row._apply_wheel()
             except Exception:
-                pass          # Zeile schon zerstoert (Baum wieder zugeklappt)
+                pass          # Row already destroyed when the tree collapsed.
 
     def _apply_wheel(self) -> None:
         canvas = self.slider._canvas
@@ -403,7 +349,7 @@ class SliderRow:
             canvas.bind(seq, handler)
 
     def _scroll_frame(self):
-        """Der scrollbare Rahmen, in dem diese Zeile liegt (einmal gesucht)."""
+        """Find and cache the scrollable frame containing this row."""
         if self._scroller is None:
             widget = self.row
             while widget is not None:
@@ -414,14 +360,9 @@ class SliderRow:
         return self._scroller
 
     def _wheel_scrolls_page(self, event):
-        """Rad ueber einem Regler bei ausgeschaltetem Schalter: die SEITE
-        bewegen statt des Reglers.
+        """Scroll the page when wheel adjustment is disabled.
 
-        Das muss von Hand sein: customtkinter laesst ueber einem CTkSlider
-        gar nicht blaettern (`_check_if_valid_scroll` liefert fuer alles
-        unterhalb eines Reglers False, weil dort normalerweise der Regler
-        das Rad bekommt). Ohne diese Zeilen taete das Rad ueber einem
-        Regler nach dem Loesen der Bindung schlicht NICHTS."""
+        CTkSlider blocks normal parent scrolling, so forward the wheel explicitly."""
         frame = self._scroll_frame()
         if frame is None:
             return "break"
@@ -443,35 +384,29 @@ class SliderRow:
         self._hint_parent = parent
         self._hint_text = tooltip
         self._value = float(default)
-        # Wertebereich in WERT-Einheiten (auch im Log-Modus); get()/set()
-        # sprechen immer Werte, nur die Schiene rechnet intern in log10.
+        # get()/set() always use value units; only the rail uses log10 in log mode.
         self.lo, self.hi = float(from_), float(to)
         self.log = bool(log)
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", **PAD)
         self.row = row
-        self.conflict_mods: list[str] = []   # Mod-Scan: wer aendert das auch?
+        self.conflict_mods: list[str] = []   # Mods affecting the same setting.
         self.conflict_after: set[str] = set()
-        self.conflict_unknown: set[str] = set()  # Workshop: Reihenfolge unklar
-        self.locked = False                  # Avoid-conflicts-Sperre
+        self.conflict_unknown: set[str] = set()  # Workshop: load order unknown
+        self.locked = False                  # Avoid-conflicts lock.
         self._on_unlock = None
         self._base_state = "normal"
-        self._typing = False                 # Zahlenfeld hat gerade den Fokus
-        self._scroller = None                # scrollbarer Rahmen (lazy)
+        self._typing = False                 # Numeric entry currently has focus.
+        self._scroller = None                # Scrollable frame, created lazily.
         self.dot: ctk.CTkLabel | None = None
         self._dot_tip = ""
-        # wraplength: ohne das schnitt der laengste Reglername ("Handling
-        # upgrades (aim time, ADS move, sway, draw, recovery, capacity)")
-        # bei 260 px einfach ab. Jetzt bricht er in eine zweite Zeile um.
+        # Wrap long control names instead of clipping them.
         self.label = ctk.CTkLabel(row, text=label, width=220, anchor="w",
                                   justify="left", wraplength=215)
         self.label.pack(side="left")
         if self.log:
-            # Logarithmische Schiene (GitHub #4 "Higher health value"): feine
-            # Schritte nahe Vanilla, oben bis 100000. Bewusst OHNE
-            # number_of_steps: CTkSlider.set() rastet sonst auf Log-Schritte
-            # und aus set(250) wuerde 251 - get() rundet stattdessen auf
-            # 3 signifikante Stellen.
+            # Continuous logarithmic rail: discrete log steps would alter typed values.
+            # Round displayed/read values to three significant figures instead.
             self.slider = ctk.CTkSlider(
                 row, from_=math.log10(self.lo), to=math.log10(self.hi),
                 command=self._on_rail
@@ -483,9 +418,7 @@ class SliderRow:
                 row, from_=from_, to=to, number_of_steps=steps, command=self._on_rail
             )
             grid = (self.hi - self.lo) / steps
-        # Kennt die Schiene nur ganze Zahlen (Sekunden, Slots, Prozent),
-        # dann rundet auch das Zahlenfeld — sonst stuende dort 3,7, waehrend
-        # die Anzeige daneben "4" meldet.
+        # Integer controls also round numeric-entry values to match their display.
         self._whole = (grid >= 1.0 and float(grid).is_integer()
                        and all(float(v).is_integer()
                                for v in (self.lo, self.hi, default)))
@@ -495,9 +428,7 @@ class SliderRow:
         self.value_label = tk.Label(row, text="", width=17, anchor="e",
                                     borderwidth=0, highlightthickness=0, padx=0, pady=0)
         self.value_label.pack(side="left")
-        # Zahlenfeld fuer eigene Werte (Besitzer 06.09.: "boxen hinter den
-        # slidern um custom zahlen einzugeben"). Komma und Punkt gelten
-        # beide als Dezimaltrenner.
+        # Custom numeric entry accepts both comma and period decimal separators.
         self.entry = ctk.CTkEntry(row, width=62, justify="right")
         self.entry.pack(side="left", padx=(6, 0))
         self.entry.bind("<FocusIn>", self._entry_focus)
@@ -535,11 +466,11 @@ class SliderRow:
             font=self.label._apply_font_scaling(self.label.cget("font")))
 
     def _on_rail(self, _=None):
-        """Die Schiene wurde gezogen — ihr Rastwert ist jetzt der Wert."""
+        """Update the stored value from the dragged slider rail."""
         if self.log:
             value = 10.0 ** float(self.slider.get())
             mag = 10.0 ** math.floor(math.log10(max(value, 1e-9)))
-            value = round(value / mag * 100.0) / 100.0 * mag   # 3 signifikante Stellen
+            value = round(value / mag * 100.0) / 100.0 * mag   # Three significant digits.
         else:
             value = float(self.slider.get())
         self._value = round(min(self.hi, max(self.lo, value)), 4)
@@ -557,7 +488,7 @@ class SliderRow:
         if self.on_change is not None:
             self.on_change()
 
-    # ------------------------------------------------------- Zahlenfeld
+    # ------------------------------------------------------- Numeric entry
     def _entry_focus(self, _=None):
         self._typing = True
 
@@ -566,16 +497,14 @@ class SliderRow:
         self._entry_show()
 
     def _entry_show(self, _=None):
-        """Feld auf den aktuellen Wert setzen — nicht waehrend des Tippens,
-        sonst wird die Eingabe unter den Fingern ersetzt."""
+        """Refresh the entry unless the user is currently typing."""
         if self._typing:
             return
         text = f"{self.get():g}"
         if self.entry.get() == text:
             return
-        # Ein gesperrtes Feld nimmt weder delete noch insert an; sonst
-        # stuende dort eine veraltete Zahl, sobald Presets oder gespeicherte
-        # Einstellungen geladen werden, bevor die Spieldaten da sind.
+        # Temporarily enable the entry while refreshing it, including before game
+        # loading, so presets cannot leave a stale displayed value.
         state = str(self.entry.cget("state"))
         if state != "normal":
             self.entry.configure(state="normal")
@@ -585,9 +514,7 @@ class SliderRow:
             self.entry.configure(state=state)
 
     def _entry_apply(self, _=None):
-        """Eingetippte Zahl uebernehmen. Komma und Punkt gelten beide als
-        Dezimaltrenner; Unsinn und Werte ausserhalb der Spanne fallen auf
-        den erlaubten Bereich zurueck."""
+        """Commit numeric input, accepting comma/period decimals and enforcing bounds."""
         self._typing = False
         raw = self.entry.get().strip().replace(",", ".").replace("%", "")
         raw = raw.replace("×", "").replace("x", "").strip()
@@ -596,13 +523,12 @@ class SliderRow:
         except ValueError:
             self._entry_show()
             return
-        self.set(value)          # set() rundet ganzzahlige Raster selbst
+        self.set(value)          # set() rounds integer grids itself.
 
     def _snap(self, value: float) -> float:
-        """Ganzzahlige Raster (Stunden, Sekunden, Slots, Prozent) kennen
-        keine halben Werte — egal ob sie aus dem Zahlenfeld, aus einem
-        Preset oder aus einem Test kommen. Bewusst kaufmaennisch aufrunden
-        statt mit Pythons round(), das aus 22,5 eine 22 machen wuerde."""
+        """Round integer controls half-up, including entries and preset values.
+
+        Python's round() would round 22.5 to 22 instead."""
         return math.floor(value + 0.5) if self._whole else value
 
     def get(self) -> float:
@@ -621,16 +547,14 @@ class SliderRow:
         self.set(self.default)
 
     def set_state(self, state: str):
-        # Basiszustand merken: eine Avoid-Sperre haelt den Regler auch dann
-        # deaktiviert, wenn die GUI insgesamt wieder freigeschaltet wird.
+        # Keep conflict locks active when the rest of the GUI is re-enabled.
         self._base_state = state
         self.slider.configure(state="disabled" if self.locked else state)
         self.entry.configure(state="disabled" if self.locked else state)
         self.reset_btn.configure(state=state)
 
     def set_locked(self, locked: bool, on_unlock=None):
-        """Avoid-conflicts-Sperre: Regler deaktiviert, der Reset-Knopf wird
-        zum Entsperr-Knopf (bewusstes Freischalten je Regler)."""
+        """Lock a conflicting control and turn its reset button into an explicit unlock."""
         if locked == self.locked:
             self._on_unlock = on_unlock or self._on_unlock
             return
@@ -653,7 +577,7 @@ class SliderRow:
             self._on_unlock()
 
     def set_highlight(self, mode: str):
-        """Suchfilter: 'match' = hervorheben, 'dim' = abdunkeln."""
+        """Search filter: 'match' highlights, 'dim' dims the row."""
         if mode == "match":
             color = ACCENT
         elif mode == "dim":
@@ -662,19 +586,13 @@ class SliderRow:
             color = self._orig_color
         self.label.configure(text_color=color)
 
-    # ------------------------------------------------- Mod-Scan-Markierung
+    # ------------------------------------------------- Mod-scan markings
     def set_conflict(self, mods, loads_after=(), order_unknown=()):
-        """Farbpunkt "eine andere Mod aendert das auch" setzen/entfernen.
+        """Set or clear the marker for other mods affecting this setting.
 
-        loads_after: Teilmenge der Mods, deren Pak ALPHABETISCH nach der
-        eigenen Ausgabe-Pak laedt — dort gewinnt im Konfliktfall die fremde
-        Mod, und der Tooltip darf nicht "your value wins" behaupten.
-        order_unknown: Steam-Workshop-Mods — deren Ladereihenfolge regelt
-        das Spiel selbst, "your value wins" waere dort geraten.
-
-        Der Punkt haengt NICHT am Reglerwert: "Reset all to vanilla" laesst
-        ihn absichtlich stehen (die fremde Mod ist ja weiterhin installiert)
-        — nur seine Stufe wechselt dann von Warnung auf Information."""
+        loads_after identifies Paks ordered after this output; order_unknown covers
+        Workshop mods. Neither supports claiming this tool's value wins.
+        Resetting to vanilla retains the marker but reduces it to information."""
         self.conflict_mods = sorted(mods or [])
         self.conflict_after = set(loads_after) & set(self.conflict_mods)
         self.conflict_unknown = set(order_unknown) & set(self.conflict_mods)
@@ -769,10 +687,8 @@ def fmt_dec(v: float) -> str:
     return f"{v:g}"
 
 
-# Regler-Bereich je Kaskaden-Parameter (Besitzer 06.09.: "haltbarkeit bis
-# maximal 4? lieber bis minimum 10"). Untergrenze bleibt bei den invertierten
-# Parametern (firerate, aimtime) ueber 0 - der Builder ueberspringt dort
-# Faktor 0, ein Regler mit 0 waere ein Blindgaenger.
+# Cascade parameter ranges. Inverted parameters require a positive minimum
+# because their builders cannot apply a zero factor.
 WEAPON_PARAM_RANGE = {
     "damage": (0.1, 10.0),
     "spread": (0.1, 4.0),
@@ -791,12 +707,8 @@ def weapon_param_range(param: str) -> tuple[float, float]:
     return WEAPON_PARAM_RANGE.get(param, (0.25, 4.0))
 
 
-# ------------------------------------------------------------------ Mod-Scan
-# Zuordnung GUI-Schluessel -> Settings-Feld. Wird NUR vom Mod-Scan benutzt,
-# um den Fussabdruck EINES Reglers zu bestimmen (build_patches mit genau
-# einem verstellten Wert -> welche (Struct, Blatt)-Paare entstehen?).
-# Der Release-GUI-Test prueft die Vollstaendigkeit gegen app.sliders —
-# ein neuer Regler ohne Eintrag hier faellt dort auf, nicht erst auf Nexus.
+# Map GUI keys to Settings fields for single-control patch-footprint probes.
+# The GUI coverage check detects controls missing from this map.
 SLIDER_FIELDS: dict[str, str] = {
     "hp": "max_hp", "hp_regen": "hp_regen", "sp": "max_stamina",
     "sp_regen": "stamina_regen", "fall": "fall_damage_pct",
@@ -913,27 +825,27 @@ SLIDER_FIELDS: dict[str, str] = {
     "sync_melee": "sync_melee_factor", "sync_ability": "sync_ability_factor",
     "sync_grenade": "sync_grenade_factor", "sync_suppress": "sync_suppress_factor",
     "darkness": "darkness_factor", "corpse_threat": "corpse_threat_factor",
-    # 1.28.0 (Kern-Sweep P1)
+    # 1.28.0 (core controls P1)
     "limp_threshold": "limp_threshold_factor", "bleed_hit": "bleeding_hit_factor",
     "bleed_nonpen": "bleeding_nonpen_factor", "damage_screen": "damage_screen_factor",
     "quicksave_min": "quicksave_overwrite_min",
-    # 1.28.0 (Kern-Sweep P2)
+    # 1.28.0 (core controls P2)
     "grenade_resist": "grenade_resist_factor", "armor_wear": "armor_wear_coef",
     "anomaly_armor_diff": "anomaly_armor_difference_factor",
-    # 1.28.0 (Kern-Sweep P3)
+    # 1.28.0 (core controls P3)
     "wounded_chance": "wounded_heal_chance", "wounded_cd": "wounded_cooldown_s",
     "wounded_regen": "wounded_regen_factor", "wounded_threshold": "wounded_heal_threshold",
     "npc_focus": "npc_player_focus_factor", "npc_retarget": "npc_retarget_cooldown_factor",
     "npc_dmg_memory": "npc_damage_memory_factor",
     "cover_distance": "cover_distance_factor", "cover_path": "cover_path_factor",
-    # 1.28.0 (Kern-Sweep P4)
+    # 1.28.0 (core controls P4)
     "mut_smell": "mutant_smell_factor", "burer_fire": "burer_fire_interval_factor",
-    # 1.28.0 (Kern-Sweep P5)
+    # 1.28.0 (core controls P5)
     "squad_expansion": "squad_expansion_factor", "refill_cd": "refill_cooldown_factor",
     "refill_dist": "refill_distance_factor", "corpse_budget": "corpse_budget",
     "faction_battle": "faction_battle_chance", "faction_pace": "faction_expansion_pace_factor",
     "corpse_distance": "corpse_distance_factor", "corpse_hardcap": "alife_corpse_hardcap",
-    # 1.28.0 (Kern-Sweep P6)
+    # 1.28.0 (core controls P6)
     "rad_dose": "radiation_dose_factor", "rad_filter": "radiation_filter_factor",
     "geiger": "geiger_volume_factor", "barbed_wire": "barbed_wire_factor",
     "exp_containers": "explosive_container_factor", "push_force": "push_force_factor",
@@ -943,10 +855,10 @@ SLIDER_FIELDS: dict[str, str] = {
     "cloud_speed": "cloud_speed_factor", "dusk_length": "dusk_length_factor",
     "music_threshold": "music_combat_threshold", "music_lifetime": "music_combat_lifetime",
     "camp_life": "camp_life_factor",
-    # 1.28.0 (Kern-Sweep P7)
+    # 1.28.0 (core controls P7)
     "art_radius": "artifact_radius_factor", "art_keepaway": "artifact_keepaway_factor",
     "art_hop_pause": "artifact_hop_pause_factor",
-    # 1.35.0: kleine Kandidaten (Familien-Waechter + neunte Recherche)
+    # Additional verified controls.
     "art_hop_dist": "artifact_hop_distance_factor",
     "art_hop_count": "artifact_hop_count_factor",
     "npc_vs_player": "npc_vs_player_damage_factor",
@@ -955,7 +867,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "look_h": "look_speed_h_factor", "look_v": "look_speed_v_factor",
     "cam_slowdown": "camera_slowdown_factor",
     "loot_reroll": "loot_reroll_radius_factor", "loot_reroll_time": "loot_reroll_timer_factor",
-    # 1.28.0 (Kern-Sweep P8)
+    # 1.28.0 (core controls P8)
     "infotopic": "infotopic_refresh_hours",
     "ammo_dmg": "ammo_damage_factor",
     "ammo_ap": "ammo_piercing_factor", "ammo_ad": "ammo_armor_damage_factor",
@@ -991,7 +903,7 @@ SLIDER_FIELDS: dict[str, str] = {
     "ammo_recoil": "ammo_recoil_factor",
     "ammo_flat": "ammo_flatness_factor",
     "ammo_wear": "ammo_wear_factor",
-    # 1.33.0 (neunte Datenrecherche, 27 fremde Mods gegengelesen)
+    # Additional controls from the mod comparison.
     "ammo_disp": "ammo_dispersion_factor",
     "ammo_aimdisp": "ammo_aim_dispersion_factor",
     "anom_wear": "anomaly_wear_factor",
@@ -1067,17 +979,16 @@ CHECK_FIELDS: dict[str, str] = {
     "no_view_accel": "no_view_acceleration",
     "art_no_detector": "artifacts_no_detector",
     "npc_no_pickup": "npcs_no_weapon_pickup",
-    # 1.28.0 (Kern-Sweep P1)
+    # 1.28.0 (core controls P1)
     "no_limp": "no_landing_limp", "flashlight_dialog": "flashlight_dialog_bright",
-    # 1.28.0 (Kern-Sweep P4)
+    # 1.28.0 (core controls P4)
     "mut_no_smell": "mutants_no_smell", "mut_loot_widget": "mutant_loot_widget",
-    # 1.28.0 (Kern-Sweep P7)
+    # 1.28.0 (core controls P7)
     "art_no_hop": "artifacts_no_hop", "art_caches": "artifact_caches_drop",
-    # 1.28.0 (Kern-Sweep P8)
+    # 1.28.0 (core controls P8)
     "repair_no_rep": "repair_cost_reputation",
-    # 1.31.0 (GitHub Issue #8): rq_jobs_instant (Pin-Schalter) stand hier
-    # bis 1.35.0 - zurueckgezogen, er kann laut Quest-Graph nichts bewirken.
-    # rq_jobs_multi ist seit 09.09.2026 der dritte Entwurf (nur {bpatch}).
+    # The ineffective instant-job pin toggle was withdrawn; simultaneous jobs
+    # use the quest-graph repair.
     "rq_jobs_multi": "repeatable_jobs_multi",
     "stat_bars": "stat_bars_follow",
     "art_stat_labels": "artifact_stat_labels_follow",
@@ -1087,7 +998,7 @@ CHECK_FIELDS: dict[str, str] = {
 SLIDER_FIELDS.update({key: key for key in extension_controls.SLIDERS})
 CHECK_FIELDS.update({key: key for key in extension_controls.CHECKS})
 
-# Sonderwerte, wo "Default x 2" keinen (sinnvollen) Patch ergaebe.
+# Special values where default x2 would not produce a meaningful patch.
 FOOTPRINT_PROBES: dict[str, float] = {
     "dialog_max_range_factor": 2.0,  # Extension-only control: factors below 1 are invalid.
     "fall_damage_pct": 50.0,
@@ -1100,20 +1011,15 @@ FOOTPRINT_PROBES: dict[str, float] = {
     "trader_min_durability_pct": 0.0,
     "hud_compass": 2.0, "hud_crosshair": 2.0, "hud_body_markers": 2.0,
     "hud_stash_markers": 2.0, "pistol_slot_level": 3.0,
-    "armor_wear_coef": 0.5,          # Absolutwert 0..1 (Vanilla 0.7): x2 waere nur der Deckel
-    "wounded_heal_chance": 50.0, "wounded_cooldown_s": 600.0,   # Absolutwerte (P3)
+    "armor_wear_coef": 0.5,          # Absolute 0..1 value; multiplying an already high baseline could hit the cap.
+    "wounded_heal_chance": 50.0, "wounded_cooldown_s": 600.0,   # Absolute values (P3)
     "wounded_heal_threshold": 50.0,
-    "corpse_budget": 60.0, "faction_battle_chance": 80.0,          # Absolutwerte (P5)
+    "corpse_budget": 60.0, "faction_battle_chance": 80.0,          # Absolute values (P5)
     "alife_corpse_hardcap": 3000.0,
 }
 
-# Teure Fussabdruecke: nur berechnen, wenn die gescannten Mods plausibel
-# etwas Passendes anfassen — loot_amount parst sonst grundlos die
-# 9,3-MB-Datei, npc_no_heal geht ueber 1.601 NPC-Prototypen. Zwei billige
-# Ausloeser je Schluessel: der Basis-Dateiname taucht in einem Pfadsegment
-# auf ODER eines der typischen Blattfelder in den gescannten Paaren —
-# {bpatch}-Dateien duerfen naemlich unter voellig freiem Namen irgendwo
-# unter GameData liegen, der Dateiname allein reicht nachweislich nicht.
+# Compute expensive footprints only when scanned paths or leaf names suggest
+# a match. Check both: bpatch files can have arbitrary filenames.
 EXPENSIVE_FOOTPRINTS: dict[str, tuple[str, frozenset]] = {
     "rq_cooldown": ("QuestNodePrototypes",
                     frozenset({"InGameHours"})),
@@ -1167,17 +1073,11 @@ for _key in ("stash_extra_chance_pct", "check:stash_extra_artifacts", "check:sta
 
 
 def footprint_settings(key: str) -> list[Settings] | None:
-    """Settings-Sonden mit GENAU EINEM verstellten Regler (Fussabdruck).
+    """Yield probes changing exactly one control to determine its footprint.
 
-    Liefert bis zu ZWEI Sonden (Default x2 UND x0.5): Builder mit Deckel
-    oder Boden emittieren sonst nur die halbe Wahrheit — bei x2 fehlen z.B.
-    alle Fundchancen, die in Vanilla schon auf 1.0 stehen (nachgewiesen:
-    9 von 19 Stash-Prototypen), bei x0.5 die Werte am unteren Anschlag.
-    Der Fussabdruck ist die VEREINIGUNG beider Sonden.
-
-    None = Schluessel bewusst nicht markierbar: die wcat_-Kategorie- und die
-    Baum-Regler (Waffen/Munition/Mutanten) laufen ueber die globalen Regler
-    mit — deren Fussabdruck deckt dieselben Dateien ab."""
+    Union upward and downward probes because caps/floors can hide affected
+    fields in one direction. Return None for controls covered by another
+    footprint, including weapon-category and per-item trees."""
     dict_kwargs = extension_controls.dict_probe(key)
     if dict_kwargs is not None:
         return [Settings(**dict_kwargs)]
@@ -1185,26 +1085,15 @@ def footprint_settings(key: str) -> list[Settings] | None:
         field_name = CHECK_FIELDS.get(key[len("check:"):])
         if field_name is None:
             return None
-        # stat_bars_follow SPIEGELT nur, was andere Regler tun: ohne
-        # verstellten Schaden/Reichweite/Feuerrate schreibt es gar
-        # nichts, der Fussabdruck waere leer. Eine Sonde mit Partner-
-        # Regler wuerde stattdessen dessen Blaetter erben und bei jeder
-        # fremden Reichweiten-Mod falschen Alarm schlagen. Also wie
-        # npc_gear und die Baum-Regler: bewusst nicht markierbar - die
-        # Waffenregler, denen es folgt, sind es ja.
+        # Stat-bar synchronization emits only alongside weapon changes.
+        # A companion probe would incorrectly attribute those weapon fields to it.
         if field_name in ("stat_bars_follow", "artifact_stat_labels_follow"):
             return None
-        # 1.35.0: die zwei Maus-Schalter schreiben ueberhaupt keine
-        # GameData-Datei, sondern Stalker2/Config/UserInput.ini. Der
-        # Scan vergleicht cfg-Blaetter - hier gibt es nichts zu
-        # vergleichen, der Fussabdruck waere leer.
+        # Mouse toggles write UserInput.ini, outside the cfg-leaf conflict scan.
         if field_name in ("no_mouse_smoothing", "no_view_acceleration"):
             return None
-        # 1.36.0: der Laufzeit-Schalter der Fraktionsbeziehungen wirkt nur
-        # ZUSAMMEN mit verstellten Paaren - allein schreibt er nichts. Eine
-        # Sonde mit einem Paar wuerde die Blaetter des Beziehungs-Baums
-        # erben und bei jeder fremden Fraktions-Mod falschen Alarm
-        # schlagen; die Paare selbst hat der Scan ueber `tree:factions`.
+        # Runtime faction updates require changed pairs; use tree:factions for
+        # conflict coverage rather than borrowing a pair's footprint.
         if field_name == "relations_runtime":
             return None
         return [Settings(**{field_name: True})]
@@ -1220,7 +1109,7 @@ def footprint_settings(key: str) -> list[Settings] | None:
         probes = [1.0]
     extra = {}
     if field_name == "item_weight_factor":
-        # Der Gewichts-Builder patcht nur die angehakten Kategorien
+        # Weight patches apply only to selected categories.
         extra["item_weight_categories"] = set(ALL_CATEGORIES)
     if field_name == "stash_extra_chance_pct":
         extra["stash_extra_artifacts"] = True
@@ -1230,32 +1119,28 @@ def footprint_settings(key: str) -> list[Settings] | None:
 
 
 class IwWeaponRow:
-    """Aufklappbare Zeile EINER Waffe im Overrides-Baum.
+    """Lazily built expandable weapon row.
 
-    Die Regler entstehen erst beim ERSTEN Aufklappen (lazy) und werden
-    danach wiederverwendet. Einzige Wahrheit bleibt app.weapon_overrides —
-    eine nie geoeffnete Waffe hat gar keine Widgets, die veralten koennten.
-    """
+    app.weapon_overrides remains authoritative even before widgets exist."""
 
     def __init__(self, app, parent, sid: str, cat: str):
         self.app = app
         self.sid = sid
         self.cat = cat
-        # Nur die Parameter, die es fuer diese Waffe in den Spieldaten gibt
-        # (wie im Munitions- und Ruestungsbaum). Ohne bekannte Liste bleibt
-        # es bei allen zehn.
+        # Offer only parameters supported by this weapon's data;
+        # fall back to the full set when no availability list is known.
         self.params = list(app._iw_params.get(sid) or WEAPON_PARAMS)
-        self.body = None                       # CTkFrame, erst bei build()
+        self.body = None                       # CTkFrame created by build().
         self.sliders: dict[str, SliderRow] = {}
-        self.cal_menu = None                   # Kaliber-Dropdown (Issue #6)
-        self.cal_warn = None                   # Warnzeile darunter
+        self.cal_menu = None                   # Caliber dropdown (issue #6).
+        self.cal_warn = None                   # Warning line below it.
         self._cal_vanilla = None
         self._cal_values: list[str] = []
         self._cal_labels: list[str] = []
         self.reset_btn = None
         self.expanded = False
         self._highlight = "normal"
-        self._state = app._iw_state            # zuletzt durchgereichter Zustand
+        self._state = app._iw_state            # Last propagated state.
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
@@ -1266,9 +1151,9 @@ class IwWeaponRow:
         self._orig_color = self.btn.cget("text_color")
         self.refresh()
 
-    # ------------------------------------------------------------ Aufbau
+    # ------------------------------------------------------------ Construction
     def build(self):
-        """Lazy: Hinweis, 8 Regler und Reset-Knopf einmalig erzeugen."""
+        """Create the explanatory text, parameter controls and reset button once."""
         if self.body is not None:
             return
         self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
@@ -1304,15 +1189,11 @@ class IwWeaponRow:
                 font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         self._build_caliber_row()
-        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
-        # und damit _changed auf — ohne Sperre wuerde der halb gefuellte
-        # Regler-Satz den gespeicherten Override der Waffe ueberschreiben.
-        # Alten Wert merken und zuruecklegen, damit ein verschachtelter
-        # Aufruf (z. B. aus _iw_refresh_all heraus) die Sperre nicht loest.
+        # Preserve the existing construction lock: SliderRow initialization invokes
+        # change callbacks, which must not overwrite saved values with a partial row.
         prev = self.app._iw_loading
         self.app._iw_loading = True
-        # Der Aufbau der 8 Regler dauert spuerbar (~0,4 s): Sanduhr zeigen,
-        # damit der erste Klick auf eine Waffe nicht wie ein Haenger wirkt.
+        # Show a busy cursor while building the weapon controls.
         try:
             self.app.configure(cursor="watch")
             self.app.update_idletasks()
@@ -1335,30 +1216,23 @@ class IwWeaponRow:
             self.body, text="↺  Reset this weapon", width=170,
             fg_color="transparent", border_width=1, command=self.reset)
         self.reset_btn.pack(anchor="w", padx=12, pady=(2, 4))
-        # Duenne Trennlinie: sonst klebt der Knopf optisch an der naechsten Waffe
+        # Separate this row visually from the next weapon.
         ctk.CTkFrame(self.body, height=2, corner_radius=0,
                      fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
-        self.load_values()                      # setzt _iw_loading selbst
-        # Leerer Merkwert erzwingt das Durchreichen an die NEUEN Regler,
-        # auch wenn sich der Zustand seit dem Zeilenbau nicht geaendert hat.
+        self.load_values()                      # Sets _iw_loading itself.
+        # Force the current state into newly created controls.
         self._state = ""
-        self.set_state(self.app._iw_state)      # koennte noch gesperrt sein
+        self.set_state(self.app._iw_state)      # May still be locked.
 
-    # ----------------------------------------------------------- Kaliber
+    # ----------------------------------------------------------- Caliber
     def _build_caliber_row(self):
-        """Dropdown "Ammunition" (GitHub Issue #6, Wunsch von Molkerr).
+        """Per-weapon ammunition selection, separate from multiplier cascades.
 
-        Steht ueber den Reglern, weil es die Waffe grundsaetzlicher
-        veraendert als jeder Faktor. KEIN Kaskaden-Element: ein Kaliber
-        ist ein Name, kein Faktor — es stapelt nicht mit Kategorie oder
-        globalem Regler und gibt es deshalb nur je Waffe.
-
-        Es wird bewusst NICHTS gesperrt: auch Schrot, Gauss und Werfer
-        stehen drin. Was dabei kaputtgeht, sagt die Warnzeile darunter —
-        mit der echten, aus den Spieldaten gerechneten Zahl."""
+        All supported calibers remain selectable; warnings report incompatible
+        behavior and damage implications using installed game data."""
         vanilla = self.app._iw_caliber.get(self.sid)
         if vanilla is None:
-            return                      # Waffe ohne Kaliber (Messer o. Ae.)
+            return                      # Weapon without a caliber, such as a knife.
         options = self.app._iw_caliber_options
         if not options:
             return
@@ -1374,8 +1248,7 @@ class IwWeaponRow:
         self.cal_menu = ctk.CTkOptionMenu(
             row, values=labels, width=230, command=self._caliber_changed)
         self.cal_menu.pack(side="left")
-        # Zwei Hinweise, die immer gelten (also nicht erst bei Auswahl):
-        # der Schaden bleibt, und NPC-Waffen haengen mit dran.
+        # Always explain that weapon base damage remains and shared NPC setups are affected.
         users = self.app._iw_setup_users.get(self.sid, 1)
         note = ("Changes which rounds the weapon takes - not its damage. "
                 "Damage comes from the weapon itself (the slider below); "
@@ -1398,7 +1271,7 @@ class IwWeaponRow:
     def _caliber_changed(self, label: str):
         if self.app._iw_loading or self.cal_menu is None:
             return
-        self.app._iw_auto_opened.discard(self.cat)   # siehe toggle()
+        self.app._iw_auto_opened.discard(self.cat)   # See toggle().
         try:
             wanted = self._cal_values[self._cal_labels.index(label)]
         except ValueError:
@@ -1421,24 +1294,21 @@ class IwWeaponRow:
         self.cal_warn.configure(text=("   " + text) if text else "")
 
     def toggle(self):
-        # Jede Interaktion in einer Kategorie macht sie zur Benutzer-Kategorie:
-        # das Leeren des Suchfelds darf sie danach nicht mehr zuklappen.
+        # Manual interaction takes ownership of expansion state from search.
         self.app._iw_auto_opened.discard(self.cat)
         if self.expanded:
             self.body.pack_forget()
             self.expanded = False
         else:
             self.build()
-            # Tiefer eingerueckt als der Waffenknopf: die Knopfbeschriftung
-            # sitzt selbst schon ~20 px innen, sonst stuenden die Regler-
-            # Beschriftungen genau unter dem Waffennamen statt darunter-innen.
+            # Indent control labels inside the weapon row.
             self.body.pack(fill="x", padx=(36, 0), after=self.btn)
             self.expanded = True
         self.refresh()
 
-    # ------------------------------------------------------------- Werte
+    # ------------------------------------------------------------- Values
     def load_values(self):
-        """weapon_overrides -> Regler, ohne dass _changed zurueckschreibt."""
+        """Apply weapon_overrides to sliders without _changed writing them back."""
         if self.cal_menu is not None:
             chosen = self.app.weapon_calibers.get(self.sid, "")
             prev = self.app._iw_loading
@@ -1462,10 +1332,10 @@ class IwWeaponRow:
         self.refresh()
 
     def _changed(self):
-        """Reglerbewegung NUR dieser Waffe in weapon_overrides schreiben."""
+        """Write slider changes for this weapon only to weapon_overrides."""
         if self.app._iw_loading or not self.sliders:
             return
-        self.app._iw_auto_opened.discard(self.cat)   # siehe toggle()
+        self.app._iw_auto_opened.discard(self.cat)   # See toggle().
         values = {p: r.get() for p, r in self.sliders.items()}
         values = {p: v for p, v in values.items() if abs(v - 1.0) > 1e-9}
         if values:
@@ -1481,27 +1351,23 @@ class IwWeaponRow:
         self.load_values()
         self.app._iw_after_change(self.cat)
 
-    # -------------------------------------------------------- Darstellung
+    # -------------------------------------------------------- Display
     def refresh(self):
         n = len(self.app.weapon_overrides.get(self.sid, {}))
         arrow = "▾" if self.expanded else "▸"
-        # "N of 10 factors" statt "N overrides": die Kategorie-Kopfzeile zaehlt
-        # WAFFEN, diese Zeile zaehlt PARAMETER — gleiche Zahl, andere Einheit.
-        # Nenner ist self.params: Waffen ohne Abnutzungswert & Co. haben
-        # weniger Regler, sonst stuende dort eine unerreichbare Zahl.
+        # Count changed parameters using self.params, not the number of weapons
+        # or a fixed denominator unavailable to some items.
         mark = f"     ●  {n} of {len(self.params)} factors changed" if n else ""
         cal = self.app.weapon_calibers.get(self.sid)
         if cal:
-            # Das Kaliber zaehlt NICHT als Faktor mit (es ist keiner), steht
-            # aber in der zugeklappten Zeile — sonst uebersieht man den
-            # weitreichendsten Eingriff, den es an einer Waffe gibt.
+            # Show caliber changes separately from factor counts, including when collapsed.
             mark += (f"     ●  {caliber_label(cal)}" if mark
                      else f"     ●  {caliber_label(cal)}")
         self.btn.configure(text=f"{arrow}  {weapon_display(self.sid)}{mark}")
         self._apply_color(n or (1 if cal else 0))
 
     def _apply_color(self, n: int):
-        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        """Display precedence: dimmed > search match > existing overrides."""
         if self._highlight == "dim":
             color = "gray35"
         elif self._highlight == "match" or n:
@@ -1516,8 +1382,7 @@ class IwWeaponRow:
                           or (1 if self.app.weapon_calibers.get(self.sid) else 0))
 
     def set_state(self, state: str):
-        # Frueh raus, wenn sich nichts aendert: bei 79 offenen Waffen haengen
-        # sonst 632 Regler an einem einzigen "Reload"-Klick.
+        # Skip unchanged state to avoid refreshing every expanded weapon control.
         if state == self._state:
             return
         self._state = state
@@ -1531,25 +1396,20 @@ class IwWeaponRow:
 
 
 class IwCategoryBlock:
-    """Aufklappbarer Kategorie-Block im Overrides-Baum.
-
-    Die Waffenzeilen entstehen beim ERSTEN Aufklappen (lazy) und bleiben
-    dann bis zum naechsten Neuaufbau des Baums bestehen.
-    """
+    """Expandable weapon category; create and reuse its rows on first expansion."""
 
     def __init__(self, app, parent, cat: str, label: str, sids: list[str]):
         self.app = app
         self.cat = cat
         self.label = label
-        self.sids = sids                        # bereits sortiert
-        self.rows: dict[str, IwWeaponRow] = {}  # leer bis zum ersten Oeffnen
+        self.sids = sids                        # Already sorted.
+        self.rows: dict[str, IwWeaponRow] = {}  # Empty until first expansion.
         self.expanded = False
         self._highlight = "normal"
-        self._note = ""                         # Zusatz in der Kopfzeile
-        self._note_hint = False                 # zugeklappt: "click to show"
-        self._state = app._iw_state             # zuletzt durchgereicht
-        # Treffersatz der laufenden Suche; None = keine Suche aktiv. Wird
-        # gebraucht, damit SPAETER gebaute Zeilen die Suchfarbe erben.
+        self._note = ""                         # Header suffix.
+        self._note_hint = False                 # Collapsed: "click to show".
+        self._state = app._iw_state             # Last propagated state.
+        # Remember search matches so rows created later inherit highlighting.
         self._hitset: set[str] | None = None
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frame.pack(fill="x")
@@ -1563,11 +1423,10 @@ class IwCategoryBlock:
         self.refresh()
 
     def ensure_rows(self):
-        """Lazy: die Waffenzeilen dieser Kategorie einmalig erzeugen."""
+        """Create this category's weapon rows once."""
         if self.rows:
             return
-        # Bis zu 25 Zeilen auf einmal dauern spuerbar — Sanduhr wie beim
-        # Aufklappen einer einzelnen Waffe (IwWeaponRow.build).
+        # Show a busy cursor while creating a large category.
         try:
             self.app.configure(cursor="watch")
             self.app.update_idletasks()
@@ -1576,7 +1435,7 @@ class IwCategoryBlock:
         try:
             for sid in self.sids:
                 row = IwWeaponRow(self.app, self.content, sid, self.cat)
-                row.set_highlight(self._row_mode(sid))  # laufende Suche erben
+                row.set_highlight(self._row_mode(sid))  # Inherit the active search.
                 self.rows[sid] = row
         finally:
             try:
@@ -1590,7 +1449,7 @@ class IwCategoryBlock:
         return "match" if sid in self._hitset else "dim"
 
     def set_row_filter(self, hitset: "set[str] | None"):
-        """Treffersatz merken und alle SCHON gebauten Zeilen einfaerben."""
+        """Remember search matches and recolor existing rows."""
         self._hitset = hitset
         for sid, row in self.rows.items():
             row.set_highlight(self._row_mode(sid))
@@ -1611,14 +1470,12 @@ class IwCategoryBlock:
         self.refresh()
 
     def toggle(self):
-        # Benutzer-Klick hebt das Auto-Aufklappen der Suche auf
+        # A manual click overrides search-driven expansion.
         self.app._iw_auto_opened.discard(self.cat)
         self.collapse() if self.expanded else self.expand()
 
     def refresh(self):
-        # Eine gewaehlte Munition zaehlt hier mit: sonst steht ueber einer
-        # Kategorie "0 of 12 overridden", obwohl darin eine Waffe auf ein
-        # anderes Kaliber steht — der weitreichendste Eingriff von allen.
+        # Caliber changes count as overridden weapons in category totals.
         n_over = sum(1 for sid in self.sids
                      if sid in self.app.weapon_overrides
                      or sid in self.app.weapon_calibers)
@@ -1626,12 +1483,10 @@ class IwCategoryBlock:
         extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
                  if n_over else "")
         extra += self._note
-        # Nur an einem zugeklappten Block — hier und nicht beim Suchen
-        # angehaengt, sonst bliebe der Hinweis nach einem Klick auf den
-        # Kopf ueber den dann sichtbaren Waffen stehen.
+        # Show the expansion hint only while the block is collapsed.
         if self._note_hint and not self.expanded:
             extra += "     click to show"
-        # Trenner statt Klammern: "Marksman rifles (DMR)" traegt selbst schon eine
+        # Use a separator because category names can already contain parentheses.
         self.btn.configure(
             text=f"{arrow}  {self.label}  ·  {len(self.sids)}{extra}")
         if self._highlight == "dim":
@@ -1643,17 +1498,14 @@ class IwCategoryBlock:
         self.btn.configure(text_color=color)
 
     def set_highlight(self, mode: str, note: str = "", hint: bool = False):
-        """note: fertig formatierter Zusatz der Suche (inkl. Abstand).
-
-        hint: Block enthaelt Treffer -> zugeklappt "click to show" anzeigen.
-        """
+        """Set the formatted search suffix and optional collapsed-block match hint."""
         self._highlight = mode
         self._note = note
         self._note_hint = hint
         self.refresh()
 
     def set_state(self, state: str):
-        if state == self._state:      # siehe IwWeaponRow.set_state
+        if state == self._state:      # See IwWeaponRow.set_state.
             return
         self._state = state
         self.btn.configure(state=state)
@@ -1662,31 +1514,20 @@ class IwCategoryBlock:
 
 
 class IaAmmoRow:
-    """Aufklappbare Zeile EINER Munitionssorte im Ammo-Baum.
+    """Expandable ammunition row with lazy controls.
 
-    Zwillingsklasse zu IwWeaponRow, bewusst KEINE Ableitung: der Waffenbaum
-    ist frisch verifiziert und bleibt unangetastet. Der Preis sind ein paar
-    doppelte Zeilen, der Gewinn ist, dass an den Waffen strukturell nichts
-    kaputtgehen kann. Geteilt werden nur SliderRow, ACCENT, fmt_factor und
-    die drei CTkFont-Objekte (nur lesend!).
-
-    Die 4 Regler entstehen erst beim ERSTEN Aufklappen (lazy). Einzige
-    Wahrheit bleibt app.ammo_overrides.
-    """
+    app.ammo_overrides is authoritative. Shares SliderRow and display helpers
+    with the weapon tree while keeping its own row implementation."""
 
     def __init__(self, app, parent, sid: str, cal: str, ammo_type: str,
                  show_type: bool):
         self.app = app
         self.sid = sid
         self.cal = cal
-        self.ammo_type = ammo_type      # lesbar, z.B. "Armor-piercing"
-        self.show_type = show_type      # False bei Ein-Sorten-Kalibern
-        # Regler nur fuer Werte, die sich ueberhaupt skalieren lassen: bei 18
-        # der 34 Sorten stehen ArmorPiercingMod UND CoverPiercingMod auf 0.0,
-        # ein Faktor darauf bleibt 0.0. Solche Regler taeuschen eine Wirkung
-        # vor, die es nicht gibt (und waren als einzige Aenderung sogar ein
-        # Absturzgrund beim Bauen). Ohne bekannte Vanilla-Werte -- oder wenn
-        # ALLES 0 waere -- bleibt es bei allen vier.
+        self.ammo_type = ammo_type      # Readable name, e.g. "Armor-piercing".
+        self.show_type = show_type      # False for calibers with only one ammunition type.
+        # Hide parameters with a known zero baseline because scaling cannot change
+        # them. Retain the full set when baselines are unavailable.
         mods = app._ia_mods.get(sid, {})
         usable = [p for p in AMMO_PARAMS
                   if abs(mods.get(AMMO_PARAM_KEYS[p], 0.0)) > 1e-9]
@@ -1696,7 +1537,7 @@ class IaAmmoRow:
         self.reset_btn = None
         self.expanded = False
         self._highlight = "normal"
-        self._state = app._ia_state              # NICHT app._iw_state
+        self._state = app._ia_state              # Do not use app._iw_state.
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frame.pack(fill="x")
         self.btn = ctk.CTkButton(
@@ -1707,14 +1548,12 @@ class IaAmmoRow:
         self._orig_color = self.btn.cget("text_color")
         self.refresh()
 
-    # ------------------------------------------------------------ Aufbau
+    # ------------------------------------------------------------ Construction
     def build(self):
         if self.body is not None:
             return
         self.body = ctk.CTkFrame(self.frame, fg_color="transparent")
-        # Vanilla-Werte zeigen: bei vielen Sorten steht in ArmorPiercingMod
-        # und CoverPiercingMod 0.0 -- ein Faktor darauf bleibt 0.0. Ohne
-        # diesen Hinweis sieht das wie ein kaputter Regler aus.
+        # Display baselines so zero-valued modifiers are not mistaken for broken controls.
         mods = self.app._ia_mods.get(self.sid, {})
         if mods:
             parts = [f"{AMMO_PARAM_LABELS[p].lower()} {mods[AMMO_PARAM_KEYS[p]]:g}"
@@ -1723,8 +1562,8 @@ class IaAmmoRow:
             if len(self.params) < len(AMMO_PARAMS):
                 text += ("\n   Values that are 0 in vanilla stay 0 – "
                          "no slider is offered for them.")
-            # Expanding-Munition hat NEGATIVE Piercing-Werte (−0.7): ein
-            # Faktor > 1 macht die Strafe groesser, nicht kleiner.
+            # Expanding rounds have negative piercing modifiers; larger factors increase
+            # that penalty.
             if any(v < 0 for v in mods.values()):
                 text += ("\n   A negative value is a penalty – a factor "
                          "above ×1 makes that penalty bigger.")
@@ -1732,11 +1571,8 @@ class IaAmmoRow:
                          wraplength=700, font=self.app._iw_font_hint,
                          text_color=MUTED).pack(fill="x", padx=12,
                                                    pady=(2, 0))
-        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
-        # und damit _changed auf -- ohne Sperre wuerde der halb gefuellte
-        # Regler-Satz den gespeicherten Override loeschen. Alten Wert merken
-        # und zuruecklegen (nicht hart True/False), damit ein verschachtelter
-        # Aufruf aus _ia_refresh_all die Sperre nicht vorzeitig loest.
+        # Preserve the construction lock while initial callbacks run;
+        # a partial control set must not clear stored ammunition overrides.
         prev = self.app._ia_loading
         self.app._ia_loading = True
         try:
@@ -1763,7 +1599,7 @@ class IaAmmoRow:
         ctk.CTkFrame(self.body, height=2, corner_radius=0,
                      fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
         self.load_values()
-        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self._state = ""            # Force state propagation to newly created controls.
         self.set_state(self.app._ia_state)
 
     def toggle(self):
@@ -1777,7 +1613,7 @@ class IaAmmoRow:
             self.expanded = True
         self.refresh()
 
-    # ------------------------------------------------------------- Werte
+    # ------------------------------------------------------------- Values
     def load_values(self):
         if self.sliders:
             stored = self.app.ammo_overrides.get(self.sid, {})
@@ -1808,22 +1644,20 @@ class IaAmmoRow:
         self.load_values()
         self.app._ia_after_change(self.cal)
 
-    # -------------------------------------------------------- Darstellung
+    # -------------------------------------------------------- Display
     def refresh(self):
         n = len(self.app.ammo_overrides.get(self.sid, {}))
         arrow = "▾" if self.expanded else "▸"
-        # Die Sorte steht im TITEL: A545A/A545D/A545E sind sonst nicht zu
-        # unterscheiden. Bei Kalibern mit nur EINER Sorte weggelassen.
+        # Include the ammunition type in titles unless the caliber has only one type.
         kind = f"  ·  {self.ammo_type}" if self.show_type else ""
-        # len(self.params), NICHT len(self.sliders): die Regler entstehen erst
-        # beim Aufklappen, die Zahl muss aber schon vorher stimmen.
+        # Count self.params; lazy controls may not exist yet.
         mark = (f"     ●  {n} of {len(self.params)} factors changed"
                 if n else "")
         self.btn.configure(text=f"{arrow}  {self.sid}{kind}{mark}")
         self._apply_color(n)
 
     def _apply_color(self, n: int):
-        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        """Display precedence: dimmed > search match > existing overrides."""
         if self._highlight == "dim":
             color = "gray35"
         elif self._highlight == "match" or n:
@@ -1837,8 +1671,7 @@ class IaAmmoRow:
         self._apply_color(len(self.app.ammo_overrides.get(self.sid, {})))
 
     def set_state(self, state: str):
-        # Frueh raus: sonst haengen bei allen offenen Sorten 136 Regler an
-        # einem einzigen "Reload"-Klick.
+        # Skip unchanged state instead of refreshing every expanded ammunition row.
         if state == self._state:
             return
         self._state = state
@@ -1850,16 +1683,13 @@ class IaAmmoRow:
 
 
 class IaCaliberBlock:
-    """Aufklappbarer Kaliber-Block im Ammo-Baum (1-4 Sorten).
-
-    Zwillingsklasse zu IwCategoryBlock -- siehe Begruendung bei IaAmmoRow.
-    """
+    """Expandable caliber block containing lazily created ammunition rows."""
 
     def __init__(self, app, parent, cal: str, label: str, sids: list[str]):
         self.app = app
         self.cal = cal
         self.label = label
-        self.sids = sids                       # bereits nach Sorte sortiert
+        self.sids = sids                       # Already sorted by type.
         self.rows: dict[str, IaAmmoRow] = {}
         self.expanded = False
         self._highlight = "normal"
@@ -1879,15 +1709,14 @@ class IaCaliberBlock:
         self.refresh()
 
     def ensure_rows(self):
-        """Lazy. Ohne Sanduhr: hoechstens 4 Knoepfe (gemessen ~15 ms),
-        anders als die Waffen-Variante mit bis zu 25 Zeilen."""
+        """Create the small set of ammunition rows without a busy cursor."""
         if self.rows:
             return
         for sid in self.sids:
             ammo_type = self.app._ia_types.get(sid, "")
             row = IaAmmoRow(self.app, self.content, sid, self.cal, ammo_type,
                             len(self.sids) > 1 and bool(ammo_type))
-            row.set_highlight(self._row_mode(sid))   # laufende Suche erben
+            row.set_highlight(self._row_mode(sid))   # Inherit the active search.
             self.rows[sid] = row
 
     def _row_mode(self, sid: str) -> str:
@@ -1925,8 +1754,7 @@ class IaCaliberBlock:
         extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
                  if n_over else "")
         extra += self._note
-        # NUR am zugeklappten Block -- hier und nicht beim Suchen angehaengt,
-        # sonst bliebe der Hinweis nach einem Klick auf den Kopf stehen.
+        # Show the expansion hint only on collapsed blocks.
         if self._note_hint and not self.expanded:
             extra += "     click to show"
         self.btn.configure(
@@ -1983,12 +1811,9 @@ class ArmorValueRow(SliderRow):
 
 
 class IrArmorRow:
-    """Aufklappbare Zeile EINER Ruestung im Armor-Baum.
+    """Expandable armor row backed by app.armor_overrides.
 
-    Dritte Zwillingsklasse neben IwWeaponRow und IaAmmoRow, bewusst KEINE
-    Ableitung — dieselbe Begruendung wie dort: die verifizierten Baeume
-    bleiben strukturell unangetastet. Wahrheit ist app.armor_overrides.
-    Regler nur fuer Schutzarten, die in Vanilla > 0 sind (0 x Faktor = 0)."""
+    Offer protection factors only for positive vanilla values."""
 
     def __init__(self, app, parent, sid: str, group: str):
         self.app = app
@@ -2014,7 +1839,7 @@ class IrArmorRow:
         self._orig_color = self.btn.cget("text_color")
         self.refresh()
 
-    # ------------------------------------------------------------ Aufbau
+    # ------------------------------------------------------------ Construction
     def build(self):
         if self.body is not None:
             return
@@ -2048,9 +1873,7 @@ class IrArmorRow:
                 anchor="w", justify="left", wraplength=700,
                 font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
-        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
-        # und damit _changed — ohne Sperre loescht der halb gebaute Satz den
-        # gespeicherten Override (die Lehre aus dem Waffenbaum-Review).
+        # Lock initial callbacks so partially built controls cannot clear saved overrides.
         prev = self.app._ir_loading
         self.app._ir_loading = True
         try:
@@ -2095,7 +1918,7 @@ class IrArmorRow:
         ctk.CTkFrame(self.body, height=2, corner_radius=0,
                      fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
         self.load_values()
-        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self._state = ""            # Force state propagation to newly created controls.
         self.set_state(self.app._ir_state)
 
     def toggle(self):
@@ -2126,7 +1949,7 @@ class IrArmorRow:
         if self.btn.winfo_exists():
             self.refresh()
 
-    # ------------------------------------------------------------- Werte
+    # ------------------------------------------------------------- Values
     def load_values(self):
         if self.sliders:
             stored = self.app.armor_overrides.get(self.sid, {})
@@ -2177,7 +2000,7 @@ class IrArmorRow:
         self.load_values()
         self.app._ir_after_change(self.group)
 
-    # -------------------------------------------------------- Darstellung
+    # -------------------------------------------------------- Display
     def refresh(self):
         n = len(self.app.armor_overrides.get(self.sid, {})) + len(self.app.armor_custom.get(self.sid, {}))
         arrow = "\u25be" if self.expanded else "\u25b8"
@@ -2187,7 +2010,7 @@ class IrArmorRow:
         self._apply_color(n)
 
     def _apply_color(self, n: int):
-        """Vorrang: abgedunkelt > Suchtreffer > vorhandene Overrides."""
+        """Display precedence: dimmed > search match > existing overrides."""
         if self._highlight == "dim":
             color = "gray35"
         elif self._highlight == "match" or n:
@@ -2212,13 +2035,13 @@ class IrArmorRow:
 
 
 class IrGroupBlock:
-    """Aufklappbarer Gruppen-Block im Armor-Baum (Body armor / Helmets)."""
+    """Expandable armor-tree group for body armor or helmets."""
 
     def __init__(self, app, parent, group: str, label: str, sids: list[str]):
         self.app = app
         self.group = group
         self.label = label
-        self.sids = sids                       # bereits nach Label sortiert
+        self.sids = sids                       # Already sorted by label.
         self.rows: dict[str, IrArmorRow] = {}
         self.expanded = False
         self._highlight = "normal"
@@ -2238,7 +2061,7 @@ class IrGroupBlock:
         self.refresh()
 
     def ensure_rows(self):
-        """Lazy wie beim Waffenbaum: bis zu 42 Zeilen — mit Sanduhr."""
+        """Build armor rows lazily with a busy cursor."""
         if self.rows:
             return
         try:
@@ -2320,15 +2143,10 @@ class IrGroupBlock:
 
 
 class IfFactionBlock:
-    """Aufklappbarer Block im Fraktions-Baum (Tab "Factions").
+    """Expandable faction block backed by app.faction_relations.
 
-    Vierter Verwandter der Baum-Bloecke (Waffen/Ammo/Ruestung), bewusst
-    KEINE Ableitung — dieselbe Begruendung wie dort. Anders als bei den
-    Zwillingen ist eine Zeile hier direkt eine SliderRow (ein
-    Beziehungspaar = ein Regler, -800..800). Wahrheit ist
-    app.faction_relations; `sids` sind Paar-Schluessel wie
-    "Bandits<->Player" (Attributname wie bei den anderen Baeumen, damit
-    Suche und Changed-only denselben Code benutzen koennen)."""
+    Each pair is one SliderRow. sids stores actual pair keys, allowing shared
+    search and Changed-only handling with the other trees."""
 
     def __init__(self, app, parent, group: str, label: str, sids: list[str]):
         self.app = app
@@ -2354,10 +2172,7 @@ class IfFactionBlock:
         self.refresh()
 
     def ensure_rows(self):
-        """Lazy wie bei den anderen Baeumen. Sperre waehrend des Aufbaus:
-        SliderRow.__init__ ruft set(default) -> on_change — ohne Sperre
-        wuerde der halb gebaute Satz gespeicherte Werte loeschen (die
-        Lehre aus dem Waffenbaum-Review)."""
+        """Build lazily under a callback lock so defaults cannot overwrite saved values."""
         if self.rows:
             return
         prev = self.app._if_loading
@@ -2385,11 +2200,11 @@ class IfFactionBlock:
             except Exception:
                 pass
         self.load_values()
-        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self._state = ""            # Force state propagation to newly created controls.
         self.set_state(self.app._if_state)
 
     def load_values(self):
-        """Gebaute Regler an app.faction_relations angleichen."""
+        """Synchronize built sliders with app.faction_relations."""
         if not self.rows:
             return
         prev = self.app._if_loading
@@ -2463,14 +2278,10 @@ class IfFactionBlock:
 
 
 class ImSpeciesRow:
-    """Aufklappbare Zeile EINER Mutanten-Art im Mutants-Baum.
+    """Expandable mutant-species row backed by app.mutant_overrides.
 
-    Fuenfter Verwandter (Waffen/Ammo/Ruestung/Fraktionen), bewusst KEINE
-    Ableitung. Wahrheit ist app.mutant_overrides — dasselbe Dict wie zu
-    Dropdown-Zeiten, darum laufen alte Presets unveraendert. Regler nur
-    fuer Parameter, die die Art wirklich hat (app._im_params): kein
-    Damage-Regler fuer Poltergeist/Rat (indirekter Schaden), kein
-    Regen-Regler ohne Vanilla-Regeneration."""
+    Retain the existing preset format. Offer only supported species parameters,
+    excluding direct damage or regeneration when absent from the data."""
 
     def __init__(self, app, parent, species: str, group: str):
         self.app = app
@@ -2494,7 +2305,7 @@ class ImSpeciesRow:
         self._orig_color = self.btn.cget("text_color")
         self.refresh()
 
-    # ------------------------------------------------------------ Aufbau
+    # ------------------------------------------------------------ Construction
     def build(self):
         if self.body is not None:
             return
@@ -2506,8 +2317,7 @@ class ImSpeciesRow:
                          font=self.app._iw_font_hint,
                          text_color=MUTED).pack(fill="x", padx=12,
                                                    pady=(2, 0))
-        # Sperre waehrend des Aufbaus: SliderRow.__init__ ruft set(default)
-        # -> on_change (die Waffenbaum-Lehre, wie bei allen Baeumen).
+        # Lock change callbacks while constructing the row.
         prev = self.app._im_loading
         self.app._im_loading = True
         try:
@@ -2535,7 +2345,7 @@ class ImSpeciesRow:
         ctk.CTkFrame(self.body, height=2, corner_radius=0,
                      fg_color="gray35").pack(fill="x", padx=12, pady=(4, 6))
         self.load_values()
-        self._state = ""            # erzwingt Durchreichen an die NEUEN Regler
+        self._state = ""            # Force state propagation to newly created controls.
         self.set_state(self.app._im_state)
 
     def toggle(self):
@@ -2549,7 +2359,7 @@ class ImSpeciesRow:
             self.expanded = True
         self.refresh()
 
-    # ------------------------------------------------------------- Werte
+    # ------------------------------------------------------------- Values
     def load_values(self):
         if self.sliders:
             stored = self.app.mutant_overrides.get(self.species, {})
@@ -2580,7 +2390,7 @@ class ImSpeciesRow:
         self.load_values()
         self.app._im_after_change(self.group)
 
-    # -------------------------------------------------------- Darstellung
+    # -------------------------------------------------------- Display
     def refresh(self):
         n = len(self.app.mutant_overrides.get(self.species, {}))
         arrow = "▾" if self.expanded else "▸"
@@ -2614,13 +2424,13 @@ class ImSpeciesRow:
 
 
 class ImGroupBlock:
-    """Aufklappbarer Groessen-Block im Mutanten-Baum."""
+    """Expandable size group in the mutant tree."""
 
     def __init__(self, app, parent, group: str, label: str, sids: list[str]):
         self.app = app
         self.group = group
         self.label = label
-        self.sids = sids                       # Arten, bereits sortiert
+        self.sids = sids                       # Species, already sorted.
         self.rows: dict[str, ImSpeciesRow] = {}
         self.expanded = False
         self._highlight = "normal"
@@ -2720,12 +2530,7 @@ class ImGroupBlock:
             row.set_state(state)
 
 
-# Ein kleines Zeichen vor jedem Tab-Namen (Besitzer 06.09.: "auch kleine
-# Symbole koennten funktionieren ... aber sehr sparsam, sonst wird es schnell
-# kitschig"). Fuenf davon hat er selbst vorgeschlagen (Player, Vaulting,
-# Combat, Upgrades, World); der Rest folgt derselben Linie: thematisch, wo es
-# eindeutig ist, sonst eine schlichte geometrische Form. Bewusst KEINE Emoji —
-# die wuerden bunt gerendert und rissen die Leiste auseinander.
+# Use monochrome symbols for tab labels; emoji color rendering disrupts the bar.
 TAB_ICONS = {
     "Player": "◉", "Vaulting": "◈", "Weight & items": "⚖", "Combat": "⚔",
     "NPCs & AI": "◎", "Mutants": "☣", "Factions": "⚑", "Weapons": "◆",
@@ -2734,10 +2539,7 @@ TAB_ICONS = {
 }
 
 
-# Zeichen je Design fuer die Fusszeile. Bewusst KEINE Fraktionslogos aus dem
-# Spiel: das ist GSC-Grafik, und dieses Projekt liefert grundsaetzlich keine
-# Spieldateien mit (dieselbe Regel wie fuer vanilla/ und die Oodle-DLL).
-# Das hier sind gewoehnliche Schriftzeichen.
+# Footer themes use ordinary font symbols rather than bundled game artwork.
 THEME_MARKS = {
     "Standard": "◐", "Loners": "◈", "Bandits": "☠", "Duty": "⛨", "Freedom": "☘",
     "Military": "★", "Ward": "⚔", "Spark": "⌁", "Monolith": "◆",
@@ -2758,7 +2560,7 @@ class TabBar(ctk.CTkFrame):
         self._holder.pack(side="left", fill="both", expand=True)
         self._tab_dict: dict[str, ctk.CTkFrame] = {}
         self._buttons: dict[str, ctk.CTkButton] = {}
-        self._labels: dict[str, str] = {}      # Name -> Aufschrift mit Symbol
+        self._labels: dict[str, str] = {}      # Theme name mapped to its symbol label.
         self._name_list: list[str] = []
         self._current_name = ""
         self._font = ctk.CTkFont(size=14)
@@ -2768,7 +2570,7 @@ class TabBar(ctk.CTkFrame):
         self._unsel = theme["unselected_color"]
         self._unsel_hover = theme["unselected_hover_color"]
 
-    # ---------------------------------------------------------- Aufbau
+    # ---------------------------------------------------------- Construction
     def add(self, name: str) -> ctk.CTkFrame:
         if name in self._tab_dict:
             return self._tab_dict[name]
@@ -2802,7 +2604,7 @@ class TabBar(ctk.CTkFrame):
             suffix = f" · {count}" if count else ""
             button.configure(text=self._labels[name] + suffix)
 
-    # ----------------------------------------------------------- Zugriff
+    # ----------------------------------------------------------- Access
     def set(self, name: str) -> None:
         if name not in self._tab_dict or name == self._current_name:
             if name in self._tab_dict:
@@ -2821,15 +2623,13 @@ class TabBar(ctk.CTkFrame):
         return self._current_name
 
     def tab(self, name: str) -> ctk.CTkFrame:
-        """Inhalts-Frame eines Tabs (wie CTkTabview.tab) — tools/
-        make_screenshots.py greift darueber auf die Seiten zu."""
+        """Return a tab's content frame, also used by tools/make_screenshots.py."""
         return self._tab_dict[name]
 
     def restyle(self, pal: dict) -> None:
-        """Farben eines Designs uebernehmen. Die Leiste faerbt sich selbst,
-        weil ihre Knoepfe gewoehnliche CTkButtons sind — der allgemeine
-        Umfaerber koennte sie nicht vom Rest unterscheiden.
-        Aktiver Tab = Akzent, die uebrigen = zweite Ebene."""
+        """Apply theme colors to the tab bar itself.
+
+        The active tab uses the accent; inactive tabs use the secondary surface."""
         self._sel, self._sel_hover = pal["button"], pal["button_hover"]
         self._unsel, self._unsel_hover = pal["panel2"], pal["panel2_hover"]
         self._paint()
@@ -2848,11 +2648,11 @@ class App(WorkbenchMixin, ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        # Hoehe passt dank Tabs auch auf kleinere/skalierte Bildschirme
+        # Tabbed layout also fits smaller or scaled displays.
         self.geometry("1140x760")
         self.minsize(1000, 600)
         self._set_icon()
-        self.after(300, self._set_icon)  # CustomTkinter setzt sonst sein eigenes
+        self.after(300, self._set_icon)  # Otherwise CustomTkinter sets its own icon.
 
         self.gd: GameData | None = None
         self.game_dir: Path | None = None
@@ -2861,93 +2661,85 @@ class App(WorkbenchMixin, ctk.CTk):
         self._current_tab = ""
         self.checks: dict[str, ctk.CTkCheckBox] = {}
         self.cat_checks: dict[str, ctk.CTkCheckBox] = {}
-        # Einzelwaffen-Overrides: {WGS-SID: {param: faktor}} (nur != 1.0)
+        # Per-weapon factors: {WGS_SID: {parameter: factor}}, excluding 1.0.
         self.weapon_overrides: dict[str, dict[str, float]] = {}
-        # Mutanten-Overrides pro Art: {Art: {hp/speed/damage/regen: faktor}}
-        # Fuenfter Baum (Tab "Mutants"), fuenfter eigener Namensraum (_im_*).
-        # Das Dict hiess schon in der Dropdown-Aera so — settings.json,
-        # Presets und Pak-Manifeste laufen unveraendert weiter.
+        # Per-species factors use the existing mutant_overrides preset namespace.
         self.mutant_overrides: dict[str, dict[str, float]] = {}
         self._im_loading = False
         self._im_species: list[str] = []
-        self._im_params: dict[str, list[str]] = {}   # Art -> erlaubte Regler
-        self._im_hints: dict[str, str] = {}          # Art -> Vanilla-Infozeile
+        self._im_params: dict[str, list[str]] = {}   # Species -> available sliders.
+        self._im_hints: dict[str, str] = {}          # Species -> vanilla information line.
         self._im_blocks: dict[str, "ImGroupBlock"] = {}
         self._im_auto_opened: set[str] = set()
         self._im_expand_job: str | None = None
         self._im_state = "disabled"
         self._iw_loading = False
         self._iw_categories: dict[str, str] = {}
-        self._iw_share: dict[str, list[str]] = {}  # Waffen mit geteiltem CWS-Struct
-        self._iw_params: dict[str, list[str]] = {}  # WGS-SID -> vorhandene Parameter
-        self._iw_dlc: dict[str, str] = {}          # WGS-SID -> DLC-Edition
-        self._iw_caliber: dict[str, str | None] = {}   # WGS-SID -> Vanilla-Kaliber
-        self._iw_caliber_options: list[str] = []       # Auswahl im Dropdown
-        self._iw_setup_users: dict[str, int] = {}      # Items je Setup (NPC-Zwillinge)
-        # Kaliberwechsel je Waffe: {WGS-SID: "A556"} — nur Abweichungen von
-        # Vanilla. Bewusst NEBEN weapon_overrides: dort stehen Faktoren.
+        self._iw_share: dict[str, list[str]] = {}  # Weapons sharing a CWS struct.
+        self._iw_params: dict[str, list[str]] = {}  # WGS SID -> available parameters.
+        self._iw_dlc: dict[str, str] = {}          # WGS SID -> DLC edition.
+        self._iw_caliber: dict[str, str | None] = {}   # WGS SID -> vanilla caliber.
+        self._iw_caliber_options: list[str] = []       # Dropdown selection.
+        self._iw_setup_users: dict[str, int] = {}      # Items per setup, including NPC counterparts.
+        # Per-weapon caliber names are stored separately from numeric factor overrides.
         self.weapon_calibers: dict[str, str] = {}
         self._iw_blocks: dict[str, IwCategoryBlock] = {}
-        self._iw_auto_opened: set[str] = set()     # von der Suche aufgeklappt
-        # Kategorie-Knoepfe im Abschnitt "Weapon categories": {cat: (btn, label, farbe)}
+        self._iw_auto_opened: set[str] = set()     # Expanded by search.
+        # Weapon-category buttons: {category: (button, label, color)}.
         self._wcat_btns: dict[str, tuple] = {}
-        self._wcat_notes: dict[str, str] = {}   # Suchzusatz je Kategorie-Kopf
-        self._iw_expand_job: str | None = None  # laufender after()-Auftrag
-        # Einzelmunitions-Overrides: {Ammo-SID: {param: faktor}} (nur != 1.0)
+        self._wcat_notes: dict[str, str] = {}   # Additional search terms for each category heading.
+        self._iw_expand_job: str | None = None  # Pending after() callback.
+        # Per-ammunition factors excluding 1.0.
         self.ammo_overrides: dict[str, dict[str, float]] = {}
         self.scope_overrides: dict[str, dict[str, float]] = {}   # 1.27.0
         self._isc_rows: dict[str, dict] = {}
-        self._isc_btns: list = []                 # Klassen-Knoepfe (fuer den Sperrzustand)
+        self._isc_btns: list = []                 # Category buttons used for lock state.
         self._isc_loading = False
         self._scope_box = None
-        # Einzelruestungs-Overrides: {Item-SID: {param: faktor}} (nur != 1.0)
-        # Dritter Baum, dritter strikt eigener Namensraum (_ir_*).
+        # Per-armor factors use the separate _ir_* namespace.
         self.armor_overrides: dict[str, dict[str, float]] = {}
         self.armor_custom: dict[str, dict[str, float]] = {}
         self._ir_custom_controls = {}
         self._ir_loading = False
         self._ir_groups: dict[str, str] = {}              # SID -> Body/Head
         self._ir_prot: dict[str, dict[str, float]] = {}   # SID -> Vanilla
-        self._ir_labels: dict[str, str] = {}              # SID -> Anzeige
-        self._ir_dlc: dict[str, str] = {}                 # SID -> DLC-Edition
+        self._ir_labels: dict[str, str] = {}              # SID -> display label.
+        self._ir_dlc: dict[str, str] = {}                 # SID -> DLC edition.
         self._ir_blocks: dict[str, IrGroupBlock] = {}
         self._ir_auto_opened: set[str] = set()
         self._ir_expand_job: str | None = None
         self._ir_state = "disabled"
-        # Fraktionsbeziehungen: {Paar-Schluessel: Zielwert int, nur != Vanilla}
-        # Vierter Baum, vierter strikt eigener Namensraum (_if_*).
+        # Faction-pair target values differing from vanilla use the _if_* namespace.
         self.faction_relations: dict[str, int] = {}
         self._if_loading = False
-        self._if_vanilla: dict[str, int] = {}    # Paar -> Vanilla-Wert
-        self._if_labels: dict[str, str] = {}     # Paar -> "Duty ↔ Freedom"
-        self._if_rows: dict[str, SliderRow] = {} # nur GEBAUTE Zeilen
+        self._if_vanilla: dict[str, int] = {}    # Pair -> vanilla value
+        self._if_labels: dict[str, str] = {}     # Pair -> "Duty ↔ Freedom".
+        self._if_rows: dict[str, SliderRow] = {} # Only rows already constructed.
         self._if_blocks: dict[str, "IfFactionBlock"] = {}
         self._if_groups: list[tuple[str, str, list[str]]] = []
         self._if_player_keys: list[str] = []
         self._if_auto_opened: set[str] = set()
         self._if_expand_job: str | None = None
         self._if_state = "disabled"
-        # Strikt eigener Namensraum. NICHTS davon mit den _iw_*-Feldern
-        # teilen: eine gemeinsame Sperre/ein gemeinsamer after()-Auftrag
-        # wuerde Overrides der jeweils anderen Seite verschlucken.
+        # Keep tree locks and scheduled callbacks separate; sharing them can drop
+        # updates from another tree.
         self._ia_loading = False
-        self._ia_calibers: dict[str, str] = {}            # SID -> Kaliber
-        self._ia_types: dict[str, str] = {}               # SID -> lesbare Sorte
-        self._ia_mods: dict[str, dict[str, float]] = {}   # SID -> Vanilla-Werte
+        self._ia_calibers: dict[str, str] = {}            # SID -> caliber.
+        self._ia_types: dict[str, str] = {}               # SID -> readable ammunition type.
+        self._ia_mods: dict[str, dict[str, float]] = {}   # SID -> vanilla values
         self._ia_blocks: dict[str, IaCaliberBlock] = {}
         self._ia_auto_opened: set[str] = set()
         self._ia_expand_job: str | None = None
         self._ia_state = "disabled"
-        # Statuszeile vor dem ersten Tastendruck im Suchfeld
+        # Status line before the first search-field keystroke.
         self._status_before_search: str | None = None
-        self._iw_state = "disabled"                # gilt fuer lazy Widgets
-        # Schriften EINMAL bauen und an alle Baum-Zeilen weiterreichen —
-        # CTkFont-Objekte sind teuer, 79 Waffen x eigene Font waere Verschwendung
+        self._iw_state = "disabled"                # Applies to lazy widgets.
+        # Share font objects across rows to avoid expensive repeated construction.
         self._iw_font_cat = ctk.CTkFont(size=14)
         self._iw_font_row = ctk.CTkFont(size=13)
         self._iw_font_hint = ctk.CTkFont(size=12)
         self._msgs: "queue.Queue[tuple[str, str]]" = queue.Queue()
-        # Mod-Scan (Vorab-Scan fremder Paks in ~mods)
+        # Mod scan: inspect other paks in ~mods before generation.
         self.modscan_pref = "ask"               # "ask" | "never"
         self.mod_conflicts: dict[str, list[str]] = {}
         self.modscan_results: list[modscan.ModInfo] = []
@@ -2955,30 +2747,27 @@ class App(WorkbenchMixin, ctk.CTk):
         self._modscan_offered = False
         self._modscan_payload = None
         self._scan_running = False
-        self._mods_after: set[str] = set()   # Paks, die NACH unserer laden
-        self._mods_unknown: set[str] = set()  # Workshop: Reihenfolge unklar
-        # Avoid-conflicts-Modus: betroffene Regler auf Vanilla + gesperrt.
+        self._mods_after: set[str] = set()   # Paks loading after this tool's output.
+        self._mods_unknown: set[str] = set()  # Workshop: load order unknown
+        # Avoid-conflicts mode resets affected controls to vanilla and locks them.
         self.avoid_conflicts = False
-        self.avoid_unlocked: set[str] = set()   # bewusst freigeschaltet
-        self._avoid_saved: dict[str, float | bool] = {}  # Werte vor der Sperre
+        self.avoid_unlocked: set[str] = set()   # Explicitly unlocked.
+        self._avoid_saved: dict[str, float | bool] = {}  # Values saved before locking.
         self._locked_checks: set[str] = set()
         self.check_dots: dict[str, ctk.CTkLabel] = {}
         self._check_tips: dict[str, str] = {}
-        # "Changed only": dimmt alles, was auf Vanilla steht
+        # Changed-only dims controls at vanilla.
         self.changed_only = False
         self._oc_job: str | None = None
-        # Farbdesign. Muss VOR _build_header stehen (_set_theme liest es) und
-        # faengt immer beim Standard an; _load_ui_settings schaltet danach
-        # auf das gemerkte um.
+        # Initialize the theme before building the header; saved preferences apply later.
         self.theme_name = theme.DEFAULT_NAME
         self._wb_init()
 
         self._build_header()
         self._build_body()
         self._build_footer()
-        # Einmal durch die Design-Routine, auch im Standard: setzt die
-        # Schriftfarbe je Knopf und das Zeichen in der Fusszeile. Sonst
-        # griffe beides erst beim ersten Design-Wechsel.
+        # Apply theme styling once at startup so button text and footer symbols
+        # are correct even before the first theme change.
         self._set_theme(self.theme_name)
 
         self._load_ui_settings()
@@ -2992,18 +2781,14 @@ class App(WorkbenchMixin, ctk.CTk):
         self.after(100, self._poll_msgs)
         self.after(150, self._prefill_game)
         self.after(600, self._check_oodle_present)
-        # Erst nachdem der Spielordner gesucht wurde — sonst pulst der Knopf
-        # kurz, obwohl er noch gesperrt ist.
+        # Start pulsing only after game discovery has set the button's enabled state.
         self._blink_job = None
         self.after(900, self._blink_confirm)
 
     def destroy(self):
-        """Beim Schliessen den Puls-Auftrag abbestellen.
+        """Cancel the pending pulse callback before destroying the window.
 
-        Sonst feuert `after` noch einmal auf ein zerstoertes Fenster —
-        Tk meldet dann "invalid command name ..._blink_confirm", und in der
-        Testbatterie (die mehrere Fenster nacheinander baut) hat genau das
-        den Prozess abgeschossen, ohne eine Zeile Ausgabe zu hinterlassen."""
+        A later Tk callback would otherwise access destroyed widgets."""
         self._wb_close()
         job = getattr(self, "_blink_job", None)
         if job is not None:
@@ -3015,19 +2800,14 @@ class App(WorkbenchMixin, ctk.CTk):
         super().destroy()
 
     def _blink_confirm(self):
-        """"Confirm & load game data" pulsiert, solange die Spieldaten nicht
-        geladen sind (Besitzer 06.09.: "soll lieber blinken solange nicht
-        gedrueckt wurde"). Ohne diesen Klick tut das Werkzeug gar nichts —
-        und genau den haben Nutzer uebersehen.
+        """Pulse the load button's border while game data is unavailable.
 
-        Gepulst wird nur der RAND, nicht die Flaeche: Gruen bedeutet im
-        ganzen Programm "bereit", und eine Flaeche, die zwischen zwei Gruens
-        springt, wuerde diese Bedeutung verwaschen. Sobald die Daten stehen
-        (oder das Fenster weg ist), hoert es von selbst auf."""
+        Stop automatically after loading or window destruction; leave semantic
+        fill colors stable."""
         self._blink_job = None
         if not self.winfo_exists():
             return
-        if self.gd is not None:                      # geladen: gruen, Ruhe
+        if self.gd is not None:                      # Loaded: steady green indicator.
             self.btn_confirm.configure(
                 fg_color=OK_GREEN, hover_color=OK_GREEN_HOVER,
                 border_color=OK_BORDER, text_color="#DCE4EE")
@@ -3041,13 +2821,9 @@ class App(WorkbenchMixin, ctk.CTk):
         self._blink_job = self.after(650, self._blink_confirm)
 
     def _check_oodle_present(self):
-        """Beim Start pruefen, ob die Oodle-Bibliothek da ist.
+        """Check for the user-supplied Oodle library at startup.
 
-        Das Werkzeug laedt sie bewusst NICHT herunter (siehe pakio-Kopf:
-        ein Programm, das zur Laufzeit Bibliotheken nachlaedt, sieht fuer
-        Virenscanner wie ein Dropper aus). Fehlt sie, fuehrt ein
-        dreiseitiger Assistent durch das einmalige Danebenlegen — statt
-        den Nutzer erst beim Laden der Spieldaten auflaufen zu lassen."""
+        If missing, show the manual setup guide before game-data loading fails."""
         try:
             self._refresh_oodle_badge()
             if pakio.oodle_available():
@@ -3056,14 +2832,12 @@ class App(WorkbenchMixin, ctk.CTk):
             self._set_status("Oodle library missing – follow the setup "
                              "window; building a pak does not need it.")
         except Exception:
-            pass        # eine fehlende Vorabwarnung darf den Start nie kippen
+            pass        # A missing advisory must not prevent startup.
 
     def _oodle_target_dir(self) -> Path:
-        """Der Ordner, den der Nutzer sehen soll: der mit S2Tweaker.exe.
+        """Return the directory containing S2Tweaker.exe for the setup guide.
 
-        Dort abgelegt wird die Datei gefunden (ensure_oodle sucht zuerst
-        neben der EXE und legt eine Kopie in tools/ ab); das passt zum Bild
-        und zum Text im Assistenten."""
+        ensure_oodle accepts the DLL there and copies it into tools/."""
         return app_dir()
 
     def _close_oodle_wizard(self):
@@ -3073,11 +2847,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._refresh_oodle_badge()
 
     def _refresh_oodle_badge(self):
-        """Ampel neben dem FAQ-Knopf: gruen = da, rot = fehlt.
-
-        Wird beim Start und nach jedem Laden der Spieldaten aufgefrischt —
-        legt der Nutzer die Datei waehrend der Sitzung dazu, springt sie um,
-        sobald er auf 'Confirm & load game data' drueckt."""
+        """Refresh the library status indicator at startup and after loading game data."""
         btn = getattr(self, "btn_oodle", None)
         if btn is None:
             return
@@ -3095,12 +2865,9 @@ class App(WorkbenchMixin, ctk.CTk):
                           border_width=SYS_BORDER, border_color=BAD_BORDER)
 
     def _open_oodle_wizard(self, page: int = 0):
-        """Dreiseitiger Assistent: Link kopieren, herunterladen, ablegen.
+        """Show the three-page manual library setup guide.
 
-        Bewusst Schritt fuer Schritt mit Bildern: der Nutzer muss eine
-        fremde DLL von Hand besorgen — das ist erklaerungsbeduerftig, und
-        eine Textwand liest niemand. Die Bilder liegen als PNG bei (Tk
-        kann PNG von Haus aus; Pillow ist im Build absichtlich draussen)."""
+        Bundled PNG illustrations use Tk directly, without requiring Pillow at runtime."""
         existing = getattr(self, "_oodle_win", None)
         if existing is not None and existing.winfo_exists():
             existing.deiconify(); existing.lift(); existing.focus_set()
@@ -3129,8 +2896,7 @@ class App(WorkbenchMixin, ctk.CTk):
         next_btn.pack(side="right")
 
         def show(page: int):
-            # Erst hier zusammenstellen: die Seitenfunktionen entstehen
-            # weiter unten, ein Tupel auf Modulebene waere zu frueh.
+            # Create the page list after the nested page functions exist.
             pages = (_page1, _page2, _page3)
             page = max(0, min(page, len(pages) - 1))
             state["page"] = page
@@ -3164,14 +2930,11 @@ class App(WorkbenchMixin, ctk.CTk):
             except Exception:
                 para(f"(image {name} could not be loaded)", "gray60")
                 return
-            state["images"].append(img)      # sonst raeumt der GC sie weg
+            state["images"].append(img)      # Keep image references alive.
             ctk.CTkLabel(body, image=img, text="").pack(pady=(4, 10))
 
         def tldr(*lines: str):
-            """Kurzfassung in grosser Schrift ganz oben auf jeder Seite - fuer
-            alle, die die Erklaerung nicht lesen wollen (Wunsch des
-            Besitzers, 05.09.2026: „tool needs this, press copy, paste in
-            browser, download, accept, put there")."""
+            """Show a short, prominent action summary above each guide page."""
             box = ctk.CTkFrame(body, fg_color="gray20", corner_radius=8)
             box.pack(fill="x", pady=(0, 12))
             ctk.CTkLabel(box, text="TL;DR", anchor="w", text_color="#FF5252",
@@ -3184,7 +2947,7 @@ class App(WorkbenchMixin, ctk.CTk):
                              ).pack(fill="x", padx=14, pady=(2, 0))
             ctk.CTkLabel(box, text="", height=8).pack()
 
-        # ---------------------------------------------------------- Seite 1
+        # ---------------------------------------------------------- Page 1
         def _page1():
             heading("S2Tweaker needs one extra file, once")
             tldr("The tool needs this one file.",
@@ -3233,7 +2996,7 @@ class App(WorkbenchMixin, ctk.CTk):
             para("Then click “Next” – the following steps show exactly what to "
                  "do with it.", "gray60", pady=(10, 0))
 
-        # ---------------------------------------------------------- Seite 2
+        # ---------------------------------------------------------- Page 2
         def _page2():
             heading("Paste the link into your browser")
             tldr("→  Paste it into your browser and press Enter.",
@@ -3248,17 +3011,14 @@ class App(WorkbenchMixin, ctk.CTk):
                  "its checksum before using it and refuses anything else.",
                  "#E6B800")
 
-        # ---------------------------------------------------------- Seite 3
+        # ---------------------------------------------------------- Page 3
         def _page3():
             heading("Put the file next to S2Tweaker.exe")
             tldr("→  Put the file next to S2Tweaker.exe (folder below).",
                  "→  Restart S2Tweaker. Done.")
             picture("oodle_folder.png")
-            # Kein Updater-Skript mehr als Wegmarke: das gibt es seit 1.19.1
-            # nicht mehr im Download. Das Bild zeigt es noch (es ist der
-            # Ordner des Besitzers) — deshalb nennt der Text nur Dateien,
-            # die JEDER wirklich hat. Nie eine Datei als Orientierung
-            # nennen, die beim Nutzer gar nicht liegt.
+            # Describe only files present in current downloads; older screenshots may
+            # still show a removed updater script.
             para("Move the downloaded oo2core_9_win64.dll into the folder that "
                  "holds S2Tweaker.exe – the same place as README.txt. "
                  "Not into the “_internal” folder.")
@@ -3287,11 +3047,9 @@ class App(WorkbenchMixin, ctk.CTk):
 
     # ------------------------------------------------------------ layout
     def _build_header(self):
-        # Die Mausrad-Sperre ist klassenweit: bei einem neuen Fenster (und in
-        # den Tests, die mehrere Apps bauen) wieder auf den Startzustand.
+        # Reset the shared mouse-wheel mode when constructing a new app.
         SliderRow.set_wheel_enabled(False)
-        # Zeile 1: NUR der Spielordner (Wunsch des Besitzers: erst Ordner
-        # bestaetigen, dann kommen die Werkzeuge — nichts vermischen)
+        # First row: game folder selection and confirmation.
         head = ctk.CTkFrame(self)
         head.pack(fill="x", padx=10, pady=(10, 4))
         self.game_label = ctk.CTkLabel(head, text="Game folder: searching ...", anchor="w")
@@ -3304,13 +3062,10 @@ class App(WorkbenchMixin, ctk.CTk):
         self.btn_browse = ctk.CTkButton(head, text="Browse …", width=100,
                                         command=self._pick_game_dir)
         self.btn_browse.pack(side="right", padx=4, pady=8)
-        # Der Pfad-Text wird ZULETZT gepackt und nimmt sich nur den Rest:
-        # sonst draengt ein langer Spielpfad die Knoepfe zusammen.
+        # Pack the path last so long folder names cannot squeeze the action buttons.
         self.game_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
 
-        # Zeile 2: Werkzeuge — Suche (waechst mit), Changed only, FAQ,
-        # Oodle-Ampel. KEIN Update-Knopf mehr (1.19.2): das Programm
-        # spricht mit keinem Server mehr, siehe Kopf der Datei.
+        # Second row: search, Changed-only, FAQ and library status.
         tools = ctk.CTkFrame(self)
         tools.pack(fill="x", padx=10, pady=(0, 4))
         self.search_entry = ctk.CTkEntry(tools, width=230,
@@ -3319,16 +3074,12 @@ class App(WorkbenchMixin, ctk.CTk):
                                      fg_color=PANEL2, hover_color=PANEL2_HOVER,
                                      command=self._show_faq)
         self.btn_faq.pack(side="right", padx=(4, 10), pady=8)
-        # Oodle-Ampel: auf einen Blick sichtbar, ob die Bibliothek da ist.
-        # Klick oeffnet den Assistenten — auch dann, wenn alles stimmt, damit
-        # man die Anleitung jederzeit nachlesen kann.
+        # Click the library indicator to reopen the guide, including after setup succeeds.
         self.btn_oodle = ctk.CTkButton(
             tools, text="● Oodle", width=132, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._open_oodle_wizard)
         self.btn_oodle.pack(side="right", padx=4, pady=8)
-        # Scrollrad-Schalter, direkt links neben der Oodle-Ampel und in
-        # denselben Farben. Startet AUS (rot): das Rad blaettert dann nur,
-        # niemand verstellt beim Scrollen aus Versehen einen Regler.
+        # Wheel adjustment starts disabled; normal scrolling remains available.
         self.btn_scroll = ctk.CTkButton(
             tools, text="● Mousewheel: OFF", width=156,
             fg_color=BAD_RED, hover_color=BAD_RED_HOVER,
@@ -3338,8 +3089,7 @@ class App(WorkbenchMixin, ctk.CTk):
         HoverTip(self.btn_scroll, lambda: (
             "On: the mouse wheel changes slider values.\n"
             "Off: the mouse wheel only scrolls the page."))
-        # Farbdesigns (Fraktionen). Der Knopf traegt den Akzent des aktiven
-        # Designs, damit man ohne Aufklappen sieht, worauf es steht.
+        # The theme selector displays the active theme's accent.
         self.btn_theme = ctk.CTkButton(
             tools, text="◐ Design", width=100, fg_color=PANEL2,
             hover_color=PANEL2_HOVER, command=self._show_theme_window)
@@ -3371,26 +3121,17 @@ class App(WorkbenchMixin, ctk.CTk):
         self._wb_register(("sliders", key), self.sliders[key], self._current_tab, tooltip)
 
     def _warning(self, parent, text: str, title: str = "Note") -> None:
-        """Technische Warnbox: dunkles Panel, duenner Bernstein-Streifen
-        links, Ueberschrift in Versalien, darunter der Text.
-
-        Besitzer 06.09.: der alte einzeilige Hinweis sah "hineingeklatscht"
-        aus — "ich wuerde daraus eine richtige technische Warnbox machen:
-        dunkles Panel + duenne Amber-Linie links"."""
+        """Create a dark warning panel with an amber side stripe, heading and text."""
         box = ctk.CTkFrame(parent, fg_color=PANEL,
                            corner_radius=8)
         box.pack(fill="x", padx=12, pady=(4, 6))
-        # Der Streifen: eigener schmaler Rahmen, der die volle Hoehe fuellt.
-        # height=1 ist noetig — ein CTkFrame ohne Kinder behaelt sonst seine
-        # Standardhoehe von 200 px und blaeht die Box auf.
+        # Set height=1 on the empty stripe frame to avoid CTkFrame's default 200px height.
         strip = ctk.CTkFrame(box, width=3, height=1, fg_color=WARN_AMBER,
                              corner_radius=2)
         strip.pack(side="left", fill="y", padx=(7, 0), pady=7)
         body = ctk.CTkFrame(box, fg_color="transparent")
         body.pack(side="left", fill="both", expand=True, padx=(11, 12), pady=8)
-        # Mittig (Besitzer 06.09.: "known issue Nachrichten mittig sieht
-        # denke ich besser aus") — Ueberschrift und Text zentriert, der
-        # Streifen bleibt links.
+        # Center heading and text; retain the stripe on the left.
         heading = ctk.CTkLabel(
             body, text="⚠   " + title.upper(), anchor="center",
             font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
@@ -3409,15 +3150,13 @@ class App(WorkbenchMixin, ctk.CTk):
         body.bind("<Configure>", fit_message, add="+")
 
     def _collapsible_category(self, parent, cat: str, label: str) -> None:
-        """Aufklappbarer Block mit den 5 Parameter-Reglern einer Kategorie."""
+        """Create an expandable weapon-category parameter block."""
         btn = ctk.CTkButton(parent, text="▸  " + label, anchor="w",
                             fg_color="transparent", hover_color=PANEL2_HOVER,
                             font=ctk.CTkFont(size=14))
         btn.pack(fill="x", padx=8, pady=1)
         content = ctk.CTkFrame(parent, fg_color="transparent")
-        # Fuer die Suche merken: sonst bliebe dieser Block als einziger
-        # Kategorie-Knopf im Fenster ungefaerbt, waehrend der gleich
-        # aussehende Knopf im Overrides-Baum aufleuchtet.
+        # Register the category button for search highlighting.
         self._wcat_btns[cat] = (btn, label, btn.cget("text_color"), content)
         for param in WEAPON_PARAMS:
             lo, hi = weapon_param_range(param)
@@ -3435,26 +3174,19 @@ class App(WorkbenchMixin, ctk.CTk):
         self._wcat_render(cat)
 
     def _wcat_render(self, cat: str) -> None:
-        """Beschriftung eines 'Weapon categories'-Knopfes neu zusammensetzen.
-
-        Pfeil und Suchzusatz stecken beide in derselben Beschriftung — ohne
-        diese eine Stelle wuerde das Auf-/Zuklappen den Suchhinweis wieder
-        loeschen (und umgekehrt).
-        """
+        """Rebuild category-button text in one place, preserving both arrow and search suffix."""
         btn, label, _orig, content = self._wcat_btns[cat]
         open_ = bool(content.winfo_manager())
         arrow = "▾" if open_ else "▸"
         note = self._wcat_notes.get(cat, "")
-        # Der Hinweis gehoert NUR an einen zugeklappten Block — er wird hier
-        # und nicht beim Suchen angehaengt, sonst bliebe er nach einem Klick
-        # auf den Kopf stehen ("click to show" ueber offenen Reglern).
+        # Show the expansion hint only while collapsed.
         if note and not open_:
             note += "     click to show"
         btn.configure(text=f"{arrow}  {label}{note}")
 
-    # -------------------------------------------- Einzelwaffen-Overrides
+    # -------------------------------------------- Individual weapon overrides
     def _iw_populate(self):
-        """Waffenliste einlesen und den Overrides-Baum neu aufbauen."""
+        """Load available weapons and rebuild their override tree."""
         if self.gd is None:
             return
         weapons = self.gd.player_weapons()
@@ -3462,8 +3194,7 @@ class App(WorkbenchMixin, ctk.CTk):
             sid: cat for sid, (cat, _cws) in weapons.items() if cat
         }
         self._iw_dlc = self.gd.dlc_weapon_editions()
-        # Waffen, die sich ein CharacterWeaponSettings-Struct teilen
-        # (damage/spread/durability wirken dann auf die ganze Gruppe)
+        # Weapons sharing CharacterWeaponSettings also share its affected values.
         by_cws: dict[str, list[str]] = {}
         for sid, (cat, cws) in weapons.items():
             if cat and cws:
@@ -3473,16 +3204,12 @@ class App(WorkbenchMixin, ctk.CTk):
             for group in by_cws.values() if len(group) > 1
             for sid in group
         }
-        # Parameter, die die Waffe wirklich hat (wie _ia_mods/_ir_prot in den
-        # anderen beiden Baeumen): fuer einen Wert, den es in den Spieldaten
-        # nicht gibt, wird kein Regler gebaut.
+        # Offer controls only for parameters present in this weapon's game data.
         self._iw_params = {
             sid: weapon_available_params(self.gd, cws)
             for sid, (cat, cws) in weapons.items() if cat
         }
-        # Verwaiste Overrides (Spiel-Update, andere Installation) verwerfen —
-        # auch einzelne Parameter, die es fuer diese Waffe nicht mehr gibt
-        # (sonst zaehlt die Zeile Overrides mit, zu denen der Regler fehlt).
+        # Remove obsolete weapon and parameter overrides after installation/data changes.
         self.weapon_overrides = {
             sid: kept
             for sid, params in self.weapon_overrides.items()
@@ -3490,11 +3217,8 @@ class App(WorkbenchMixin, ctk.CTk):
             and (kept := {p: v for p, v in params.items()
                           if p in self._iw_params.get(sid, WEAPON_PARAMS)})
         }
-        # Kaliber (GitHub Issue #6): Vanilla-Wert je Waffe, die Auswahlliste
-        # und wie viele Item-Prototypen an diesem Setup haengen. Letzteres
-        # ist die ehrliche Zahl fuer den Hinweis "trifft auch NPCs": das
-        # Kaliber sitzt am WeaponGeneralSetup, und die Spieler-AK-74,
-        # Korshunovs AK und die Wach-AK teilen sich genau eines.
+        # Read caliber choices and setup-sharing counts from installed game data
+        # so the NPC-sharing warning reflects actual linked items.
         self._iw_caliber = {
             sid: self.gd.weapon_caliber(sid, self._iw_dlc.get(sid))
             for sid in self._iw_categories
@@ -3506,7 +3230,7 @@ class App(WorkbenchMixin, ctk.CTk):
             sid: self.gd.weapon_caliber_users(sid)
             for sid in self._iw_categories
         }
-        # Verwaiste Kaliberwahl genauso verwerfen wie verwaiste Overrides
+        # Discard orphaned caliber selections as well as orphaned overrides.
         self.weapon_calibers = {
             sid: cal for sid, cal in self.weapon_calibers.items()
             if sid in self._iw_categories and cal in self._iw_caliber_options
@@ -3514,22 +3238,17 @@ class App(WorkbenchMixin, ctk.CTk):
         self._iw_build_tree()
 
     def _iw_build_tree(self):
-        """Baum verwerfen und neu aufbauen.
+        """Rebuild the tree, clearing Python references before destroying widgets.
 
-        Erst die Python-Referenzen loeschen, DANN die Widgets zerstoeren:
-        danach kann kein Dict und keine Callback mehr auf einen zerstoerten
-        Regler zeigen. Alles kommt zugeklappt zurueck.
-        """
-        # Ein noch wartendes Auto-Aufklappen wuerde gleich auf zerstoerte
-        # Bloecke zugreifen — vor dem Abriss abbestellen.
+        This prevents callbacks from retaining dead controls. Start collapsed."""
+        # Cancel pending search expansion before destroying its target blocks.
         self._iw_cancel_expand()
         self._iw_blocks.clear()
         self._iw_auto_opened.clear()
         for child in list(self.iw_tree.winfo_children()):
             child.destroy()
         if not self._iw_categories:
-            # Ohne Spieldaten: Aufforderung. MIT Spieldaten, aber ohne Waffen:
-            # ehrliche Meldung statt einer schon erledigten Aufforderung.
+            # Distinguish unloaded data from loaded data containing no supported weapons.
             text = ("   – load game data first –" if self.gd is None else
                     "   – no player weapons found in this game version –")
             ctk.CTkLabel(self.iw_tree, text=text,
@@ -3544,14 +3263,14 @@ class App(WorkbenchMixin, ctk.CTk):
             if by_cat.get(cat):
                 self._iw_blocks[cat] = IwCategoryBlock(
                     self, self.iw_tree, cat, label, sorted(by_cat[cat]))
-        # Unbekannte Kategorien (kuenftige Spiel-Patches) nicht verstecken
+        # Keep unknown categories visible after game updates.
         for cat in sorted(set(by_cat) - set(WEAPON_CATEGORY_LABELS)):
             self._iw_blocks[cat] = IwCategoryBlock(
                 self, self.iw_tree, cat, cat.title(), sorted(by_cat[cat]))
         self._iw_update_info()
 
     def _iw_after_change(self, cat: str):
-        """Nach einer Aenderung: Kategorie-Zaehler und Info-Zeile auffrischen."""
+        """Refresh category counts and the summary after changes."""
         block = self._iw_blocks.get(cat)
         if block is not None:
             block.refresh()
@@ -3566,7 +3285,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self.iw_info.configure(text=text)
 
     def _iw_refresh_all(self):
-        """Alle GEBAUTEN Regler und Marker an weapon_overrides angleichen."""
+        """Synchronize existing weapon controls and markers with weapon_overrides."""
         for block in self._iw_blocks.values():
             for row in block.rows.values():
                 row.load_values()
@@ -3579,12 +3298,12 @@ class App(WorkbenchMixin, ctk.CTk):
         self._iw_refresh_all()
 
     def _iw_note(self, block, cat_hit: bool, sid_hits: list, hits) -> None:
-        """Kopfzeile eines Kategorie-Blocks fuer die laufende Suche setzen."""
+        """Update the category header for the active search."""
         if sid_hits:
             note = (f"     {len(sid_hits)} match"
                     f"{'es' if len(sid_hits) != 1 else ''}")
         elif cat_hit:
-            note = "     category match"   # keine Zahl: siehe _iw_filter
+            note = "     category match"   # No count here; see _iw_filter.
         else:
             note = ""
         block.set_highlight("match" if hits else "dim", note, bool(hits))
@@ -3598,18 +3317,10 @@ class App(WorkbenchMixin, ctk.CTk):
             self._iw_expand_job = None
 
     def _iw_filter(self, query: str) -> int:
-        """Suchfeld auf den Waffenbaum anwenden; liefert die Trefferzahl.
+        """Filter weapon SIDs/labels and return the match count.
 
-        Gesucht wird in block.sids / block.label (reine Strings), gefaerbt
-        wird nur, was schon gebaut ist -- daher nie ein Absturz auf noch
-        nicht aufgeklappten Zeilen. Der Treffersatz bleibt im Block liegen
-        (set_row_filter), damit spaeter gebaute Zeilen die Farbe erben.
-
-        Faerben passiert SOFORT, das Auto-Aufklappen erst verzoegert in
-        _iw_auto_expand: das Bauen von Waffenzeilen kostet spuerbar Zeit,
-        und beim Tippen von "rifle" waere das Fenster sonst mitten im Wort
-        mehrfach eingefroren.
-        """
+        Highlight existing rows immediately and retain matches for lazy rows.
+        Defer expensive automatic expansion until typing pauses."""
         self._iw_cancel_expand()
         if not query:
             for cat in list(self._iw_auto_opened):
@@ -3626,18 +3337,13 @@ class App(WorkbenchMixin, ctk.CTk):
             cat_hit = query in block.label.lower() or query in cat.lower()
             sid_hits = [sid for sid in block.sids
                         if weapon_sid_hit(sid, query)]
-            # Hervorgehoben wird bei einem Kategorie-Treffer die ganze
-            # Kategorie, gezaehlt werden aber nur echte Waffentreffer bzw.
-            # EIN Treffer fuer die Kategorie -- Kopfzeile und Statuszeile
-            # muessen dieselbe Zahl nennen.
+            # Highlight whole category matches, but count either item matches or one
+            # category match consistently in the header and status line.
             hits = block.sids if cat_hit else sid_hits
             hits_total += len(sid_hits) if sid_hits else (1 if cat_hit else 0)
-            # Treffersatz VOR dem Aufklappen setzen, damit frisch gebaute
-            # Zeilen sofort in der richtigen Farbe erscheinen.
+            # Store matches before expanding so new rows receive the correct highlighting.
             block.set_row_filter(set(hits))
-            # Kategorien, die die Suche frueher aufgeklappt hat und die jetzt
-            # nicht mehr passen, wieder zuklappen (von Hand geoeffnete nicht:
-            # die stehen dank IwCategoryBlock.toggle nicht in _iw_auto_opened).
+            # Collapse only categories previously opened by search, leaving manual choices intact.
             if not hits and cat in self._iw_auto_opened:
                 block.collapse()
                 self._iw_auto_opened.discard(cat)
@@ -3648,42 +3354,34 @@ class App(WorkbenchMixin, ctk.CTk):
         return hits_total
 
     def _iw_auto_expand(self, query: str) -> None:
-        """Verzoegerter Teil der Suche: passende Kategorien aufklappen.
-
-        Laeuft erst, wenn 250 ms lang nichts mehr getippt wurde, und bricht
-        ab, falls das Suchfeld inzwischen etwas anderes enthaelt.
-        """
+        """Expand matching categories after a 250ms typing pause, unless the query changed."""
         self._iw_expand_job = None
         if self.search_entry.get().strip().lower() != query:
             return
-        built = 0            # in DIESEM Durchgang neu erzeugte Waffenzeilen
+        built = 0            # Weapon rows created during this pass.
         for cat, block in self._iw_blocks.items():
             cat_hit = query in block.label.lower() or query in cat.lower()
             sid_hits = [sid for sid in block.sids
                         if weapon_sid_hit(sid, query)]
             hits = block.sids if cat_hit else sid_hits
-            # Auto-Aufklappen nur bei einer GEZIELTEN Suche und nur, solange
-            # das Budget an neu zu bauenden Zeilen reicht. Entscheidend ist,
-            # wie viele Zeilen dabei entstehen -- nicht wie viele Treffer es
-            # gibt: jede Waffen-SID beginnt mit "Gun", ein "gu" haette sonst
-            # den halben Baum im Hintergrund erzeugt. Schon gebaute
-            # Kategorien kosten nichts und duerfen immer wieder auf.
-            specific = len(sid_hits) <= 8      # nicht "passt sowieso alles"
+            # Limit automatic expansion by newly created row count, not match count.
+            # Broad queries could otherwise build most of the tree; existing rows cost nothing.
+            specific = len(sid_hits) <= 8      # Exclude queries matching everything.
             if hits and specific and len(query) >= 3 and not block.expanded:
                 cost = 0 if block.rows else len(block.sids)
                 if built + cost <= 30:
                     built += cost
-                    block.expand()   # refresh() nimmt den Hinweis selbst weg
+                    block.expand()   # refresh() removes the notice itself.
                     self._iw_auto_opened.add(cat)
 
-    # -------------------------------------------- Einzelmunitions-Overrides
-    # -------------------------------------------- Einzel-Zielfernrohre (1.27.0)
+    # -------------------------------------------- Individual ammunition overrides
+    # -------------------------------------------- Individual scopes
     SCOPE_CLASS_LABELS = {"AimingFOVX2Effect": "2x scopes", "AimingFOVX3Effect": "3x scopes",
                           "AimingFOVX4Effect": "4x scopes", "AimingFOVX8Effect": "8x scopes",
                           None: "Collimators & holo sights (penalties only)"}
 
     def _isc_label(self, sid: str, zoom, pens) -> str:
-        """Fernrohr-Name (aus der SID) plus Vanilla-Werte der Effekte."""
+        """Return a scope label and its vanilla effect values."""
         parts = []
         for eff in ([zoom] if zoom else []) + list(pens):
             node = self.gd.effects.children.get(eff) if self.gd is not None else None
@@ -3700,8 +3398,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return f"{name}   \u00b7   vanilla: " + ", ".join(parts) if parts else name
 
     def _isc_populate(self):
-        """Fernrohr-Liste aus den Spieldaten aufbauen (je Klasse ein
-        aufklappbarer Block). Wahrheit ist self.scope_overrides."""
+        """Build scope groups from game data, backed by scope_overrides."""
         box = self._scope_box
         if box is None:
             return
@@ -3786,7 +3483,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self._isc_loading = prev
 
     def _ia_populate(self):
-        """Munitionsliste einlesen und den Ammo-Baum neu aufbauen."""
+        """Load ammunition and rebuild its override tree."""
         if self.gd is None:
             return
         kinds = self.gd.ammo_kinds()
@@ -3796,11 +3493,8 @@ class App(WorkbenchMixin, ctk.CTk):
             sid: AMMO_TYPE_LABELS.get(typ, typ)
             for sid, (_c, typ) in kinds.items()
         }
-        # Verwaiste Overrides (Spiel-Update, andere Installation) verwerfen.
-        # Erst HIER moeglich: vorher sind die gueltigen SIDs nicht bekannt.
-        # Dazu Faktoren auf Werte werfen, die in dieser Spielversion 0 sind:
-        # sie erzeugen keinen Patch (0 × Faktor = 0), wuerden aber im
-        # Ergebnis-Dialog auftauchen und die Zaehler der Zeilen sprengen.
+        # Discard unknown ammunition overrides and factors on newly zero baselines
+        # once valid SIDs and values are available.
         cleaned = {}
         for sid, params in self.ammo_overrides.items():
             if sid not in self._ia_calibers:
@@ -3815,7 +3509,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._ia_build_tree()
 
     def _ia_build_tree(self):
-        """Baum verwerfen und neu aufbauen (erst Referenzen, dann Widgets)."""
+        """Rebuild the tree, clearing references before destroying widgets."""
         self._ia_cancel_expand()
         self._ia_blocks.clear()
         self._ia_auto_opened.clear()
@@ -3832,8 +3526,7 @@ class App(WorkbenchMixin, ctk.CTk):
         by_cal: dict[str, list[str]] = {}
         for sid, cal in self._ia_calibers.items():
             by_cal.setdefault(cal, []).append(sid)
-        # Innerhalb eines Kalibers nach SORTE sortieren (Standard zuerst),
-        # nicht alphabetisch: die SIDs sind fuer den Benutzer bedeutungslos.
+        # Sort ammunition by type, with standard first, rather than by internal SID.
         order = list(AMMO_TYPE_LABELS.values())
 
         def sort_key(sid: str):
@@ -3846,9 +3539,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 self._ia_blocks[cal] = IaCaliberBlock(
                     self, self.ia_tree, cal, label,
                     sorted(by_cal[cal], key=sort_key))
-        # Unbekannte Kaliber (kuenftige Spiel-Patches) nicht verstecken:
-        # Beschriftung = roher Enum-Schwanz. Die Karte ist Nachschlagewerk,
-        # kein Filter. sorted() bekommt nie None (ammo_kinds liefert "").
+        # Display unknown calibers using their enum suffix; the name map is not a filter.
         for cal in sorted(set(by_cal) - set(AMMO_CALIBER_LABELS)):
             self._ia_blocks[cal] = IaCaliberBlock(
                 self, self.ia_tree, cal, cal or "Other",
@@ -3863,8 +3554,7 @@ class App(WorkbenchMixin, ctk.CTk):
 
     def _ia_update_info(self):
         if self.ammo_overrides:
-            # Lesbare Namen statt SIDs: "A012D" sagt ausserhalb des Baums
-            # niemandem etwas, "12 gauge standard" schon.
+            # Use readable ammunition names in summaries.
             text = "Overrides set for: " + ", ".join(
                 ammo_label(sid) for sid in sorted(self.ammo_overrides))
         else:
@@ -3872,8 +3562,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self.ia_info.configure(text=text)
 
     def _ia_refresh_all(self):
-        """Alle GEBAUTEN Regler und Marker an ammo_overrides angleichen.
-        Vertraegt einen leeren Baum -- laeuft auch ohne Spieldaten."""
+        """Synchronize existing ammunition controls; tolerate an empty, unloaded tree."""
         for block in self._ia_blocks.values():
             for row in block.rows.values():
                 row.load_values()
@@ -3889,7 +3578,7 @@ class App(WorkbenchMixin, ctk.CTk):
             note = (f"     {len(sid_hits)} match"
                     f"{'es' if len(sid_hits) != 1 else ''}")
         elif cal_hit:
-            note = "     caliber match"    # keine Zahl: siehe _ia_filter
+            note = "     caliber match"    # No count here; see _ia_filter.
         else:
             note = ""
         block.set_highlight("match" if hits else "dim", note, bool(hits))
@@ -3904,20 +3593,16 @@ class App(WorkbenchMixin, ctk.CTk):
 
     @staticmethod
     def _ia_norm(text: str) -> str:
-        """'5.45×39 mm' -> '5.45x39 mm'. Das Malzeichen steht auf keiner
-        Tastatur -- ohne diese Normalisierung fiele die Kaliber-Suche aus."""
+        """Normalize the multiplication sign to x for typed caliber searches."""
         return text.lower().replace("×", "x")
 
     def _ia_sid_hit(self, sid: str, q: str) -> bool:
-        """SID oder Sorte ("armor-piercing", "standard", ...): die Sorte ist
-        das einzige unterscheidende Merkmal zwischen A545A/A545D/A545E und
-        steht als einzige nicht schon im zugeklappten Baum."""
+        """Match ammunition SID or type, including distinctions absent from collapsed rows."""
         return q in sid.lower() or q in self._ia_norm(
             self._ia_types.get(sid, ""))
 
     def _ia_filter(self, query: str) -> int:
-        """Suchfeld auf den Ammo-Baum anwenden; liefert die Trefferzahl.
-        Faerben sofort, Auto-Aufklappen verzoegert (siehe _ia_auto_expand)."""
+        """Filter ammunition and return its match count; highlight now and expand later."""
         self._ia_cancel_expand()
         if not query:
             for cal in list(self._ia_auto_opened):
@@ -3934,9 +3619,7 @@ class App(WorkbenchMixin, ctk.CTk):
         for cal, block in self._ia_blocks.items():
             cal_hit = q in self._ia_norm(block.label) or q in cal.lower()
             sid_hits = [sid for sid in block.sids if self._ia_sid_hit(sid, q)]
-            # Gleiche Zaehlregel wie im Waffenbaum: entweder die echten
-            # SID-Treffer oder EIN Treffer fuer das Kaliber -- Kopfzeile und
-            # Statuszeile muessen dieselbe Zahl nennen.
+            # Count either matching ammunition items or one caliber match consistently.
             hits = block.sids if cal_hit else sid_hits
             hits_total += len(sid_hits) if sid_hits else (1 if cal_hit else 0)
             block.set_row_filter(set(hits))
@@ -3950,9 +3633,9 @@ class App(WorkbenchMixin, ctk.CTk):
         return hits_total
 
     def _ia_auto_expand(self, q: str) -> None:
-        """Verzoegerter Teil: passende Kaliber aufklappen. Bricht ab, falls
-        im Suchfeld inzwischen etwas anderes steht. Eigenes Budget -- der
-        Ammo-Baum darf dem Waffenbaum keine Zeilen wegnehmen."""
+        """Expand matching calibers only while the query still matches.
+
+        Use a separate construction budget from the weapon tree."""
         self._ia_expand_job = None
         if self._ia_norm(self.search_entry.get().strip()) != q:
             return
@@ -3969,11 +3652,11 @@ class App(WorkbenchMixin, ctk.CTk):
                     block.expand()
                     self._ia_auto_opened.add(cal)
 
-    # -------------------------------------------- Einzelruestungs-Baum
+    # -------------------------------------------- Individual armor tree
     ARMOR_GROUP_LABELS = {"Body": "Body armor", "Head": "Helmets"}
 
     def _ir_populate(self):
-        """Ruestungsliste einlesen und den Armor-Baum neu aufbauen."""
+        """Load armor items and rebuild the override tree."""
         if self.gd is None:
             return
         from .tweaks import ARMOR_PARAM_KEYS
@@ -3995,9 +3678,7 @@ class App(WorkbenchMixin, ctk.CTk):
                   if key in self._ir_custom_controls[sid]}
             for sid, values in self.armor_custom.items() if sid in armors}
         self.armor_custom = {sid: values for sid, values in self.armor_custom.items() if values}
-        # Verwaiste Overrides verwerfen (Spiel-Update, andere Installation);
-        # dazu Faktoren auf Schutzarten, die es an dieser Ruestung nicht
-        # gibt (0 in Vanilla -> kein Regler, kein Patch).
+        # Remove obsolete armor overrides and unsupported zero-baseline protection factors.
         cleaned = {}
         for sid, params in self.armor_overrides.items():
             if sid not in self._ir_prot:
@@ -4010,7 +3691,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._ir_build_tree()
 
     def _ir_build_tree(self):
-        """Baum verwerfen und neu aufbauen (erst Referenzen, dann Widgets)."""
+        """Rebuild the tree, clearing references before destroying widgets."""
         self._ir_cancel_expand()
         self._ir_blocks.clear()
         self._ir_auto_opened.clear()
@@ -4036,7 +3717,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 self._ir_blocks[group] = IrGroupBlock(
                     self, self.ir_tree, group, label,
                     sorted(by_group[group], key=sort_key))
-        # Unbekannte Slots kuenftiger Spiel-Patches nicht verstecken.
+        # Keep unknown slots visible after game updates.
         for group in sorted(set(by_group) - set(self.ARMOR_GROUP_LABELS)):
             self._ir_blocks[group] = IrGroupBlock(
                 self, self.ir_tree, group, group or "Other",
@@ -4052,9 +3733,7 @@ class App(WorkbenchMixin, ctk.CTk):
     def _ir_update_info(self):
         selected = set(self.armor_overrides) | set(self.armor_custom)
         if selected:
-            # armor_label als Fallback: VOR dem Laden der Spieldaten ist
-            # _ir_labels leer, rohe SIDs sollen trotzdem nie erscheinen
-            # (Gleichstand mit dem Ammo-Zwilling, der ammo_label nutzt).
+            # Use armor_label before game data loads so summaries still have readable names.
             text = "Overrides set for: " + ", ".join(
                 self._ir_labels.get(sid) or armor_label(sid)
                 for sid in sorted(selected))
@@ -4076,8 +3755,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self.ir_conflict_label.pack_forget()
 
     def _ir_refresh_all(self):
-        """Alle GEBAUTEN Regler und Marker an armor_overrides angleichen.
-        Vertraegt einen leeren Baum -- laeuft auch ohne Spieldaten."""
+        """Synchronize existing armor controls; tolerate an empty, unloaded tree."""
         for block in self._ir_blocks.values():
             for row in block.rows.values():
                 row.load_values()
@@ -4098,12 +3776,11 @@ class App(WorkbenchMixin, ctk.CTk):
             self._ir_expand_job = None
 
     def _ir_sid_hit(self, sid: str, q: str) -> bool:
-        """SID oder lesbares Label ("SEVA (Loners)"): der Nutzer sucht nach
-        dem, was er im Spiel sieht, nicht nach SIDs."""
+        """Match either an armor SID or its readable label."""
         return q in sid.lower() or q in self._ir_labels.get(sid, "").lower()
 
     def _ir_filter(self, query: str) -> int:
-        """Suchfeld auf den Armor-Baum anwenden; liefert die Trefferzahl."""
+        """Filter the armor tree and return its match count."""
         self._ir_cancel_expand()
         if not query:
             for group in list(self._ir_auto_opened):
@@ -4140,8 +3817,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return hits_total
 
     def _ir_auto_expand(self, q: str) -> None:
-        """Verzoegerter Teil: passende Gruppen aufklappen. Eigenes Budget,
-        damit der Armor-Baum Waffen und Munition keine Zeilen wegnimmt."""
+        """Expand matching armor groups with a separate construction budget."""
         self._ir_expand_job = None
         if self.search_entry.get().strip().lower() != q:
             return
@@ -4158,11 +3834,9 @@ class App(WorkbenchMixin, ctk.CTk):
                     block.expand()
                     self._ir_auto_opened.add(group)
 
-    # -------------------------------------------- Fraktionsbeziehungen
+    # -------------------------------------------- Faction relationships
     def _if_populate(self):
-        """Beziehungspaare der kuratierten Haupt-Fraktionen einlesen und
-        den Fraktions-Baum neu aufbauen (docs/FACTION_RELATIONS_RESEARCH.md).
-        Nur Paare anbieten, die es in den Spieldaten wirklich gibt."""
+        """Load existing relation pairs for the supported main factions and rebuild the tree."""
         if self.gd is None:
             return
         pairs = self.gd.relation_pairs()
@@ -4190,8 +3864,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 groups.append((sid, label, keys))
         self._if_player_keys = player_keys
         self._if_groups = groups
-        # Verwaiste (anderes Spiel/altes Preset) und Vanilla-gleiche
-        # Eintraege verwerfen — dieselbe Hygiene wie bei den Overrides.
+        # Discard unknown pairs and entries equal to vanilla.
         cleaned: dict[str, int] = {}
         for key, value in self.faction_relations.items():
             vanilla = self._if_vanilla.get(key)
@@ -4207,8 +3880,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._if_build_tree()
 
     def _if_build_tree(self):
-        """Baum verwerfen und neu aufbauen; der Spieler-Block startet
-        aufgeklappt (er ist der Hauptanwendungsfall des Tabs)."""
+        """Rebuild the faction tree with the player block expanded initially."""
         self._if_cancel_expand()
         self._if_blocks.clear()
         self._if_rows.clear()
@@ -4254,7 +3926,7 @@ class App(WorkbenchMixin, ctk.CTk):
         for block in self._if_blocks.values():
             block.refresh()
         self._if_update_info()
-        self._if_update_conflict_note()   # Warnstufe haengt am eigenen Stand
+        self._if_update_conflict_note()   # Warning severity depends on the current setting.
 
     def _if_update_info(self):
         if self.faction_relations:
@@ -4268,8 +3940,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self.if_info.configure(text=text)
 
     def _if_refresh_all(self):
-        """Alle GEBAUTEN Regler und Marker an faction_relations angleichen.
-        Vertraegt einen leeren Baum — laeuft auch ohne Spieldaten."""
+        """Synchronize existing faction controls; tolerate an empty, unloaded tree."""
         for block in self._if_blocks.values():
             block.load_values()
             block.refresh()
@@ -4288,12 +3959,11 @@ class App(WorkbenchMixin, ctk.CTk):
             self._if_expand_job = None
 
     def _if_pair_hit(self, key: str, q: str) -> bool:
-        """Paar-Schluessel ODER Anzeigename ("Duty ↔ Freedom"): der Nutzer
-        sucht nach dem, was er im Spiel sieht."""
+        """Match a faction-pair key or its readable label."""
         return q in key.lower() or q in self._if_labels.get(key, "").lower()
 
     def _if_filter(self, query: str) -> int:
-        """Suchfeld auf den Fraktions-Baum anwenden; liefert die Trefferzahl."""
+        """Filter faction pairs and return the match count."""
         self._if_cancel_expand()
         if not query:
             for group in list(self._if_auto_opened):
@@ -4330,8 +4000,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return hits_total
 
     def _if_auto_expand(self, q: str) -> None:
-        """Verzoegerter Teil: passende Bloecke aufklappen (eigenes Budget,
-        damit der Fraktions-Baum den anderen Baeumen nichts wegnimmt)."""
+        """Expand matching faction blocks with a separate construction budget."""
         self._if_expand_job = None
         if self.search_entry.get().strip().lower() != q:
             return
@@ -4348,14 +4017,12 @@ class App(WorkbenchMixin, ctk.CTk):
                     block.expand()
                     self._if_auto_opened.add(group)
 
-    # -------------------------------------------- Mutanten-Overrides
+    # -------------------------------------------- Mutant overrides
     def _im_populate(self):
-        """Mutanten-Arten einlesen und den Arten-Baum neu aufbauen.
+        """Load mutant species and offer only data-supported controls.
 
-        Je Art nur die Regler anbieten, die wirklich wirken: hp/speed
-        immer (jeder Prototyp hat MaxHP/MovementParams), damage nur bei
-        Arten mit Damage-Attacken in AbilityPrototypes (Poltergeist/Rat
-        wirken indirekt), regen nur bei Vanilla-Regeneration > 0."""
+        Direct-damage controls require damage abilities; regeneration requires
+        a positive baseline."""
         if self.gd is None:
             return
         hp_by_species: dict[str, list[float]] = {}
@@ -4406,7 +4073,7 @@ class App(WorkbenchMixin, ctk.CTk):
                              + ("" if min(regs) == max(regs)
                                 else f"–{max(regs):g}") + " HP/s")
             self._im_hints[species] = " · ".join(parts)
-        # Verwaiste Arten/Parameter verwerfen (Spiel-Update, alter Preset)
+        # Discard obsolete types/parameters from game updates or old presets.
         cleaned: dict[str, dict[str, float]] = {}
         for sp, params in self.mutant_overrides.items():
             if sp not in self._im_params:
@@ -4484,7 +4151,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 or q in mutant_species_label(species).lower())
 
     def _im_filter(self, query: str) -> int:
-        """Suchfeld auf den Mutanten-Baum anwenden; liefert Trefferzahl."""
+        """Filter mutant species and return the match count."""
         self._im_cancel_expand()
         if not query:
             for group in list(self._im_auto_opened):
@@ -4552,7 +4219,7 @@ class App(WorkbenchMixin, ctk.CTk):
         dot.pack(side="left")
         self.check_dots[key] = dot
         HoverTip(dot, lambda k=key: self._check_tips.get(k, ""))
-        # Klick auf das Schloss schaltet eine Avoid-Sperre frei
+        # Clicking the lock explicitly unlocks a conflict-protected control.
         dot.bind("<Button-1>",
                  lambda _e, k=key: (k in self._locked_checks
                                     and self._avoid_unlock("check:" + k)))
@@ -4569,7 +4236,7 @@ class App(WorkbenchMixin, ctk.CTk):
                       width=240).pack(anchor="w", **PAD)
 
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
-        """Neuen Tab anlegen und scrollbaren Inhalts-Frame liefern."""
+        """Create a tab and return its scrollable content frame."""
         self._current_tab = name
         tab = self.tabs.add(name)
         frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
@@ -4618,9 +4285,7 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Vaulting")
-        # Eigener Tab (Wunsch des Besitzers): 7 Regler + 2 Schalter sind zu
-        # viel fuer den Player-Tab. Die Schluessel bleiben identisch ->
-        # settings.json, Presets und Pak-Manifeste laufen unveraendert.
+        # Keep vaulting controls in their own tab while preserving preset keys.
         f = self._section(body, "Vaulting & climbing")
         ctk.CTkLabel(
             f, text="   How Skif climbs and vaults over obstacles. All "
@@ -5616,10 +5281,10 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="Clear all species overrides", width=200,
             command=self._im_clear_all)
         self.im_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
-        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        # Pack the persistent container once; replace only its contents.
         self.im_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.im_tree.pack(fill="x", pady=(2, 2))
-        self._im_build_tree()            # zeigt zunaechst nur den Platzhalter
+        self._im_build_tree()            # Initially show the placeholder.
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Factions")
@@ -5647,8 +5312,7 @@ class App(WorkbenchMixin, ctk.CTk):
             anchor="w", justify="left", wraplength=780,
             font=ctk.CTkFont(size=12), text_color=MUTED).pack(
             fill="x", padx=12)
-        # Mod-Scan-Hinweis (Pseudo-Schluessel "tree:factions"): der Baum hat
-        # keine Regler-Punkte, dafuer diese eine ehrliche Zeile.
+        # Use tree:factions for a single conflict summary above the faction controls.
         self.if_conflict_label = ctk.CTkLabel(
             f, text="", anchor="w", justify="left", wraplength=780,
             font=self._iw_font_hint, text_color=MARK_INFO)
@@ -5660,10 +5324,10 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="Reset all relations to vanilla", width=220,
             command=self._if_clear_all)
         self.if_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
-        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        # Pack the persistent container once; replace only its contents.
         self.if_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.if_tree.pack(fill="x", pady=(2, 2))
-        self._if_build_tree()            # zeigt zunaechst nur den Platzhalter
+        self._if_build_tree()            # Initially show the placeholder.
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Reputation mechanics")
@@ -5956,8 +5620,7 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="   Expand a category, then a weapon, to edit its factors.",
             anchor="w", font=ctk.CTkFont(size=12),
             text_color=MUTED).pack(fill="x", padx=12, pady=(0, 2))
-        # Uebersicht und "alles loeschen" stehen UEBER dem Baum: der kann auf
-        # 79 Zeilen anwachsen, darunter waeren beide nur mit Scrollen erreichbar.
+        # Place the summary and clear action above the potentially long weapon list.
         self.iw_info = ctk.CTkLabel(
             f, text="No per-weapon overrides set.", anchor="w", justify="left",
             wraplength=780, font=self._iw_font_hint, text_color=MUTED)
@@ -5966,17 +5629,15 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="Clear all weapon overrides", width=200,
             command=self._iw_clear_all)
         self.iw_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
-        # Container fuer den Baum: wird EINMAL gepackt und nie neu gepackt,
-        # nur sein Inhalt wird bei _iw_build_tree() ausgetauscht.
+        # Keep the weapon-tree container packed while replacing its contents.
         self.iw_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.iw_tree.pack(fill="x", pady=(2, 2))
-        self._iw_build_tree()            # zeigt zunaechst nur den Platzhalter
+        self._iw_build_tree()            # Initially show the placeholder.
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Ammo")
-        # Die 4 globalen Regler standen frueher im Weapons-Tab. Sie MUESSEN
-        # nach _tab("Ammo") entstehen: _slider() stempelt den aktuellen
-        # Tab-Namen in slider_tabs, sonst nennt die Suche den falschen Tab.
+        # Create global ammunition controls after selecting their tab so search
+        # metadata records the correct tab.
         f = self._section(body, "Ammo (all calibers)")
         ctk.CTkLabel(
             f, text="   Scales each ammo type's own modifiers, so special "
@@ -6056,18 +5717,15 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="Clear all ammo overrides", width=200,
             command=self._ia_clear_all)
         self.ia_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
-        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        # Pack the persistent container once; replace only its contents.
         self.ia_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.ia_tree.pack(fill="x", pady=(2, 2))
-        self._ia_build_tree()            # zeigt zunaechst nur den Platzhalter
+        self._ia_build_tree()            # Initially show the placeholder.
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Armor")
-        # Die globalen Schutz-Regler standen frueher im Combat-Tab. Sie
-        # MUESSEN nach _tab("Armor") entstehen: _slider() stempelt den
-        # aktuellen Tab-Namen in slider_tabs (Suche nennt sonst den falschen
-        # Tab). Die Schluessel bleiben gleich -> settings.json und Presets
-        # laufen unveraendert weiter.
+        # Create armor controls after selecting their tab so search metadata is correct.
+        # Keep existing keys for preset compatibility.
         f = self._section(body, "Armor protection (all armor & helmets)")
         ctk.CTkLabel(
             f, text="   Scales YOUR armor's protection values per damage "
@@ -6168,10 +5826,10 @@ class App(WorkbenchMixin, ctk.CTk):
             f, text="Clear all armor overrides", width=200,
             command=self._ir_clear_all)
         self.ir_clear_btn.pack(anchor="w", padx=12, pady=(2, 6))
-        # Container: wird EINMAL gepackt, nur sein Inhalt wird ausgetauscht.
+        # Pack the persistent container once; replace only its contents.
         self.ir_tree = ctk.CTkFrame(f, fg_color="transparent")
         self.ir_tree.pack(fill="x", pady=(2, 2))
-        self._ir_build_tree()            # zeigt zunaechst nur den Platzhalter
+        self._ir_build_tree()            # Initially show the placeholder.
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Upgrades")
@@ -6767,15 +6425,15 @@ class App(WorkbenchMixin, ctk.CTk):
 
     def _set_body_state(self, enabled: bool):
         state = "normal" if enabled else "disabled"
-        self._iw_state = state   # gilt auch fuer spaeter gebaute Zeilen/Regler
-        self._ia_state = state   # dito fuer den Ammo-Baum
+        self._iw_state = state   # Also applies to rows created later.
+        self._ia_state = state   # Apply the same state to the ammunition tree.
         for row in self.sliders.values():
             row.set_state(state)
         for rows in self._isc_rows.values():
             for row in rows.values():
                 row.set_state(state)
-        for btn in self._isc_btns:     # Klassen-Knoepfe des Fernrohr-Baums: beim ersten
-            btn.configure(state=state)  # Laden entstehen sie noch im Sperrzustand
+        for btn in self._isc_btns:     # Scope-category buttons: initial construction.
+            btn.configure(state=state)  # Loading initially creates them in the locked state.
         for key, box in self.checks.items():
             locked = key in self._locked_checks
             box.configure(state="disabled" if locked else state)
@@ -6787,15 +6445,15 @@ class App(WorkbenchMixin, ctk.CTk):
         self.ia_clear_btn.configure(state=state)
         for block in self._ia_blocks.values():
             block.set_state(state)
-        self._ir_state = state   # dito fuer den Armor-Baum
+        self._ir_state = state   # Apply the same state to the armor tree.
         self.ir_clear_btn.configure(state=state)
         for block in self._ir_blocks.values():
             block.set_state(state)
-        self._if_state = state   # dito fuer den Fraktions-Baum
+        self._if_state = state   # Apply the same state to the faction tree.
         self.if_clear_btn.configure(state=state)
         for block in self._if_blocks.values():
             block.set_state(state)
-        self._im_state = state   # dito fuer den Mutanten-Baum
+        self._im_state = state   # Apply the same state to the mutant tree.
         self.im_clear_btn.configure(state=state)
         for block in self._im_blocks.values():
             block.set_state(state)
@@ -6804,18 +6462,14 @@ class App(WorkbenchMixin, ctk.CTk):
         self._msgs.put(("status", text))
 
     def _status_write(self, text: str):
-        """Statuszeile schreiben UND den Merkwert der Suche verwerfen.
+        """Update status and discard the old message saved by search.
 
-        Das Suchfeld legt die vorherige Meldung beiseite und stellt sie beim
-        Leeren wieder her. Ohne dieses Verwerfen kaeme bei aktiver Suche eine
-        laengst ueberholte Meldung zurueck ("… load game data" nach dem
-        Laden, statt "Built: …").
-        """
+        Clearing the query must not restore a message superseded by loading/building."""
         self._status_before_search = None
         self.status.configure(text=text)
 
     def _poll_msgs(self):
-        """Nachrichten des Hintergrund-Threads im GUI-Thread verarbeiten."""
+        """Handle worker-thread messages on the GUI thread."""
         try:
             while True:
                 kind, payload = self._msgs.get_nowait()
@@ -6836,13 +6490,12 @@ class App(WorkbenchMixin, ctk.CTk):
                     self._wb_equipment_choices()
                     self._set_busy(False)
                     self._set_body_state(True)
-                    # Laufende Suche auf den frisch gebauten Baum anwenden
+                    # Apply the current search to the rebuilt tree.
                     self._apply_filter()
                     self.btn_confirm.configure(state="normal",
                                                text="↻ Reload game data")
                     self.btn_browse.configure(state="normal")
-                    # Nach einem (Neu-)Laden sind alte Fussabdruecke wertlos:
-                    # sie wurden gegen die vorherigen Spieldaten gerechnet.
+                    # Invalidate footprints after reloading game data; they used previous baselines.
                     self._footprints.clear()
                     self.btn_scan.configure(state="normal")
                     self.after(400, self._maybe_offer_modscan)
@@ -6851,7 +6504,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 elif kind == "loadfail":
                     self.btn_confirm.configure(state="normal")
                     self.btn_browse.configure(state="normal")
-                    if self.gd is not None:      # alte Daten weiter nutzbar
+                    if self.gd is not None:      # Keep older data usable.
                         self.btn_scan.configure(state="normal")
                 elif kind == "oodle":
                     self._open_oodle_wizard()
@@ -6862,7 +6515,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self.after(100, self._poll_msgs)
 
     def _prefill_game(self):
-        """Beim Start: Spielordner nur VORSCHLAGEN, nichts laden."""
+        """Suggest the game folder at startup without loading data."""
         def detect():
             if self.game_dir is None or not game.is_game_dir(self.game_dir):
                 self.game_dir = game.find_game()
@@ -6894,7 +6547,7 @@ class App(WorkbenchMixin, ctk.CTk):
 
     def _load_gamedata(self):
         try:
-            # Entwicklungsmodus: vanilla/-Ordner im Projektverzeichnis
+            # Development mode: vanilla/ in the project directory.
             dev = Path(__file__).resolve().parent.parent / "vanilla" / \
                 "Stalker2" / "Content" / "GameLite" / "GameData"
             if dev.is_dir():
@@ -6920,8 +6573,7 @@ class App(WorkbenchMixin, ctk.CTk):
                    or "No edition (DLC) content in this install."))
             self._msgs.put(("ready", ""))
         except pakio.OodleError:
-            # Der Assistent erklaert es Schritt fuer Schritt mit Bildern —
-            # besser als eine Textwand im Fehlerdialog.
+            # The illustrated guide explains the manual setup steps.
             self._set_status("Missing Oodle library – see the setup window.")
             self._msgs.put(("loadfail", ""))
             self._msgs.put(("oodle", ""))
@@ -6953,7 +6605,7 @@ class App(WorkbenchMixin, ctk.CTk):
 
     # ------------------------------------------------------------ settings
     def _collect_weapon_cats(self) -> dict:
-        """{Kategorie: {param: faktor}} — nur Abweichungen von 1.0."""
+        """Return category factors differing from 1.0."""
         result: dict = {}
         for cat in WEAPON_CATEGORY_LABELS:
             factors = {}
@@ -7342,7 +6994,7 @@ class App(WorkbenchMixin, ctk.CTk):
             ammo_recoil_factor=s["ammo_recoil"].get() / 100.0,
             ammo_flatness_factor=s["ammo_flat"].get() / 100.0,
             ammo_wear_factor=s["ammo_wear"].get() / 100.0,
-            # 1.33.0 (neunte Datenrecherche)
+            # Additional verified controls.
             ammo_dispersion_factor=s["ammo_disp"].get() / 100.0,
             ammo_aim_dispersion_factor=s["ammo_aimdisp"].get() / 100.0,
             anomaly_wear_factor=s["anom_wear"].get() / 100.0,
@@ -7427,7 +7079,7 @@ class App(WorkbenchMixin, ctk.CTk):
         )
 
     def _apply_filter(self, _event=None):
-        """Suchfeld: passende Regler hervorheben, Rest abdunkeln."""
+        """Highlight matching sliders and dim other rows for a search query."""
         query = self.search_entry.get().strip().lower()
         counts: dict[str, int] = {}
         for key, row in self.sliders.items():
@@ -7440,10 +7092,8 @@ class App(WorkbenchMixin, ctk.CTk):
                 counts[tab] = counts.get(tab, 0) + 1
             else:
                 row.set_highlight("dim")
-        # Kategorie-Knoepfe des Abschnitts "Weapon categories" mitfaerben.
-        # Ein Block zaehlt auch dann als Treffer, wenn NUR seine (zugeklappt
-        # unsichtbaren) Regler passen — sonst meldet die Statuszeile Treffer,
-        # die der Benutzer nirgends aufleuchten sieht.
+        # Highlight category headers when their hidden controls match, so reported
+        # matches remain discoverable.
         for cat, (btn, label, orig, content) in self._wcat_btns.items():
             if not query:
                 self._wcat_notes.pop(cat, None)
@@ -7466,8 +7116,7 @@ class App(WorkbenchMixin, ctk.CTk):
         iw_hits = self._iw_filter(query)
         if query and iw_hits:
             counts["Weapons"] = counts.get("Weapons", 0) + iw_hits
-        # Eigene Zeile, NICHT in iw_hits mitgezaehlt: sonst schickt die
-        # Statuszeile den Benutzer wegen "A545" in den Weapons-Tab.
+        # Report ammunition matches separately so search points to the correct tab.
         ia_hits = self._ia_filter(query)
         if query and ia_hits:
             counts["Ammo"] = counts.get("Ammo", 0) + ia_hits
@@ -7491,12 +7140,11 @@ class App(WorkbenchMixin, ctk.CTk):
                     text="No slider, weapon, ammo, armor, mutant or "
                          "faction matches your search.")
         elif self._status_before_search is not None:
-            # Suchfeld geleert: alte Meldung zurueck statt eines stehen
-            # gebliebenen "No slider, weapon or ammo matches your search."
+            # When search is cleared, restore the previous status instead of retaining
+            # an obsolete "No slider, weapon or ammo matches your search." message.
             self.status.configure(text=self._status_before_search)
             self._status_before_search = None
-        # Ohne Suchbegriff uebernimmt die Changed-only-Ansicht das Dimmen;
-        # mit Suchbegriff hat die Suche Vorrang (Treffer sollen leuchten).
+        # Search highlighting takes precedence over Changed-only dimming.
         if not query and self.changed_only:
             self._apply_changed_only()
         elif not query:
@@ -7504,14 +7152,11 @@ class App(WorkbenchMixin, ctk.CTk):
         self._wb_sync_search(query)
 
     # -------------------------------------------------------- Changed only
-    # ------------------------------------------------------- Farbdesigns
+    # ------------------------------------------------------- Color themes
     def _set_theme(self, name: str) -> None:
-        """Design umschalten — sofort sichtbar, ohne Neustart.
+        """Apply a theme immediately.
 
-        `ACCENT` ist ein Modul-Global und wird von Suchtreffern, Warnboxen
-        und Override-Markern beim AUFRUF gelesen; darum reicht es, ihn hier
-        neu zu binden, damit alles Kuenftige die neue Farbe nimmt. Alles
-        Vorhandene faerbt theme.apply() um."""
+        Rebind ACCENT for future rendering and use theme.apply() for existing widgets."""
         global ACCENT, PANEL, PANEL2, PANEL2_HOVER, MUTED
         if name not in theme.THEMES:
             name = theme.DEFAULT_NAME
@@ -7519,11 +7164,11 @@ class App(WorkbenchMixin, ctk.CTk):
         self.theme_name = name
         pal = theme.get(name)
         theme.apply(self, name, previous)
-        self.tabs.restyle(pal)          # nach dem allgemeinen Umfaerben
+        self.tabs.restyle(pal)          # After applying the general color update.
         ACCENT = pal["accent"]
         PANEL, PANEL2 = pal["panel"], pal["panel2"]
         PANEL2_HOVER, MUTED = pal["panel2_hover"], pal["secondary"]
-        # Zeichen des Designs in der Fusszeile
+        # Update the footer's theme symbol.
         mark = getattr(self, "theme_mark", None)
         if mark is not None:
             glyph = THEME_MARKS.get(name, "◐")
@@ -7535,7 +7180,7 @@ class App(WorkbenchMixin, ctk.CTk):
         else:
             self.btn_theme.configure(fg_color=pal["button"],
                                      hover_color=pal["button_hover"])
-        # "Changed only" ist im aktiven Zustand bernsteinfarben — mitziehen
+        # Refresh the active Changed-only button color.
         if self.changed_only:
             self.btn_changed.configure(fg_color=ACCENT, text_color="gray10")
         theme.apply_button_text(self)
@@ -7548,8 +7193,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 row._sync_value_label()
 
     def _show_theme_window(self):
-        """Kleines Fenster mit den Paletten. Klick faerbt sofort um, damit
-        man sieht, was man waehlt, statt einen Namen zu raten."""
+        """Show theme palettes with immediate preview on selection."""
         existing = getattr(self, "_theme_win", None)
         if existing is not None and existing.winfo_exists():
             existing.deiconify()
@@ -7620,13 +7264,10 @@ class App(WorkbenchMixin, ctk.CTk):
                       command=win.destroy).pack(pady=(0, 12))
 
     def _toggle_wheel(self):
-        """Mausrad am Regler ein- und ausschalten.
+        """Toggle mouse-wheel adjustment on sliders.
 
-        AUS (rot, Startzustand) = das Rad blaettert nur die Seite, kein
-        Regler bewegt sich beim Scrollen. AN (gruen) = beides, wie in
-        customtkinter vorgesehen. Bewusst NICHT gespeichert: der Schalter
-        steht bei jedem Start wieder auf aus (Besitzer: "beim ersten start
-        automatisch keine slider verschieben und rot")."""
+        Off scrolls only; on also adjusts sliders. This preference resets to off
+        each startup to prevent accidental changes."""
         SliderRow.set_wheel_enabled(not SliderRow._wheel_enabled)
         on = SliderRow._wheel_enabled
         self.btn_scroll.configure(
@@ -7637,10 +7278,9 @@ class App(WorkbenchMixin, ctk.CTk):
         theme.fix_button_text(self.btn_scroll)
 
     def _toggle_changed_only(self):
-        """Alles dimmen, was auf Vanilla steht — S2Tweaker wird zur
-        Editor-Ansicht des aktuell gebauten Mods. Rein visuell (dimmen statt
-        ausblenden): Layout und Reihenfolge bleiben stabil, gedimmte Regler
-        sind weiter bedienbar. Eine laufende Suche hat Vorrang."""
+        """Dim vanilla controls without hiding or disabling them.
+
+        Preserve layout and give active search highlighting precedence."""
         self.changed_only = not self.changed_only
         self.btn_changed.configure(
             fg_color=ACCENT if self.changed_only else "gray30",
@@ -7660,9 +7300,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self._oc_job = None
 
     def _oc_tick(self):
-        """Leichter Puls: haelt die Dimmung aktuell, wenn der Benutzer im
-        aktiven Modus Regler bewegt (ein bewegter Regler soll sofort hell
-        werden, ein zurueckgestellter wieder abdunkeln)."""
+        """Refresh Changed-only dimming as values change."""
         self._oc_job = None
         if not self.changed_only:
             return
@@ -7674,8 +7312,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return abs(row.get() - row.default) > 1e-9
 
     def _apply_changed_only(self):
-        """Dimm-Pass: Vanilla-Regler grau, Geaendertes normal; die fuenf
-        Override-Baeume filtern auf ihre Overrides/geaenderten Paare."""
+        """Dim vanilla controls and mark changed entries in the override trees."""
         for key, row in self.sliders.items():
             row.set_highlight(
                 "normal" if self._slider_changed_from_vanilla(row) else "dim")
@@ -7702,7 +7339,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 block.set_highlight("match" if hits else "dim")
 
     def _clear_changed_only_view(self):
-        """Dimmung zuruecknehmen (Toggle aus oder Suche uebernimmt)."""
+        """Remove dimming when disabled or superseded by search."""
         for box in list(self.checks.values()) + list(self.cat_checks.values()):
             box.configure(text_color="gray95")
         for cat, (btn, label, orig, content) in self._wcat_btns.items():
@@ -7710,11 +7347,7 @@ class App(WorkbenchMixin, ctk.CTk):
 
     # ------------------------------------------------------------------ FAQ
     def _show_faq(self):
-        """Durchsuchbares FAQ-Fenster (Inhalt: s2tweaker/faq.py).
-
-        Nicht modal — man soll nebenher an den Reglern arbeiten koennen.
-        Ein zweiter Klick holt das offene Fenster nach vorn, statt ein
-        weiteres zu bauen."""
+        """Open the searchable, nonmodal FAQ or focus its existing window."""
         existing = getattr(self, "_faq_win", None)
         if existing is not None and existing.winfo_exists():
             existing.deiconify()
@@ -7725,8 +7358,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._faq_win = win
         win.title("S2Tweaker FAQ")
         win.geometry("760x560")
-        # Ohne minsize laesst sich das Fenster so schmal ziehen, dass die
-        # fest umbrochenen Antworten (wraplength) rechts abgeschnitten sind.
+        # Enforce enough width to display wrapped FAQ answers.
         win.minsize(700, 320)
         win.transient(self)
 
@@ -7750,15 +7382,12 @@ class App(WorkbenchMixin, ctk.CTk):
         def apply_filter(_event=None):
             words = search.get().strip().lower().split()
             visible = [r for r in rows if r.matches(words)] if words else rows
-            # Reihenfolge bleibt stabil: erst alle raus, dann die
-            # sichtbaren in Originalreihenfolge wieder rein (pack haengt
-            # sonst wieder Eingeblendete ans Ende).
+            # Repack matching questions in their original order.
             for row in rows:
                 row.frame.pack_forget()
             for row in visible:
                 row.frame.pack(fill="x", padx=4, pady=1)
-                # Treffer direkt aufklappen — wer sucht, will die Antwort
-                # sehen; ohne Suchbegriff wieder kompakt zuklappen.
+                # Expand search matches; collapse answers when the query is cleared.
                 row.set_open(bool(words))
             if not words:
                 count.configure(text=f"{len(rows)} questions")
@@ -7769,21 +7398,20 @@ class App(WorkbenchMixin, ctk.CTk):
                 count.configure(text="no matches \u2013 try another word")
 
         search.bind("<KeyRelease>", apply_filter)
-        # Fuer Tests erreichbar machen (KeyRelease landet am inneren
-        # tk-Widget der CTkEntry und ist per event_generate nicht triggerbar)
+        # Expose the filter callback for checks; CTkEntry routes keys to its inner widget.
         win._faq_rows = rows
         win._faq_search = search
         win._faq_apply_filter = apply_filter
         apply_filter()
-        # CTkToplevel zieht den Fokus waehrend seiner withdraw/deiconify-
-        # Einrichtung wieder weg — direkt gesetzter Fokus geht verloren.
+        # CTkToplevel changes focus during withdraw/deiconify setup;
+        # focus assigned immediately would be lost.
         win.after(250, search.focus_set)
 
     # ------------------------------------------------------------ mod scan
     def _maybe_offer_modscan(self):
-        """Nach dem Laden der Spieldaten EINMAL fragen, ob fremde Mods in
-        ~mods gescannt werden sollen. NIE ungefragt scannen — Overhaul-Mods
-        koennen 2 GB gross sein, und der Besitzer soll entscheiden."""
+        """Offer a mod scan once after loading game data.
+
+        Wait for the user's choice because large overhaul Paks can make scanning costly."""
         if (self._modscan_offered or self.modscan_pref == "never"
                 or self.gd is None or self.game_dir is None
                 or self._scan_running):
@@ -7839,13 +7467,12 @@ class App(WorkbenchMixin, ctk.CTk):
         paks = modscan.find_mod_paks(game.mods_dir(self.game_dir),
                                      {self._out_name()})
         ws_dir = game.steam_workshop_dir(self.game_dir)
-        # Workshop-Paks bekommen ihren Mod-Namen als Anzeigename mit —
-        # der Dateiname allein ("...-Windows-OverrideContent") sagt nichts.
+        # Use Workshop display names instead of opaque Pak filenames.
         jobs = [(p, None) for p in paks]
         jobs += [(p, modscan.workshop_mod_name(p, ws_dir))
                  for p in modscan.find_workshop_paks(ws_dir)]
         if not jobs:
-            # Fruehere Markierungen aufraeumen — die Mods sind offenbar weg
+            # Clear previous markers when the corresponding mods are gone.
             self.mod_conflicts = {}
             self.modscan_results = []
             self._mods_after = set()
@@ -7854,9 +7481,8 @@ class App(WorkbenchMixin, ctk.CTk):
             self._status_write(
                 "No other mods found (~mods and Steam Workshop).")
             return
-        # Scan und (Neu-)Laden schliessen sich gegenseitig aus: sonst
-        # rechnet der Worker gegen halb ausgetauschte Spieldaten und
-        # fuellt den frisch geleerten Fussabdruck-Cache mit alten Werten.
+        # Prevent scanning and game-data reload from overlapping; otherwise the
+        # worker could populate fresh caches from obsolete data.
         self._scan_running = True
         self.btn_scan.configure(state="disabled")
         self.btn_confirm.configure(state="disabled")
@@ -7865,12 +7491,10 @@ class App(WorkbenchMixin, ctk.CTk):
                          daemon=True).start()
 
     def _run_modscan(self, gd, jobs):
-        """Hintergrund-Thread: Paks scannen und mit den Reglern abgleichen.
-        jobs: Liste (Pak-Pfad, Workshop-Anzeigename oder None).
+        """Scan Paks in a worker and match their changes to control footprints.
 
-        gd ist ein SNAPSHOT — der Worker darf nie self.gd lesen, sonst
-        crasht er, wenn der Besitzer waehrenddessen den Spielordner
-        wechselt (self.gd wird dort auf None gesetzt)."""
+        jobs contains (Pak_path, optional_Workshop_name). Use the captured gd snapshot,
+        not self.gd, which can change when the installation is switched."""
         try:
             self._set_status("Indexing vanilla values ...")
             vanilla = modscan.build_vanilla_index(gd)
@@ -7882,8 +7506,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     info.name = ws_name
                     info.source = "workshop"
                 infos.append(info)
-            # Workshop-Abos liegen oft doppelt vor (alter + neuer Pfad,
-            # gleicher Anzeigename) -> ein Eintrag je Mod, nicht zwei.
+            # Merge duplicate Workshop layouts with the same display name.
             infos = modscan.merge_same_name(infos)
             self._set_status("Comparing with this tool's settings ...")
             conflicts = self._match_conflicts(gd, infos)
@@ -7894,9 +7517,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self._msgs.put(("error", traceback.format_exc()))
 
     def _footprint(self, gd, key: str) -> set | None:
-        """Fussabdruck eines Reglers, im Speicher gecacht: welche
-        (Top-Level-Struct, Blattname)-Paare patcht er? Vereinigung der
-        Sonden aus footprint_settings (x2 UND x0.5)."""
+        """Cache a control's (top-level struct, leaf) footprint from both probe directions."""
         if key not in self._footprints:
             if key in detail_controls.CONTROLS:
                 self._footprints[key] = detail_controls.footprint(gd, key)
@@ -7938,14 +7559,9 @@ class App(WorkbenchMixin, ctk.CTk):
             mods = [info.name for info in infos if info.pairs & pairs]
             if mods:
                 conflicts[key] = mods
-        # Vierter Baum (Fraktionsbeziehungen): seine Zeilen liegen nicht in
-        # self.sliders, und anders als bei Waffen/Ammo/Ruestung deckt KEIN
-        # globaler Regler die Relations-Blaetter ab (Befund des Feature-
-        # Reviews 02.09.). Ein Sammel-Fussabdruck ueber alle kuratierten
-        # Paare stopft das Loch: fremde Mods auf denselben Paaren erscheinen
-        # unter dem Pseudo-Schluessel "tree:factions" im Dialog, im Report
-        # und als Hinweis im Factions-Tab. Bewusst KEINE Regler-Punkte und
-        # KEINE Avoid-Sperre je Zeile — der Hinweistext sagt das ehrlich.
+        # Faction rows have no global slider footprint. Collect pair changes under
+        # tree:factions for reports and the tab summary, without implying per-row
+        # markers or automatic locks.
         pairs = self._faction_tree_footprint(gd)
         if pairs:
             mods = [info.name for info in infos if info.pairs & pairs]
@@ -7960,9 +7576,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return conflicts
 
     def _faction_tree_footprint(self, gd) -> set:
-        """Vereinigter Fussabdruck aller kuratierten Beziehungspaare,
-        gecacht wie die Regler-Fussabdruecke. (Bis 1.36.0 lag auch die
-        RelationVersion darin - der Bump ist gestrichen.)"""
+        """Return the cached union of supported faction-pair footprints."""
         key = "tree:factions"
         if key not in self._footprints:
             rel = gd.relation_pairs()
@@ -7972,7 +7586,7 @@ class App(WorkbenchMixin, ctk.CTk):
                                            FACTION_CHOICES[i + 1:]]:
                     pk = gd.relation_pair_key(sid, other)
                     if pk is not None and pk in rel:
-                        probe[pk] = rel[pk] + 1     # garantiert != Vanilla
+                        probe[pk] = rel[pk] + 1     # Guaranteed to differ from vanilla.
             pairs: set = set()
             if probe:
                 pairs = modscan.pairs_from_patches(
@@ -7991,11 +7605,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self._modscan_payload = None
         self.modscan_results = infos
         self.mod_conflicts = conflicts
-        # Ladereihenfolge in ~mods ist alphabetisch (deshalb das zzz_-
-        # Praefix). Mods, deren Pak NACH unserer sortiert, ueberschreiben
-        # gemeinsame Werte — "your value wins" waere dort gelogen.
-        # Workshop-Mods laufen ueber den Mod-Manager des Spiels: ihre
-        # Reihenfolge relativ zu ~mods ist unverifiziert -> eigener Topf.
+        # Compare alphabetical ~mods Pak order for overlapping values.
+        # Workshop ordering relative to ~mods is unverified and reported separately.
         own = self._out_name().lower()
         self._mods_after = {info.name for info in infos
                             if info.source != "workshop"
@@ -8028,9 +7639,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._refresh_check_dots()
 
     def _if_update_conflict_note(self):
-        """Scan-Hinweis im Factions-Tab: fremde Mods auf denselben
-        Beziehungspaaren. Info-Blau bei unverstellten, Warn-Violett bei
-        verstellten eigenen Paaren — dieselbe Stufenlogik wie die Punkte."""
+        """Show faction conflicts as information at vanilla or warnings for changed pairs."""
         if not hasattr(self, "if_conflict_label"):
             return
         mods = sorted(self.mod_conflicts.get("tree:factions") or [])
@@ -8055,12 +7664,11 @@ class App(WorkbenchMixin, ctk.CTk):
         self.if_conflict_label.pack(fill="x", padx=12, pady=(0, 2),
                                     before=self.if_info)
 
-    # ------------------------------------------------ Avoid-conflicts-Modus
+    # ------------------------------------------------ Avoid-conflicts mode
     def _apply_conflict_locks(self):
-        """Avoid-conflicts anwenden: jeden vom Scan gemeldeten Regler auf
-        Vanilla setzen und sperren — ausser der Benutzer hat ihn bewusst
-        freigeschaltet. Beim Sperren wird der bisherige Wert gemerkt und
-        beim Entsperren (in DIESER Sitzung) zurueckgelegt."""
+        """Reset and lock scanned conflicts except explicitly unlocked controls.
+
+        Remember pre-lock values for restoration within the current session."""
         conflicted = set(self.mod_conflicts) if self.avoid_conflicts else set()
         for key, row in self.sliders.items():
             want = key in conflicted and key not in self.avoid_unlocked
@@ -8076,10 +7684,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 if saved is not None:
                     row.set(saved)
             elif want:
-                # schon gesperrt: Unlock-Callback aktuell halten UND die
-                # Sperre durchsetzen — ein Preset-Load schreibt sonst einen
-                # Wert auf den gesperrten Regler und die Pak waere nicht
-                # mehr neutral (empirisch belegt).
+                # Reapply existing locks after presets load so locked controls cannot emit changes.
                 row.set_locked(True, lambda k=key: self._avoid_unlock(k))
                 if abs(row.get() - row.default) > 1e-9:
                     self._avoid_saved[key] = row.get()
@@ -8102,13 +7707,11 @@ class App(WorkbenchMixin, ctk.CTk):
         self._refresh_check_dots()
 
     def _body_enabled_state(self) -> str:
-        """Aktueller Grundzustand der Bedienelemente (an _iw_state gekoppelt,
-        das _set_body_state fuer alle Baeume pflegt)."""
+        """Return the shared base enabled state maintained by _set_body_state."""
         return self._iw_state
 
     def _avoid_unlock(self, key: str):
-        """EINEN Regler bewusst freischalten (bleibt ueber Re-Scans und —
-        weil persistiert — auch ueber Neustarts hinweg frei)."""
+        """Explicitly unlock one control, retaining the exception across scans and restarts."""
         self.avoid_unlocked.add(key)
         self._apply_conflict_locks()
         label = key
@@ -8126,11 +7729,8 @@ class App(WorkbenchMixin, ctk.CTk):
                 + len(self._locked_checks))
 
     def _set_avoid_mode(self, enabled: bool):
-        # Bewusstes EINSCHALTEN sperrt wieder ALLES: sonst gaebe es keinen
-        # Weg, einen frueher freigeschalteten Regler je wieder zu sperren.
-        # Solange der Modus an bleibt (auch ueber Neustarts), gelten die
-        # Freischaltungen weiter — nur der explizite Schalter setzt sie
-        # zurueck.
+        # Explicitly re-enabling Avoid-conflicts clears old unlock exceptions;
+        # otherwise the user could never lock those controls again.
         if enabled:
             self.avoid_unlocked.clear()
         self.avoid_conflicts = enabled
@@ -8188,7 +7788,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self._check_tips[key] = f"also changed by {names}"
 
     def _conflict_labels(self, mod_name: str) -> list[str]:
-        """Lesbare Regler-Namen, die sich mit einer Mod ueberschneiden."""
+        """Return readable names of controls overlapping a mod."""
         labels = []
         for key, mods in sorted(self.mod_conflicts.items()):
             if mod_name not in mods:
@@ -8206,8 +7806,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return labels
 
     def _build_compat_report(self) -> str:
-        """Kompatibilitaets-Bericht als Klartext — zum Anhaengen an
-        Nexus-Kommentare ("doesn't work with X" -> "send me the report")."""
+        """Build a plain-text compatibility report suitable for sharing with a bug report."""
         now = datetime.datetime.now().isoformat(timespec="seconds")
         own = self._out_name()
         fp = self._game_fingerprint()
@@ -8408,15 +8007,13 @@ class App(WorkbenchMixin, ctk.CTk):
         self._ir_clear_all()
         self._if_clear_all()
         self._im_clear_all()
-        # Scan-Punkte bleiben absichtlich stehen (die fremden Mods sind ja
-        # weiterhin installiert) — nur die Stufe faellt auf Info zurueck.
-        # Gemerkte Vor-Sperr-Werte verfallen: nach "Reset all to vanilla"
-        # soll ein spaeteres Entsperren nicht einen alten Wert zurueckholen.
+        # Keep scan markers after reset because other mods remain installed.
+        # Discard saved pre-lock values so later unlocking cannot undo the reset.
         self._avoid_saved.clear()
         self._refresh_check_dots()
 
     def _ui_state(self) -> dict:
-        """Kompletter Regler-Zustand (fuer settings.json UND Presets)."""
+        """Return complete control state for settings and presets."""
         return {
             "sliders": {k: v.get() for k, v in self.sliders.items()},
             "checks": {k: bool(v.get()) for k, v in self.checks.items()},
@@ -8474,8 +8071,7 @@ class App(WorkbenchMixin, ctk.CTk):
         if not path:
             return
         if path.lower().endswith(".pak"):
-            # Jede vom Tool gebaute Pak traegt ihr Manifest in sich und ist
-            # damit selbst ein Preset (GitHub-/ChatGPT-Wunschliste).
+            # Generated Paks embed their own reloadable preset manifest.
             self._import_pak(Path(path))
             return
         try:
@@ -8483,10 +8079,8 @@ class App(WorkbenchMixin, ctk.CTk):
         except (OSError, ValueError):
             messagebox.showerror(APP_TITLE, "Could not read that preset file.")
             return
-        # Erst auf Vanilla zuruecksetzen: ein Preset beschreibt einen
-        # KOMPLETTEN Zustand. Sonst blieben Regler stehen, die es beim
-        # Speichern des Presets noch gar nicht gab, und wanderten unbemerkt
-        # in die gebaute Pak.
+        # Reset to vanilla before applying a complete preset so controls absent from
+        # older presets cannot retain unrelated changes.
         self._reset_all()
         self._apply_ui_state(data)
         if self.gd is not None:
@@ -8496,8 +8090,7 @@ class App(WorkbenchMixin, ctk.CTk):
             self._ir_populate()
             self._if_populate()
             self._im_populate()
-        # _apply_ui_state gleicht die Regler schon ab; hier nur noch eine
-        # laufende Suche wieder auf den neu gebauten Baum anwenden.
+        # _apply_ui_state synchronizes controls; reapply search to the rebuilt tree.
         self._apply_filter()
         self._status_write(f"Preset loaded: {path}")
 
@@ -8518,8 +8111,7 @@ class App(WorkbenchMixin, ctk.CTk):
         if data.get("modscan_pref") in ("ask", "never"):
             self.modscan_pref = data["modscan_pref"]
         self.avoid_conflicts = bool(data.get("modscan_avoid"))
-        # Design VOR "changed only" setzen: der Toggle faerbt seinen Knopf
-        # mit dem dann gueltigen Akzent.
+        # Apply the theme before Changed-only so its button uses the active accent.
         if data.get("theme"):
             self._set_theme(theme.resolve(data["theme"]))
         # The new Overview replaces the old dim-only Changed-only view.
@@ -8529,11 +8121,11 @@ class App(WorkbenchMixin, ctk.CTk):
 
     def _apply_ui_state(self, data: dict):
         sliders = data.get("sliders", {})
-        # Migration: alter Einzelregler "move" -> "walk" + "run"
+        # Migration: old "move" slider -> "walk" and "run".
         if "move" in sliders:
             sliders.setdefault("walk", sliders["move"])
             sliders.setdefault("run", sliders["move"])
-        # Migration: "dur" war frueher Waffen+Ruestung gemeinsam
+        # Migration: "dur" previously combined weapon and armor durability.
         if "dur" in sliders:
             sliders.setdefault("dur_armor", sliders["dur"])
         for key, value in sliders.items():
@@ -8549,10 +8141,7 @@ class App(WorkbenchMixin, ctk.CTk):
             if key in self.cat_checks:
                 self.cat_checks[key].select() if value else self.cat_checks[key].deselect()
         for sid, params in (data.get("weapon_overrides") or {}).items():
-            # Sind die Spieldaten schon geladen, zaehlen nur Parameter, die
-            # DIESE Waffe hat — ein Preset von einer anderen Spielversion
-            # brachte sonst einen Override mit, zu dem es keinen Regler gibt
-            # und der nie einen Patch erzeugt.
+            # Filter preset parameters against the loaded weapon's supported values.
             allowed = self._iw_params.get(sid, WEAPON_PARAMS)
             try:
                 clean = {p: float(v) for p, v in params.items()
@@ -8561,20 +8150,17 @@ class App(WorkbenchMixin, ctk.CTk):
                 continue
             if clean:
                 self.weapon_overrides[sid] = clean
-        # Kaliberwechsel (Issue #6): nur Waffen und Kaliber uebernehmen, die
-        # es in DIESER Installation gibt — ein Preset von einer anderen
-        # Spielversion brachte sonst eine Wahl mit, die nie einen Patch
-        # erzeugt. Sind die Spieldaten noch nicht geladen, sind beide
-        # Listen leer und _iw_populate raeumt spaeter auf.
+        # Validate preset caliber choices against this installation when data is loaded.
+        # Otherwise defer cleanup to _iw_populate.
         for sid, caliber in (data.get("weapon_calibers") or {}).items():
             if not isinstance(caliber, str) or not caliber:
                 continue
             if self._iw_categories and sid not in self._iw_categories:
-                continue                      # Waffe gibt es hier nicht
+                continue                      # Weapon absent from this installation.
             if self._iw_caliber_options and caliber not in self._iw_caliber_options:
                 continue
             if self._iw_caliber and self._iw_caliber.get(sid) == caliber:
-                continue                      # entspricht Vanilla
+                continue                      # Matches vanilla.
             self.weapon_calibers[sid] = caliber
         for species, params in (data.get("mutant_overrides") or {}).items():
             try:
@@ -8615,31 +8201,25 @@ class App(WorkbenchMixin, ctk.CTk):
             if clean:
                 self.armor_custom[sid] = clean
         for key, value in (data.get("faction_relations") or {}).items():
-            # Vanilla-gleiche und unbekannte Paare fliegen erst in
-            # _if_populate raus (dort sind die Vanilla-Werte bekannt).
+            # Defer unknown/default pair filtering until _if_populate has vanilla values.
             try:
                 self.faction_relations[str(key)] = int(round(float(value)))
             except (TypeError, ValueError):
                 continue
-        # Unbekannte SIDs koennen erst in _ia_populate weg (dort sind die
-        # gueltigen Kaliber bekannt) -- genau wie beim Waffenbaum.
-        # Bereits gebaute Waffen-Regler auf die geladenen Werte ziehen (und
-        # entfallene Overrides zurueck auf ×1). Ohne gebaute Zeilen faellt das
-        # auf die reine Info-Zeile zurueck, gilt also auch ohne Spieldaten.
+        # Defer unknown ammunition SID cleanup until data loads; synchronize existing
+        # weapon widgets now, resetting removed factors to 1.
         self._iw_refresh_all()
         self._ia_refresh_all()
         self._ir_refresh_all()
         self._if_refresh_all()
         self._im_refresh_all()
-        # Avoid-Sperren wieder durchsetzen: das Preset kann Werte auf
-        # gesperrte Regler geschrieben haben (werden gemerkt + auf Vanilla
-        # zurueckgesetzt). Beim Start ohne Scan ist mod_conflicts leer ->
-        # No-Op. Zieht auch die Scan-Punkte nach.
+        # Reapply conflict locks after loading a preset, preserving attempted values
+        # for explicit unlock. With no scan results this is a no-op.
         self._apply_conflict_locks()
 
     def _on_close(self):
-        # Ein wartendes Auto-Aufklappen wuerde sonst noch Widgets in einem
-        # gerade zerstoerten Fenster bauen wollen.
+        # A pending auto-expand would otherwise try to create widgets
+        # in a window that has just been destroyed.
         self._iw_cancel_expand()
         self._ia_cancel_expand()
         self._ir_cancel_expand()
@@ -8665,20 +8245,12 @@ class App(WorkbenchMixin, ctk.CTk):
                 "Everything is set to vanilla – nothing to patch.")
             return False
         patches = build_patches(self.gd, s)
-        # 1.35.0: die zwei Maus-Schalter schreiben KEINE GameData-Datei,
-        # sondern Stalker2/Config/UserInput.ini an die Pak-Wurzel. Sie
-        # muessen darum an der Leer-Pruefung unten vorbei.
+        # Input toggles write UserInput.ini rather than GameData and still count as output.
         ini = input_ini(s)
-        # summarize() kennt nur die Settings, build_patches() auch die
-        # Vanilla-Werte: ein Faktor auf einen Vanilla-0-Wert (viele
-        # ArmorPiercingMod/CoverPiercingMod) oder ein Item-Gewicht ohne
-        # angehakte Kategorie steht in "active", erzeugt aber keine Zeile.
-        # Ohne diesen Riegel bekaeme der Packer einen leeren Ordner und der
-        # Benutzer einen rohen Python-Traceback statt einer Erklaerung.
+        # Changed settings can produce no patch, e.g. zero baselines or unselected
+        # weight categories. Reject empty output with an explanation before packing.
         if not patches and ini is None:
-            # Ursachen-Hinweis nur nennen, wenn er auch passen KANN — sonst
-            # erklaert der Dialog dem Benutzer etwas ueber Munition, waehrend
-            # in Wahrheit die Gewichts-Kategorien abgehakt sind.
+            # Show only explanations relevant to the actual no-output cause.
             ammo_touched = bool(s.ammo_overrides) or any(
                 abs(v - 1.0) > 1e-9 for v in (
                     s.ammo_damage_factor, s.ammo_piercing_factor,
@@ -8700,8 +8272,7 @@ class App(WorkbenchMixin, ctk.CTk):
         debug_note = (f"\n\nPrevious Pak retained: {backup.name}" if backup else "")
         if self.debug_check.get():
             debug_root = out_pak.parent / f"{s.mod_name}_cfg"
-            # Der Export darf die schon gebaute Pak nie als Fehlschlag
-            # erscheinen lassen (Issue #5: Traceback statt Erfolgsmeldung).
+            # An optional export failure must not make a successfully built Pak appear to fail.
             try:
                 written = pakio.export_cfgs(patches, debug_root)
                 written.extend(pakio.export_root_files(extra_files, debug_root))
@@ -8719,8 +8290,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return True
 
     def _game_fingerprint(self) -> int | None:
-        """Groesse von pakchunk0 als billiger Versions-Fingerabdruck
-        (dasselbe Mass wie der Extraktions-Cache)."""
+        """Use pakchunk0 size as a coarse game-data fingerprint, matching the cache."""
         try:
             if self.game_dir is not None:
                 pak = (Path(self.game_dir) / "Stalker2" / "Content" / "Paks"
@@ -8732,8 +8302,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return None
 
     def _build_manifest(self, s, active: list[str]) -> str:
-        """Eingebettetes Manifest: macht jede gebaute Pak nachvollziehbar
-        (Support!) und ueber "Load preset ..." wieder ladbar."""
+        """Build a support/preset manifest embedded in the generated Pak."""
         return json.dumps({
             "manifest_version": 1,
             "tool": f"S2Tweaker {__version__}",
@@ -8745,7 +8314,7 @@ class App(WorkbenchMixin, ctk.CTk):
         }, indent=2)
 
     def _import_pak(self, path: Path) -> None:
-        """Einstellungen aus einer vom Tool gebauten Pak zurueckladen."""
+        """Restore settings from a Pak generated by this tool."""
         try:
             entries = pakio.list_pak(path)
         except Exception:
@@ -8777,7 +8346,7 @@ class App(WorkbenchMixin, ctk.CTk):
             messagebox.showerror(
                 APP_TITLE, "The manifest in this pak is incomplete.")
             return
-        # Gleicher Weg wie ein Preset: erst Vanilla, dann anwenden
+        # Use the preset path: reset to vanilla, then apply.
         self._reset_all()
         self._apply_ui_state(state)
         if self.gd is not None:

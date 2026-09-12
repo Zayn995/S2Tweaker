@@ -1,16 +1,7 @@
-"""Erzeugt die Screenshot-Serie fuer die Nexus-Mod-Seite.
+"""Generate Nexus screenshots with Pillow and local vanilla data.
 
-    python tools/make_screenshots.py
-
-Braucht Pillow (pip install pillow) und den vanilla/-Ordner (also einmal
-"Confirm & load game data" im Tool gelaufen, oder ein GameData-Dump).
-Ergebnis: release/screenshots/*.png (1280x850), danach von Hand als ZIP
-packen und auf Nexus unter Manage -> Images hochladen.
-
-Das Fenster wird waehrend des Laufs sichtbar auf- und zugeklappt — nicht
-anfassen, sonst landet der Mauszeiger bzw. ein anderes Fenster im Bild.
-Die echte settings.json wird NIE angefasst (SETTINGS_FILE zeigt woanders hin).
-"""
+Writes release/screenshots/*.png. This explicit visual workflow opens and
+rearranges the GUI; temporary settings isolate the user's saved state."""
 import sys
 import time
 from pathlib import Path
@@ -26,13 +17,13 @@ from s2tweaker import gui as guimod            # noqa: E402
 from s2tweaker.gamedata import GameData        # noqa: E402
 from s2tweaker import theme                    # noqa: E402
 
-# Umbiegen, damit ein Lauf NIE die echten Einstellungen ueberschreibt:
+# Redirect settings to avoid overwriting user preferences.
 guimod.SETTINGS_FILE = OUT / "_throwaway_settings.json"
 VANILLA = ROOT / "vanilla" / "Stalker2" / "Content" / "GameLite" / "GameData"
 
 app = guimod.App()
-app.geometry("1280x850+60+20")   # feste Position: sonst reicht das Fenster
-app.update()                     # unter die Taskleiste und die kommt mit aufs Bild
+app.geometry("1280x850+60+20")   # Use a fixed window position.
+app.update()                     # Keep the taskbar outside the captured window.
 app.update()
 app.gd = GameData(VANILLA)
 app._iw_populate()
@@ -129,16 +120,16 @@ app.tabs.set("Weapons")
 S["spread"].set(75)
 S["recoil"].set(60)
 S["wrange"].set(130)
-app._wcat_btns["shotgun"][0].invoke()      # nur EINE Kategorie offen zeigen
+app._wcat_btns["shotgun"][0].invoke()      # Show only one expanded category.
 S["wcat_shotgun_damage"].set(2.0)
 S["wcat_shotgun_firerate"].set(1.25)
 S["wcat_pistol_recoil"].set(0.75)
 S["wcat_sniper_damage"].set(1.5)
-scroll_to(app._wcat_btns["pistol"][0], margin=95)   # Abschnitts-Titel mit drauf
+scroll_to(app._wcat_btns["pistol"][0], margin=95)   # Include the section heading.
 shot("05_weapon_categories.png")
 
 # --------------------------------------------- 5 Weapons: per-weapon tree
-app._wcat_btns["shotgun"][0].invoke()      # wieder zuklappen
+app._wcat_btns["shotgun"][0].invoke()      # Collapse again.
 blk = app._iw_blocks["rifle"]
 blk.expand()
 row = blk.rows["GunAK74_ST"]
@@ -169,7 +160,7 @@ erow.toggle()
 erow.sliders["damage"].set(1.25)
 erow.toggle()
 app.update()
-scroll_to(app._ia_blocks["A918"].btn, margin=48)   # Knopf darueber nicht anschneiden
+scroll_to(app._ia_blocks["A918"].btn, margin=48)   # Do not crop the preceding button.
 shot("07_ammo_tree.png")
 
 # ------------------------------------------------------------ 7 Armor tab
@@ -202,15 +193,15 @@ shot("09_upgrades.png")
 # ------------------------------------ 8c Upgrades: scopes + per-scope tree
 S["scope_zoom"].set(125)
 S["scope_penalty"].set(50)
-for _b in app._scope_box.winfo_children():          # Block "4x scopes" aufklappen
+for _b in app._scope_box.winfo_children():          # Expand the "4x scopes" group.
     if isinstance(_b, guimod.ctk.CTkButton) and "4x scopes" in _b.cget("text"):
         _b.invoke()
         break
-app._isc_rows["EN_X4Scope_1"]["zoom"].set(1.5)      # erste Zeile im Block: sichtbar
+app._isc_rows["EN_X4Scope_1"]["zoom"].set(1.5)      # First row in the group: visible.
 app._isc_rows["EN_X4Scope_1"]["penalty"].set(0.5)
 app._isc_rows["Gvintar_Scope"]["zoom"].set(2.0)
 app.update()
-scroll_to(app.sliders["scope_zoom"].row, margin=62)     # Abschnitts-Titel "Scopes" mit drauf
+scroll_to(app.sliders["scope_zoom"].row, margin=62)     # Include the Scopes heading.
 shot("10_scopes.png")
 
 # ------------------------------------------------------------- 8 NPCs & AI
@@ -252,7 +243,7 @@ app.tabs.set("Weapons")
 app.search_entry.delete(0, "end")
 app.search_entry.insert(0, "ak74")
 app._apply_filter()
-end = time.perf_counter() + 1.0            # after()-Auftrag feuern lassen
+end = time.perf_counter() + 1.0            # Run the after() callback.
 while time.perf_counter() < end:
     app.update()
     time.sleep(0.01)
@@ -287,10 +278,8 @@ scroll_top(app.tabs.tab("Traders"))
 shot("17_traders.png")
 app.checks["trader_inf_money"].deselect()
 
-# ------------------------------------------------- 18+ Farbdesigns (1.29.0)
-# JEDES Design einmal, auf derselben Seite - so sieht man den Unterschied und
-# nicht zwoelf verschiedene Inhalte. Bewusst der Player-Tab: dort sind Regler,
-# Zahlenfelder, Warnbox und Fusszeile gleichzeitig im Bild.
+# Capture each theme on the same Player page so palette comparisons use
+# identical controls, entry fields, warning panel and footer.
 app.tabs.set("Player")
 scroll_top(app.tabs.tab("Player"))
 for i, design in enumerate(theme.names(), start=18):

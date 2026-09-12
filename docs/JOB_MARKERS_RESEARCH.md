@@ -32,7 +32,7 @@ simultaneously active return markers on the same giver.
 
 The meaningful distinction is therefore an **unfinished job's objective
 marker at another target** versus a **completed job's return marker on the
-same giver**. The owner and contributor reports support investigating this
+same giver**. Player reports support investigating this
 distinction; they do not prove the underlying engine cause.
 
 ## Input scope and measured fields

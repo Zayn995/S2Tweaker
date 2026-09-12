@@ -1,15 +1,7 @@
-"""GUI-Test: jeder feste Regler und jede Checkbox kommt in _collect() an.
+"""Verify every fixed GUI control is collected into its Settings field.
 
-Hintergrund (Nexus-Bug, max25091997, 02.09.2026): "Repeatable quest
-cooldown" stand in der GUI, aber _collect() las den Regler nie aus - der
-Wert blieb Vanilla, es gab weder Patch noch Zeile in der Tweak-Liste.
-Alle anderen Suiten bauen Settings direkt und konnten das nicht sehen.
-Hier wird jeder Regler einzeln verstellt und geprueft, dass sich das
-Settings-Feld aus SLIDER_FIELDS/CHECK_FIELDS mitbewegt. Braucht keine
-Spieldaten.
-
-Wie immer: SETTINGS_FILE umbiegen, nie _on_close/_save_ui_settings rufen.
-"""
+This catches controls visible in the GUI but disconnected from export.
+Use temporary settings paths and avoid persisting user state."""
 import sys
 from pathlib import Path
 
@@ -28,32 +20,32 @@ from s2tweaker.tweaks import Settings, summarize
 app = gui.App()
 app.update()
 
-# --- 1) Neutralzustand == Settings()-Defaults ---------------------------
+# --- 1) Neutral matches Settings() defaults ---
 base = app._collect()
 default = Settings()
 off = [(k, f, getattr(base, f), getattr(default, f))
        for k, f in SLIDER_FIELDS.items()
        if abs(float(getattr(base, f)) - float(getattr(default, f))) > 1e-9]
-assert not off, f"Regler-Default weicht vom Settings-Default ab: {off}"
+assert not off, f"Slider default differs from Settings default: {off}"
 off_c = [(k, f) for k, f in CHECK_FIELDS.items()
          if bool(getattr(base, f)) != bool(getattr(default, f))]
-assert not off_c, f"Checkbox-Default weicht ab: {off_c}"
-print(f"Neutral: {len(SLIDER_FIELDS)} Regler + {len(CHECK_FIELDS)} "
-      "Checkboxen auf Settings-Default  OK")
+assert not off_c, f"Checkbox default differs: {off_c}"
+print(f"Neutral: {len(SLIDER_FIELDS)} sliders + {len(CHECK_FIELDS)} "
+      "Checkboxes use Settings defaults  OK")
 
-# --- 2) Jeder Regler bewegt sein Settings-Feld --------------------------
+# --- 2) Every slider changes its Settings field ---
 dead = []
 for key, field in SLIDER_FIELDS.items():
     row = app.sliders[key]
-    lo, hi = row.lo, row.hi          # Wert-Einheiten, auch bei Log-Reglern
+    lo, hi = row.lo, row.hi          # Use value units, including logarithmic controls.
     target = hi if abs(row.default - hi) > 1e-9 else lo
     row.set(target)
     moved = app._collect()
     if abs(float(getattr(moved, field)) - float(getattr(base, field))) < 1e-9:
         dead.append(key)
     row.set(row.default)
-assert not dead, f"Regler ohne Wirkung in _collect(): {dead}"
-print(f"Alle {len(SLIDER_FIELDS)} Regler erreichen _collect()  OK")
+assert not dead, f"Sliders with no effect in _collect(): {dead}"
+print(f"All {len(SLIDER_FIELDS)} sliders reach _collect()  OK")
 
 dead_c = []
 for key, field in CHECK_FIELDS.items():
@@ -62,10 +54,10 @@ for key, field in CHECK_FIELDS.items():
     if not getattr(app._collect(), field):
         dead_c.append(key)
     box.deselect()
-assert not dead_c, f"Checkboxen ohne Wirkung in _collect(): {dead_c}"
-print(f"Alle {len(CHECK_FIELDS)} Checkboxen erreichen _collect()  OK")
+assert not dead_c, f"Checkboxes with no effect in _collect(): {dead_c}"
+print(f"All {len(CHECK_FIELDS)} checkboxes reach _collect()  OK")
 
-# --- 3) Der konkrete Nexus-Fall: Quest-Cooldown 0 % / 400 % ------------
+# --- 3) Quest cooldown regression: 0% / 400% ---
 row = app.sliders["rq_cooldown"]
 row.set(0)
 s = app._collect()
@@ -77,7 +69,7 @@ assert abs(app._collect().repeatable_quest_factor - 4.0) < 1e-9
 row.set(row.default)
 assert not [line for line in summarize(app._collect())
             if "Repeatable quest cooldown" in line]
-print("Quest-Cooldown 0 % -> x0 in Settings + Tweak-Liste, 400 % -> x4  OK")
+print("Quest cooldown 0% -> x0 in Settings and tweak list, 400% -> x4  OK")
 
 try:
     app.destroy()

@@ -1,58 +1,25 @@
-"""Farbdesigns in den Farben der Spiel-Fraktionen (Besitzer 06.09.2026).
+"""Faction-inspired interface palettes with fixed semantic system colors.
 
-Zwei Ebenen — das ist der Kern der Sache:
+These palettes are designed UI colors, not values extracted from game assets.
+base/panel/panel2 define surfaces; accent/bright define highlights; secondary
+and text define typography. Success, destructive-action and warning colors
+remain stable across themes.
 
-* **Fraktion** bestimmt das Erscheinungsbild: Hintergrund, Karten, Akzent,
-  Knoepfe, Regler, Textfarben.
-* **System** bleibt in JEDEM Design gleich: Gruen = bereit/erfolgreich,
-  Rot = zerstoerend, Bernstein = Warnung. Sonst waere im Duty-Design ein
-  roter "Remove from ~mods" nicht mehr von einem roten Bestaetigen-Knopf zu
-  unterscheiden — genau davor warnt der Vorschlag des Besitzers selbst.
-
-Sieben Farben je Fraktion:
-    base      Fensterhintergrund
-    panel     Karten (Kopfzeile, Fusszeile, Abschnitte, Warnboxen)
-    panel2    Zweite Ebene (inaktive Tabs, Eingabefelder, Nebenknoepfe)
-    accent    aktiver Tab, Reglerbalken, Knoepfe, Suchtreffer, Override-Marker
-    bright    Reglergriff, Hover — die hellere Stufe des Akzents
-    secondary gedaempfter Text (Erklaerzeilen)
-    text      normale Schrift
-
-⚠ EHRLICHE HERKUNFT: diese Paletten stehen NICHT in den Spieldaten. Unter
-GameData gibt es nur `DT_QuestColorPresets.json` (Quest-Farben, zwei
-Presets); Fraktionsfarben stecken in UI-Assets, an die ein cfg-Werkzeug nicht
-herankommt. Die Werte stammen aus dem Vorschlag des Besitzers und sind an den
-Erkennungsmerkmalen der Fraktionen im Spiel orientiert — entworfen, nicht
-ausgelesen. Das gehoert genauso in die Nexus-Beschreibung.
-
-Technik: customtkinter liest Farben, wenn ein Widget ENTSTEHT. Ein Wechsel
-zur Laufzeit braucht darum beides — die Vorgaben im ThemeManager fuer alles,
-was noch kommt (die Baeume werden erst beim Aufklappen gebaut), und ein
-Umfaerben der vorhandenen Widgets. Umgefaerbt wird ROLLENBASIERT: je
-(Widget-Klasse, Farbfeld) gibt es eine kurze Liste moeglicher Rollen, und
-getroffen wird nur, was exakt die alte Farbe DIESER Rolle traegt. Eine
-schlichte Tabelle "alte Farbe -> neue Farbe" reichte nicht: benutzt ein
-Design denselben Ton fuer zwei Rollen, laesst sich beim Zurueckschalten nicht
-mehr sagen, welcher Standardwert gemeint war.
-"""
+Update both ThemeManager defaults for lazy widgets and existing widgets by
+(class, color-field) role. A plain old-color/new-color mapping is ambiguous
+when a palette reuses the same color for different roles."""
 from __future__ import annotations
 
 import customtkinter as ctk
 
-# --- Systemfarben: in JEDEM Design gleich --------------------------------
-SUCCESS = "#2d6a3f"        # bereit, bestaetigen
+# --- System colors: shared by every theme ---
+SUCCESS = "#2d6a3f"        # Ready / confirm.
 SUCCESS_HOVER = "#377f4c"
-DANGER = "#7a2d2d"         # zerstoerend, fehlt
+DANGER = "#7a2d2d"         # Destructive action or missing item.
 DANGER_HOVER = "#8f3838"
-WARNING = "#d9a648"        # Warnboxen, Hinweise
-# Heller Rand um die Systemknoepfe. Ohne ihn verschwimmt "Remove from ~mods"
-# im Duty-Design mit den roten Themenknoepfen — genau die Verwechslung, vor
-# der der Entwurf warnt. Der Rand macht sie in JEDEM Design als Systemknopf
-# kenntlich, unabhaengig von der Fraktionsfarbe.
-# Orange = "hier fehlt noch ein Klick". Der Bestaetigen-Knopf traegt es
-# pulsierend, solange die Spieldaten nicht geladen sind, und wird danach
-# gruen (Besitzer 06.09.: "Orange pulsierend solange nicht gedrueckt danach
-# so wie jetzt gruen").
+WARNING = "#d9a648"        # Warning boxes and notices.
+# Outline system buttons to distinguish them from similarly colored themes.
+# Pulse the load border orange until game data is ready, then show green.
 ATTENTION = "#A9701F"
 ATTENTION_HOVER = "#C4832A"
 ATTENTION_BORDER = "#E5AC4E"
@@ -60,18 +27,15 @@ SUCCESS_BORDER = "#4FA96B"
 DANGER_BORDER = "#C0453F"
 SYSTEM_BORDER_WIDTH = 2
 
-# Achtung, zwei verschiedene Dinge: "button" ist die Flaechenfarbe der
-# Knoepfe, "accent" die Hervorhebungsfarbe (Suchtreffer, Override-Marker).
-# Faction text accents are brighter than their button fills; Standard keeps
-# blue buttons and amber highlights. Genau deshalb braucht es
-# zwei Rollen; mit einer kam nach dem Zurueckschalten Blau als Suchfarbe an.
+# Keep button-fill and highlight roles separate. Standard uses blue buttons
+# and amber highlights; faction text accents are brighter than button fills.
 ROLES = ("base", "panel", "panel2", "panel2_hover", "button", "button_hover",
          "progress", "bright", "bright_hover", "accent", "button_text",
          "secondary", "text")
 
 
 def _shade(color: str, factor: float) -> str:
-    """Denselben Ton heller (factor > 1) oder dunkler (< 1) machen."""
+    """Make the same hue lighter (factor > 1) or darker (factor < 1)."""
     color = color.lstrip("#")
     rgb = [int(color[i:i + 2], 16) for i in (0, 2, 4)]
     return "#%02X%02X%02X" % tuple(
@@ -147,8 +111,7 @@ def _pal(base, panel, panel2, accent, bright, secondary, text, note):
     }
 
 
-# Der Standard: das eigene Blau des Werkzeugs auf schwarzem Grund. Die
-# Akzentwerte fuellt snapshot() aus dem customtkinter-Thema nach.
+# Standard uses the tool's dark background; snapshot() captures CTk accent defaults.
 DEFAULT_NAME = "Standard"
 DEFAULT_ACCENT = "#d9a648"
 
@@ -198,14 +161,10 @@ _FACTORY: dict = {}
 
 
 def snapshot() -> None:
-    """Werkseinstellung des customtkinter-Themas festhalten und daraus die
-    Akzentfarben des Standard-Designs bilden.
+    """Capture factory colors after ctk.set_default_color_theme(...).
 
-    MUSS von gui.py NACH `ctk.set_default_color_theme(...)` gerufen werden —
-    beim blossen Import stuenden hier die Farben des Standardthemas ("blue"),
-    waehrend die Widgets spaeter mit "dark-blue" gebaut werden. Genau das war
-    beim ersten Anlauf der Fehler: der Umfaerber verglich mit Farben, die im
-    Fenster nirgends vorkamen, und traf keinen einzigen Knopf."""
+    Capturing at import time would record the wrong defaults and prevent
+    role matching against the actual widgets."""
     if _FACTORY:
         return
     t = ctk.ThemeManager.theme
@@ -219,13 +178,12 @@ def snapshot() -> None:
         "button_text": t["CTkButton"]["text_color"],
     })
     THEMES[DEFAULT_NAME].update(_FACTORY)
-    # Die Hervorhebung bleibt im Standard bernstein, NICHT das Knopfblau.
+    # Standard highlights stay amber, independently of blue button fills.
     THEMES[DEFAULT_NAME]["accent"] = DEFAULT_ACCENT
 
 
-# (Widget-Klasse, Farbfeld) -> moegliche Rollen, in dieser Reihenfolge
-# geprueft. Die Tab-Leiste faerbt sich selbst um (TabBar.restyle): ihre
-# Knoepfe sind gewoehnliche CTkButtons und waeren hier nicht zu unterscheiden.
+# Map widget class/color-field pairs to candidate roles in priority order.
+# The tab bar applies its own active/inactive button roles.
 _ROLES = {
     ("CTkToplevel", "fg_color"): ("base",),
     ("CTkFrame", "fg_color"): ("panel", "panel2"),
@@ -262,17 +220,16 @@ _ROLES = {
 
 
 def names() -> list[str]:
-    """Design-Namen in Anzeige-Reihenfolge (Default zuerst)."""
+    """Theme names in display order, Default first."""
     return list(THEMES)
 
 
-# Bis heute hiess das Standard-Design "Default"; eine gespeicherte Wahl aus
-# einer aelteren Fassung soll deswegen nicht ins Leere zeigen.
+# Accept the previous Default name in saved preferences.
 ALIASES = {"Default": DEFAULT_NAME}
 
 
 def resolve(name: str) -> str:
-    """Namen auf ein vorhandenes Design abbilden (inkl. alter Schreibweise)."""
+    """Resolve current and legacy names to an available theme."""
     name = ALIASES.get(name, name)
     return name if name in THEMES else DEFAULT_NAME
 
@@ -282,7 +239,7 @@ def get(name: str) -> dict:
 
 
 def _theme_defaults(pal: dict) -> None:
-    """Vorgaben fuer alles, was noch GEBAUT wird (Baeume klappen spaeter auf)."""
+    """Set defaults for widgets created later, including lazy tree rows."""
     t = ctk.ThemeManager.theme
     t["CTk"]["fg_color"] = pal["base"]
     t["CTkToplevel"]["fg_color"] = pal["base"]
@@ -319,13 +276,9 @@ def _theme_defaults(pal: dict) -> None:
 
 
 def fix_button_text(widget) -> int:
-    """Schriftfarbe JEDES Knopfes aus seiner EIGENEN Flaeche bestimmen.
+    """Choose button text contrast from each button's own fill.
 
-    Eine einzige Vorgabe im ThemeManager reicht nicht: die Akzentknoepfe und
-    die dunklen Nebenknoepfe (inaktive Tabs, FAQ, Changed only) brauchen
-    entgegengesetzte Schrift. Im Monolith-Design (fast weisser Akzent) stand
-    sonst entweder heller Text auf hellem Knopf oder dunkler auf dunklem —
-    beides unlesbar, beides erst im Bild aufgefallen."""
+    One global text color cannot suit both bright accents and dark secondary buttons."""
     if getattr(widget, "_theme_static", False):
         return 0
     n = 0
@@ -337,15 +290,8 @@ def fix_button_text(widget) -> int:
                 color = _readable(fg, hover)
                 widget.configure(
                     text_color=color,
-                    # GESPERRTE Schrift = normale Schrift. "Build pak",
-                    # "Install to ~mods", "Scan ~mods" und "Remove from
-                    # ~mods" sind vor dem Laden der Spieldaten gesperrt und
-                    # sahen daneben blass aus; der Besitzer wollte zweimal
-                    # ausdruecklich dieselbe Schriftfarbe wie bei "Save
-                    # preset"/"Open output". Der Preis ist bewusst in Kauf
-                    # genommen: die Schrift zeigt nicht mehr an, dass ein
-                    # Knopf noch wartet — dafuer pulst jetzt "Confirm & load
-                    # game data" orange und sagt, was zuerst dran ist.
+                    # Use the normal text color on disabled system buttons for legibility.
+                    # The pulsing load action identifies the prerequisite before they become enabled.
                     text_color_disabled=color)
                 n = 1
         except Exception:
@@ -363,9 +309,7 @@ class SegmentedButton(ctk.CTkSegmentedButton):
 
 
 def _repaint(widget, old: dict, new: dict) -> int:
-    """Alles umfaerben, was noch EXAKT die alte Farbe seiner Rolle traegt.
-    Ein Knopf mit eigener Farbe (die Systemfarben) faellt damit von selbst
-    durch das Raster."""
+    """Recolor fields matching their old role color; preserve custom system colors."""
     if getattr(widget, "_theme_static", False):
         return 0
     n = 0
@@ -385,7 +329,7 @@ def _repaint(widget, old: dict, new: dict) -> int:
             if cur != str(was):
                 continue
             changes[attr] = now
-            break                      # eine Rolle je Farbfeld genuegt
+            break                      # One role match per color field is sufficient.
     if changes:
         widget.configure(**changes)
         n += len(changes)
@@ -395,8 +339,7 @@ def _repaint(widget, old: dict, new: dict) -> int:
 
 
 def apply(root, name: str, previous: str = DEFAULT_NAME) -> int:
-    """Design umschalten. Liefert die Zahl der umgefaerbten Farbfelder
-    (nur fuer Tests und Protokoll)."""
+    """Apply a theme and return the number of recolored fields for diagnostics."""
     new = get(name)
     old = get(previous)
     _theme_defaults(new)
@@ -412,6 +355,5 @@ def apply(root, name: str, previous: str = DEFAULT_NAME) -> int:
 
 
 def apply_button_text(root) -> int:
-    """Nach dem Umfaerben (und nach TabBar.restyle) die Knopfschrift
-    nachziehen — siehe fix_button_text."""
+    """Refresh button text contrast after recoloring and tab-bar restyling."""
     return fix_button_text(root)

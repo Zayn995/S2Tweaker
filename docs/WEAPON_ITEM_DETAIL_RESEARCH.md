@@ -1,7 +1,7 @@
 # Weapon item detail controls and non-timing upgrade controls
 
-Research for the next implementation after 1.40.1. The owner limited the
-scope to options that do not edit animations: individual weapon weight, base
+Research for additional controls after 1.40.1, limited to options that do not
+edit animations: individual weapon weight, base
 price, inventory dimensions, and non-timing upgrade effects. Movement,
 reload, aim-in, draw/holster and recovery timing are deferred. No new animation,
 UE4SS or Dev Kit work is part of this proposal.
@@ -263,7 +263,7 @@ Required checks before offering or applying an override:
    included parent inherits any of those four leaves. If a later game update
    makes a protected descendant inherit a changed leaf, refuse that edit or
    require a new explicit scope review. Do not write compensating patches to
-   protected quest/guard/story items behind the owner's back.
+   protected quest/guard/story items outside the selected scope.
 
 Each ordinary item may be used by player inventories, NPCs, vendors and world
 spawns. This is an item-prototype edit affecting copies of that item, not a
@@ -301,7 +301,7 @@ the selected leaf is sufficient here; changed inheritance must be checked.
 
 Grid example: AK74 vanilla is `5 × 2`. A global grid factor can change both
 dimensions; an explicit width of `5` restores just its width. Height remains
-under the global setting unless the owner also sets an explicit height.
+under the global setting unless the user also sets an explicit height.
 
 `Cost` is the base price only. Category difficulty prices, trader buy/sell
 coefficients, reputation and condition still apply. Do not promise a final
@@ -374,7 +374,7 @@ equipment, and the effect is still shared by every such upgrade.
 - `DispersionPos15Effect.ValueMin/ValueMax=-15%` becomes `-30%` at ×2;
   `DamageNeg10Effect=-10%` is a penalty in the positive BaseDamage family and
   stays unchanged. `ArmorPiercingPos20Effect=20%` becomes `40%`; its separate
-  cover-piercing effect can retain `20%` if the owner only overrides armor
+  cover-piercing effect can retain `20%` if the user only overrides armor
   piercing. These examples describe CFG arithmetic, not measured damage.
 - For composite display values, compute the **actual effective child
   factors**, including inherited existing family values, after overrides.
@@ -397,7 +397,7 @@ remain unscaled; no new sway control or animation change is introduced.
 No new `AimingTime`, `ShowEquipmentTime`, `HideEquipmentTime`,
 `RecoilRadiusNormalizationInterval`, movement or reload settings belong to
 this change. Existing controls and imported profiles must continue to work
-as before unless the owner explicitly sets one of the permitted new values.
+as before unless the user explicitly sets one of the permitted new values.
 
 ## 7. Verification required during implementation
 

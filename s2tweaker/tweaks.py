@@ -1,14 +1,8 @@
-"""Tweak-Engine: erzeugt aus den Einstellungen die Patch-cfg-Dateien.
+"""Generate cfg patches from Settings and installed GameData baselines.
 
-Jede Funktion baut fuer ein Feature die {bpatch}-Structs auf Basis der
-Vanilla-Werte (GameData der installierten Spielversion). build_patches()
-liefert {Pfad relativ zu .../GameData/: cfg-Text}.
-
-Konventionen (siehe docs/SPEC.md):
-- Patch-Dateien heissen <BasisCfg>/<BasisCfg>_patch_<Mod>.cfg
-- CoreVariables.cfg ist unbinarisiert -> offizielle Benennung
-  CoreVariables.cfg_patch_<Mod>.cfg direkt in GameData/ (feld-erprobt).
-"""
+build_patches() returns relative paths mapped to cfg text. Normal files use
+<BaseCfg>/<BaseCfg>_patch_<Mod>.cfg; unbinarized CoreVariables patches use
+CoreVariables.cfg_patch_<Mod>.cfg directly under GameData. See docs/SPEC.md."""
 
 from __future__ import annotations
 
@@ -27,7 +21,7 @@ ALL_CATEGORIES = {
     "consumable", "grenade", "misc",
 }
 
-CATEGORY_LABELS = {  # GUI (englisch)
+CATEGORY_LABELS = {  # GUI (English)
     "weapon": "Weapons",
     "armor": "Armor & helmets",
     "ammo": "Ammo",
@@ -41,7 +35,7 @@ CATEGORY_LABELS = {  # GUI (englisch)
 VANILLA_MAX_CARRY = 80.0
 VANILLA_PENALTY_START = 50.0
 
-# Einzeln regelbare Ausdauer-Aktionen: (Settings-Feld, cfg-Schluessel)
+# Individual stamina actions: (Settings field, CFG key).
 STAMINA_ACTIONS = [
     ("stamina_sprint", "Sprint"),
     ("stamina_jump", "Jump"),
@@ -51,27 +45,22 @@ STAMINA_ACTIONS = [
     ("stamina_vault", "Vault"),
 ]
 
-# Kontinuierlicher Drain (CoreVariables StaminaRegenStateCoefs), der vom
-# Sprint-Regler mitskaliert wird
+# Continuous stamina drain is scaled together with sprint stamina cost.
 SPRINT_DRAIN_TAGS = {
     "EStateTag::Sprint",
     "EStateTag::SprintUnderRunSpeed",
     "EStateTag::Run",
 }
 
-# --- 1.28.0 Kern-Sweep P1 (docs/CORE_SWEEP_RESEARCH.md par. 1.1 / 3b) -------
-# Schadens-Bildschirmeffekte in PostEffectProcessorPrototypes: der rote
-# Richtungs-Blitz (8 Richtungen) plus Verbrennung, Dampf, Strom, Chemie,
-# Dunkelheit (Staerke + Radius) und Quecksilber. Jedes Kind deklariert
-# Intensity selbst -> jeden Prozessor einzeln patchen, nie nur die Basis.
-# Die SIDs kommen live aus der Datei, das Muster prueft nur den Namen;
-# GameplayGas/NVG*/LowHealth/Bleeding bleiben bewusst draussen.
+# Scale damage-screen effects declaring their own Intensity values.
+# Resolve SIDs live and patch each matching child. Exclude GameplayGas,
+# NVG*, LowHealth and Bleeding; see docs/CORE_SWEEP_RESEARCH.md.
 DAMAGE_SCREEN_RE = re.compile(
     r"^(?:(?:Top|Right|Bottom|Left|TopRight|TopLeft|BottomRight|BottomLeft"
     r"|Burn|Steam|Chemical)Damage|ElectroIntensity"
     r"|DarknessDamage(?:Intensity|Radius)|QuicksilverDamageIntensity)"
     r"EffectProcessor$")
-# Erwartete Vanilla-Liste (2.0.3) - Anker fuer die Tests, nicht fuer den Bau
+# Expected 2.0.3 baseline set for regression checks, not patch generation.
 DAMAGE_SCREEN_PROCESSORS = (
     "TopDamageEffectProcessor", "RightDamageEffectProcessor",
     "BottomDamageEffectProcessor", "LeftDamageEffectProcessor",
@@ -82,33 +71,25 @@ DAMAGE_SCREEN_PROCESSORS = (
     "DarknessDamageIntensityEffectProcessor", "DarknessDamageRadiusEffectProcessor",
     "QuicksilverDamageIntensityEffectProcessor",
 )
-# CoreVariablesCustom.cfg (CustomConfigOverride) wiederholt diese vier
-# DefaultConfig-Schluessel (dazu bStartWithMenu und Debug-Kram - tabu).
-# Ob der Override NACH DefaultConfig greift, ist aus den Daten nicht zu
-# entscheiden -> jeder Patch dieser Schluessel wird dorthin gespiegelt.
+# Mirror these DefaultConfig keys into CoreVariablesCustom overrides because
+# load precedence could otherwise mask the core patch. Exclude debug/menu keys.
 COREVARS_CUSTOM_KEYS = ("InventoryPenaltyLessWeight", "InventorySPOverweightDrainCoef",
                         "InventorySPDrainCoef", "StaminaFallingDamageCoef")
-# 1.28.0 P4: Witterung (FlairSensorPrototypes, par. 2.4). Tabu-Liste: Boss
-# (ohnehin inaktiv), PsyNPC (kein Objekt nutzt ihn) und die Quest-Variante
-# Yaniv - die werden nie angefasst, auch nicht vom Schalter.
+# Exclude boss, unused PsyNPC and Yaniv quest scent-sensor variants.
 FLAIR_SENSOR_SKIP = {"BossFlairSensor", "PsyNPCFlairSensor",
                      "PoltergeistFlairSensorYanivToxicRozliv"}
 FLAIR_SENSOR_KEYS = ("SensingRadius", "FrontSensingRadius",
                      "DetectionSpeed", "FrontDetectionSpeed")
-# 1.28.0 P6: Strahlungsfelder (CoreVariables RadiationPresetValues, par. 1.2).
-# NUR diese vier Presets - Deadly und RadBlock sind die Karten-Todeszonen
-# (9000 Schaden, Tabu-Liste), Custom hat genau ein Weltvorkommen.
+# Scale only ordinary radiation presets; preserve Deadly/RadBlock map barriers
+# and the location-specific Custom preset.
 RADIATION_PRESETS_OK = ("ERadiationPreset::Light", "ERadiationPreset::Medium",
                         "ERadiationPreset::Strong", "ERadiationPreset::Topaz")
-# 1.28.0 P6: Lagerleben (NPCNeedsPresetPrototypes Needs, par. 2.6). Emission
-# (auf 100 festgenagelt), Patrolling, Work, Guard, Monolog, RunOnTalking,
-# Idle, PDA, Detector und WeaponCleaning bleiben vanilla.
+# Adjust supported camp activities; preserve emission and required work/guard behaviors.
 CAMP_LIFE_NEEDS = ("EContextualActionNeeds::Guitar", "EContextualActionNeeds::Anecdote",
                    "EContextualActionNeeds::Dialog", "EContextualActionNeeds::Smoke",
                    "EContextualActionNeeds::Sleep", "EContextualActionNeeds::Eat",
                    "EContextualActionNeeds::Rest", "EContextualActionNeeds::Drink")
-# 1.28.0 P6: Himmel (SingletonConstants TimeManager, par. 2.8) - (Feld, Schluessel,
-# Deckel). Latitude/Longitude/TimeZone/NorthOffsetAngle/Start* sind tabu.
+# Sky fields and caps; preserve geographic coordinates, time zone and Start* keys.
 SKY_KEYS = (("moon_brightness_factor", "MoonLightMaxBrightness", None),
             ("sun_brightness_factor", "SunLightMaxBrightness", None),
             ("stars_brightness_factor", "StarsBrightness", None),
@@ -116,28 +97,18 @@ SKY_KEYS = (("moon_brightness_factor", "MoonLightMaxBrightness", None),
             ("cloud_speed_factor", "CloudSpeed", None),
             ("dusk_length_factor", "LightSourceFadingDurationHoursOnDayNightChange", None))
 
-# --- Waffen-Drei-Ebenen-System: Einzelwaffe > Kategorie > global ---------
+# --- Weapon cascade: individual weapon > category > global ---
 WEAPON_PARAMS = ["damage", "spread", "recoil", "durability", "firerate",
                  "range", "bleeding", "adsspeed", "aimtime", "magazine"]
 
-# --- Kaliberwechsel (GitHub Issue #6) -----------------------------------
-# KEIN Kaskaden-Parameter: ein Kaliber ist ein Name, kein Faktor — es
-# stapelt nicht und gilt nur pro Waffe. Die Beschriftungen kommen aus
-# AMMO_CALIBER_LABELS weiter unten (die Tabelle gab es schon fuer den
-# Munitions-Baum) — keine zweite Liste danebenstellen.
-#
-# Es wird NICHTS gesperrt (ausdruecklicher Wunsch des Besitzers): jedes
-# Kaliber, das im Spiel wirklich an einer Waffe haengt, steht im Dropdown.
-# Stattdessen wird ehrlich drangeschrieben, was kaputtgeht. Nicht dabei ist
-# nur, was gar nicht in den Waffendaten steht — 7,62x39 zum Beispiel: die
-# Munition existiert, aber keine Waffe benutzt sie und sie liegt in null
-# Loot-Generatoren. Das faellt von selbst raus, weil die Tabelle aus den
-# Waffendaten kommt statt aus einer Liste im Code.
-CALIBERS_ODD = {"AGA", "APG7V", "AVOG", "AHEDP"}   # Gauss, Werfer
+# Caliber selection is per weapon and independent of multiplier cascades.
+# Use the existing AMMO_CALIBER_LABELS table. Choices come from real weapon
+# data; warnings explain incompatible combinations. Unused calibers are excluded.
+CALIBERS_ODD = {"AGA", "APG7V", "AVOG", "AHEDP"}   # Gauss and launchers.
 
 
 def swappable_calibers(gd: GameData) -> dict[str, dict[str, str]]:
-    """{Kaliber: {Sorte: Projektil}} — alles, was eine Waffe benutzt."""
+    """Return {caliber: {ammunition_type: projectile}} from weapon data."""
     return gd.ammo_caliber_projectiles()
 
 
@@ -147,22 +118,16 @@ def caliber_label(caliber: str) -> str:
 
 def caliber_warning(gd: GameData, current: str | None,
                     wanted: str | None) -> str:
-    """Ehrlicher Hinweis zu genau diesem Wechsel — oder "".
+    """Explain the damage implications of this caliber change, or return an empty string.
 
-    Rechnet den Schadenseffekt aus den echten Munitionswerten vor, statt
-    ihn zu behaupten: der Schaden steht an der Waffe (BaseDamage), die
-    Munition liefert nur einen Multiplikator. Ueber alle Gewehr- und
-    Pistolenkaliber ist der 1.0, also aendert ein Wechsel dort NICHTS.
-    Schrot steht bei 0.084 — und die Flinte gleicht das mit BaseDamage
-    50.0 statt 9.5 aus. Wer eine Flinte auf 5.45 stellt, bekommt also
-    50 Schaden pro Schuss; wer ein Gewehr auf Schrot stellt, 0,8."""
+    Weapon BaseDamage stays fixed; compare the old and new ammunition DamageMod
+    from live data, including shotgun pellet multipliers."""
     if not wanted or not current or wanted == current:
         return ""
     mods = gd.caliber_damage_mods()
     old, new = mods.get(current), mods.get(wanted)
     if old and new and abs(new - old) > 1e-9:
-        # new/old, nicht old/new: der Multiplikator der NEUEN Patrone
-        # ersetzt den der alten, die BaseDamage der Waffe bleibt stehen.
+        # Use new/old ammunition multipliers; weapon BaseDamage stays unchanged.
         factor = new / old
         if factor >= 2:
             return (f"Warning: this weapon will do roughly {factor:.0f}x its "
@@ -183,7 +148,7 @@ def caliber_warning(gd: GameData, current: str | None,
                 "with it - expect it to simply not work.")
     return ""
 
-WEAPON_PARAM_LABELS = {  # GUI (englisch)
+WEAPON_PARAM_LABELS = {  # GUI (English)
     "damage": "Damage",
     "spread": "Spread",
     "recoil": "Recoil",
@@ -196,22 +161,16 @@ WEAPON_PARAM_LABELS = {  # GUI (englisch)
     "magazine": "Magazine size",
 }
 
-# Die vier Ziel-Zeiten skalieren ZUSAMMEN (rein, seitlich, gelehnt, wieder
-# raus) — ein Snappiness-Gefuehl, wie bei den vier Range-Schluesseln.
+# Scale all four aim transition times together.
 WEAPON_AIMTIME_KEYS = ("AimingTime", "OffsetAimingTime", "LeanAimingTime",
                        "LeanAimingRestoreTime")
 
-# CWS-Schluessel, die der Range-Faktor gemeinsam skaliert
+# CWS keys scaled together by the range factor.
 WEAPON_RANGE_KEYS = ("EffectiveFireDistanceMin", "EffectiveFireDistanceMax",
                      "FireDistanceDropOff", "DistanceDropOffLength")
 
-# Welche CWS-Schluessel ein Kaskaden-Parameter braucht. _weapon_settings_patch
-# patcht nur Werte > 0 — fehlt der Wert, kann dieser Parameter fuer diese
-# Waffe NIE einen Patch erzeugen, und ein Regler dafuer waere ein
-# Blindgaenger (der Ammo- und der Ruestungsbaum blenden solche Regler
-# laengst aus). Nicht aufgefuehrte Parameter (recoil, firerate, magazine,
-# adsspeed, aimtime) stehen in WeaponGeneralSetup und existieren dort fuer
-# jede Waffe.
+# CWS keys required by each cascade parameter. Hide controls when all relevant
+# values are nonpositive; other parameters are resolved through WeaponGeneralSetup.
 WEAPON_PARAM_CWS_KEYS: dict[str, tuple[str, ...]] = {
     "damage": ("BaseDamage",),
     "spread": ("DispersionRadius",),
@@ -222,14 +181,10 @@ WEAPON_PARAM_CWS_KEYS: dict[str, tuple[str, ...]] = {
 
 
 def weapon_available_params(gd: GameData, cws: str | None) -> list[str]:
-    """WEAPON_PARAMS ohne die, die dieses CWS-Struct nachweislich nicht hat.
+    """Return supported WEAPON_PARAMS for this CWS struct.
 
-    Nachweislich heisst: der Struct existiert und ALLE Schluessel des
-    Parameters loesen sich zu <= 0 auf. Ohne Struct (oder ohne bekanntes
-    CWS-Struct) wird nichts gefiltert — dann laesst sich nichts beweisen.
-    Beispiel aus den echten Spieldaten: die beiden Unterlauf-Granatwerfer
-    und der Buckshot-Launcher haben keinen DurabilityDamagePerShot, ihre
-    Waffen nutzen sich also gar nicht ab."""
+    Filter only when the struct exists and all corresponding values resolve
+    to <= 0. Without a known struct, retain the parameter."""
     if cws is None or cws not in gd.weaponsettings.children:
         return list(WEAPON_PARAMS)
     return [
@@ -239,7 +194,7 @@ def weapon_available_params(gd: GameData, cws: str | None) -> list[str]:
                for key in WEAPON_PARAM_CWS_KEYS[param])
     ]
 
-WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
+WEAPON_CATEGORY_LABELS = {  # Order matches the GUI.
     "pistol": "Pistols",
     "smg": "SMGs",
     "rifle": "Assault rifles",
@@ -250,15 +205,14 @@ WEAPON_CATEGORY_LABELS = {  # Reihenfolge = GUI-Reihenfolge
     "launcher": "Grenade launchers",
 }
 
-# --- Munitions-Zwei-Ebenen-System: Einzelsorte > globaler Regler ---------
-# ⚠ Reihenfolge NICHT aendern und Neues nur ANHAENGEN: sie bestimmt die
-# Zeilenfolge im Patch und damit die Byte-Gleichheit zu aelteren Paks.
+# Ammunition precedence: per-type override, then global factor.
+# Keep existing key order for deterministic patch output.
 AMMO_PARAMS = ["damage", "piercing", "armordamage", "cover", "stack",
                "bleeding", "recoil", "flatness", "wear",
-               # 1.33.0 ans ENDE angehaengt (Byte-Gleichheit alter Paks)
+               # Appended at the end to preserve byte output of older paks.
                "dispersion", "aimdispersion"]
 
-AMMO_PARAM_LABELS = {  # GUI (englisch)
+AMMO_PARAM_LABELS = {  # GUI (English)
     "damage": "Damage",
     "piercing": "Armor piercing",
     "armordamage": "Armor damage",
@@ -272,9 +226,7 @@ AMMO_PARAM_LABELS = {  # GUI (englisch)
     "aimdispersion": "Spread while aiming",
 }
 
-# Regler-Schluessel -> cfg-Schluessel in ItemPrototypes (= AMMO_MOD_KEYS).
-# Reihenfolge NICHT aendern: sie bestimmt die Reihenfolge der Zeilen im
-# erzeugten Patch und damit die Byte-Gleichheit zu bisherigen Paks.
+# Map control keys to ItemPrototypes fields; retain order for stable patch bytes.
 AMMO_PARAM_KEYS = {
     "damage": "DamageMod",
     "piercing": "ArmorPiercingMod",
@@ -289,7 +241,7 @@ AMMO_PARAM_KEYS = {
     "aimdispersion": "AimDispersionMod",
 }
 
-# Reihenfolge = Sortierung der Sorten INNERHALB eines Kalibers
+# Display ordering of ammunition types within a caliber.
 AMMO_TYPE_LABELS = {
     "Default": "Standard",
     "ArmorPiercing": "Armor-piercing",
@@ -297,9 +249,7 @@ AMMO_TYPE_LABELS = {
     "Supersonic": "Supersonic",
 }
 
-# Schluessel = Enum-Schwanz von Caliber, Reihenfolge = GUI-Reihenfolge.
-# NACHSCHLAGEWERK, KEIN FILTER: unbekannte Kaliber (kuenftige Spiel-Patches)
-# erscheinen im Baum mit dem rohen Schwanz als Beschriftung.
+# Caliber enum suffixes mapped to display labels/order; unknown values remain visible.
 AMMO_CALIBER_LABELS = {
     "A918": "9×18 mm Makarov",
     "A919": "9×19 mm Parabellum",
@@ -317,7 +267,7 @@ AMMO_CALIBER_LABELS = {
     "APG7V": "PG-7V rockets",
 }
 
-# Endbuchstabe einer Munitions-SID -> Sorte. A545A = 5.45 armor-piercing.
+# Map ammunition SID suffixes to types, e.g. A545A is armor-piercing.
 AMMO_SID_TYPE_SUFFIX = {
     "A": "ArmorPiercing",
     "D": "Default",
@@ -327,13 +277,10 @@ AMMO_SID_TYPE_SUFFIX = {
 
 
 def ammo_label(sid: str) -> str:
-    """'A545A' -> '5.45×39 mm armor-piercing'.
+    """Derive a readable ammunition label without GameData.
 
-    Nur aus der SID abgeleitet, weil summarize() keine GameData hat. Reihen-
-    folge wichtig: AGA/AHEDP/APG7V/AVOG sind KOMPLETTE Kaliber-Schluessel und
-    muessen VOR dem Abtrennen des Endbuchstabens erkannt werden (sonst wuerde
-    'AGA' als 'AG' + 'A' gelesen). Unbekanntes bleibt die rohe SID.
-    """
+    Recognize complete caliber keys before stripping type suffixes, e.g. AGA.
+    Unknown SIDs remain visible."""
     if sid in AMMO_CALIBER_LABELS:
         return AMMO_CALIBER_LABELS[sid]
     stem, suffix = sid[:-1], sid[-1:]
@@ -343,7 +290,7 @@ def ammo_label(sid: str) -> str:
     return sid
 
 
-# Ruestungs-Overrides: Reihenfolge = Regler-Reihenfolge im Baum.
+# Armor overrides: order matches the tree sliders.
 ARMOR_PARAMS = ["strike", "burn", "shock", "chemical", "radiation", "psy"]
 ARMOR_PARAM_KEYS = {
     "strike": "Strike", "burn": "Burn", "shock": "Shock",
@@ -355,7 +302,7 @@ ARMOR_PARAM_LABELS = {
     "radiation": "Radiation", "psy": "PSY",
 }
 
-# Fraktions-Namen fuer lesbare Ruestungs-Labels (SID-Token -> Anzeige).
+# Faction tokens used in readable armor labels.
 ARMOR_FACTION_LABELS = {
     "Dolg": "Duty", "Svoboda": "Freedom", "Neutral": "Loners",
     "Bandit": "Bandits", "Military": "Military", "Monolith": "Monolith",
@@ -367,12 +314,9 @@ _CAMEL_SPLIT = re.compile(r"(?<=[a-z])(?=[A-Z0-9])")
 
 
 def armor_label(sid: str) -> str:
-    """'SEVA_Neutral_Armor' -> 'SEVA Suit' (verifizierter Anzeigename aus
-    names.py); ohne Alias -> 'Exoskeleton_Dolg_Armor' -> 'Exoskeleton
-    (Duty)' aus der SID abgeleitet (summarize() hat keine GameData).
-    Muster der Spieldaten: <Modell>_<Fraktion>_Armor|Helmet[_Zusatz...].
-    Was nicht passt (z.B. supack_vozmercform), bleibt die rohe SID --
-    lieber ehrlich technisch als falsch geraten."""
+    """Return a known armor alias or derive model/faction from its SID.
+
+    Recognize <model>_<faction>_Armor|Helmet[_variant]; retain unknown raw SIDs."""
     from .names import ARMOR_ALIASES
     alias = ARMOR_ALIASES.get(sid)
     if alias:
@@ -384,9 +328,8 @@ def armor_label(sid: str) -> str:
         idx = parts.index(kind_token)
         if idx < 2:
             break
-        # Fraktion = das RECHTESTE bekannte Fraktions-Token vor Armor/Helmet
-        # (nicht stur Position idx-1: Battle_Dolg_End_Armor traegt seine
-        # Variante HINTER der Fraktion).
+        # Use the rightmost known faction token before Armor/Helmet;
+        # variant tokens can intervene.
         fac_idx = idx - 1
         for j in range(idx - 1, 0, -1):
             if parts[j] in ARMOR_FACTION_LABELS:
@@ -402,22 +345,17 @@ def armor_label(sid: str) -> str:
     return sid
 
 
-# "Improved vaulting": die 14 Werte, die die (seit Patch 2.0 kaputte)
-# Vault-Mod gegenueber Vanilla aenderte — rekonstruiert aus GitHub Issue #2
-# (BigTinz hat den kompletten Block der alten Mod gepostet; der Diff gegen
-# die echten Vanilla-Daten ergab genau diese 14 Schluessel). Bewusst
-# ABSOLUTE Zielwerte statt Faktoren: die Trace-Parameter haengen zusammen
-# und die Mod war ein abgestimmtes Set. Gepatcht wird NUR der Player —
-# NPCs und Mutanten haben eigene VaultingParams-Bloecke und bleiben vanilla.
-# Emittiert wird je Schluessel nur, was vom LIVE gelesenen Vanilla abweicht.
+# Coordinated player-only vaulting preset reconstructed from issue #2.
+# Use absolute targets because trace parameters form a tuned set;
+# emit only differences from live baselines. NPC/mutant values stay unchanged.
 VAULT_PRESET = {
-    "MaxAngle": "115",              # Vanilla 75: steilere Anlaufwinkel
-    "MaxTestDistance": "115",       # Vanilla 15: aus groesserem Abstand
+    "MaxAngle": "115",              # Vanilla 75: steeper approach angles.
+    "MaxTestDistance": "115",       # Allow vaulting from a greater distance.
     "StartDistance": "20",          # Vanilla 10
     "VaultOverMaxDepth": "25",      # Vanilla 50
     "VaultOverLandOffset": "100",   # Vanilla 20
     "MinObstacleHeight": "85",      # Vanilla 70
-    "MaxObstacleHeight": "200",     # Vanilla 130: hoehere Hindernisse
+    "MaxObstacleHeight": "200",     # Vanilla 130: higher obstacles.
     "FrontSearchRadiusModifier": "1",       # Vanilla 0.5
     "DepthTraceRadiusModifier": "0.8",      # Vanilla 0.5
     "LandingMinHeight": "10",       # Vanilla 30
@@ -427,9 +365,8 @@ VAULT_PRESET = {
     "LandingMaxSlope": "90",        # Vanilla 45
 }
 
-# Gangarten getrennt regelbar: Animation/Schrittsound skalieren NICHT mit
-# (Engine-Assets, per cfg unerreichbar) -- getrennte Regler halten den
-# sichtbaren Versatz klein (Referenz: Nexus-Mod 2314 laesst Walk unangetastet).
+# Separate gait controls do not rescale animation or footstep audio assets.
+# They allow smaller targeted speed changes with less visible desynchronization.
 WALK_SPEED_KEYS = ["WalkSpeed", "CrouchSpeed", "LowCrouchSpeed"]
 RUN_SPEED_KEYS = ["RunSpeed", "JoggingSpeed", "SprintSpeed"]
 
@@ -443,21 +380,21 @@ class Settings:
     hp_regen: float = 0.0                    # HP/s, Vanilla 0
     max_stamina: float = 100.0               # Vanilla 100
     stamina_regen: float = 5.0               # SP/s, Vanilla 5
-    fall_damage_pct: float = 100.0           # 100 = Vanilla, 0 = kein Fallschaden
-    walk_speed_factor: float = 1.0           # Gehen + Schleichen
-    run_speed_factor: float = 1.0            # Laufen + Sprinten
+    fall_damage_pct: float = 100.0           # 100 = vanilla; 0 = no fall damage.
+    walk_speed_factor: float = 1.0           # Walking and sneaking.
+    run_speed_factor: float = 1.0            # Running and sprinting.
     jump_height_factor: float = 1.0
-    vault_height_factor: float = 1.0         # MaxObstacleHeight x Faktor
+    vault_height_factor: float = 1.0         # MaxObstacleHeight x factor
     vault_distance_factor: float = 1.0       # MaxTestDistance+StartDistance
-    vault_angle_factor: float = 1.0          # MaxAngle (Deckel 180 Grad)
+    vault_angle_factor: float = 1.0          # MaxAngle (cap 180 degrees)
     vault_min_height_factor: float = 1.0     # MinObstacleHeight
-    vault_landing_factor: float = 1.0        # Lande-Toleranz (3 Schluessel)
+    vault_landing_factor: float = 1.0        # Landing tolerance (3 keys).
     vault_over_depth_factor: float = 1.0     # VaultOverMaxDepth
     vault_over_offset_factor: float = 1.0    # VaultOverLandOffset
     vault_sprint: bool = False               # StartWithSprintPressed
-    improved_vaulting: bool = False          # Preset der alten Vault-Mod          # JumpSpeedCoef
+    improved_vaulting: bool = False          # Coordinated vaulting preset; JumpSpeedCoef.
 
-    # --- Ausdauer-Kosten einzeln (Faktor, 1.0 = Vanilla) ---
+    # --- Individual stamina costs (factor, 1.0 = vanilla) ---
     stamina_sprint: float = 1.0
     stamina_jump: float = 1.0
     stamina_melee_light: float = 1.0
@@ -465,7 +402,7 @@ class Settings:
     stamina_buttstock: float = 1.0
     stamina_vault: float = 1.0
 
-    # --- Gewicht & Inventar ---
+    # --- Weight and inventory ---
     max_carry_weight: float = VANILLA_MAX_CARRY
     penalty_start_weight: float = VANILLA_PENALTY_START
     no_overweight_penalty: bool = False
@@ -473,126 +410,122 @@ class Settings:
     item_weight_categories: set[str] = field(default_factory=lambda: set(ALL_CATEGORIES))
     ignore_equipped_weight: bool = False
 
-    # --- Kampf ---
+    # --- Combat ---
     player_damage_factor: float = 1.0
     headshot_factor: float = 1.0
-    aim_punch_factor: float = 1.0        # Kamera-Wackeln bei Treffern (0-3)
+    aim_punch_factor: float = 1.0        # Hit camera shake (0-3).
     npc_damage_factor: float = 1.0
     npc_hp_factor: float = 1.0
-    # --- NPCs & KI ---
-    npc_accuracy_factor: float = 1.0     # >1 = praeziser (Dispersion kleiner)
-    # --- NPC-Kampfverhalten (WeaponAttributes *_NPC.AIParameters; Vorbild
-    # Nexus 2396 'Grounded Combat' + 129 'Better Gunfights') ---
-    npc_free_shots_factor: float = 1.0    # IgnoreDispersionMin/MaxShots ('Aimbot'-Schuesse)
-    npc_burst_factor: float = 1.0         # MinShots/MaxShots je Feuerstoss
-    npc_fire_pause_factor: float = 1.0    # Pausen zwischen Feuerstoessen/Einzelschuessen
+    # --- NPCs and AI ---
+    npc_accuracy_factor: float = 1.0     # >1 = more accurate (less dispersion).
+    # --- NPC combat behavior: WeaponAttributes *_NPC.AIParameters;
+    # references: Grounded Combat (2396), Better Gunfights (129) ---
+    npc_free_shots_factor: float = 1.0    # IgnoreDispersionMin/MaxShots: guaranteed-hit shots.
+    npc_burst_factor: float = 1.0         # MinShots/MaxShots per burst.
+    npc_fire_pause_factor: float = 1.0    # Pauses between bursts/single shots.
     npc_engage_range_factor: float = 1.0  # CombatEffectiveFireDistanceMin/Max
-    npc_weapon_range_factor: float = 1.0  # CWS *_NPC Distanz-Schluessel
-    npc_regen_factor: float = 1.0         # RegenHP der menschlichen NPCs
-    # --- Stealth (AIGlobals Pose/Wetter/Taschenlampe + Player.StealthParams) ---
-    crouch_stealth_factor: float = 1.0    # >1 = geduckt schwerer zu sehen/hoeren
-    movement_noise_factor: float = 1.0    # Laerm von Gehen/Rennen/Sprinten
-    weather_stealth_factor: float = 1.0   # Wetter-Abschlaege auf Sicht/Gehoer
-    flashlight_stealth_factor: float = 1.0  # wie stark deine Lampe dich verraet
-    # --- NPC-Wachsamkeit/Mut (ThreatPrototypes, AIGlobals CombatTactics) ---
-    npc_alertness_factor: float = 1.0     # Reaktionsschwellen / Faktor
-    npc_search_time_factor: float = 1.0   # Verdachts-Gedaechtnis x Faktor
-    npc_courage_factor: float = 1.0       # Angriffs-/Rueckzugsschwellen / Faktor
-    npc_stagger_factor: float = 1.0       # CriticalDamageThreshold x Faktor
+    npc_weapon_range_factor: float = 1.0  # CWS *_NPC distance keys.
+    npc_regen_factor: float = 1.0         # Human NPC RegenHP.
+    # --- Stealth: AIGlobals pose/weather/flashlight and Player.StealthParams ---
+    crouch_stealth_factor: float = 1.0    # >1 = harder to see/hear while crouching.
+    movement_noise_factor: float = 1.0    # Noise from walking/running/sprinting.
+    weather_stealth_factor: float = 1.0   # Weather sight/hearing penalties.
+    flashlight_stealth_factor: float = 1.0  # How strongly the player's flashlight reveals them.
+    # --- NPC awareness/courage: ThreatPrototypes and AIGlobals CombatTactics ---
+    npc_alertness_factor: float = 1.0     # Reaction thresholds / factor.
+    npc_search_time_factor: float = 1.0   # Suspicion memory x factor.
+    npc_courage_factor: float = 1.0       # Attack/retreat thresholds / factor.
+    npc_stagger_factor: float = 1.0       # CriticalDamageThreshold x factor
     npc_attack_cooldown_factor: float = 1.0   # Difficulty NPC_AttackCooldown
     mutant_attack_cooldown_factor: float = 1.0  # Difficulty Mutant_AttackCooldown
     npc_weapon_rank_add: float = 0.0      # Difficulty NPC_Weapon_Rank_Add (+0..3)
-    npc_vision_factor: float = 1.0       # Sichtweite (Story-Bosse ausgenommen)
-    npc_hearing_factor: float = 1.0      # Hoerweite (Mutanten ausgenommen)
-    npc_reaction_factor: float = 1.0     # >1 = NPCs melden Bedrohungen spaeter
-    npc_grenade_factor: float = 1.0      # 0 = nie werfen (-1-Bosse bleiben)
-    npc_no_heal: bool = False            # RegenHP=0 fuer alle Human-NPCs
-    npc_gear_quality_factor: float = 1.0  # Weight-Kipp zur teureren Ware
-    # --- Mutanten (global; Overrides pro Art via mutant_overrides) ---
-    mutant_speed_factor: float = 1.0     # Walk/Run/SprintSpeed aller Arten
-    mutant_hearing_factor: float = 1.0   # der eine geteilte MutantsHearingSensor
-    mutant_regen_factor: float = 1.0     # VitalParams.RegenHP; 0 = keine Regen
-    mutant_overrides: dict = field(default_factory=dict)  # {Art: {param: f}}
-    bloodsucker_cloak_factor: float = 1.0    # >1 = tarnt sich schneller
-    bloodsucker_uncloak_factor: float = 1.0  # >1 = Treffer enttarnen staerker
-    # --- A-Life (experimentell) ---
-    max_agents_factor: float = 1.0       # gleichzeitige NPCs/Mutanten um den Spieler
-    spawn_distance_factor: float = 1.0   # A-Life-Spawn-Distanz
-    # --- A-Life-Spawns: Lager + Director (docs/ALIFE_SPAWN_RESEARCH.md) ---
-    lair_mutant_factor: float = 1.0       # MaxSpawnQuantity Mutanten-Lager
-    lair_human_factor: float = 1.0        # MaxSpawnQuantity Menschen-Lager (ohne Guard*)
-    lair_respawn_factor: float = 1.0      # >1 = Lager fuellen schneller nach
-    encounter_frequency_factor: float = 1.0  # >1 = Director wuerfelt oefter
-    encounter_mutant_factor: float = 1.0     # Gewicht rein-Mutanten-Szenarien
-    encounter_pack_factor: float = 1.0       # Rang-Deckel spawnbarer Typen
-    enc_blinddog_factor: float = 1.0         # je Art: Gewicht der Pack-Szenarien
+    npc_vision_factor: float = 1.0       # Visual range, excluding story bosses.
+    npc_hearing_factor: float = 1.0      # Hearing range, excluding mutants.
+    npc_reaction_factor: float = 1.0     # >1 = NPCs report threats later.
+    npc_grenade_factor: float = 1.0      # 0 = never throw; preserve -1 boss values.
+    npc_no_heal: bool = False            # Set human NPC RegenHP to zero.
+    npc_gear_quality_factor: float = 1.0  # Bias weighted equipment choices toward higher-priced items.
+    # --- Mutants: global values with per-species mutant_overrides ---
+    mutant_speed_factor: float = 1.0     # Walk/Run/SprintSpeed for all species.
+    mutant_hearing_factor: float = 1.0   # Shared MutantsHearingSensor.
+    mutant_regen_factor: float = 1.0     # VitalParams.RegenHP; zero disables regeneration.
+    mutant_overrides: dict = field(default_factory=dict)  # {species: {parameter: factor}}
+    bloodsucker_cloak_factor: float = 1.0    # Factors above one shorten invisibility activation.
+    bloodsucker_uncloak_factor: float = 1.0  # >1 = hits reveal the player more strongly.
+    # --- A-Life (experimental) ---
+    max_agents_factor: float = 1.0       # Concurrent NPCs/mutants around the player.
+    spawn_distance_factor: float = 1.0   # A-Life spawn distance.
+    # --- A-Life spawns: lairs and Director; see docs/ALIFE_SPAWN_RESEARCH.md ---
+    lair_mutant_factor: float = 1.0       # Mutant-lair MaxSpawnQuantity.
+    lair_human_factor: float = 1.0        # Human-lair MaxSpawnQuantity, excluding Guard*.
+    lair_respawn_factor: float = 1.0      # >1 = faster lair refill.
+    encounter_frequency_factor: float = 1.0  # >1 = more frequent Director selections.
+    encounter_mutant_factor: float = 1.0     # Weight of mutant-only scenarios.
+    encounter_pack_factor: float = 1.0       # Rank limits of spawnable types.
+    enc_blinddog_factor: float = 1.0         # Per-species pack-scenario weights.
     enc_boar_factor: float = 1.0
     enc_flesh_factor: float = 1.0
     enc_tushkan_factor: float = 1.0
     enc_chimera_factor: float = 1.0
-    enc_generic_mutant_factor: float = 1.0   # 'Mutants'-Szenarien (Archetyp Mutant)
+    enc_generic_mutant_factor: float = 1.0   # Generic Mutants scenarios (Mutant archetype).
     mutant_hp_factor: float = 1.0
     mutant_damage_factor: float = 1.0
     explosion_damage_factor: float = 1.0
-    durability_factor: float = 1.0           # Waffen-Verschleiss (Kaskade)
-    armor_durability_factor: float = 1.0     # Ruestungs-"Gesundheit" (Difficulty)
-    jamming_factor: float = 1.0              # 0 = Waffen klemmen nie
-    # --- Ruestungsschutz (Spieler-Protection je Schadensart) ---
-    armor_strike_factor: float = 1.0         # Beschuss/Physisch
+    durability_factor: float = 1.0           # Weapon wear (cascade).
+    armor_durability_factor: float = 1.0     # Armor durability (Difficulty).
+    jamming_factor: float = 1.0              # 0 = weapons never jam.
+    # --- Armor protection (player protection per damage type) ---
+    armor_strike_factor: float = 1.0         # Ballistic/physical protection.
     armor_burn_factor: float = 1.0
     armor_shock_factor: float = 1.0
     armor_chemical_factor: float = 1.0
     armor_radiation_factor: float = 1.0
     armor_psy_factor: float = 1.0
-    armor_carry_bonus_factor: float = 1.0    # Exo-/Ruestungs-Tragegewicht-Boni
+    armor_carry_bonus_factor: float = 1.0    # Exoskeleton/armor carry-weight bonuses.
 
-    # --- Waffenhandling ---
-    scope_sway_pct: float = 100.0            # 100 = Vanilla, 0 = kein Sway (ZF)
-    breath_drain_factor: float = 1.0         # 0 = unbegrenzt Luft anhalten
+    # --- Weapon handling ---
+    scope_sway_pct: float = 100.0            # 100 = vanilla; zero disables scope sway.
+    breath_drain_factor: float = 1.0         # 0 = unlimited hold breath.
     breath_regen_factor: float = 1.0
-    spread_factor: float = 1.0               # Streuung; 0 = laserpraezise
-    recoil_factor: float = 1.0               # Rueckstoss
-    recoil_upgrade_factor: float = 1.0       # Rueckstoss-Upgrades verstaerken (Deckel -100 %)
-    weapon_range_factor: float = 1.0         # effektive Reichweite (Kaskade)
-    weapon_bleeding_factor: float = 1.0      # Blutungs-Chance/-Staerke (Kaskade)
-    ads_speed_factor: float = 1.0            # Bewegungstempo beim Zielen (Kaskade)
-    aim_time_factor: float = 1.0             # Ziel-Geschwindigkeit (Kaskade)
-    magazine_factor: float = 1.0             # Magazingroesse (Waffe + Magazine)
-    melee_damage_factor: float = 1.0         # Messer + Kolbenschlag
-    melee_range_factor: float = 1.0          # deren Reichweite (HitDetectionDistance)
-    # --- Reichweiten (Nexus-Recherche 05.09.2026) ---
-    interaction_range_factor: float = 1.0    # Aufheben/Behaelter (CoreVariables) + Leichen (Player)
-    dialog_range_factor: float = 1.0         # Min/Max-Gespraechsabstand (Player + Menschen)
-    dialog_max_range_factor: float = 1.0     # Nur Maximum zusaetzlich erweitern, Minimum bleibt
-    # --- NPC-Taschenlampen (FlashlightPrototypes/CoreVariables/AIGlobals) ---
-    npc_flashlight_factor: float = 1.0       # Intencity + AttenuationRadius der NPC-Lampe
-    npc_flashlight_cone_factor: float = 1.0  # OuterConeAngle (Deckel 170 Grad)
-    npc_flashlight_combat_factor: float = 1.0  # FlashlightCombatUseChance je Rang (Deckel 1.0)
+    spread_factor: float = 1.0               # Dispersion; 0 = perfectly accurate.
+    recoil_factor: float = 1.0               # Recoil
+    recoil_upgrade_factor: float = 1.0       # Amplify recoil upgrades, capped at -100%.
+    weapon_range_factor: float = 1.0         # Effective range (cascade).
+    weapon_bleeding_factor: float = 1.0      # Bleeding chance/strength (cascade).
+    ads_speed_factor: float = 1.0            # Movement speed while aiming (cascade).
+    aim_time_factor: float = 1.0             # Aim-in speed (cascade).
+    magazine_factor: float = 1.0             # Magazine capacity on weapon and magazine items.
+    melee_damage_factor: float = 1.0         # Knife and weapon bash.
+    melee_range_factor: float = 1.0          # Their range (HitDetectionDistance).
+    # --- Interaction ranges ---
+    interaction_range_factor: float = 1.0    # Pickups/containers in CoreVariables; corpses in Player.
+    dialog_range_factor: float = 1.0         # Minimum/maximum talk distance for player and humans.
+    dialog_max_range_factor: float = 1.0     # Extend only the maximum; keep the minimum.
+    # --- NPC flashlights: FlashlightPrototypes/CoreVariables/AIGlobals ---
+    npc_flashlight_factor: float = 1.0       # NPC flashlight Intencity and AttenuationRadius.
+    npc_flashlight_cone_factor: float = 1.0  # OuterConeAngle (cap 170 degrees)
+    npc_flashlight_combat_factor: float = 1.0  # FlashlightCombatUseChance per rank, capped at 1.0.
     npc_flashlight_on_hour: int = 22         # AIGlobals FlashlightTimeOfDayOn
     npc_flashlight_off_hour: int = 5         # AIGlobals FlashlightTimeOfDayOff
-    # --- Speichern (SaveLoadVariables / AutoSaveVariables, beide unbinarisiert) ---
-    manual_save_slots: int = 31              # SavesLimit.Manual (0 = unbegrenzt)
+    # --- Saving: unbinarized SaveLoadVariables / AutoSaveVariables ---
+    manual_save_slots: int = 31              # SavesLimit.Manual (0 = unlimited)
     quick_save_slots: int = 3                # SavesLimit.Quick
     auto_save_slots: int = 10                # SavesLimit.Auto
     autosave_interval_min: float = 10.0      # AutoSaveIntervalTime (Vanilla 600 s)
     # --- 1.24.0 (06.09.2026) ---
-    artifact_slots_bonus: int = 0            # +N ArtifactSlots je Koerperruestung, Deckel 5
+    artifact_slots_bonus: int = 0            # Add N ArtifactSlots per body armor, capped at 5.
     shooting_shake_factor: float = 1.0       # CameraShakePrototypes *ShootCameraShake.Scale
-    ads_zoom_factor: float = 1.0             # AimingFOVModifier: 0 = kein Zoom, 2 = doppelt
+    ads_zoom_factor: float = 1.0             # AimingFOVModifier: zero disables zoom; two doubles the modifier.
     climb_speed_factor: float = 1.0          # Player MovementParams.ClimbSpeedCoef (0.6)
-    starting_money: int = 0                  # CoreVariables PlayerStartingMoney (neues Spiel)
-    no_aim_assist_mouse: bool = False        # AimAssist-Presets *Mouse*: Kegel auf Empty
-    no_aim_assist_gamepad: bool = False      # AimAssist-Presets *Gamepad*: Kegel auf Empty
-    # --- 1.25.0 (06.09.2026) ---
-    # ZURUECKGEZOGEN 1.36.0 (GitHub #10, craigduk76): DialogFOVDefault hat im
-    # Spiel keine Wirkung, und es gibt keinen zweiten cfg-Hebel dafuer
-    # (EffectPrototypes, DialogPrototypes, AIGlobals durchsucht). Feld
-    # bleibt, damit alte Presets/settings.json weiter laden; kein Regler,
-    # kein Patch mehr.
+    starting_money: int = 0                  # CoreVariables PlayerStartingMoney (new game).
+    no_aim_assist_mouse: bool = False        # Disable mouse aim assist by selecting the Empty cone.
+    no_aim_assist_gamepad: bool = False      # Disable gamepad aim assist by selecting the Empty cone.
+    # Retired DialogFOVDefault option: issue #10 reported no in-game effect.
+    # Keep the field for old presets, without a control or emitted patch.
     dialog_fov: float = 70.0
     cutscene_fov: float = 90.0               # CoreVariables CutsceneFOVDefault
     default_fov: float = 90.0                # CoreVariables FOVDefault
-    hud_compass: int = 0                     # 0 vanilla, 1 immer an, 2 immer aus
+    hud_compass: int = 0                     # 0 = vanilla; 1 = always on; 2 = always off.
     hud_crosshair: int = 0
     hud_body_markers: int = 0
     hud_stash_markers: int = 0
@@ -604,51 +537,48 @@ class Settings:
     detail_overrides: dict[str, float] = field(default_factory=dict)  # data-only optional detail controls
     artifact_stat_labels_follow: bool = False  # cosmetic native tiers for edited ordinary bonuses
     bullet_drop_factor: float = 1.0          # CharacterWeaponSettings BulletDropHeight (170)
-    bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed (Kugeln)
-    pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 alle
-    mutant_protection_factor: float = 1.0    # Protection.* der Mutanten (fast nur Strike)
+    bullet_speed_factor: float = 1.0         # ProjectilePrototypes Speed for bullets.
+    pistol_slot_level: int = 0               # 0 vanilla, 1 +SMG, 2 +SMG+Shotgun, 3 all.
+    mutant_protection_factor: float = 1.0    # Mutant Protection values, primarily Strike.
     sleep_anytime: bool = False              # AllowSleepThreshold 50 -> 0
     min_sleep_hours: int = 7                 # MinSleepHours
     sleep_in_emission: bool = False          # bAllowEmissionSleep
-    # --- 1.26.0 (06.09.2026, Recherche auf Steam Workshop / mod.io / ap-pro /
-    # stalker-world / sdwvit-S2Mods; docs/ROADMAP.md "Vierte Datenrecherche") ---
+    # Additional controls introduced in 1.26.0.
     no_knockdown: bool = False               # Player.CanBeKnockedDown -> false
-    no_water_slowdown: bool = False          # Player.WaterContactInfo Kurven-Effekte -> empty
-    # ZURUECKGEZOGEN 1.36.0 (GitHub #11, craigduk76): ClimbViewYaw/PitchLimit
-    # 30/40 -> 90 taten im Spiel nichts, waehrend ViewPitchDownLimit aus
-    # demselben Struct derselben Pak wirkte - die Schluessel sind tot.
-    # Feld bleibt fuer alte Presets; kein Schalter, kein Patch mehr.
+    no_water_slowdown: bool = False          # Player.WaterContactInfo curve effects -> empty.
+    # Retired climbing-view limits: issue #11 reported no effect.
+    # Keep the field only for preset compatibility.
     ladder_free_look: bool = False
     look_straight_down: bool = False         # CoreVariables ViewPitchDownLimit -80 -> -90
-    handless_zoom_factor: float = 1.0        # HandlessFOVAimModifier (0.8; kleiner = mehr Zoom)
+    handless_zoom_factor: float = 1.0        # HandlessFOVAimModifier (0.8; lower = more zoom).
     crouch_vignette_factor: float = 1.0      # PostEffectProcessor CrouchEffectProcessor.Intensity (0.6)
-    butt_wear_factor: float = 1.0            # EffectPrototypes ButtStroke_Corrosion (5 je Schlag)
-    mutants_trigger_anomalies: bool = False  # ShouldTriggerAnomalies der immunen Arten -> true
-    guards_no_instakill: bool = False        # KillVolumeEffect leeren + GuardGun* BaseDamage normal
+    butt_wear_factor: float = 1.0            # EffectPrototypes ButtStroke_Corrosion (5 per hit).
+    mutants_trigger_anomalies: bool = False  # Enable ShouldTriggerAnomalies for otherwise immune species.
+    guards_no_instakill: bool = False        # Clear KillVolumeEffect and normalize GuardGun* BaseDamage.
     explosion_radius_factor: float = 1.0     # ExplosionPrototypes Radius/ImpulseRadius/ConcussionRadius
     explosion_npc_damage_factor: float = 1.0 # ExplosionPrototypes DamageNPC
     phantom_dog_damage_factor: float = 1.0   # AbilityPrototypes PseudoDogSummon_* Damage/Bleeding
     psy_phantoms_only: bool = False          # ConditionalSpawnPSYNPC.FalseEffectSID -> SpawnPSYPhantoms
-    reload_speed_factor: float = 1.0         # WeaponGeneralSetup *ReloadTimeMultiplier (Zeit / Faktor)
-    jam_clear_factor: float = 1.0            # WeaponGeneralSetup WeaponJamParams.FullJamTime (Zeit / Faktor)
-    mutant_loot_chance_factor: float = 1.0   # ItemGenerator <Art>LootGenerator Chance (Deckel 1)
-    stash_clue_factor: float = 1.0           # CorpseClueStash Base/AddSpawnChance je Region (Deckel 1)
-    npcs_no_corpse_loot: bool = False        # CanProcessCorpses der menschlichen NPCs -> false
+    reload_speed_factor: float = 1.0         # WeaponGeneralSetup *ReloadTimeMultiplier (time / factor)
+    jam_clear_factor: float = 1.0            # WeaponGeneralSetup WeaponJamParams.FullJamTime (time / factor)
+    mutant_loot_chance_factor: float = 1.0   # ItemGenerator <species>LootGenerator Chance (cap 1)
+    stash_clue_factor: float = 1.0           # CorpseClueStash Base/AddSpawnChance per region, capped at 1.
+    npcs_no_corpse_loot: bool = False        # Disable human NPC CanProcessCorpses.
     alife_vision_factor: float = 1.0         # CoreVariables ALifeGridVisionRadius/GenericModelGridVisionRadius
     map_reveal_factor: float = 1.0           # MarkerPrototypes MarkerRevealDistance/MarkerExploreDistance
     map_all_regions: bool = False            # MarkerPrototypes RegionMarker Hidden -> Explored
     fast_travel_lock: int = 2                # FastTravel OverweightLock: 0 NoLock, 1 Partial, 2 Full (Vanilla)
     guide_delay_factor: float = 1.0          # FastTravel GuideDelay (120)
     instant_teleports: bool = False          # EffectPrototypes *Teleport* TeleportType -> Instant
-    protection_cap_factor: float = 1.0       # ObjEffectMaxParams Protection*-Deckel (%-Werte max 100)
+    protection_cap_factor: float = 1.0       # ObjEffectMaxParams Protection* caps (percentage values <= 100).
     weird_artifact_factor: float = 1.0       # ItemPrototypes AArtifactWeird* EffectsDuration/MaxCharge
-    skip_intro: bool = False                 # QuestNode E01_MQ01_PlayVideo Launcher-Verbindung leeren
+    skip_intro: bool = False                 # Clear the E01_MQ01_PlayVideo launcher connection.
     traders_no_gear_buy: bool = False        # TradePrototypes BuyLimitations + Weapon/Armor
-    clicker_factor: float = 1.0              # AnomalyPrototypes ClickerAnomaly.ParticleMaxCount + Hit-Schaden
-    # --- 1.27.0 (06.09.2026, Schluessel-Sweep; docs/ROADMAP.md 'Fuenfte Datenrecherche') ---
-    back_speed_factor: float = 1.0           # Player.MovementParams *Back*Coef (Deckel 1.0)
-    air_control_factor: float = 1.0          # Player.MovementParams.AirControlCoef (0.1, Deckel 1.0)
-    limp_speed_factor: float = 1.0           # Player.MovementParams.LimpSpeedCoef (0.5, Deckel 1.0)
+    clicker_factor: float = 1.0              # AnomalyPrototypes ClickerAnomaly.ParticleMaxCount and hit damage.
+    # --- Additional verified CFG controls ---
+    back_speed_factor: float = 1.0           # Player.MovementParams *Back*Coef (cap 1.0)
+    air_control_factor: float = 1.0          # Player.MovementParams.AirControlCoef (0.1, cap 1.0)
+    limp_speed_factor: float = 1.0           # Player.MovementParams.LimpSpeedCoef (0.5, cap 1.0)
     slow_run_threshold_pct: float = 50.0     # CoreVariables SlowRunThreshold (0.5)
     hp_regen_delay: float = 5.0              # Player.VitalParams.RegenHPDelayTimeSeconds
     radiation_decay_factor: float = 1.0      # Player.VitalParams.DegenRadiation (0.05)
@@ -658,308 +588,288 @@ class Settings:
     stealth_kill_range_factor: float = 1.0   # Player.StealthKillParams.StealthKillDistance (180)
     wheel_time_pct: float = 30.0             # CoreVariables ItemSelectorTimeDilationCoefficient (0.3)
     sleep_fade_factor: float = 1.0           # CoreVariables PlayerBedFadeToBlackTime/BlackScreenTime (1.5/3.5)
-    corpse_drag_factor: float = 1.0          # CoreVariables DraggingCorpseSpeedCoef (0.6, Deckel 1.0)
+    corpse_drag_factor: float = 1.0          # CoreVariables DraggingCorpseSpeedCoef (0.6, cap 1.0)
     item_despawn_factor: float = 1.0         # CoreVariables Untouched/DespawnItemTime (3600/10800 s)
-    day_start_hour: int = 6                  # CoreVariables DayStartTime (Dawn rutscht mit)
+    day_start_hour: int = 6                  # CoreVariables DayStartTime, shifting dawn together.
     evening_start_hour: int = 20             # CoreVariables EveningStartTime
     calm_damage_factor: float = 1.0          # CoreVariables CalmDamageFromPlayerCoef (2.5)
     last_bullet_multiplier: float = 2.0      # CoreVariables LastBulletBaseDamageMultiplier
     armor_difference_factor: float = 1.0     # CoreVariables ArmorDifferenceCoef (2) + Player *ArmorDifferenceCoef*
     armor_deflect_chance_pct: float = 93.0   # CoreVariables ArmorDeflectMin/MaxChance (0.93)
     armor_deflect_damage_factor: float = 1.0 # CoreVariables ArmorDeflectDamageCoefHuman/Mutant (1.5)
-    scope_zoom_factor: float = 1.0           # EffectPrototypes AimingFOVX2/X3/X4/X8Effect (-43..-70 %, Deckel -90)
+    scope_zoom_factor: float = 1.0           # EffectPrototypes AimingFOVX2/X3/X4/X8Effect (-43..-70 %, cap -90)
     scope_penalty_factor: float = 1.0        # EffectPrototypes ScopeAimingTimeNeg*/ScopeAimingMovementNeg*
-    upg_accuracy_factor: float = 1.0         # Upgrade-Effekte: Streuung
-    upg_handling_factor: float = 1.0         # Upgrade-Effekte: Zielzeit, ADS-Tempo, Sway, Ziehen, Schusserholung, Kapazitaet
-    upg_durability_factor: float = 1.0       # Upgrade-Effekte: Haltbarkeit (Waffe + Ruestung)
-    upg_range_factor: float = 1.0            # Upgrade-Effekte: Reichweite, Abfall, Geschosstempo
-    upg_damage_factor: float = 1.0           # Upgrade-Effekte: Schaden, Durchschlag, Deckungsdurchschlag
-    upg_weight_factor: float = 1.0           # Upgrade-Effekte: Gewicht (Waffe + Ruestung)
-    upg_breath_factor: float = 1.0           # Upgrade-Effekte: Atem anhalten
-    upg_armor_protection_factor: float = 1.0 # Upgrade-Effekte: Ruestungsschutz je Art (Deckel 100 %)
-    upg_armor_misc_factor: float = 1.0       # Upgrade-Effekte: Ausdauer-Regeneration der Ruestungen
+    upg_accuracy_factor: float = 1.0         # Dispersion upgrade effects.
+    upg_handling_factor: float = 1.0         # Upgrade effects: aim-in time, ADS movement, sway, draw, recovery, capacity.
+    upg_durability_factor: float = 1.0       # Durability upgrade effects for weapons and armor.
+    upg_range_factor: float = 1.0            # Upgrade effects: range, falloff, projectile speed.
+    upg_damage_factor: float = 1.0           # Upgrade effects: damage, penetration, cover penetration.
+    upg_weight_factor: float = 1.0           # Weight upgrade effects for weapons and armor.
+    upg_breath_factor: float = 1.0           # Hold-breath upgrade effects.
+    upg_armor_protection_factor: float = 1.0 # Armor protection upgrade effects per type, capped at 100%.
+    upg_armor_misc_factor: float = 1.0       # Armor stamina-regeneration upgrade effects.
     weapon_warning_count: int = 3            # Player.HideWeaponWarning.WarningAttemptsBeforeAlert
     weapon_warning_delay_factor: float = 1.0 # Player.HideWeaponWarning.BarkDelay (10)
     camper_time_factor: float = 1.0          # Player.CamperFeatureData.TimeToAssumeAsCamper (10)
-    sync_melee_factor: float = 1.0           # CombatSynchronization: Nahkampf-Token (MaxScore)
-    sync_ability_factor: float = 1.0         # CombatSynchronization: Faehigkeiten/Knockdown-Token
-    sync_grenade_factor: float = 1.0         # CombatSynchronization: Granatenwuerfe-Token
-    sync_suppress_factor: float = 1.0        # CombatSynchronization: Sperrfeuer-Token
+    sync_melee_factor: float = 1.0           # CombatSynchronization: melee tokens (MaxScore).
+    sync_ability_factor: float = 1.0         # CombatSynchronization: ability/knockdown tokens.
+    sync_grenade_factor: float = 1.0         # CombatSynchronization: grenade-throw tokens.
+    sync_suppress_factor: float = 1.0        # CombatSynchronization: suppressive-fire tokens.
     npcs_no_weapon_pickup: bool = False      # AIGlobals AllowWeaponPickupWhenLooting/BasedOnPrice -> false
-    darkness_factor: float = 1.0             # AIGlobals TimeOfDayBaseLuminance (Nacht 0.2 ...), Deckel 1.0
+    darkness_factor: float = 1.0             # AIGlobals TimeOfDayBaseLuminance (night 0.2 ...), cap 1.0
     corpse_threat_factor: float = 1.0        # AIGlobals DeadBodyToConsiderAsThreatDuration (120)
-    damage_mercy_factor: float = 1.0         # Difficulty AccumulatedDamageReductionCurveWeightMin/Max (Deckel 1)
+    damage_mercy_factor: float = 1.0         # Difficulty AccumulatedDamageReductionCurveWeightMin/Max (cap 1)
     psy_phantom_factor: float = 1.0          # Difficulty PsyPhantomNPCOverrides[*].PsyPhantomNPCCountMultiplier
     min_resale_pct: float = 10.0             # CoreVariables ItemCostMinPercent (0.1)
-    container_respawn_hours: float = 0.0     # ItemContainerPrototypes RespawnTimeSeconds (0 = nie)
+    container_respawn_hours: float = 0.0     # ItemContainerPrototypes RespawnTimeSeconds (0 = never)
     energy_tolerance_factor: float = 1.0     # CoreVariables VitalMaxEnergeticOveruse/Tolerance (1000/2500)
     npc_hip_accuracy_factor: float = 1.0     # Difficulty NPCCombatDifficulty.HipAccuracyMultiplier
     device_price_factor: float = 1.0         # Difficulty EconomyDifficulty Binoculars_Cost/NightVisionGoggles_Cost
-    # --- 1.28.0 P1 (06.09.2026, Kern-Sweep; docs/CORE_SWEEP_RESEARCH.md par. 1.1 / 2.3 / 3b) ---
-    limp_threshold_factor: float = 1.0       # CoreVariables LimpEffectSIDToThresholdMap Threshold 25/65 x Faktor
-    no_landing_limp: bool = False            # dito, Schwellen x1000 = praktisch nie humpeln (schlaegt den Faktor)
+    # --- 1.28.0 P1 (06.09.2026, core controls; docs/CORE_SWEEP_RESEARCH.md par. 1.1 / 2.3 / 3b) ---
+    limp_threshold_factor: float = 1.0       # CoreVariables LimpEffectSIDToThresholdMap Threshold 25/65 x factor
+    no_landing_limp: bool = False            # Thresholds x1000 effectively disable limping and take precedence over the factor.
     bleeding_hit_factor: float = 1.0         # CoreVariables VitalBaseBleedingValue (10.0)
     bleeding_nonpen_factor: float = 1.0      # CoreVariables BleedingChance/PointsNonPenetrationMod (1.0)
-    damage_screen_factor: float = 1.0        # PostEffectProcessor 15 Schadens-Prozessoren Intensity (1.0), Deckel 1
+    damage_screen_factor: float = 1.0        # PostEffectProcessor intensity for 15 damage processors (1.0), cap 1.
     flashlight_dialog_bright: bool = False   # CoreVariables FlashlightDialogIntensityPercent 0.525 -> 1.0
-    quicksave_overwrite_min: float = 5.0     # QuickSaveVariables QuickSaveOverwriteTime (300 s), in Minuten
-    # --- 1.28.0 P2 (Ruestung und Trefferrechnung; par. 1.1) ---
-    grenade_resist_factor: float = 1.0       # CoreVariables StrikeGrenadeResistCoefs.[0..4].GrenadeDamageResist x Faktor, Deckel 1
-    armor_wear_coef: float = 0.7             # CoreVariables Armor/HelmetDurabilityParamsCoef (0.7f), absolut, experimentell
-    anomaly_armor_difference_factor: float = 1.0  # CoreVariables StrikeAnomalyArmorDifferenceCoef (1.0), experimentell
-    # --- 1.28.0 P3 (NPC-Verhalten im Kampf; par. 1.3 / 2.5) ---
-    wounded_heal_chance: int = 70            # CoreVariables ChanceToGetHealOverTimeWhenWounded (0-100, absolut)
-    wounded_cooldown_s: int = 300            # CoreVariables CooldownOnFallingWounded (Sekunden, absolut)
-    wounded_regen_factor: float = 1.0        # CoreVariables WoundedStateHealthRegen (5.f) x Faktor
-    wounded_heal_threshold: int = 35         # CoreVariables HpThresholdToHealWound (absolut, Richtung unbewiesen)
-    npc_player_focus_factor: float = 1.0     # EnemyEvaluator [0].NotPlayerCoeff (0.15) x Faktor, Vorzeichen unbewiesen
-    npc_retarget_cooldown_factor: float = 1.0   # EnemyEvaluator [0].ChangeEnemyCooldown (3.0) x Faktor
-    npc_damage_memory_factor: float = 1.0    # EnemyEvaluator [0].DamageAccumulationDurationSeconds (7.0) x Faktor
+    quicksave_overwrite_min: float = 5.0     # QuickSaveVariables QuickSaveOverwriteTime (300 s), in minutes
+    # Armor and hit-calculation controls.
+    grenade_resist_factor: float = 1.0       # CoreVariables StrikeGrenadeResistCoefs.[0..4].GrenadeDamageResist x factor, cap 1
+    armor_wear_coef: float = 0.7             # CoreVariables Armor/HelmetDurabilityParamsCoef (0.7f), absolute, experimental
+    anomaly_armor_difference_factor: float = 1.0  # CoreVariables StrikeAnomalyArmorDifferenceCoef (1.0), experimental
+    # --- NPC combat behavior ---
+    wounded_heal_chance: int = 70            # CoreVariables ChanceToGetHealOverTimeWhenWounded (0-100, absolute)
+    wounded_cooldown_s: int = 300            # CoreVariables CooldownOnFallingWounded (absolute seconds).
+    wounded_regen_factor: float = 1.0        # CoreVariables WoundedStateHealthRegen (5.f) x factor
+    wounded_heal_threshold: int = 35         # CoreVariables HpThresholdToHealWound: absolute value, direction unverified.
+    npc_player_focus_factor: float = 1.0     # EnemyEvaluator [0].NotPlayerCoeff (0.15) x factor, sign interpretation unverified.
+    npc_retarget_cooldown_factor: float = 1.0   # EnemyEvaluator [0].ChangeEnemyCooldown (3.0) x factor
+    npc_damage_memory_factor: float = 1.0    # EnemyEvaluator [0].DamageAccumulationDurationSeconds (7.0) x factor
     cover_distance_factor: float = 1.0       # CoverEvaluator DefaultCoverEvaluator.DefaultCoverSettings Min/MaxDistanceToEnemy (800/7000)
     cover_path_factor: float = 1.0           # CoverEvaluator DefaultCoverEvaluator.MaxPathLength (2000)
-    # --- 1.28.0 P4 (Mutanten; par. 2.4 / 1.3 / 1.1) ---
-    mutant_smell_factor: float = 1.0         # FlairSensor Sensing/FrontSensingRadius + Detection/FrontDetectionSpeed (aktive Sensoren)
-    mutants_no_smell: bool = False           # FlairSensor IsActive -> false auf denselben Sensoren
-    burer_fire_interval_factor: float = 1.0  # CoreVariables PossessedWeaponFireIntervals.<Ammo>.FireInterval (0.5-4 s) x Faktor
-    mutant_loot_widget: bool = False         # CoreVariables UseMutantLootWithoutWidget true -> false (Loot-Fenster statt Animation)
-    # --- 1.28.0 P5 (A-Life und Leichen; par. 2.6 / 2.7 / 1.4) ---
+    # --- 1.28.0 P4 (Mutants; par. 2.4 / 1.3 / 1.1) ---
+    mutant_smell_factor: float = 1.0         # FlairSensor radii and detection speeds for active sensors.
+    mutants_no_smell: bool = False           # Disable IsActive on the same supported scent sensors.
+    burer_fire_interval_factor: float = 1.0  # CoreVariables PossessedWeaponFireIntervals.<Ammo>.FireInterval (0.5-4 s) x factor
+    mutant_loot_widget: bool = False         # CoreVariables UseMutantLootWithoutWidget true -> false: loot window instead of animation.
+    # A-Life and corpse controls.
     squad_expansion_factor: float = 1.0      # NPCNeedsPreset GoalNeeds[Expansion] Min/MaxIncreasePerMinute (16 Presets)
     refill_cooldown_factor: float = 1.0      # ALifePolicy Full/PartialWipeRefillCooldown (360.f/120.f)
-    refill_distance_factor: float = 1.0      # ALifePolicy Min/MaxRefillDistance (20000/25000), ganzzahlig
-    corpse_budget: int = 30                  # ALifePolicy MaxCorpsePerRadius (absolut)
-    faction_battle_chance: int = 50          # ALifePopulationManager Factions.<F>.ALifeLairExpansionBattleChance (29x, absolut)
-    faction_expansion_pace_factor: float = 1.0  # ALifePopulationManager ALifeLairExpansionTime (50.f), INVERS
+    refill_distance_factor: float = 1.0      # ALifePolicy Min/MaxRefillDistance (20000/25000), integer
+    corpse_budget: int = 30                  # ALifePolicy MaxCorpsePerRadius (absolute)
+    faction_battle_chance: int = 50          # ALifePopulationManager Factions.<F>.ALifeLairExpansionBattleChance (29x, absolute)
+    faction_expansion_pace_factor: float = 1.0  # ALifePopulationManager ALifeLairExpansionTime (50.f), INVERSE
     corpse_distance_factor: float = 1.0      # CoreVariables CorpseOffline*SquaredDistance (x f^2) + DistanceToDestroyCorpsesIfOverpopulated (x f)
-    alife_corpse_hardcap: int = 1500         # CoreVariables AlifeCorpsesHardcap (absolut)
-    # --- 1.28.0 P6 (Welt und Atmosphaere; par. 1.2 / 1.3 / 2.2 / 2.6 / 2.8 / 2.10 / 2.11) ---
+    alife_corpse_hardcap: int = 1500         # CoreVariables AlifeCorpsesHardcap (absolute)
+    # World and atmosphere controls.
     radiation_dose_factor: float = 1.0       # CoreVariables RadiationPresetValues RadiationPerSecondValue (1/3/6/1)
-    radiation_filter_factor: float = 1.0     # dito PostProcessRadiationIntensity (Deckel 1.0)
-    geiger_volume_factor: float = 1.0        # dito GeigerRadiationIntensity (Deckel 1.0)
-    barbed_wire_factor: float = 1.0          # BarbedWire Damage/BleedingValue/ArmorDamage + BleedingChance (Deckel 1)
+    radiation_filter_factor: float = 1.0     # Likewise PostProcessRadiationIntensity (cap 1.0)
+    geiger_volume_factor: float = 1.0        # Likewise GeigerRadiationIntensity (cap 1.0)
+    barbed_wire_factor: float = 1.0          # BarbedWire Damage/BleedingValue/ArmorDamage + BleedingChance (cap 1)
     explosive_container_factor: float = 1.0  # Destructible Exp_* DamageDestroyThreshold (20-50)
-    push_force_factor: float = 1.0           # PhysicsInteraction PlayerPushImpulse (88 Prototypen)
-    weather_transition_factor: float = 1.0   # WeatherChain WeatherTransitionTimeMultiplier (22x 1), INVERS
+    push_force_factor: float = 1.0           # PhysicsInteraction PlayerPushImpulse (88 prototypes)
+    weather_transition_factor: float = 1.0   # WeatherChain WeatherTransitionTimeMultiplier (22x 1), INVERSE
     moon_brightness_factor: float = 1.0      # SingletonConstants MoonLightMaxBrightness (1.046f)
-    sun_brightness_factor: float = 1.0       # dito SunLightMaxBrightness (3.14f)
-    stars_brightness_factor: float = 1.0     # dito StarsBrightness (0.1f)
-    cloud_opacity_factor: float = 1.0        # dito CloudOpacity (0.7f, Deckel 1.0)
-    cloud_speed_factor: float = 1.0          # dito CloudSpeed (1.f)
-    dusk_length_factor: float = 1.0          # dito LightSourceFadingDurationHoursOnDayNightChange (2.f)
-    music_combat_threshold: float = 20.0     # CoreVariables MusicManagerCombatScoreThreshold (absolut)
-    music_combat_lifetime: float = 25.0      # CoreVariables MusicManagerCombatEnemyAttackActionLifetimeSeconds (absolut)
-    camp_life_factor: float = 1.0            # NPCNeedsPreset Needs IncreaseRateMin/Max der Lagerleben-Beduerfnisse
-    # --- 1.28.0 P7 (Artefakte und Loot; par. 3b / 2.12 / 1.3) ---
-    artifact_radius_factor: float = 1.0      # ItemPrototypes je Artefakt Radius (40 cm / 10), Sichtbarkeit
-    artifacts_no_hop: bool = False           # dito Strafe true -> false (146 von 154)
-    artifact_keepaway_factor: float = 1.0    # dito PlayerDistance (1000) + CoreVariables ArtifactStrafeMinDistance (600)
-    artifact_hop_pause_factor: float = 1.0   # dito JumpSeriesDelay (45/35/25/15)
+    sun_brightness_factor: float = 1.0       # Likewise SunLightMaxBrightness (3.14f)
+    stars_brightness_factor: float = 1.0     # Likewise StarsBrightness (0.1f)
+    cloud_opacity_factor: float = 1.0        # Likewise CloudOpacity (0.7f, cap 1.0)
+    cloud_speed_factor: float = 1.0          # Likewise CloudSpeed (1.f)
+    dusk_length_factor: float = 1.0          # Likewise LightSourceFadingDurationHoursOnDayNightChange (2.f)
+    music_combat_threshold: float = 20.0     # CoreVariables MusicManagerCombatScoreThreshold (absolute)
+    music_combat_lifetime: float = 25.0      # CoreVariables MusicManagerCombatEnemyAttackActionLifetimeSeconds (absolute)
+    camp_life_factor: float = 1.0            # Camp-activity need IncreaseRateMin/Max.
+    # Artifact and loot controls.
+    artifact_radius_factor: float = 1.0      # Per-artifact ItemPrototypes radius (40 cm / 10) and visibility.
+    artifacts_no_hop: bool = False           # Likewise Strafe true -> false (146 of 154)
+    artifact_keepaway_factor: float = 1.0    # Likewise PlayerDistance (1000) + CoreVariables ArtifactStrafeMinDistance (600)
+    artifact_hop_pause_factor: float = 1.0   # Likewise JumpSeriesDelay (45/35/25/15)
     artifact_caches_drop: bool = False       # PackOfItems ArtifactUncommon: 20 Weight 0 -> 1
     loot_reroll_radius_factor: float = 1.0   # CoreVariables RegenerateItemsOnRankUpdateRadius (40000.f)
     loot_reroll_timer_factor: float = 1.0    # CoreVariables RegenerateItemsOnRankUpdateTimer (10.f)
-    # --- 1.28.0 P8 (Haendler und Wirtschaft; par. 1.3 / 2.9) ---
-    repair_cost_reputation: bool = False     # CoreVariables ReputationRepairCostModifiers.[0..3] alle auf 1.0
-    infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolut, Spielstunden)
+    # Trader and economy controls.
+    repair_cost_reputation: bool = False     # Set ReputationRepairCostModifiers entries to 1.0.
+    infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolute, game hours)
     # --- 1.29.0 ---
-    equip_speed_factor: float = 1.0          # WeaponGeneralSetup Show/HideEquipmentTime (je 1.0), Zeit / Faktor
-    shooting_anim_skip: int = 0              # WeaponGeneralSetup ShootingAnimationNumberToSkip (Vanilla 0), absolut
-    # --- Munition (global ueber alle Munitionstypen) ---
+    equip_speed_factor: float = 1.0          # WeaponGeneralSetup Show/HideEquipmentTime (1.0 each), time / factor.
+    shooting_anim_skip: int = 0              # WeaponGeneralSetup ShootingAnimationNumberToSkip (Vanilla 0), absolute
+    # --- Ammunition: global settings across all types ---
     ammo_damage_factor: float = 1.0
-    ammo_piercing_factor: float = 1.0        # verstaerkt die AP-Charakteristik
+    ammo_piercing_factor: float = 1.0        # Strengthen armor-piercing characteristics.
     ammo_armor_damage_factor: float = 1.0
     ammo_cover_factor: float = 1.0
-    # Einzelsorten-Overrides {Ammo-SID: {param: faktor}}; ein Eintrag
-    # ERSETZT den globalen Regler fuer diesen Parameter an dieser Sorte
-    # (wie bei den Waffen), er multipliziert sich nicht dazu.
-    # UpgradePrototypes RepairCostModifier: ABSOLUTWERT, Vanilla 0.2f bei
-    # allen 1288 Upgrades (live gegengelesen). Der gleichnamige Schluessel
-    # in ObjPrototypes (1659x, Wert 1) gehoert zu den NPCs und bleibt tabu.
+    # Per-type ammunition overrides replace the global factor for that parameter.
+    # Upgrade RepairCostModifier is an absolute target; the similarly named
+    # NPC object field is excluded.
     upgrade_repair_surcharge: float = 0.2
     mutant_attack_series_factor: float = 1.0  # AbilityPrototypes MaxAttacksInSeries (0/1/2/3)
-    mutant_attack_bleed_factor: float = 1.0   # dito BleedingChanceIncrement (.1f / 0.f / .5f)
+    mutant_attack_bleed_factor: float = 1.0   # Likewise BleedingChanceIncrement (.1f / 0.f / .5f)
     jam_chance_factor: float = 1.0           # WGS Min/MaxJamChance (0.0 / 4.0-15.0)
-    # --- 1.32.0: Schussverhalten (Siebte Datenrecherche, Nr. 3/4/5) ---
-    recoil_recovery_factor: float = 1.0      # WGS RadiusNormalizationInterval/-Delay, Rueckstoss UND Streuung, INVERS
+    # --- Firing behavior ---
+    recoil_recovery_factor: float = 1.0      # WGS RadiusNormalizationInterval/-Delay: recoil AND dispersion, inverse.
     spread_bloom_factor: float = 1.0         # WGS DispersionParams Max/PerIterationRadiusExtensionModifier
-    aim_steady_factor: float = 1.0           # WGS Aim/AimCrouch/AimFullCrouchModifier, Betrag gedeckelt auf 1.0
+    aim_steady_factor: float = 1.0           # Aim/crouch WGS modifiers with magnitude capped at 1.0.
     zombie_spread_factor: float = 1.0        # CWS DispersionRadiusZombieAddend (75x 30.0)
     explosion_armor_damage_factor: float = 1.0   # ExplosionPrototypes DamageArmorPlayer/-NPC
-    explosion_armor_pierce_factor: float = 1.0   # dito ArmorPenetrationPlayer/-NPC (4-6)
-    explosion_destructible_factor: float = 1.0   # dito DamageDestructible (1000-4000)
-    bullet_penetration_factor: float = 1.0   # ProjectilePrototypes PenetrationSpawnChance, Deckel 1.0
+    explosion_armor_pierce_factor: float = 1.0   # Likewise ArmorPenetrationPlayer/-NPC (4-6)
+    explosion_destructible_factor: float = 1.0   # Likewise DamageDestructible (1000-4000)
+    bullet_penetration_factor: float = 1.0   # ProjectilePrototypes PenetrationSpawnChance, cap 1.0
     bullet_range_factor: float = 1.0         # ProjectilePrototypes MaxFlyDistance (16x 100000)
-    # --- 1.32.0, zweite Runde (Maklane's Better Zone, Nexus 241) ---
-    hip_steady_factor: float = 1.0           # WGS HipModifiers (4 Schluessel x 2 Zweige), Betrag <= 1
-    move_steady_factor: float = 1.0          # WGS MovementSpeedModifiers (2 Zweige), Betrag <= 1
+    # Additional firing controls, compared with Maklane's Better Zone (Nexus 241).
+    hip_steady_factor: float = 1.0           # WGS HipModifiers (4 keys x 2 branches), magnitude <= 1.
+    move_steady_factor: float = 1.0          # WGS MovementSpeedModifiers: two branches, magnitude <= 1.
     recoil_pattern_factor: float = 1.0       # WGS RecoilParams.RecoilPatternInterval (0.3/1.0/5.0)
     chamber_round: bool = False              # WGS AdditionalBulletsAfterReloadingCount 0 -> 1
-    dropped_ammo_factor: float = 1.0         # WGS Min/MaxDeadNPCLoadedAmmoCount (-1 = tabu)
+    dropped_ammo_factor: float = 1.0         # WGS Min/MaxDeadNPCLoadedAmmoCount (-1 = excluded)
     weapon_noise_factor: float = 1.0         # CWS FireLoudness (150x, 0.6-0.8)
     item_grid_factor: float = 1.0            # ItemPrototypes ItemGridWidth/-Height (1375x)
-    inventory_action_factor: float = 1.0     # ItemPrototypes InventoryActionTime (243x), INVERS
-    npc_anomaly_ignore_factor: float = 1.0   # ObjPrototypes AnomalyRestrictionsIgnoreChance, Deckel 1
+    inventory_action_factor: float = 1.0     # ItemPrototypes InventoryActionTime (243x), INVERSE
+    npc_anomaly_ignore_factor: float = 1.0   # ObjPrototypes AnomalyRestrictionsIgnoreChance, cap 1
     ragdoll_force_factor: float = 1.0        # ObjPrototypes DeathHit-/DeathVelocityImpulseMultiplier
-    npc_retreat_radius_factor: float = 1.0   # ObjPrototypes RetreatRadius (3 top + 29 verschachtelt)
-    npc_retreat_damage_factor: float = 1.0   # dito DamageAccumulatedToRetreat
+    npc_retreat_radius_factor: float = 1.0   # ObjPrototypes RetreatRadius: three top-level and 29 nested entries.
+    npc_retreat_damage_factor: float = 1.0   # Likewise DamageAccumulatedToRetreat
     npc_vs_npc_damage_factor: float = 1.0    # CWS NPCToNPCDamageScaler (150x 0.7)
-    stat_bars_follow: bool = False           # CWS DamageUI/RangeUI/RateOfFireUI mitziehen
+    stat_bars_follow: bool = False           # Update CWS DamageUI/RangeUI/RateOfFireUI alongside gameplay values.
     ammo_pack_factor: float = 1.0            # ItemPrototypes AmmoPackCount (30/10/20/50)
     ammo_bleeding_factor: float = 1.0        # ItemPrototypes BleedingMod (35x 1.0)
-    ammo_recoil_factor: float = 1.0          # dito RecoilMod (35x 1.0)
-    ammo_flatness_factor: float = 1.0        # dito FlatnessMod (1.0-1.9; hoeher = flachere Flugbahn)
-    ammo_wear_factor: float = 1.0            # dito WeaponExhaustionMod (0.8-1.3; Abnutzung je Schuss)
-    ammo_stack_factor: float = 1.0           # ItemPrototypes MaxStackCount, Munition (900)
-    consumable_stack_factor: float = 1.0     # dito Nahrung/Medizin (999)
+    ammo_recoil_factor: float = 1.0          # Likewise RecoilMod (35x 1.0)
+    ammo_flatness_factor: float = 1.0        # FlatnessMod (1.0–1.9); higher means a flatter trajectory.
+    ammo_wear_factor: float = 1.0            # WeaponExhaustionMod (0.8–1.3), wear per shot.
+    ammo_stack_factor: float = 1.0           # ItemPrototypes MaxStackCount for ammunition (900).
+    consumable_stack_factor: float = 1.0     # Likewise for food/medicine (999).
 
-    # --- 1.33.0: Ausbeute der neunten Datenrecherche (27 fremde Mods
-    # gegengelesen, docs/ROADMAP.md "Neunte Datenrecherche") -------------
-    anomaly_wear_factor: float = 1.0         # EffectPrototypes: alle Corrosion-Effekte
-                                             # (Burning/Carousel/Chemical/Clicker/Electro je
+    # Additional controls introduced in 1.33.0.
+    anomaly_wear_factor: float = 1.0         # EffectPrototypes: corrosion effects.
+                                             # Burning/Carousel/Chemical/Clicker/Electro effects and
                                              # Body/Head/Pistol/Weapon/SecWeapon, 0.2-25) +
-                                             # VelocityCorrosion; ButtStroke bleibt eigener Regler
-    gear_durability_factor: float = 1.0      # ItemPrototypes BaseDurability (Waffen 1125-3000,
-                                             # Ruestung 520-1040) - nur neu erzeugte Gegenstaende
+                                             # VelocityCorrosion; ButtStroke has its own slider.
+    gear_durability_factor: float = 1.0      # ItemPrototypes BaseDurability (weapons 1125–3000,
+                                             # Applies only to newly generated equipment.
     far_damage_factor: float = 1.0           # CWS MinBulletDistanceDamageModifier (150x 0.1-0.6,
-                                             # Deckel 1.0) + ...ArmorPiercingModifier (150x 1.0)
+                                             # cap 1.0) + ...ArmorPiercingModifier (150x 1.0)
     effect_cap_other_factor: float = 1.0     # ObjEffectMaxParams RegenStamina 30 / DegenBleeding 5
     lair_initial_fill_factor: float = 1.0    # LairPrototypes InitialSpawnQuantityPercent
-                                             # (688x 0.5, 100x 1.0), Deckel 1.0
-    lair_rare_archetype_factor: float = 1.0  # dito SpawnWeight, NUR die seltenen (0 < w < 1.0:
-                                             # 147x 0.2, 23x 0.5), Deckel 1.0; Nullen bleiben 0
+                                             # (688x 0.5, 100x 1.0), cap 1.0
+    lair_rare_archetype_factor: float = 1.0  # Apply SpawnWeight only to rare entries with 0 < weight < 1.0.
+                                             # 147 entries at 0.2, 23 at 0.5; cap 1.0, preserve zeros.
     lair_expansion_player_factor: float = 1.0  # ALifeDirectorScenario
-                                             # DefaultALifeLairExpansionToPlayerTimeMin (120), INVERS
-    fallback_spawn_count: int = 3            # dito FallbackMaxSpawnCount (3), absolut
+                                             # DefaultALifeLairExpansionToPlayerTimeMin (120), INVERSE
+    fallback_spawn_count: int = 3            # Likewise FallbackMaxSpawnCount (3), absolute
     ammo_dispersion_factor: float = 1.0      # ItemPrototypes DispersionMod (35x, 33x 1.0)
-    ammo_aim_dispersion_factor: float = 1.0  # dito AimDispersionMod (35x, 33x 1.0)
+    ammo_aim_dispersion_factor: float = 1.0  # Likewise AimDispersionMod (35x, 33x 1.0)
     ammo_overrides: dict = field(default_factory=dict)
 
-    # --- Waffen-Kaskade (nur Abweichungen von 1.0 speichern; fehlt ein
-    # Wert, faellt er eine Ebene runter: Einzelwaffe > Kategorie > global) ---
-    weapon_category_factors: dict = field(default_factory=dict)  # {kat: {param: f}}
+    # Weapon-factor precedence: individual weapon, category, then global.
+    # Store only values differing from 1.0.
+    weapon_category_factors: dict = field(default_factory=dict)  # {category: {parameter: factor}}
     weapon_overrides: dict = field(default_factory=dict)         # {WGS-SID: {param: f}}
-    # Kaliberwechsel je Waffe: {WGS-SID: "A556"}. Bewusst NEBEN
-    # weapon_overrides, nicht darin: dort stehen ueberall Faktoren, und
-    # ein String an dieser Stelle wuerde die Kaskaden-Rechnung
-    # (_weapon_factor) und den Preset-Loader zum Absturz bringen.
+    # Store caliber names outside weapon_overrides, whose values must remain numeric.
     weapon_calibers: dict = field(default_factory=dict)
-    # Einzelruestungs-Overrides: {Item-SID: {strike/burn/...: faktor}}
+    # Individual armor overrides: {item SID: {strike/burn/...: factor}}
     armor_overrides: dict = field(default_factory=dict)
     armor_custom: dict = field(default_factory=dict)  # explicit per-piece fields, absent = inherit
     armor_free_sprint: bool = False
     armor_limp_protection: bool = False
-    # Einzel-Zielfernrohr-Overrides (1.27.0): {Item-SID: {zoom/penalty: faktor}};
-    # ein Eintrag ERSETZT die globalen Scope-Regler fuer dieses Fernrohr.
+    # Per-scope factors replace global scope factors for that item.
     scope_overrides: dict = field(default_factory=dict)
 
-    # --- Welt & Survival ---
+    # --- World and survival ---
     anomaly_damage_factor: float = 1.0
-    anomaly_electro_factor: float = 1.0      # je Element-Typ (stapelt mit global)
+    anomaly_electro_factor: float = 1.0      # Per-element factor composed with the global factor.
     anomaly_chemical_factor: float = 1.0
     anomaly_fire_factor: float = 1.0
     anomaly_gravity_factor: float = 1.0
     radiation_factor: float = 1.0
     bleeding_factor: float = 1.0
-    hunger_rate_factor: float = 1.0          # 0 = kein Hunger
-    sleepiness_rate_factor: float = 1.0      # 0 = keine Muedigkeit
-    consumable_duration_factor: float = 1.0  # Wirkdauer laufender Consumable-Effekte
-    day_length_factor: float = 1.0           # RealToGameTimeCoef = 24 / Faktor
+    hunger_rate_factor: float = 1.0          # Zero disables hunger.
+    sleepiness_rate_factor: float = 1.0      # Zero disables tiredness.
+    consumable_duration_factor: float = 1.0  # Duration of ongoing consumable effects.
+    day_length_factor: float = 1.0           # RealToGameTimeCoef = 24 / factor
     quest_items_weightless: bool = False     # Quest-Items Weight = 0
-    consumable_factor: float = 1.0           # Medkits/Verband/Essen usw.
-    healing_factor: float = 1.0              # NUR Medizin-Heilung (Nexus-Wunsch)
-    rain_factor: float = 1.0                 # Regen-/Sturm-Wettergewichte
-    emission_factor: float = 1.0             # Emissions-Haeufigkeit
-    emission_duration_factor: float = 1.0    # Emissions-Dauer (Zeitstreckung)
-    # --- Loot in Verstecken und auf Leichen (StashPrototypes) ---
-    stash_loot_factor: float = 1.0           # Stueckzahlen je Fund
-    stash_chance_factor: float = 1.0         # Fundwahrscheinlichkeit
+    consumable_factor: float = 1.0           # Medkits, bandages, food and similar items.
+    healing_factor: float = 1.0              # Medical healing only.
+    rain_factor: float = 1.0                 # Rain/storm weather weights.
+    emission_factor: float = 1.0             # Emission frequency.
+    emission_duration_factor: float = 1.0    # Emission duration (time scaling).
+    # Stash and corpse loot controls.
+    stash_loot_factor: float = 1.0           # Quantity per drop.
+    stash_chance_factor: float = 1.0         # Drop chance
     stash_ammo_factor: float = 1.0
-    stash_sets_factor: float = 1.0           # StashPrototypes ItemSetCount (0-15)           # Munition an gefundenen Waffen
-    # --- Loot-Mengen im grossen Generator (ItemGeneratorPrototypes) ---
-    loot_amount_factor: float = 1.0          # Stueckzahlen je Fundstelle
-    # --- Zustand gedroppter Waffen (docs/GENERATOR_RESEARCH.md 3.3) ---
-    # Absoluter Mittelwert in % (Vanilla-Hauptcluster 0.25/0.5 -> 37.5);
-    # die Vanilla-SPANNE je Eintrag bleibt erhalten (das Spiel wuerfelt
-    # darin), ausser exact=True klemmt sie auf exakt den Mittelwert.
+    stash_sets_factor: float = 1.0           # StashPrototypes ItemSetCount (0–15), separate from loaded weapon ammunition.
+    # --- Loot quantities in ItemGeneratorPrototypes ---
+    loot_amount_factor: float = 1.0          # Quantity per loot location.
+    # Absolute dropped-weapon condition midpoint, preserving the vanilla spread
+    # unless exact=True fixes both bounds to that midpoint.
     dropped_condition_pct: float = 37.5
     dropped_condition_exact: bool = False
-    # --- Artefakte ---
-    artifact_effect_factor: float = 1.0      # Effektstaerke (inkl. Nebenwirkungen)
-    artifact_radiation_factor: float = 1.0   # 0 = Artefakte strahlen nicht
-    artifact_count_factor: float = 1.0       # Count je Spawner/Rang
-    artifact_respawn_factor: float = 1.0     # >1 = Cooldown kuerzer
-    artifact_spawn_factor: float = 1.0       # Spawn-Chance der Artefakt-Spawner
-    artifact_rarity_factor: float = 1.0      # >1 = seltene Stufen wahrscheinlicher
+    # --- Artifacts ---
+    artifact_effect_factor: float = 1.0      # Effect strength, including negative effects.
+    artifact_radiation_factor: float = 1.0   # Zero disables artifact radiation.
+    artifact_count_factor: float = 1.0       # Count per spawner/rank.
+    artifact_respawn_factor: float = 1.0     # >1 = shorter cooldown.
+    artifact_spawn_factor: float = 1.0       # Artifact spawner chance.
+    artifact_rarity_factor: float = 1.0      # >1 = higher probability of rare tiers.
 
-    # --- Ausruestung / Welt-Extras ---
-    detector_range_factor: float = 1.0       # Detektoren + Anomalie-Piepser
-    fast_travel_cost_factor: float = 1.0     # 0 = Schnellreise gratis
-    trader_restock_factor: float = 1.0       # Restock-Zeit der Haendler
+    # --- Equipment and world extras ---
+    detector_range_factor: float = 1.0       # Detectors and anomaly warning device.
+    fast_travel_cost_factor: float = 1.0     # 0 = free fast travel.
+    trader_restock_factor: float = 1.0       # Trader restock interval.
 
-    # --- Fraktionsbeziehungen (docs/FACTION_RELATIONS_RESEARCH.md) ---
-    # {Paar-Schluessel exakt wie in den Spieldaten ("Bandits<->Player"):
-    # Zielwert als int}. Nur Abweichungen von Vanilla speichern; der
-    # Builder prueft ohnehin gegen die live gelesenen Vanilla-Werte.
+    # Store changed faction pairs using their exact game-data keys.
+    # The builder also compares targets with live vanilla relations.
     faction_relations: dict = field(default_factory=dict)
-    # Beziehungen auch im LAUFENDEN Spielstand setzen (1.36.0, RSO-Weg):
-    # eine eigene Mini-Quest aus ChangeRelationships-Knoten, die ein
-    # Skript in Scripts/OnGameLaunch/ bei jedem Spielstart anwirft.
+    # Optionally apply relations on game launch through ChangeRelationships quest nodes.
     relations_runtime: bool = False
-    relation_rollback_factor: float = 1.0    # Reputations-Rollback-Zeit
-    relation_reaction_factor: float = 1.0    # Staerke der Reputations-Deltas
+    relation_rollback_factor: float = 1.0    # Reputation rollback time.
+    relation_reaction_factor: float = 1.0    # Reputation-delta strength.
     trade_min_level: float = 1.0             # 0=Enemy 1=Disaffection(Van.) 2=Neutral 3=Friend
 
-    # --- Wirtschaft ---
+    # --- Economy ---
     trader_min_durability_pct: float = 40.0  # Vanilla 40
-    # --- Haendler-Bestand & Geldbeutel (Tab "Traders") ---
-    trader_stock_factor: float = 1.0         # Stueckzahlen der Ware
-    trader_variety_factor: float = 1.0       # Chance je Posten (Deckel 1.0)
-    trader_money_factor: float = 1.0         # Geldbeutel (nur endliche)
-    trader_infinite_money: bool = False      # bInfiniteMoney ueberall an
-    # --- Techniker-Upgrades (UpgradePrototypes.cfg; Nexus-Mods 2545/2549) ---
-    upgrades_take_both: bool = False         # sich ausschliessende Zweige beide
-    upgrades_no_blueprint: bool = False      # keine Blaupause noetig
-    upgrades_no_tiers: bool = False          # keine Vorstufe noetig
-    trader_buy_price_factor: float = 1.0     # was Haendler DIR zahlen
-    trader_sell_price_factor: float = 1.0    # was DU bezahlst
+    # --- Trader stock and wallets ---
+    trader_stock_factor: float = 1.0         # Stock quantities.
+    trader_variety_factor: float = 1.0       # Chance per stock entry, capped at 1.0.
+    trader_money_factor: float = 1.0         # Finite trader wallets only.
+    trader_infinite_money: bool = False      # Enable bInfiniteMoney everywhere.
+    # --- Technician upgrades: UpgradePrototypes.cfg; references 2545/2549 ---
+    upgrades_take_both: bool = False         # Allow mutually exclusive upgrade branches together.
+    upgrades_no_blueprint: bool = False      # Remove blueprint prerequisites.
+    upgrades_no_tiers: bool = False          # Remove preceding-tier prerequisites.
+    trader_buy_price_factor: float = 1.0     # What traders pay the player.
+    trader_sell_price_factor: float = 1.0    # What the player pays.
     repair_cost_factor: float = 1.0
     upgrade_cost_factor: float = 1.0
     quest_reward_factor: float = 1.0
-    repeatable_quest_factor: float = 1.0     # Cooldown wiederholbarer Jobs
-    # --- 1.31.0: Jobs je Runde (GitHub Issue #8, Molkerr) ---
-    # Vanilla-Cap ist bei allen acht Gebern 3 (live gegengelesen); der
-    # Regler ist ein ABSOLUTWERT, je Geber auf seinen Aufgaben-Topf
-    # gedeckelt (6 bis 10). 0/negativ = aus.
+    repeatable_quest_factor: float = 1.0     # Repeatable-job cooldown.
+    # Absolute jobs-per-round limit, capped by each giver's pool size.
+    # Zero/negative values disable the override.
     repeatable_jobs_per_round: int = 3
-    # Haengt den Job-Dialog vom False- auf den True-Ausgang des
-    # Limit-Knotens: der Geber bietet sofort den naechsten Job an,
-    # statt erst wenn er leer ist.
+    # Rearm the dialogue from the limit check's True branch so another job is
+    # available before the pool is exhausted.
     repeatable_jobs_instant: bool = False
-    # 1.33.0, dritter Entwurf 1.36.0 (GitHub #9): nur noch {bpatch} an den
-    # vorhandenen Abschalt-Launchern des Dialogs, kein neuer Knoten - siehe
-    # _quest_multi_patch. `repeatable_jobs_instant` (Pin-Schalter) ist
-    # dagegen zurueckgezogen: er kann laut Graph nichts bewirken.
+    # Simultaneous jobs use _quest_multi_patch. The ineffective instant-job
+    # pin option remains retired.
     repeatable_jobs_multi: bool = False
 
-    # --- 1.35.0: die kleinen Kandidaten der neunten Datenrecherche und des
-    # Familien-Waechters, alle am 08.09.2026 live nachgemessen ------------
+    # Additional data-verified controls introduced in 1.35.0.
     npc_vs_player_damage_factor: float = 1.0   # CWS NPCToPlayerDamageScaler (150x 1.0)
     npc_vs_friendly_damage_factor: float = 1.0 # CWS NPCToFriendlyDamageScaler (150x 0.3)
-    traders_on_map: bool = False               # NPCPrototypes UpdateMarkerOnMap: die 80
-                                               # NPCs, die schon einen Marker-TYP tragen
+    traders_on_map: bool = False               # NPCPrototypes UpdateMarkerOnMap for supported NPCs.
+                                               # Only NPCs already declaring a marker type.
     look_speed_h_factor: float = 1.0           # BaseTurnRate (Player 40, CoreVariables 50)
-    look_speed_v_factor: float = 1.0           # BaseLookUpRate (beide 30)
+    look_speed_v_factor: float = 1.0           # BaseLookUpRate (both 30).
     camera_slowdown_factor: float = 1.0        # EffectPrototypes TurnRateChangeYaw/Pitch
-                                               # (6 Effekte: Chemie -0.6, Draht -0.8,
-                                               # Fliegenfaenger -0.7; Wasser 0% bleibt)
+                                               # Six effects: chemical -0.6, wire -0.8,
+                                               # Flycatcher -0.7; water at 0% remains unchanged).
     bullet_penetration_depth_factor: float = 1.0  # ProjectilePrototypes
                                                   # PenetrationTraceLenght (16x 150-300)
     artifacts_no_detector: bool = False        # ItemPrototypes DetectorRequired (147x true)
-    artifact_hop_distance_factor: float = 1.0  # dito JumpDistance/JumpHeight/JumpForce
-    artifact_hop_count_factor: float = 1.0     # dito JumpAmount (3/5/7/9), ganzzahlig
+    artifact_hop_distance_factor: float = 1.0  # Likewise JumpDistance/JumpHeight/JumpForce
+    artifact_hop_count_factor: float = 1.0     # Likewise JumpAmount (3/5/7/9), integer
     encounter_wounded_factor: float = 1.0      # Director ScenarioSquads WoundedMultiplier
-                                               # (8 Eintraege 0.1/0.2, Rest 0), Deckel 1.0
-    encounter_dead_factor: float = 1.0         # dito DeadMultiplier (36 Eintraege > 0)
+                                               # Eight entries at 0.1/0.2, others zero; capped at 1.0.
+    encounter_dead_factor: float = 1.0         # Likewise DeadMultiplier: 36 positive entries.
     no_mouse_smoothing: bool = False           # Stalker2/Config/UserInput.ini
-    no_view_acceleration: bool = False         # dito - KEINE GameData-Datei
+    no_view_acceleration: bool = False         # Likewise: not a GameData file.
 
     # Optional loot/world extensions: neutral settings emit nothing.
     stash_extra_chance_pct: float = 10.0
@@ -993,7 +903,7 @@ class Settings:
     mutant_loot_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
     npc_equipment_overrides: dict[str, float] = field(default_factory=dict)
 
-    # Kategorie-Preise (EconomyDifficulty *_Cost, Vanilla ueberall 1.0)
+    # Category prices: EconomyDifficulty *_Cost, vanilla 1.0 throughout.
     weapon_price_factor: float = 1.0
     armor_price_factor: float = 1.0
     ammo_price_factor: float = 1.0
@@ -1004,7 +914,7 @@ class Settings:
 def _num(x: float) -> str:
     x = round(x, 4)
     if x == 0:
-        x = 0.0          # nie '-0.0' (Faktor 0 auf negative Werte)
+        x = 0.0          # Normalize negative zero produced by scaling negative values to zero.
     return fmt_float(x)
 
 
@@ -1013,12 +923,9 @@ def _neq(a: float, b: float) -> bool:
 
 
 def _scale_literal(raw: str, factor: float, cap: float | None = None) -> str | None:
-    """GSC-Zahlenliteral vorzeichen- und suffixerhaltend skalieren.
+    """Scale a GSC numeric literal while preserving sign and suffix.
 
-    '20' -> '40', '-0.15' -> '-0.3', '35%' -> '70%', '2.5f' -> '5.0f'.
-    None bei nicht-numerischen Werten (die bleiben unangetastet).
-    cap (seit 1.28.0): Deckel auf den Zahlenwert nach dem Skalieren,
-    Suffix bleibt (0.6f x 2, cap 1.0 -> 1.0f)."""
+    Return None for nonnumeric values. An optional numeric cap retains the suffix."""
     raw = raw.strip()
     suffix = ""
     core = raw
@@ -1039,8 +946,8 @@ def _scale_literal(raw: str, factor: float, cap: float | None = None) -> str | N
 
 
 def _scale_count(raw: str | None, factor: float) -> str | None:
-    """Ganzzahlige Stueckzahl skalieren. 0 bleibt 0 (0 x Faktor = 0), sonst
-    mindestens 1. None = nichts zu patchen."""
+    """Scale an integer quantity. Preserve zero; otherwise keep at least 1.
+    Return None when no patch is needed."""
     if raw is None:
         return None
     try:
@@ -1054,11 +961,9 @@ def _scale_count(raw: str | None, factor: float) -> str | None:
 
 
 def _scale_chance(raw: str | None, factor: float) -> str | None:
-    """Wahrscheinlichkeit 0..1 skalieren, bei 1.0 deckeln, Suffix erhalten.
+    """Scale probabilities within 0..1 while retaining their suffix.
 
-    Vanilla schreibt hier '0.7f', '0.5', '0' und sogar '0.' (nackter Punkt);
-    0-Werte bleiben 0, damit bewusst abgeschaltete Generatoren
-    (die beiden *_MainLoot) nicht versehentlich aktiviert werden."""
+    Zero stays zero so intentionally disabled generators remain inactive."""
     if raw is None:
         return None
     core = raw.strip()
@@ -1078,7 +983,7 @@ def _scale_chance(raw: str | None, factor: float) -> str | None:
 
 
 def _bool_literal(raw: str | None) -> bool | None:
-    """'true'/'false' (auch mit ';') -> bool, sonst None."""
+    """Parse true/false, allowing a trailing semicolon; otherwise return None."""
     if raw is None:
         return None
     core = raw.strip().rstrip(";").strip().lower()
@@ -1093,30 +998,23 @@ def _is_empty_sid(raw: str | None) -> bool:
     return (raw or "").strip().rstrip(";").strip().lower() in ("", "empty")
 
 
-# 1.26.0: alle *ReloadTimeMultiplier einer Waffe (direkt am Struct und je
-# Magazin-Aufsatz in WeaponReloadTimePerAttachment)
+# Include weapon and per-magazine reload-time multipliers.
 RELOAD_KEYS = ("TacticalReloadTimeMultiplier", "FullReloadTimeMultiplier",
                "SingleBulletReloadTimeMultiplier", "TwinReloadTimeMultiplier",
                "TwinTacticalReloadTimeMultiplier")
 EXPLOSION_RADIUS_KEYS = ("Radius", "ImpulseRadius", "ConcussionRadius")
-# Schutz-Deckel in ObjEffectMaxParams: True = Prozentwert (Deckel 100),
-# Strike ist eine Punkteskala (Vanilla 4.5) ohne Deckel
+# Percentage protection caps are limited to 100; Strike uses an uncapped point scale.
 PROTECTION_CAP_TYPES = {"ProtectionStrike": False, "ProtectionBurn": True,
                         "ProtectionShock": True, "ProtectionChemical": True,
                         "ProtectionPSY": True, "ProtectionRadiation": True}
 FAST_TRAVEL_LOCKS = {0: "EOverweightLock::NoLock", 1: "EOverweightLock::Partial",
                      2: "EOverweightLock::Full"}
-# 1.27.0: Upgrade-Effektfamilien (Effekt-Typ -> Regler, Richtung). "neg" = der
-# Bonus steht als negative Zahl (-20 % Streuung), "pos" = als positive
-# (+15 % Haltbarkeit). Gegenteilige Vorzeichen sind Malus-Effekte
-# (RecoilNeg20, DurabilityPerShotNeg20) und bleiben unangetastet.
+# Map beneficial upgrade effect types to controls and sign rules.
+# Negative bonuses reduce a value; positive bonuses increase it.
+# Preserve opposite-sign penalty effects.
 UPGRADE_FAMILIES = {
-    # 1.33.0: `Accuracy` fehlte hier ganz (AccuracyUpgrade -> AccuracyEffect
-    # +50 %, gemessen 07.09.2026) - der Regler hat den Effekt bisher
-    # uebersprungen. Die zwei Aim-Modifikatoren stehen dazu, weil sie
-    # sachlich zur Streuung gehoeren; ihre Vorzeichen sind in Vanilla
-    # uneinheitlich (AimDispersionPos100 -100 %, DispersionAimModifierNeg70
-    # +70 %), darum "neg": es wird nur skaliert, was wirklich ein Bonus ist.
+    # Include Accuracy and beneficial aim-dispersion modifiers.
+    # Use the actual sign: names containing Pos/Neg are inconsistent in vanilla.
     "upg_accuracy_factor": {"Dispersion": "neg", "DispersionMaxRadiusExtension": "neg",
                             "DispersionPerIterationRadiusExtension": "neg",
                             "Accuracy": "pos", "DispersionAimModifier": "neg",
@@ -1134,8 +1032,7 @@ UPGRADE_FAMILIES = {
     "upg_armor_protection_factor": {"ProtectionStrike": "pos", "ProtectionBurn": "pos",
                                     "ProtectionShock": "pos", "ProtectionChemical": "pos",
                                     "ProtectionPSY": "pos", "ProtectionRadiation": "pos"},
-    # 1.33.0: MovementSpeedUpgrade -> MovementSpeedEffect (+50 %) hing an
-    # keinem Regler; die zwei Exo-Varianten stehen auf 0.f und bleiben es.
+    # MovementSpeed upgrade effects are included; zero-valued Exo variants stay zero.
     "upg_armor_misc_factor": {"RegenStamina": "pos", "MovementSpeed": "pos"},
 }
 BACK_SPEED_KEYS = ("WalkBackCoef", "RunBackCoef", "MoveBackCrouchCoef",
@@ -1168,7 +1065,7 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "VitalParams.RegenSleepinessPoints"), 0.01)
         vital["RegenSleepinessPoints"] = _num(vanilla * s.sleepiness_rate_factor)
 
-    # 1.27.0: Regen-Verzoegerung (absolut) und die vier Erholungs-Raten
+    # Regeneration delay and recovery rates.
     live_delay = parse_number(gd.resolve(gd.obj, "Player", "VitalParams.RegenHPDelayTimeSeconds"), -1.0)
     if live_delay >= 0 and _neq(float(s.hp_regen_delay), live_delay):
         vital["RegenHPDelayTimeSeconds"] = _num(max(0.0, float(s.hp_regen_delay)))
@@ -1209,14 +1106,13 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if _neq(s.jump_height_factor, 1.0):
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.JumpSpeedCoef"), 1.0)
         movement["JumpSpeedCoef"] = _num(vanilla * s.jump_height_factor)
-    # Leitern (06.09.2026): ClimbSpeedCoef, Vanilla 0.6.
+    # Ladders: ClimbSpeedCoef, vanilla 0.6.
     if _neq(s.climb_speed_factor, 1.0) and s.climb_speed_factor > 0:
         vanilla = parse_number(gd.resolve(gd.obj, "Player", "MovementParams.ClimbSpeedCoef"), 0.0)
         if vanilla > 0:
             movement["ClimbSpeedCoef"] = _num(vanilla * s.climb_speed_factor)
 
-    # Vaulting: Preset (nur vom Vanilla abweichende Werte) + Hoehen-Faktor.
-    # Der Faktor skaliert auf der jeweils aktiven Basis (Preset an: 200).
+    # Apply vaulting factors to the active baseline, including the optional preset.
     vault: dict = {}
     if s.improved_vaulting:
         for key, value in VAULT_PRESET.items():
@@ -1226,9 +1122,7 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                 vault[key] = value
 
     def vault_base(key: str, fallback: float) -> float:
-        """Basis fuer die Vault-Regler: Preset-Wert, wenn das Preset an ist
-        und diesen Schluessel setzt, sonst der live gelesene Vanilla-Wert.
-        Dieselbe Stapel-Regel wie beim Hoehen-Regler seit v1.10.0."""
+        """Return the preset target when enabled for this key, otherwise live vanilla."""
         if s.improved_vaulting and key in VAULT_PRESET:
             return parse_number(VAULT_PRESET[key])
         return parse_number(
@@ -1238,25 +1132,21 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
         vault["MaxObstacleHeight"] = _num(
             vault_base("MaxObstacleHeight", 130.0) * s.vault_height_factor)
     if _neq(s.vault_distance_factor, 1.0) and s.vault_distance_factor > 0:
-        # Beide Distanzen zusammen: die Erkennung (MaxTestDistance) und der
-        # fruehestmoegliche Start (StartDistance) gehoeren zusammen — die
-        # alte Mod hat auch beide angehoben.
+        # Scale detection and starting distances together.
         vault["MaxTestDistance"] = _num(
             vault_base("MaxTestDistance", 15.0) * s.vault_distance_factor)
         vault["StartDistance"] = _num(
             vault_base("StartDistance", 10.0) * s.vault_distance_factor)
     if _neq(s.vault_angle_factor, 1.0) and s.vault_angle_factor > 0:
-        # 180 Grad = frontal bis seitlich; mehr ergibt geometrisch keinen Sinn
+        # 180 degrees covers front to side; larger values are not meaningful here.
         vault["MaxAngle"] = _num(min(
             180.0, vault_base("MaxAngle", 75.0) * s.vault_angle_factor))
     if _neq(s.vault_min_height_factor, 1.0) and s.vault_min_height_factor > 0:
         vault["MinObstacleHeight"] = _num(
             vault_base("MinObstacleHeight", 70.0) * s.vault_min_height_factor)
     if _neq(s.vault_landing_factor, 1.0) and s.vault_landing_factor > 0:
-        # Ein Knopf, drei zusammengehoerige Schluessel: weiter entfernt
-        # landen duerfen (Offset x f), auf steilerem Untergrund (Slope x f,
-        # Deckel 90 Grad) und auf niedrigeren Kanten (MinHeight / f, nie
-        # unter 5 — 0 waere "in der Luft landen").
+        # Compose landing offset, slope (capped at 90 degrees), and inverse minimum
+        # height (at least 5) to retain valid landing geometry.
         vault["MaxLandingOffset"] = _num(
             vault_base("MaxLandingOffset", 50.0) * s.vault_landing_factor)
         vault["LandingMaxSlope"] = _num(min(
@@ -1275,8 +1165,8 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                               "VaultingParams.StartWithSprintPressed") or "")
         if current.strip().rstrip(";").strip().lower() != "true":
             vault["StartWithSprintPressed"] = "true"
-    # 1.27.0: rueckwaerts/seitwaerts, Luftkontrolle, Humpeln (Deckel 1.0 =
-    # nie schneller als vorwaerts)
+    # Backward/sideways movement, air control and limping, capped at 1.0 (
+    # Never faster than forward movement).
     for keys, factor in ((BACK_SPEED_KEYS, s.back_speed_factor),
                          (("AirControlCoef",), s.air_control_factor),
                          (("LimpSpeedCoef",), s.limp_speed_factor)):
@@ -1288,13 +1178,8 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                 new = min(1.0, vanilla * factor)
                 if _neq(new, vanilla):
                     movement[key] = _num(new)
-    # 1.35.0: Blicktempo waagerecht/senkrecht getrennt. Gemessen 08.09.2026:
-    # Player.MovementParams BaseTurnRate 40 / BaseLookUpRate 30 - waagerecht
-    # dreht man also ein Drittel schneller als senkrecht, und das Spielmenue
-    # hat dafuer nur EINEN Regler. Dieselben zwei Schluessel stehen auch in
-    # CoreVariables (50.0 / 30.0); welcher gewinnt, ist unbewiesen, darum
-    # werden beide gleich skaliert (siehe _corevars_patch). KEIN Deckel 1.0 -
-    # das sind Grad je Sekunde, keine Koeffizienten.
+    # Scale horizontal/vertical look rates in both Player and CoreVariables
+    # because their precedence is unverified. These rates are not 0..1 coefficients.
     for key, factor in (("BaseTurnRate", s.look_speed_h_factor),
                         ("BaseLookUpRate", s.look_speed_v_factor)):
         if not (_neq(factor, 1.0) and factor > 0):
@@ -1311,12 +1196,10 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if vault:
         player["VaultingParams"] = vault
     if _neq(s.fall_damage_pct, 100):
-        # Protection.Fall ist prozentualer Schutz: 100 = kein Fallschaden
+        # Protection.Fall is percentage protection; 100 prevents fall damage.
         player["Protection"] = {"Fall": _num(100.0 - s.fall_damage_pct)}
 
-    # Stealth-Koeffizienten des Spielers (Player.StealthParams): geduckte
-    # Sichtbarkeit/Laerm (Vanilla 0.3/0.3) sinken mit dem Crouch-Faktor,
-    # der Lampen-Faktor (Vanilla 2.0) skaliert mit dem Flashlight-Regler.
+    # Scale player crouch visibility/noise and flashlight stealth coefficients.
     stealth: dict = {}
     if _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0:
         for key in ("VisibilityCrouchCoef", "NoiseCrouchCoef"):
@@ -1330,8 +1213,7 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     if stealth:
         player["StealthParams"] = stealth
 
-    # Reichweiten: alter Faktor skaliert beide Dialoggrenzen; der neue
-    # Max-only-Faktor erweitert zusaetzlich nur die Obergrenze (GitHub #10).
+    # The original dialogue factor scales both bounds; max-only scales the upper bound additionally.
     player.update(_dialog_distance_values(gd, s, "Player"))
     if _neq(s.interaction_range_factor, 1.0) and s.interaction_range_factor > 0:
         raw = gd.resolve(gd.obj, "Player",
@@ -1342,8 +1224,7 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                 player["ProcessCorpseObjectFeatureData"] = {
                     "CorpseInteractionDistance": scaled}
 
-    # 1.27.0: Stealth-Kill-Reichweite, Waffe-weg-Warnungen, Camper-Erkennung,
-    # Ruestung-gegen-Kugel-Gewichtung des Spielers
+    # Stealth-kill distance, weapon warnings, camper detection and player bullet protection.
     if _neq(s.stealth_kill_range_factor, 1.0) and s.stealth_kill_range_factor > 0:
         raw = gd.resolve(gd.obj, "Player", "StealthKillParams.StealthKillDistance")
         if raw is not None and parse_number(raw) > 0:
@@ -1371,9 +1252,7 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
             if raw is not None and parse_number(raw) > 0:
                 player[key] = _num(parse_number(raw) * s.armor_difference_factor)
 
-    # 1.26.0: nicht umwerfbar (sdwvit CantBeKnockedDown) und kein
-    # Schleichgang im Wasser (sdwvit NoSluggishWater: die Kurven-Effekte der
-    # Wasserberuehrung - Drehrate und Bewegungstempo - auf 'empty').
+    # Disable knockdown and clear water movement/turn-rate effect references.
     if s.no_knockdown and _bool_literal(
             gd.resolve(gd.obj, "Player", "CanBeKnockedDown")) is not False:
         player["CanBeKnockedDown"] = "false"
@@ -1396,24 +1275,17 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
     return {"Player": player} if player else {}
 
 
-# Vision: Player/NoVision nie anfassen; Boss/ScarBoss-Scanner (Korshunov,
-# Scar, StrelokMutant) bewusst ausgenommen. ACHTUNG Vanilla-Ausreisser:
-# der Faust-Bosskampf nutzt DefaultNPC-Vision (wird also mitskaliert) und
-# der Supersoldier als einziger Mutant DefaultNPC-Hearing — beides ist in
-# den GUI-Tooltips dokumentiert; sauberer Fix (eigener Sensor-Klon per
-# Patch) steht in docs/ROADMAP.md fuer nach den In-Game-Tests.
+# Exclude Player/NoVision and dedicated boss sensors. Faust shares DefaultNPC
+# vision and Supersoldier shares NPC hearing, so those encounters remain
+# affected by the corresponding controls.
 NPC_VISION_SKIP = {"Player", "NoVision", "ScarBoss", "Boss"}
 NPC_HEARING_SKIP = {"MutantsHearingSensor"}
 
 
 def _stash_patch(gd: GameData, s: Settings) -> dict:
-    """Loot in Verstecken und auf Leichen (StashPrototypes.cfg).
+    """Patch stash/corpse SmartLootParams using actual generator, rank and group keys.
 
-    Aufbau je Eintrag: <SID>.ItemGenerators[i].SmartLootParams.<Gruppe>[j]
-    mit MinSpawnChance/MaxSpawnChance/MainWeaponAmmoCount und darunter
-    Items[k].MinCount/MaxCount. Raenge und Gruppen sind je Struct
-    unterschiedlich belegt und werden deshalb live gelesen; das Null-Schema
-    'empty' bleibt unangetastet (docs/GENERATOR_RESEARCH.md)."""
+    Preserve the empty template. See docs/GENERATOR_RESEARCH.md."""
     loot = _neq(s.stash_loot_factor, 1.0)
     chance = _neq(s.stash_chance_factor, 1.0)
     ammo = _neq(s.stash_ammo_factor, 1.0)
@@ -1435,10 +1307,8 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg["MainWeaponAmmoCount"] = scaled
         if sets:
-            # ItemSetCount = wieviele Fundgruppen ein Versteck auswuerfelt
-            # (Vanilla 0 bis 15, meist 2-5). Andere Achse als der
-            # Mengen-Regler darueber: mehr SORTEN statt mehr Stueck.
-            # _scale_count laesst 0 bei 0 und geht nie unter 1.
+            # ItemSetCount changes the number of loot groups, independently of item quantity.
+            # Preserve zero and round positive counts to at least one.
             scaled = _scale_count(entry.values.get("ItemSetCount"),
                                   s.stash_sets_factor)
             if scaled is not None:
@@ -1449,8 +1319,7 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
             for item_key, item in (items_node.children.items() if items_node else ()):
                 new_min = _scale_count(item.values.get("MinCount"), s.stash_loot_factor)
                 new_max = _scale_count(item.values.get("MaxCount"), s.stash_loot_factor)
-                # Ein Vanilla-Eintrag hat Min 25 > Max 15. Den Widerspruch
-                # nicht verschaerfen — aber auch keinen neuen erzeugen.
+                # Do not worsen existing inverted bounds or create new ones.
                 if new_min is not None and new_max is not None:
                     old_min = parse_number(item.values.get("MinCount"))
                     old_max = parse_number(item.values.get("MaxCount"))
@@ -1477,15 +1346,10 @@ def _stash_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _loot_patch(gd: GameData, s: Settings) -> dict:
-    """Stueckzahlen im grossen Loot-Generator (ItemGeneratorPrototypes.cfg).
+    """Scale quantities only in validated ItemGenerator.PossibleItems entries.
 
-    Pfad je Eintrag: <Prototyp>.ItemGenerator.<Slot>.PossibleItems[j] mit
-    MinCount/MaxCount. Welche Prototypen sicher sind, entscheidet der
-    zweistufige Filter in gamedata.loot_generators(); MoneyGenerator (Kupons)
-    und das Basis-Template [0] werden dort gar nicht erst geliefert.
-
-    Es werden nur vorhandene Schluessel skaliert - 814 Eintraege haben
-    MinCount ohne MaxCount, und ein Patch darf dort nichts anlegen."""
+    Use gamedata's two-stage filter to exclude currency and unsafe prototypes.
+    Patch existing keys only; some entries lack MaxCount."""
     if not _neq(s.loot_amount_factor, 1.0):
         return {}
 
@@ -1493,8 +1357,8 @@ def _loot_patch(gd: GameData, s: Settings) -> dict:
     for sid, gen_key, slot_key, item_key, item in gd.loot_count_entries():
         new_min = _scale_count(item.values.get("MinCount"), s.loot_amount_factor)
         new_max = _scale_count(item.values.get("MaxCount"), s.loot_amount_factor)
-        # Rundung darf keinen Widerspruch Min > Max erzeugen (Vanilla hat in
-        # dieser Datei keinen einzigen solchen Fall).
+        # Rounding must not produce Min > Max; vanilla has no such cases
+        # in this file.
         if new_min is not None and new_max is not None and int(new_min) > int(new_max):
             new_min = new_max
         cfg: dict = {}
@@ -1512,10 +1376,7 @@ def _loot_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _merge_nested(dst: dict, src: dict) -> dict:
-    """Zwei Patch-Baeume (verschachtelte dicts, Blaetter = Strings)
-    zusammenfuehren — mehrere Builder schreiben in DIESELBE Zieldatei
-    und teilweise in denselben Knoten (z.B. MinCount + MinDurability am
-    selben PossibleItems-Eintrag)."""
+    """Recursively merge patch dictionaries targeting the same file and nodes."""
     for key, value in src.items():
         if isinstance(value, dict) and isinstance(dst.get(key), dict):
             _merge_nested(dst[key], value)
@@ -1525,8 +1386,7 @@ def _merge_nested(dst: dict, src: dict) -> dict:
 
 
 def _struct_dict(node) -> dict:
-    """CfgStruct -> verschachteltes dict (Werte als gestrippte Roh-Strings,
-    also exakt die Vanilla-Literale wie `40.f`)."""
+    """Convert a CfgStruct to nested dictionaries, preserving stripped raw literals."""
     out: dict = {k: v.strip() for k, v in node.values.items()}
     for key, child in node.children.items():
         out[key] = _struct_dict(child)
@@ -1534,15 +1394,10 @@ def _struct_dict(node) -> dict:
 
 
 def _resolved_struct(root, node, depth: int = 0) -> dict:
-    """Wie _struct_dict, aber mit aufgeloester refkey-Vererbung innerhalb
-    derselben Datei (Vorlage zuerst, eigene Werte darueber).
+    """Resolve same-file refkey inheritance before converting to a dictionary.
 
-    Zweck: index-adressierte TOP-LEVEL-Eintraege ([0], [1] ...) KOMPLETT
-    ausgeben. Ob das Spiel solche Eintraege beim {bpatch} wie benannte
-    Structs zusammenfuehrt oder — wie Array-Elemente — ersetzt, ist nicht
-    belegt (docs/SPEC.md §0 nennt Arrays als offene Frage; Anlass war der
-    Nexus-Wetterbericht vom 04.09.). Komplett ausgegeben ist der Patch
-    unter beiden Lesarten richtig; Kosten sind ein paar Zeilen mehr."""
+    Emit complete indexed top-level entries because merge/replacement semantics
+    are not verified for partial indexed structs."""
     base: dict = {}
     ref = node.attr_dict().get("refkey")
     if ref and depth < 8 and ref in root.children:
@@ -1551,15 +1406,10 @@ def _resolved_struct(root, node, depth: int = 0) -> dict:
 
 
 def _loot_condition_patch(gd: GameData, s: Settings) -> dict:
-    """Zustand gedroppter Waffen (MinDurability/MaxDurability).
+    """Set dropped-weapon condition midpoint while preserving the original spread.
 
-    Der Regler setzt den MITTELWERT absolut (Vanilla-Hauptcluster
-    0.25/0.5 = 37.5 %); die Vanilla-Spanne jedes Eintrags wandert mit —
-    das Spiel wuerfelt darin, genau wie vanilla (80 % ergibt also z.B.
-    67.5–92.5 % beim Hauptcluster). exact=True klemmt die Spanne auf 0.
-    Nur Waffen-Slots (Primary/Secondary/Pistol) der sicheren Loot-
-    Prototypen; Ruestung/Helme/Artefakte und Haendler-Ware bleiben
-    vanilla. Klammer 0..1, nie Min > Max (Recherche, Warnung 16)."""
+    exact=True sets both bounds to the midpoint. Clamp to 0..1 with Min <= Max;
+    apply only to validated weapon loot slots, excluding traders and other equipment."""
     move = _neq(s.dropped_condition_pct, 37.5)
     if not (move or s.dropped_condition_exact):
         return {}
@@ -1588,16 +1438,11 @@ def _loot_condition_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _gear_quality_patch(gd: GameData, s: Settings) -> dict:
-    """NPC-Ausruestungsqualitaet: kippt die Weight-Lotterien der
-    Loadout-Pools zur teureren Ware (Preis als Tier-Massstab, live aus
-    ItemPrototypes.Cost gelesen). Innerhalb eines Pools bekommt das
-    billigste Item Faktor 1, das teuerste den vollen Faktor, dazwischen
-    geometrisch nach Preisrang — bei Faktor 4 ist die beste Waffe des
-    Pools also 4x so wahrscheinlich, bei 0.25 dominiert der Schrott.
-    EHRLICHE GRENZE: es werden nie Items ergaenzt oder entfernt, NPCs
-    tragen weiter nur, was ihr Pool vanilla hergibt. Ganze Basisgewichte
-    behalten min1; gebrochene Vanilla-Gewichte bleiben gebrochen.
-    Items ohne aufloesbaren Preis bleiben unangetastet."""
+    """Bias existing NPC equipment weights by live price rank within each pool.
+
+    The cheapest choice retains factor 1; the most expensive receives the full
+    factor, with geometric interpolation. Preserve unresolved-price entries,
+    integer minimums and fractional weights. Never add or remove pool items."""
     f = s.npc_gear_quality_factor
     if not _neq(f, 1.0) or f <= 0:
         return {}
@@ -1622,9 +1467,8 @@ def _gear_quality_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _trader_stock_patch(gd: GameData, s: Settings) -> dict:
-    """Haendler-Bestand: Stueckzahlen (MinCount/MaxCount) und Sortiments-
-    Chance je Posten (Deckel 1.0) in der Handelsketten-Huelle — strikt
-    getrennt vom Loot-Regler (docs/GENERATOR_RESEARCH.md, Kap. 7)."""
+    """Scale trader stock quantities and capped availability chances within the
+    trader generator graph, separately from general loot."""
     stock_on = _neq(s.trader_stock_factor, 1.0) and s.trader_stock_factor > 0
     variety_on = (_neq(s.trader_variety_factor, 1.0)
                   and s.trader_variety_factor > 0)
@@ -1662,9 +1506,7 @@ def _trader_stock_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _trader_wallet_patch(gd: GameData, s: Settings) -> dict:
-    """Haendler-Geldbeutel in TradePrototypes.cfg: Money-Faktor (wirkt
-    nur auf die vanilla-endlichen Boersen) und bInfiniteMoney-Schalter
-    (patcht nur Haendler, die vanilla auf false stehen)."""
+    """Scale finite trader wallets and optionally enable infinite money only where absent."""
     money_on = _neq(s.trader_money_factor, 1.0) and s.trader_money_factor > 0
     if not (money_on or s.trader_infinite_money):
         return {}
@@ -1681,13 +1523,11 @@ def _trader_wallet_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_heal_patch(gd: GameData, s: Settings) -> dict:
-    """NPCs heilen sich nicht mehr: RegenHP=0 pro NPC-Prototyp (die Structs
-    sind voll expandiert, ein Patch am Basis-Struct reicht daher nicht)."""
+    """Disable NPC healing per explicit prototype; patching only a base would miss overrides."""
     if s.npc_no_heal:
         return {sid: {"VitalParams": {"RegenHP": "0.0"}}
                 for sid in sorted(gd.npcs_with_regen())}
-    # Regen als Faktor (Nexus 2396 senkt Wachen von 20 auf 5 HP/s): live je
-    # Prototyp, weil die Structs voll expandiert sind
+    # Scale regeneration per explicit NPC prototype.
     if _neq(s.npc_regen_factor, 1.0) and s.npc_regen_factor >= 0:
         return {sid: {"VitalParams": {"RegenHP": _num(regen * s.npc_regen_factor)}}
                 for sid, regen in sorted(gd.npcs_with_regen().items())
@@ -1713,8 +1553,7 @@ def _vision_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _hearing_patch(gd: GameData, s: Settings) -> dict:
-    """SoundEvents-Array: komplette Eintraege ({Type, HearingDistance})
-    emittieren, nur Distanzen > 0 skalieren."""
+    """Emit complete SoundEvents entries and scale only positive HearingDistance values."""
     if not _neq(s.npc_hearing_factor, 1.0):
         return {}
     patches: dict = {}
@@ -1739,10 +1578,7 @@ def _hearing_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_weapon_patch(gd: GameData, s: Settings) -> dict:
-    """CWS *_NPC-Structs: DispersionRadius / Genauigkeits-Faktor
-    (Faktor > 1 = NPCs treffen besser) und die vier Distanz-Schluessel
-    (WEAPON_RANGE_KEYS) x Reichweiten-Faktor - Gegenstueck zum Spieler-
-    Range-Regler, nur fuer NPC-Waffenprofile (Nexus 2396 'NPC Ballistics')."""
+    """Scale NPC CWS dispersion inversely with accuracy and range keys directly."""
     acc_on = _neq(s.npc_accuracy_factor, 1.0) and s.npc_accuracy_factor > 0
     range_on = (_neq(s.npc_weapon_range_factor, 1.0)
                 and s.npc_weapon_range_factor > 0)
@@ -1771,15 +1607,10 @@ NPC_AI_DISTANCES = ("Long", "Medium", "Short")
 
 
 def _npc_ai_patch(gd: GameData, s: Settings) -> dict:
-    """WeaponAttributesPrototypes *_NPC.AIParameters.BehaviorTypes.<Rang>
-    (Newbie/Experienced/Veteran/Master/Zombie), je Distanz Long/Medium/Short:
-    IgnoreDispersionMin/MaxShots = Schuesse je Feuerstoss OHNE Streuung (das
-    'Aimbot'-Eroeffnungsfeuer, Vorbild Nexus 2396/129), MinShots/MaxShots =
-    Feuerstoss-Laenge, Min/MaxSecondsDelay + NonAutomaticWeaponShotDelay =
-    Pausen, CombatEffectiveFireDistanceMin/Max = Gefechtsreichweite je Rang.
-    Alle 77 *_NPC-Structs definieren ihre Bloecke selbst (kein Template-
-    Patch). Ganzzahlen bleiben ganzzahlig, Min <= Max, Vanilla 0 bleibt 0,
-    Garantietreffer nie ueber der Feuerstoss-Laenge."""
+    """Scale NPC weapon burst settings by rank and distance band.
+
+    Preserve integer counts, zero defaults and ordered bounds. Guaranteed-hit
+    shots cannot exceed burst length. Patch explicit NPC profiles individually."""
     free = s.npc_free_shots_factor
     free_on = _neq(free, 1.0) and free >= 0
     burst = s.npc_burst_factor
@@ -1866,7 +1697,7 @@ def _npc_ai_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
-    """AIGlobals: Granaten pro Fraktion/Rang, Reaktionszeiten, A-Life."""
+    """AIGlobals: grenades per faction/rank, reaction times and A-Life."""
     root = gd.aiglobals.children.get("AISettings")
     if root is None:
         return {}
@@ -1883,7 +1714,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
                 ranks: dict = {}
                 for rank, raw in node.values.items():
                     count = parse_number(raw, -1.0)
-                    if count < 0:  # -1 = unbegrenzt (Boss-Fraktionen) nie anfassen
+                    if count < 0:  # Preserve -1 unlimited values for boss factions.
                         continue
                     scaled = int(round(count * s.npc_grenade_factor))
                     if scaled != int(count):
@@ -1903,7 +1734,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         if threats:
             settings["ThreatsSettings"] = threats
 
-    # 1.27.0: Waffen aufheben, Leichen als Bedrohung, Dunkelheit fuer NPC-Augen
+    # Weapon pickup, corpse threats and darkness perception.
     if s.npcs_no_weapon_pickup:
         for key in ("AllowWeaponPickupWhenLooting", "AllowWeaponPickupBasedOnPrice"):
             if _bool_literal(root.values.get(key)) is not False:
@@ -1917,8 +1748,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         env = lum.children.get("EnvironmentLuminanceCoefficients") if lum is not None else None
         table = env.children.get("TimeOfDayBaseLuminance") if env is not None else None
         if table is not None:
-            # die Eintraege stehen in Vanilla als [*] (Auto-Index): in
-            # Reihenfolge als [0], [1], ... ansprechen; nur Werte < 1 skalieren
+            # Address [*] entries by their observed order; scale only coefficients below one.
             rows: dict = {}
             for idx, entry in enumerate(table.children.values()):
                 raw = entry.values.get("Luminance")
@@ -1940,14 +1770,12 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         spawn = parse_number(root.values.get("MinALifeSpawnDistance"), 2500.0)
         despawn = parse_number(root.values.get("MinALifeDespawnDistance"), 3000.0)
         new_spawn = spawn * s.spawn_distance_factor
-        # Despawn-Distanz muss immer ueber der Spawn-Distanz bleiben, sonst
-        # verschwinden frisch gespawnte Agenten sofort wieder
+        # Keep despawn distance above spawn distance to avoid immediate removal.
         new_despawn = max(despawn * s.spawn_distance_factor, new_spawn + 500.0)
         settings["MinALifeSpawnDistance"] = _num(new_spawn)
         settings["MinALifeDespawnDistance"] = _num(new_despawn)
 
-    # Stealth: Haltungs-Koeffizienten (komplette [i]-Eintraege ausgeben, wie
-    # bei StaminaRegenStateCoefs - Array-Eintraege nie halb patchen)
+    # Emit complete indexed posture-coefficient entries.
     crouch_on = _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0
     noise_on = _neq(s.movement_noise_factor, 1.0) and s.movement_noise_factor >= 0
     if crouch_on or noise_on:
@@ -1972,7 +1800,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         if entries:
             settings["CharacterPoseSettings"] = entries
 
-    # Stealth: Wetter-Abschlaege (1 - Koeffizient) x Faktor, Deckel 0.05..1
+    # Stealth weather penalties: (1 - coefficient) x factor, clamp to 0.05..1.
     if _neq(s.weather_stealth_factor, 1.0) and s.weather_stealth_factor >= 0:
         weather = root.children.get("WeatherSettings")
         entries = {}
@@ -1996,7 +1824,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         if entries:
             settings["WeatherSettings"] = entries
 
-    # Stealth: wie stark die Spieler-Taschenlampe NPC-Sicht fuellt
+    # Player-flashlight contribution to NPC vision.
     if _neq(s.flashlight_stealth_factor, 1.0) and s.flashlight_stealth_factor >= 0:
         fl = root.children.get("PlayerFlashlightVisionSettings")
         cfg = {}
@@ -2008,8 +1836,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         if cfg:
             settings["PlayerFlashlightVisionSettings"] = cfg
 
-    # NPC-Mut: Angriffs-/Rueckzugs-Schwellen der menschlichen Taktik-Typen
-    # (Bandits/Monolith/Humanoid) / Faktor; der Mutant-Eintrag bleibt.
+    # Scale human attack/retreat thresholds inversely with courage; preserve mutant tactics.
     if _neq(s.npc_courage_factor, 1.0) and s.npc_courage_factor > 0:
         tactics = root.children.get("CombatTacticsSettings")
         per = tactics.children.get("CombatTacticsParamsPerFactions") if tactics else None
@@ -2028,8 +1855,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
             settings["CombatTacticsSettings"] = {
                 "CombatTacticsParamsPerFactions": factions}
 
-    # NPC-Taschenlampen: Ein-/Ausschaltstunde (Vanilla 22 / 5), live
-    # gelesen und nur bei Abweichung geschrieben.
+    # Read NPC flashlight switching hours live and emit only changes.
     for key, wanted in (("FlashlightTimeOfDayOn", s.npc_flashlight_on_hour),
                         ("FlashlightTimeOfDayOff", s.npc_flashlight_off_hour)):
         raw = root.values.get(key)
@@ -2040,12 +1866,10 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _threats_patch(gd: GameData, s: Settings) -> dict:
-    """ThreatPrototypes.cfg, Profil DefaultNPC (Top-Level-Key [1]): Wachsamkeit
-    = Aktions-Schwellen (TurnHead 200, SearchEnemy 350, MoveToLocation 500,
-    CallAllies 700) / Faktor, ganzzahlig, 1..MaxThreatLevelValue;
-    Gedaechtnis = Freeze-Zeiten x Faktor und Verlust/s / Faktor, im Profil-
-    Default und je Aktion. Aktions-Eintraege ([i]) komplett ausgeben.
-    Mutanten-Profile und BossNPC bleiben vanilla."""
+    """Adjust DefaultNPC threat thresholds and memory, preserving boss/mutant profiles.
+
+    Clamp integer action thresholds to valid threat limits. Scale freeze times
+    directly and decay rates inversely; emit complete indexed action entries."""
     alert = s.npc_alertness_factor
     alert_on = _neq(alert, 1.0) and alert > 0
     mem = s.npc_search_time_factor
@@ -2092,18 +1916,16 @@ def _threats_patch(gd: GameData, s: Settings) -> dict:
             cfg["Actions"] = entries
         if cfg:
             if key.startswith("["):
-                # Das Profil haengt am Index-Schluessel [1]: komplett
-                # ausgeben (siehe _resolved_struct), Aktions-Eintraege
-                # waren es schon.
+                # The profile is stored at index [1]; emit the complete entry.
+                # Emit complete entries (see _resolved_struct); action entries
+                # Were already patched.
                 cfg = _merge_nested(_resolved_struct(gd.threats, prof), cfg)
             patches[key] = cfg
     return patches
 
 
 def _npc_stagger_patch(gd: GameData, s: Settings) -> dict:
-    """CriticalDamageThreshold (Schaden in 2 s, ab dem ein NPC taumelt;
-    Vanilla 40, Bosse 200..100000) x Faktor - je menschlichem Prototyp,
-    weil die Structs voll expandiert sind."""
+    """Scale explicit human NPC CriticalDamageThreshold values controlling stagger."""
     f = s.npc_stagger_factor
     if not _neq(f, 1.0) or f <= 0:
         return {}
@@ -2154,10 +1976,7 @@ def _npc_dialog_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _camerashake_patch(gd: GameData, s: Settings) -> dict:
-    """Aim Punch (Wackeln beim Getroffenwerden, Nexus-Wunsch) und seit
-    1.24.0 das Wackeln beim SCHIESSEN: ShootingCameraShake plus die 39
-    *ShootCameraShake-Eintraege je Waffe, alle mit eigenem Scale = 1.0
-    (Nexus 'No Screenshake'). Explosionen/Mutanten bleiben unberuehrt."""
+    """Scale hit and firing camera shake separately; preserve explosion/mutant shake."""
     patches: dict = {}
     if _neq(s.aim_punch_factor, 1.0):
         vanilla = parse_number(
@@ -2178,14 +1997,10 @@ def _camerashake_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _aimassist_patch(gd: GameData, s: Settings) -> dict:
-    """Aim Assist aus (06.09.2026): die Staerke steckt in CurveFloat-Assets,
-    per cfg laesst sich nur der Kegel abhaengen. Jedes Preset traegt vier
-    Kegel-SIDs plus die Magnetismus-Liste; alles wird auf den Empty-Kegel
-    gesetzt, dessen Name live aus dem Empty-Preset gelesen wird. Maus- und
-    Gamepad-Presets getrennt (Wunsch des Besitzers). Die Waffen verweisen
-    per AimAssistPresetSID auf die Gamepad-Presets je Klasse; die Maus-
-    Presets haengen nicht in den Waffendaten, sondern werden vom Spiel
-    direkt angesprochen (nicht play-getestet)."""
+    """Disable aim assist by replacing cones and magnetism references with the live Empty cone.
+
+    Treat mouse and gamepad presets separately. Weapon data directly references
+    gamepad class presets; direct use of mouse presets still needs game confirmation."""
     if not (s.no_aim_assist_mouse or s.no_aim_assist_gamepad):
         return {}
     root = gd.aimassist
@@ -2219,9 +2034,9 @@ def _aimassist_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
-    """SpawnChanceBase (Cap 100 %), Rarity-Verteilung, Count (Artefakte je
-    Feld, Vanilla 1) und Min/MaxCooldown (Respawn, Vanilla meist 3/15,
-    Nullen bleiben) je Spawner/Rang."""
+    """Adjust artifact-spawner chance, rarity, count and cooldowns per spawner/rank.
+
+    Preserve zero cooldowns and cap percentage chance at 100."""
     spawn_on = _neq(s.artifact_spawn_factor, 1.0)
     rarity_on = _neq(s.artifact_rarity_factor, 1.0)
     count_on = _neq(s.artifact_count_factor, 1.0) and s.artifact_count_factor > 0
@@ -2263,8 +2078,7 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
                     total = sum(weights.values())
                     higher = sum(weights[k] for k in ("Uncommon", "Rare", "Epic"))
                     if total > 0 and higher > 0:
-                        # Seltene Stufen x Faktor, Common uebernimmt den Rest,
-                        # damit die Gesamtsumme (= Ziehungsgewicht) gleich bleibt
+                        # Scale rare tiers and assign the remainder to Common, preserving total weight.
                         scale = min(s.artifact_rarity_factor,
                                     total / higher if higher else 1.0)
                         new = {k: weights[k] * scale
@@ -2282,7 +2096,7 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
 
 def _mutant_factor(s: Settings, species: str | None, param: str,
                    global_factor: float) -> float:
-    """Kaskade Art-Override > globaler Mutanten-Regler."""
+    """Cascade: species override takes precedence over the global mutant slider."""
     if species is not None:
         value = s.mutant_overrides.get(species, {}).get(param)
         if value is not None:
@@ -2305,13 +2119,11 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
             factor = _mutant_factor(s, gd.mutant_faction(sid), "hp",
                                     s.mutant_hp_factor)
             if _neq(factor, 1.0) and factor > 0:
-                # setdefault-Merge: der Regen-Block unten schreibt in
-                # DENSELBEN VitalParams-Knoten
+                # Merge into the same VitalParams node used by regeneration below.
                 patches.setdefault(sid, {}).setdefault("VitalParams", {})[
                     "MaxHP"] = _num(max(1.0, hp * factor))
     if regen_on:
-        # Faktor 0 ist hier ausdruecklich erlaubt (Mutanten heilen nie) —
-        # das Gegenstueck zu "NPCs don't self-heal" auf der Menschen-Seite
+        # Zero explicitly disables mutant self-healing.
         for sid, regen in sorted(gd.mutant_regens().items()):
             factor = _mutant_factor(s, gd.mutant_faction(sid), "regen",
                                     s.mutant_regen_factor)
@@ -2326,8 +2138,7 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
                 patches.setdefault(sid, {})["MovementParams"] = {
                     key: _num(value * factor) for key, value in speeds.items()}
     if protection_on:
-        # Schutz je Art (06.09.2026, Nexus 'No More Tanky Mutants'): fast nur
-        # Strike (Nahkampf), Shot ist ueberall 0 - Faktor auf 0 bleibt 0.
+        # Scale positive per-species protection; zero Shot protection remains zero.
         for sid, values in sorted(gd.mutant_protections().items()):
             factor = _mutant_factor(s, gd.mutant_faction(sid), "protection",
                                     s.mutant_protection_factor)
@@ -2338,7 +2149,7 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _mutant_abilities_patch(gd: GameData, s: Settings) -> dict:
-    """Attacken-Schaden pro Mutanten-Art (nur via Art-Overrides)."""
+    """Scale mutant attack damage through per-species overrides."""
     patches: dict = {}
     for species, params in sorted(s.mutant_overrides.items()):
         factor = params.get("damage")
@@ -2354,18 +2165,10 @@ def _mutant_abilities_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _mutant_attack_patch(gd: GameData, s: Settings) -> dict:
-    """Angriffe je Serie und Blutungsaufbau der Mutanten.
+    """Scale mutant attack-series counts and bleeding buildup.
 
-    `MaxAttacksInSeries` (wie viele Schlaege ein Mutant am Stueck macht,
-    Vanilla 0/1/2/3) und `BleedingChanceIncrement` (wie schnell ein
-    Treffer die Blutung aufbaut, Vanilla meist .1f). Beides gemessen
-    07.09.2026 an 143 Mutanten-Attacken; menschliche und Boss-Attacken
-    tragen dieselben Schluessel und bleiben draussen (siehe
-    gd.mutant_attack_params). Gefunden in "Stalker Unlimited" (Nexus 1453).
-
-    Vanilla 0 bleibt 0 (eine Attacke ohne Serie bekommt keine), sonst
-    mindestens 1 — eine halbe Attacke gibt es nicht. Die Blutung behaelt
-    ihre Schreibweise (`.1f` bleibt `.1f`)."""
+    Exclude human/boss attacks via gd.mutant_attack_params. Preserve zero series,
+    use integer counts >= 1 otherwise, and retain bleeding literal formatting."""
     want_series = _neq(s.mutant_attack_series_factor, 1.0) and s.mutant_attack_series_factor >= 0
     want_bleed = _neq(s.mutant_attack_bleed_factor, 1.0) and s.mutant_attack_bleed_factor >= 0
     if not (want_series or want_bleed):
@@ -2399,7 +2202,7 @@ def _mutant_attack_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _invisibility_patch(gd: GameData, s: Settings) -> dict:
-    """Bloodsucker-Tarnung: Tarn-Tempo und Enttarnung durch Treffer."""
+    """Adjust bloodsucker invisibility activation and hit-triggered reveal."""
     cloak_on = _neq(s.bloodsucker_cloak_factor, 1.0) and s.bloodsucker_cloak_factor > 0
     uncloak_on = _neq(s.bloodsucker_uncloak_factor, 1.0)
     if not (cloak_on or uncloak_on):
@@ -2419,12 +2222,7 @@ def _invisibility_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _melee_patch(gd: GameData, s: Settings) -> dict:
-    """Messer + Kolbenschlag (MeleeWeaponPrototypes): Schaden und Reichweite.
-
-    Beide Structs definieren Damage UND HitDetectionDistance selbst
-    (Vanilla 160 = 1,6 m fuer Knife wie WeaponButt), also je Struct
-    patchen. Reichweite: Nexus "Increased Melee Range" / "Melee and Bash
-    Range", Recherche 05.09.2026."""
+    """Scale melee damage and hit-detection distance per explicit knife/weapon-butt prototype."""
     want_damage = _neq(s.melee_damage_factor, 1.0) and s.melee_damage_factor > 0
     want_range = _neq(s.melee_range_factor, 1.0) and s.melee_range_factor > 0
     if not (want_damage or want_range):
@@ -2448,7 +2246,7 @@ def _melee_patch(gd: GameData, s: Settings) -> dict:
 
 
 NPC_FLASHLIGHT_SID = "NPCFlashlight"
-NPC_FLASHLIGHT_CONE_CAP = 170.0      # Grad; darueber wird aus dem Kegel eine Kugel
+NPC_FLASHLIGHT_CONE_CAP = 170.0      # Degrees; larger values turn the cone into a sphere.
 
 
 def _sid_of(node) -> str:
@@ -2456,9 +2254,7 @@ def _sid_of(node) -> str:
 
 
 def _npc_flashlight_node(gd: GameData):
-    """(Top-Level-Key, Struct) der NPC-Lampe. Die Structs heissen in der
-    Datei nur [0]..[3]; gefunden wird ueber die SID, nicht ueber die
-    Position."""
+    """Find the NPC flashlight by SID and return its actual indexed struct key."""
     for key, node in gd.flashlights.children.items():
         if "#" in key:
             continue
@@ -2468,14 +2264,9 @@ def _npc_flashlight_node(gd: GameData):
 
 
 def _flashlight_patch(gd: GameData, s: Settings) -> dict:
-    """NPC-Taschenlampen (FlashlightPrototypes, Recherche 05.09.2026).
+    """Patch NPC flashlight distance bands with complete array entries.
 
-    Lichtwerte stehen nur in ExtraLightDistanceBasedParameters: drei
-    Eintraege nach Entfernung (Vanilla Intencity 7/9/18, Radius
-    175/325/500, Kegel 45/55/80). 1.600 NPC-Prototypen verweisen auf
-    diese eine Lampe. Die Spieler-Lampe hat hier keine Werte (leere
-    Tabelle; Blueprint-Kurven) - siehe ROADMAP. Array-Regel: komplette
-    Eintraege ausgeben. Der Schluessel "Intencity" ist GSCs Schreibweise."""
+    Player light values are not exposed in this table. Preserve GSC's Intencity spelling."""
     want_light = _neq(s.npc_flashlight_factor, 1.0) and s.npc_flashlight_factor > 0
     want_cone = (_neq(s.npc_flashlight_cone_factor, 1.0)
                  and s.npc_flashlight_cone_factor > 0)
@@ -2507,9 +2298,8 @@ def _flashlight_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weather_patch(gd: GameData, s: Settings) -> dict:
-    """Regen-/Sturm-Gewichte, Emissions-Haeufigkeit und (seit 1.25.0) die
-    Wetterdauer je Auswahl-Prototyp: WeatherDurationMin/Max jeder Wetterlage
-    (500-1200 s) werden skaliert, Literalform bleibt (500.f -> 1000.f)."""
+    """Scale rain/storm selection weights, emission frequency and weather durations
+    while retaining numeric literal formatting."""
     rain_on = _neq(s.rain_factor, 1.0)
     emission_on = _neq(s.emission_factor, 1.0)
     duration_on = _neq(s.weather_duration_factor, 1.0) and s.weather_duration_factor > 0
@@ -2547,18 +2337,17 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                         cfg.setdefault(wtype, {})[key] = scaled
         if cfg:
             if sid.startswith("["):
-                # Index-Vorlagen [0]/[1]/[2]/[3]/[35] (Regionen erben per
-                # refkey=[1]): komplett ausgeben, siehe _resolved_struct.
+                # Indexed templates [0]/[1]/[2]/[3]/[35]; regions inherit via
+                # refkey=[1]): emit the complete entry; see _resolved_struct.
                 cfg = _merge_nested(_resolved_struct(root, node), cfg)
             patches[sid] = cfg
     return extension_controls.regional_weather.apply(gd, s, patches)
 
 
 def _bullet_drop_patch(gd: GameData, s: Settings) -> dict:
-    """Geschossabfall (06.09.2026, Nexus 'Better Ballistics' & Co.):
-    BulletDropHeight steht an den Waffen-Templates (170) und wird von den
-    *_Player-Settings geerbt; NPC-Settings setzen 0 und bleiben 0.
-    Faktor 0 = flache Flugbahn."""
+    """Scale weapon-template BulletDropHeight, preserving zero NPC overrides.
+
+    Zero produces a flat trajectory."""
     if not _neq(s.bullet_drop_factor, 1.0) or s.bullet_drop_factor < 0:
         return {}
     patches: dict = {}
@@ -2575,16 +2364,12 @@ def _bullet_drop_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _projectile_patch(gd: GameData, s: Settings) -> dict:
-    """Geschoss-Geschwindigkeit (06.09.2026): Speed der Kugel-Projektile
-    (20000-42000). Gauss (1e7), RPG (6000) und Granaten (3500) bleiben."""
+    """Scale bullet projectile speeds; exclude Gauss, RPG and grenade projectiles."""
     speed_on = _neq(s.bullet_speed_factor, 1.0) and s.bullet_speed_factor > 0
-    # 1.32.0 (Nr. 15/16): Wanddurchschlag und Maximalreichweite
+    # Projectile penetration and maximum range.
     pen_on = _neq(s.bullet_penetration_factor, 1.0) and s.bullet_penetration_factor >= 0
     range_on = _neq(s.bullet_range_factor, 1.0) and s.bullet_range_factor > 0
-    # 1.35.0: die zweite Haelfte der Durchschlags-Gruppe. `PenetrationSpawnChance`
-    # (Chance) hat `PenetrationTraceLenght` (sic, Tippfehler von GSC) im selben
-    # Struct - 16x, gemessen 150/200/300. Der Familien-Waechter hat es gemeldet,
-    # "Better Ballistics Core" (Nexus 2536) skaliert es.
+    # PenetrationTraceLenght is GSC's spelling and accompanies penetration chance.
     depth_on = (_neq(s.bullet_penetration_depth_factor, 1.0)
                 and s.bullet_penetration_depth_factor > 0)
     if not (speed_on or pen_on or range_on or depth_on):
@@ -2600,7 +2385,7 @@ def _projectile_patch(gd: GameData, s: Settings) -> dict:
             if 10000 <= value < 1_000_000:
                 cfg["Speed"] = _num(value * s.bullet_speed_factor)
         if pen_on:
-            # Wahrscheinlichkeit 0..1: gedeckelt; Vanilla-0 bleibt 0
+            # Probability 0..1: clamp and preserve vanilla zero.
             raw = node.values.get("PenetrationSpawnChance")
             if raw is not None and parse_number(raw) > 0:
                 scaled = _scale_literal(raw, s.bullet_penetration_factor, cap=1.0)
@@ -2624,9 +2409,7 @@ def _projectile_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _sleep_patch(gd: GameData, s: Settings) -> dict:
-    """Schlaf (06.09.2026): DefaultSleepParams - AllowSleepThreshold 50 (die
-    Muedigkeit, ab der man schlafen darf; 0 = jederzeit), MinSleepHours 7,
-    bAllowEmissionSleep."""
+    """Adjust DefaultSleepParams fatigue threshold, minimum hours and emission sleep."""
     root = gd.sleepparams
     if root.children.get("DefaultSleepParams") is None:
         return {}
@@ -2645,7 +2428,7 @@ def _sleep_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
-    """Der eine geteilte MutantsHearingSensor (alle Arten)."""
+    """Patch the shared MutantsHearingSensor."""
     if not _neq(s.mutant_hearing_factor, 1.0):
         return {}
     node = gd.hearingsensors.children.get("MutantsHearingSensor")
@@ -2667,13 +2450,10 @@ def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _flair_patch(gd: GameData, s: Settings) -> dict:
-    """FlairSensorPrototypes (1.28.0 P4, docs/CORE_SWEEP_RESEARCH.md par. 2.4):
-    Witterung der Mutanten. Alle Sensoren mit IsActive = true ausser der
-    Tabu-Liste FLAIR_SENSOR_SKIP (live: BlindDog fuer 38 Arten, Chimera,
-    Flesh, Poltergeist). Jedes Kind deklariert seine Schluessel selbst; die
-    Front*-Schluessel gibt es nur bei BlindDog/Chimera/Flesh -> nur
-    vorhandene Schluessel patchen. Der Schalter setzt IsActive = false auf
-    dieselben Sensoren. AIGlobals.FlairCoef (Wetter-Regler) gilt weiter."""
+    """Scale active mutant scent sensors excluding FLAIR_SENSOR_SKIP.
+
+    Patch only explicitly present keys; the disable option targets the same set.
+    Weather FlairCoef remains independently applicable."""
     smell_on = _neq(s.mutant_smell_factor, 1.0) and s.mutant_smell_factor > 0
     if not (smell_on or s.mutants_no_smell):
         return {}
@@ -2700,12 +2480,10 @@ def _flair_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _needs_patch(gd: GameData, s: Settings) -> dict:
-    """NPCNeedsPresetPrototypes (1.28.0 P5, docs/CORE_SWEEP_RESEARCH.md par. 2.6):
-    A-Life-Trupp-Ausbreitung. GoalNeeds-Eintraege mit NeedTag AI.Need.Expansion
-    (16 Presets, jeder deklariert seinen Eintrag selbst; Auswahl ueber den
-    NeedTag, NICHT den Index - MutantGeneric hat ihn unter [1]):
-    Min/MaxIncreasePerMinute x Faktor, Array-Eintrag KOMPLETT ausgegeben.
-    AI.Need.ReuniteWithLair (inert) bleibt unangetastet."""
+    """Scale AI.Need.Expansion growth in NPC needs presets.
+
+    Find entries by NeedTag, not array position; emit them completely.
+    Preserve the inert ReuniteWithLair need."""
     expansion_on = _neq(s.squad_expansion_factor, 1.0) and s.squad_expansion_factor > 0
     camp_on = _neq(s.camp_life_factor, 1.0) and s.camp_life_factor > 0
     if not (expansion_on or camp_on):
@@ -2735,11 +2513,10 @@ def _needs_patch(gd: GameData, s: Settings) -> dict:
                     entries[idx] = full
             if entries:
                 cfg["GoalNeeds"] = entries
-        # 1.28.0 P6 (Lagerleben, par. 2.6, 25 echte Presets - das Dokument
-    # zaehlt 26 inklusive der Basis [0], die hier uebersprungen wird):
-    # Gitarre, Witze, Gespraeche,
-        # Rauchen, Schlafen, Essen, Rasten, Trinken - Auswahl ueber den
-        # NeedType, Eintrag komplett (NeedType, Min, Max, Radius, MaxCount).
+        # Camp activity needs on concrete presets.
+    # Exclude the [0] template; includes guitar, jokes and conversation.
+        # Smoking, sleeping, eating, resting and drinking: select by
+        # NeedType and emit the complete entry (NeedType, Min, Max, Radius, MaxCount).
         needs = node.children.get("Needs")
         if camp_on and needs is not None:
             entries = {}
@@ -2766,10 +2543,9 @@ def _needs_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _alife_policy_patch(gd: GameData, s: Settings) -> dict:
-    """ALifePolicyPrototypes (1.28.0 P5, par. 2.7): das eine Struct Default.
-    Refill-Cooldowns (360.f/120.f) x Faktor, Refill-Distanzband (20000/25000,
-    ganzzahlig, Min <= Max) x Faktor, MaxCorpsePerRadius (30) absolut.
-    TriggerExtinction/StopExtinction (globaler Agenten-Deckel) sind tabu."""
+    """Adjust A-Life refill cooldowns/distance bounds and the absolute corpse cap.
+
+    Preserve TriggerExtinction/StopExtinction agent-cap controls."""
     node = gd.alifepolicy.children.get("Default")
     if node is None:
         return {}
@@ -2801,12 +2577,9 @@ def _alife_policy_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _alife_faction_patch(gd: GameData, s: Settings) -> dict:
-    """ALifePopulationManagerFactionPrototypes (1.28.0 P5, par. 2.7): das eine
-    Struct ALifePopulationManagerPreset. ALifeLairExpansionBattleChance (50)
-    absolut auf alle 29 benannten Fraktions-Kinder (bpatch je Fraktion, nur bei
-    Abweichung), ALifeLairExpansionTime (50.f) INVERS x Faktor - Einheit
-    unbewiesen, darum experimentell. Die Lagerbaender MinLairs/MaxLairs sind
-    tabu."""
+    """Adjust faction expansion battle chance and inverse expansion timing.
+
+    Timing units remain unverified; preserve MinLairs/MaxLairs camp bands."""
     node = gd.alifefactions.children.get("ALifePopulationManagerPreset")
     if node is None:
         return {}
@@ -2835,11 +2608,9 @@ def _alife_faction_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _barbedwire_patch(gd: GameData, s: Settings) -> dict:
-    """BarbedWirePrototypes (1.28.0 P6, par. 2.2): beide echten Prototypen
-    (Limiting/Overlappable) deklarieren alle Werte selbst; welcher Zaun
-    welchen nutzt, steht in den Levels -> beide patchen. [0] Empty bleibt
-    die unbenutzte Basis. BleedingChance ist eine Wahrscheinlichkeit
-    (Deckel 1.0), die drei anderen sind Schadenswerte."""
+    """Patch explicit Limiting/Overlappable barbed-wire prototypes; preserve Empty.
+
+    Cap BleedingChance at one and scale other damage values directly."""
     if not (_neq(s.barbed_wire_factor, 1.0) and s.barbed_wire_factor >= 0):
         return {}
     patches: dict = {}
@@ -2861,15 +2632,10 @@ def _barbedwire_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _destructible_patch(gd: GameData, s: Settings) -> dict:
-    """DestructibleObjectPrototypes (1.28.0 P6, par. 2.10): explodierende
-    Behaelter. Die Struct-Schluessel sind Indizes [N], erkannt wird ueber die
-    SID (Exp_* / *_Exp_*: Gasflaschen, Kanister, Fass, dazu die Quest- und
-    Static-Varianten - live 22 Stueck). Gepatcht wird nur
-    ObjectPhaseSettings.[0].DamageDestroyThreshold; der Phasen-Eintrag wird
-    mit allen seinen Skalaren ausgegeben (die Unter-Arrays IgnoredDamageTypes
-    und DestructibleActions bleiben ausdruecklich draussen - sie tragen
-    Mesh-, VFX- und Sound-Pfade, die zu duplizieren mehr Risiko als Nutzen
-    braechte). Die 536-KB-Datei wird nur bei aktivem Regler geparst."""
+    """Scale explosive-container phase-zero DamageDestroyThreshold using indexed keys.
+
+    Emit phase scalars but preserve nested damage/action arrays containing asset
+    references. Parse the large prototype file only when needed."""
     if not (_neq(s.explosive_container_factor, 1.0) and s.explosive_container_factor > 0):
         return {}
     patches: dict = {}
@@ -2899,10 +2665,7 @@ def _destructible_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _physics_patch(gd: GameData, s: Settings) -> dict:
-    """PhysicsInteractionPrototypes (1.28.0 P6, par. 2.11): wie hart der
-    Spieler Gegenstaende und Leichen anschiebt. Alle 88 Prototypen tragen
-    ihren eigenen PlayerPushImpulse (20.0 Laborglas bis 27000.0 Munitionskiste,
-    Leiche 3500.0)."""
+    """Scale PlayerPushImpulse per physics-interaction prototype."""
     if not (_neq(s.push_force_factor, 1.0) and s.push_force_factor >= 0):
         return {}
     patches: dict = {}
@@ -2919,11 +2682,9 @@ def _physics_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weatherchain_patch(gd: GameData, s: Settings) -> dict:
-    """WeatherChainPrototypes (1.28.0 P6, par. 2.11): wie lange ein
-    Wetterwechsel dauert. Zwei Array-Ebenen (TransitionSteps.[i] ->
-    WeatherChains.[j]), beide werden komplett ausgegeben; der Regler wirkt
-    INVERS (200 % = halber Multiplikator = schnellerer Wechsel).
-    WeatherChainWeight wird nur mitgeschrieben, nie veraendert."""
+    """Scale weather-transition duration inversely.
+
+    Emit complete TransitionSteps and WeatherChains entries; preserve chain weights."""
     if not (_neq(s.weather_transition_factor, 1.0) and s.weather_transition_factor > 0):
         return {}
     factor = 1.0 / s.weather_transition_factor
@@ -2960,12 +2721,10 @@ def _weatherchain_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _singleton_patch(gd: GameData, s: Settings) -> dict:
-    """SingletonConstants (1.28.0 P6, par. 2.8, unbinarisiert wie CoreVariables):
-    Mond, Sonne, Sterne, Wolken und die Daemmerungsdauer im TimeManager.
-    Latitude/Longitude/TimeZone/NorthOffsetAngle (Sonnenbahn) und die
-    Start*-Schluessel (neues Spiel) sind tabu. Die Datei wurde nie zuvor
-    gepatcht und die Schluessel stehen nicht in der Namenstabelle der EXE -
-    Wirkung voellig ungetestet, der Tooltip sagt es."""
+    """Adjust TimeManager sky and twilight values in unbinarized SingletonConstants.
+
+    Preserve geographic/time-zone and new-game Start* fields. In-game effect
+    remains unverified."""
     node = gd.singletonconstants.children.get("TimeManager")
     if node is None:
         return {}
@@ -2984,34 +2743,12 @@ def _singleton_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
-    """Artefakt-Verhalten in ItemPrototypes (1.28.0 P7, docs/CORE_SWEEP_RESEARCH.md
-    par. 3b). Live gemessen: 154 Artefakt-Structs, und JEDES deklariert Radius,
-    Strafe, PlayerDistance und JumpSeriesDelay selbst (auch TemplateArtifact) -
-    also wird jedes einzeln gepatcht, nie nur die Vorlage.
+    """Adjust explicit artifact movement/visibility fields per prototype.
 
-    - Radius (147x 40.0, 7x 10): wie nah man ran muss, damit ein Artefakt
-      sichtbar wird. Deutung aus dem Recherche-Dokument ("sehr wahrscheinlich",
-      Vorbild Nexus "Less Shy Artifacts") - der Tooltip sagt es.
-    - Strafe (146 true / 8 false): der Schalter setzt NUR die true-Artefakte auf
-      false, die acht Weird-/Quest-Artefakte bleiben, wie sie sind.
-    - PlayerDistance (153x 1000.0, 1x 100000.0 bei QuestArtifactCrystalThorn) und
-      JumpSeriesDelay (45/35/25/15, dazu 2x 0.0 und 1x 0.5): Faktoren; 0 bleibt 0.
-
-    Der Editions-Zweig (DLCGameData) enthaelt KEINE Artefakte - gemessen: null
-    Radius- und null Strafe-Schluessel in allen drei Editions-Dateien -, darum
-    gibt es hier anders als beim Artefakt-Slot-Regler keinen DLC-Pfad.
-
-    ⚠ **1.35.0: die Huepf-Familie ist jetzt vollstaendig.** Der Familien-
-    Waechter hatte gemeldet, dass wir nur die Haelfte anfassen. Nachgemessen
-    am 08.09.2026, alle 154 Artefakte deklarieren auch diese selbst:
-    `JumpAmount` (3/5/7/9, dazu 2x 0), `JumpDelay` (6.0/3.0 - die Pause
-    ZWISCHEN den Spruengen einer Serie, waehrend `JumpSeriesDelay` zwischen
-    den Serien liegt), `JumpForce` 15.0, `JumpDistance` 1500, `JumpHeight`
-    100 und `ReturnDistanceValue` 10000 (1x 100000). Eingefaltet statt neue
-    Regler zu erfinden: JumpDelay laeuft im Pausen-Regler mit, die
-    Rueckkehr-Distanz im Abstands-Regler; neu sind nur zwei Regler
-    (Sprungweite = Distanz/Hoehe/Kraft, Spruenge je Serie) und der Schalter
-    "ohne Detektor sichtbar" (`DetectorRequired`, 147x true / 7x false)."""
+    Radius interpretation remains provisional. Preserve false/zero defaults.
+    Compose jump interval/series delay, return/player distance, and jump
+    force/distance/height controls. DetectorRequired is an independent toggle.
+    The checked edition files contain no artifact prototypes."""
     radius_on = _neq(s.artifact_radius_factor, 1.0) and s.artifact_radius_factor > 0
     keep_on = _neq(s.artifact_keepaway_factor, 1.0) and s.artifact_keepaway_factor > 0
     pause_on = _neq(s.artifact_hop_pause_factor, 1.0) and s.artifact_hop_pause_factor > 0
@@ -3026,8 +2763,7 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
     for sid, node in gd.items.children.items():
         if sid == "[0]" or "#" in sid:
             continue
-        # Artefakt = eigener Strafe-Schluessel; das ist zugleich der Beleg,
-        # dass der Struct die Huepf-Familie selbst deklariert.
+        # An explicit Strafe key identifies the artifact behavior fields.
         if "Strafe" not in node.values:
             continue
         cfg: dict = {}
@@ -3054,8 +2790,7 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
                 cfg[key] = scaled
         if count_on:
-            # Spruenge je Serie: ganzzahlig, 0 bleibt 0 (zwei Artefakte
-            # huepfen vanilla gar nicht), sonst mindestens einer.
+            # Keep jump counts integral; preserve zero, otherwise require at least one.
             raw = node.values.get("JumpAmount")
             value = parse_number(raw) if raw is not None else 0.0
             if raw is not None and value > 0:
@@ -3068,14 +2803,10 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _packofitems_patch(gd: GameData, s: Settings) -> dict:
-    """PackOfItemsGroupPrototypes (1.28.0 P7, par. 2.12): die handplatzierten
-    Welt-Loot-Haufen. Die Gruppe ArtifactUncommon hat neun Weltvorkommen, aber
-    alle 20 Eintraege stehen auf Weight 0 - im Spiel also leere Verstecke.
-    Der Schalter hebt genau diese 20 auf 1 und laesst alles andere in der Datei
-    unangetastet (die Rang-Sperren der uebrigen 46 Gruppen sind tabu).
-    Array-Eintraege werden komplett ausgegeben (ItemPrototypeSID + Weight).
-    Ob eine Gruppe mit Gewicht 0 ueberhaupt je gezogen wird, ist unbewiesen -
-    darum experimentell."""
+    """Enable disabled ArtifactUncommon choices in hand-placed loot groups.
+
+    Emit complete item/weight entries and preserve other groups' rank gates.
+    Whether zero-weight groups are selected in-game remains unverified."""
     if not s.artifact_caches_drop:
         return {}
     group = gd.packofitems.children.get("ArtifactUncommon")
@@ -3091,7 +2822,7 @@ def _packofitems_patch(gd: GameData, s: Settings) -> dict:
         for ii, entry in items.children.items():
             raw = entry.values.get("Weight")
             if raw is None or parse_number(raw) != 0:
-                continue                      # nur die abgeschalteten Eintraege
+                continue                      # Only entries disabled in vanilla.
             full = {k: v.strip() for k, v in entry.values.items()}
             full["Weight"] = "1"
             entries[ii] = full
@@ -3101,16 +2832,10 @@ def _packofitems_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_trader_patch(gd: GameData, s: Settings) -> dict:
-    """NPCPrototypes (1.28.0 P8, docs/CORE_SWEEP_RESEARCH.md par. 2.9): die
-    Haendler tragen NEBEN ihren TradePrototypes-Werten eigene Zahlen am
-    NPC-Struct, die die Preisregler bisher nie angefasst haben. Gemessen:
-    genau neun NPCs mit `BuyCoefficient` 0.8 UND `SellCoefficient` 2.0
-    (dieselbe Neunermenge), und 22 Structs mit `Money` > 0 (16x 20000,
-    4x 10, 1x 10000, 1x 5). Welche Zahl das Spiel am Ende nimmt - die des
-    Handelsprototyps oder die des NPC - ist unbewiesen; darum bekommen beide
-    denselben Faktor, was im schlechtesten Fall wirkungslos ist und im besten
-    eine Luecke schliesst. Die 1.8-MB-Datei wird nur bei aktivem Regler
-    geparst; alle Struct-Schluessel sind Namen, keine Indizes."""
+    """Scale NPC-level trader coefficients alongside TradePrototypes values.
+
+    Their precedence is unverified. Parse NPCPrototypes lazily and preserve
+    actual named keys."""
     buy_on = _neq(s.trader_buy_price_factor, 1.0) and s.trader_buy_price_factor > 0
     sell_on = _neq(s.trader_sell_price_factor, 1.0) and s.trader_sell_price_factor > 0
     money_on = _neq(s.trader_money_factor, 1.0) and s.trader_money_factor > 0
@@ -3144,23 +2869,10 @@ def _npc_trader_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_marker_patch(gd: GameData, s: Settings) -> dict:
-    """Haendler, Techniker, Medics und Fuehrer auf der Karte anzeigen (1.35.0).
+    """Enable map updates for NPCs already carrying a supported service-marker type.
 
-    Kein neuer Inhalt, nur eine Fahne: **80 NPCs tragen in Vanilla bereits
-    einen Marker-TYP** (`NPCMarker` = Trader 34, Technician 18, Guider 14,
-    Medic 14), aber ihre Anzeige-Fahne `UpdateMarkerOnMap` steht auf false —
-    nur acht Ausnahmen stehen auf true (gemessen 08.09.2026). Der Schalter
-    legt genau diese 80 um; NPCs mit `NPCMarker = Empty` (1265 Stueck)
-    bleiben unangetastet, es taucht also niemand neu auf, der nicht schon
-    ein Symbol haette.
-
-    ⚠ Der Vanilla-Wert steht als `false;` mit Semikolon in der Datei —
-    darum wird vor dem Vergleich abgeschnitten, sonst wuerde jeder Eintrag
-    als "abweichend" gelten.
-
-    Idee aus "Shay's Living Zone" (Nexus 1301, Trackermap-Teil); die Zahlen
-    stammen aus unserer eigenen Messung, nicht aus deren Dateien. Die
-    1,8-MB-Datei wird nur bei aktivem Schalter geparst."""
+    Skip Empty markers, parse semicolon-suffixed booleans, and read the large
+    NPC file only when the option is enabled."""
     if not s.traders_on_map:
         return {}
     patches: dict = {}
@@ -3172,7 +2884,7 @@ def _npc_marker_patch(gd: GameData, s: Settings) -> dict:
             continue
         flag = (node.values.get("UpdateMarkerOnMap") or "").strip().rstrip(";").strip()
         if flag.lower() == "true":
-            continue                      # steht schon an
+            continue                      # Already enabled.
         patches[sid] = {"UpdateMarkerOnMap": "true"}
     return patches
 
@@ -3196,7 +2908,7 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("NPCCombatDifficulty", "NPC_AttackCooldown", s.npc_attack_cooldown_factor)
     apply("MutantCombatDifficulty", "Mutant_AttackCooldown",
           s.mutant_attack_cooldown_factor)
-    # Additiv: NPC-Waffenprofile um n Raenge anheben (Vanilla 0 ueberall)
+    # Add N ranks to NPC weapon profiles; vanilla is zero throughout.
     rank_add = int(round(s.npc_weapon_rank_add))
     if rank_add > 0:
         for sid, vanilla in gd.difficulty_values(
@@ -3212,9 +2924,8 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("EconomyDifficulty", "Reward_SideLine_Money", s.quest_reward_factor)
     apply("EconomyDifficulty", "Weapon_Cost", s.weapon_price_factor)
     apply("EconomyDifficulty", "Armor_Cost", s.armor_price_factor)
-    # HUD-Elemente (06.09.2026): die vier bShouldDisable*-Schalter je
-    # Schwierigkeitsgrad (Master: alle true). 1 = immer an (false), 2 = immer
-    # aus (true), 0 = wie der Grad es vorgibt. Nur Abweichungen.
+    # HUD overrides by difficulty: 0 preserves defaults, 1 enables, 2 disables.
+    # Emit only differences.
     for level, key in ((s.hud_compass, "bShouldDisableCompass"),
                        (s.hud_crosshair, "bShouldDisableCrosshair"),
                        (s.hud_body_markers, "bShouldDisableDeadBodyMarkers"),
@@ -3238,7 +2949,7 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("EconomyDifficulty", "Binoculars_Cost", s.device_price_factor)
     apply("EconomyDifficulty", "NightVisionGoggles_Cost", s.device_price_factor)
     if _neq(s.damage_mercy_factor, 1.0) and s.damage_mercy_factor >= 0:
-        # nur selbst definierte Werte, Deckel 1.0 (Easy/Custom stehen schon auf 1)
+        # Only explicit values, capped at 1.0.
         for sid, node in gd.difficulty.children.items():
             if sid == "[0]" or "#" in sid:
                 continue
@@ -3275,7 +2986,7 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
 
 def _weapon_factor(s: Settings, category: str | None, wgs_sid: str,
                    param: str, global_factor: float = 1.0) -> float:
-    """Kaskade Einzelwaffe > Kategorie > globaler Regler."""
+    """Cascade: individual weapon > category > global slider."""
     value = s.weapon_overrides.get(wgs_sid, {}).get(param)
     if value is None and category is not None:
         value = s.weapon_category_factors.get(category, {}).get(param)
@@ -3285,16 +2996,11 @@ def _weapon_factor(s: Settings, category: str | None, wgs_sid: str,
 
 
 def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
-    """CharacterWeaponSettings: Schaden, Streuung, Abnutzung (Kaskade).
+    """Apply damage, spread and wear factors to CharacterWeaponSettings.
 
-    Mehrere Waffen koennen sich EIN CWS-Struct teilen (AK74-Familie ->
-    GunAK74_ST_Player) und Unikate heissen *_Player_WS — daher wird pro
-    CWS-Struct ueber ALLE darauf zeigenden Waffen kaskadiert: irgendein
-    Einzelwaffen-Override gewinnt, sonst irgendein Kategorie-Faktor,
-    sonst der globale Regler (letzterer wie bisher nur fuer klassische
-    *_Player-Structs). Schaden hat keinen globalen per-Waffe-Regler
-    (global wirkt der Difficulty-Multiplikator Weapon_BaseDamage und
-    multipliziert sich im Spiel mit Kategorie/Einzelwaffe)."""
+    Resolve shared CWS structs across all linked weapons: individual overrides
+    precede category and global values. The difficulty damage multiplier
+    composes separately in-game."""
     by_cws: dict[str, list[tuple[str, str | None]]] = {}
     for wgs, (cat, cws) in sorted(gd.player_weapons().items()):
         if cws:
@@ -3326,8 +3032,7 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
             continue
 
         def scaled(key: str, factor: float, invert: bool = False):
-            # 0 ist fuer spread/recoil erlaubt (Regler bis 0 %); nur
-            # invertierte Werte (Teilung) und negative Faktoren bleiben tabu
+            # Allow zero spread/recoil; reject negative factors and zero divisors.
             if (not _neq(factor, 1.0) or factor < 0
                     or (invert and factor <= 0)):
                 return
@@ -3345,43 +3050,25 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
         for key in WEAPON_RANGE_KEYS:
             scaled(key, range_factor)
 
-        # Bleeding darf auch auf 0 (nie bluten) — daher ohne scaled()-Guard
+        # Bleeding can explicitly be zero, bypassing the positive-only scaling guard.
         bleed_factor = factor_for(sid, "bleeding", s.weapon_bleeding_factor)
         if _neq(bleed_factor, 1.0) and bleed_factor >= 0:
             value = parse_number(gd.resolve(gd.weaponsettings, sid, "BaseBleeding"))
             if value > 0:
                 patches.setdefault(sid, {})["BaseBleeding"] = _num(value * bleed_factor)
-            # ChanceBleedingPerShot ist ein %-Literal ("10%")
+            # ChanceBleedingPerShot uses percentage literals.
             raw = gd.resolve(gd.weaponsettings, sid, "ChanceBleedingPerShot")
             if raw is not None:
                 scaled_raw = _scale_literal(raw, bleed_factor)
                 if scaled_raw is not None and scaled_raw != raw.strip():
                     patches.setdefault(sid, {})["ChanceBleedingPerShot"] = scaled_raw
 
-        # Anzeigebalken im Inventar (1.31.0). Sie sind reine Deko: das
-        # Spiel rechnet sie NIE aus den echten Werten aus, sie stehen als
-        # feste Zahlen 0..1 an jedem CWS-Struct (gemessen: 150 Structs,
-        # Maximum genau 1.0). Darum ziehen sie hier mit demselben Faktor
-        # mit wie der echte Wert, gedeckelt bei 1.0. Angeboten werden nur
-        # die drei sauber zuordenbaren Balken — Accuracy und Handling sind
-        # Mischwerte aus Streuung, Rueckstoss und Gewicht, fuer die es
-        # keine ehrliche Formel gibt. Ausloeser: der Nexus-Bericht von
-        # Ygracael (03.09.), bis 1.30.0 nur ein FAQ-Eintrag.
-        # 1.33.0: Schaden und Durchschlag auf Extremdistanz. Gefunden beim
-        # Gegenlesen von Maklane (241) und Stalker Unlimited (1453), die
-        # beide daran drehen. Gemessen: `MinBulletDistanceDamageModifier`
-        # steht 150x zwischen 0.1 und 0.6 (= so viel Schaden bleibt jenseits
-        # der Abfalldistanz uebrig), `MinBulletDistanceArmorPiercingModifier`
-        # 150x auf 1.0. Bewusst NICHT im Reichweiten-Regler: der verschiebt
-        # die Distanzen, das hier ist der Boden dahinter (steht so seit der
-        # Recherche vom 04.09. in der ROADMAP).
+        # Inventory bars are stored display values, not computed gameplay statistics.
+        # Scale mapped bars with their underlying controls and cap at one.
+        # Extreme-distance damage/penetration floors are separate from range distances.
         if _neq(s.far_damage_factor, 1.0) and s.far_damage_factor >= 0:
-            # Beide Deckel 1.0: der Wert ist ein ANTEIL des Nahwerts, und 1.0
-            # heisst bereits "kein Verlust auf Distanz". Darueber hinaus
-            # waere ein Schuss auf 300 m durchschlagskraeftiger als aus
-            # 5 m - nicht erklaerbar, also gedeckelt. Vanilla steht beim
-            # Durchschlag ueberall auf 1.0, dort wirkt der Regler also nur
-            # nach unten (steht so im Tooltip).
+            # Cap far-distance fractions at one: one already means no loss relative to
+            # close range. Baselines at one can only be reduced.
             for key, cap in (("MinBulletDistanceDamageModifier", 1.0),
                              ("MinBulletDistanceArmorPiercingModifier", 1.0)):
                 raw = gd.resolve(gd.weaponsettings, sid, key)
@@ -3411,15 +3098,8 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
                 if _neq(new, value):
                     patches.setdefault(sid, {})[key] = _num(new)
 
-            # 1.33.0: die zwei restlichen Balken. Bis 1.32.0 blieben sie
-            # bewusst draussen, weil Accuracy und Handling im Spiel
-            # Mischwerte sind. Zwei fremde Mods (Maklane 241, Stalker
-            # Unlimited 1453) setzen sie trotzdem, und ein halb mitziehender
-            # Balkensatz ist verwirrender als ein ganzer. Also als ehrliche
-            # NAEHERUNG: Genauigkeit folgt der Streuung (weniger Streuung =
-            # besserer Balken, darum invers), Handling folgt der Zielzeit
-            # (die ist schon invers definiert: x2 = doppelt so schnell).
-            # Der Tooltip sagt, dass das eine Naeherung ist.
+            # Accuracy and Handling bars are approximations: follow inverse spread and
+            # aim-speed factors respectively, as disclosed in the UI.
             for key, param, global_factor, invert in (
                     ("AccuracyUI", "spread", s.spread_factor, True),
                     ("HandlingUI", "aimtime", s.aim_time_factor, False)):
@@ -3438,25 +3118,10 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_vs_npc_patch(gd: GameData, s: Settings) -> dict:
-    """Wie hart NPCs EINANDER treffen (CharacterWeaponSettings).
+    """Scale NPC-to-NPC, NPC-to-player and NPC-to-friendly CWS damage coefficients.
 
-    `NPCToNPCDamageScaler` steht in Vanilla bei allen 150 CWS-Structs auf
-    0.7 (gemessen 07.09.2026) — Stalker gegen Stalker macht also 70 % des
-    Schadens. Ein Wert, ein Regler; er beruehrt den Spieler nicht.
-    Gefunden beim Durchsehen der Mod "Stalker Unlimited" (Nexus 1453).
-
-    Bewusst OHNE Kaskade: das ist kein Waffengefuehl, sondern eine
-    Weltregel — und sie an einer einzelnen Waffe zu verstellen waere im
-    Tooltip nicht zu erklaeren.
-
-    **1.35.0: der Dreiersatz ist vollstaendig.** Der Schluessel hat zwei
-    Geschwister im selben Struct, und 1.31.0 hatte nur den ersten genommen —
-    aufgefallen ueber den Familien-Waechter und beim Lesen von "Better
-    Ballistics Core" (Nexus 2536). Live gemessen (08.09.2026, je 150x):
-    `NPCToNPCDamageScaler` 0.7, `NPCToPlayerDamageScaler` 1.0,
-    `NPCToFriendlyDamageScaler` 0.3. Der mittlere ist der interessanteste:
-    er entscheidet, wie hart NPC-Kugeln DICH treffen, und zwar unabhaengig
-    vom Schwierigkeitsgrad-Multiplikator, der daneben steht."""
+    These are global relationship-specific multipliers, independent of weapon
+    cascades and difficulty modifiers."""
     keys = (("NPCToNPCDamageScaler", s.npc_vs_npc_damage_factor),
             ("NPCToPlayerDamageScaler", s.npc_vs_player_damage_factor),
             ("NPCToFriendlyDamageScaler", s.npc_vs_friendly_damage_factor))
@@ -3481,12 +3146,9 @@ def _npc_vs_npc_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _zombie_spread_patch(gd: GameData, s: Settings) -> dict:
-    """Streuungs-Aufschlag fuer zombifizierte Stalker (CharacterWeaponSettings).
+    """Scale DispersionRadiusZombieAddend on NPC profiles.
 
-    `DispersionRadiusZombieAddend` steht bei allen 75 NPC-Structs auf 30.0
-    (gemessen 07.09.2026) - ein AUFSCHLAG auf die Streuung, der nur greift,
-    wenn der Schuetze zombifiziert ist. 0 % = Zombies zielen so gut wie
-    normale Stalker. Gefunden in "Stalker Unlimited" (Nexus 1453)."""
+    Zero removes the additional dispersion applied to zombified shooters."""
     if not _neq(s.zombie_spread_factor, 1.0) or s.zombie_spread_factor < 0:
         return {}
     patches: dict = {}
@@ -3503,13 +3165,7 @@ def _zombie_spread_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weapon_noise_patch(gd: GameData, s: Settings) -> dict:
-    """Wie laut eine Waffe ist (CharacterWeaponSettings `FireLoudness`).
-
-    150 Structs, Vanilla 0.6 bis 0.8 (neun stehen auf 0.0 - lautlose
-    Sonderfaelle, die 0 bleiben). Das ist der fehlende Baustein neben den
-    Stealth-Reglern: bisher konnte man einstellen, wie gut NPCs hoeren,
-    aber nicht, wie laut die eigene Waffe ist. 0 % = kein Schuss wird
-    gehoert. Gefunden in "Maklane's Better Zone" (Nexus 241)."""
+    """Scale CWS FireLoudness, preserving already silent profiles."""
     if not _neq(s.weapon_noise_factor, 1.0) or s.weapon_noise_factor < 0:
         return {}
     patches: dict = {}
@@ -3526,18 +3182,10 @@ def _weapon_noise_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _npc_body_patch(gd: GameData, s: Settings) -> dict:
-    """Drei NPC-weite Stellschrauben aus ObjPrototypes (1.32.0).
+    """Adjust object-prototype anomaly avoidance, death impulses and retreat settings.
 
-    - `AnomalyRestrictionsIgnoreChance` (1657 Prototypen, Vanilla 0.1):
-      wie oft ein NPC die Anomalie-Sperre ignoriert und hineinlaeuft.
-      Gedeckelt bei 1.0.
-    - `DeathHitImpulseMultiplier` 2.0 / `DeathVelocityImpulseMultiplier`
-      3.0: mit welcher Wucht ein Koerper beim Sterben wegfliegt.
-    - Rueckzug: `RetreatRadius` (wie weit) und `DamageAccumulatedToRetreat`
-      (wieviel Schaden vorher) - beide stehen teils direkt am Prototyp,
-      teils unter RetreatActionData, darum beide Orte.
-
-    Player und die Basis `[0]` bleiben aussen vor."""
+    Retreat fields may be direct or nested under RetreatActionData.
+    Exclude Player and the [0] base."""
     anomaly = _neq(s.npc_anomaly_ignore_factor, 1.0) and s.npc_anomaly_ignore_factor >= 0
     ragdoll = _neq(s.ragdoll_force_factor, 1.0) and s.ragdoll_force_factor >= 0
     radius = _neq(s.npc_retreat_radius_factor, 1.0) and s.npc_retreat_radius_factor >= 0
@@ -3588,18 +3236,10 @@ def _npc_body_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
-    """WeaponGeneralSetup: Streuung, Rueckstoss, Feuerrate (Kaskade).
+    """Apply weapon setup cascades to explicit values and inherited per-weapon overrides.
 
-    Gepatcht werden Structs, die den Wert SELBST definieren — Erben
-    skalieren ueber den Eltern-Patch automatisch mit. Einzelwaffen-
-    Overrides werden zusaetzlich am eigenen Struct emittiert (Wert via
-    gd.resolve aufgeloest), falls die Waffe den Wert nur erbt.
-
-    Liefert (Basis-Patches, {Edition: Patches}): die Editions-Waffen
-    (Gabion & Co.) haben ihre Setup-Structs in EIGENEN DLC-Dateien —
-    was sie von der Basis erben, deckt der Basis-Patch ab; was sie
-    selbst definieren (und ihre Einzel-Overrides), landet im Patch des
-    jeweiligen DLCGameData-Zweigs."""
+    Return base patches plus edition-specific patches. Inherited edition values
+    follow base patches; explicit edition values stay in their DLC branch."""
     patches: dict = {}
     dlc_patches: dict[str, dict] = {}
     dlc_eds = gd.dlc_weapon_editions()
@@ -3613,13 +3253,9 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
 
     def scale(path: str, param: str, global_factor: float = 1.0,
               invert: bool = False, skip_unchanged: bool = False):
-        """skip_unchanged: Blaetter auslassen, deren Ergebnis gleich
-        Vanilla ist. Gebraucht seit 1.31.0 fuer die Ladehemmung — dort
-        steht MinJamChance bei 91 von 92 Waffen auf 0.0, und 0 x Faktor
-        bleibt 0; ohne den Filter stuenden 91 wirkungslose Zeilen im
-        Patch. Fuer die aelteren Aufrufe bleibt das Verhalten
-        unveraendert (Vorgabe False), damit deren Paks bytegleich
-        bleiben."""
+        """Optionally skip leaves whose scaled result equals vanilla.
+
+        Preserve the default output behavior for existing callers."""
         values = gd.weapon_general_values(path)
         for sid, value in sorted(values.items()):
             f = _weapon_factor(s, gd.weapon_category(sid), sid, param,
@@ -3658,20 +3294,17 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if value > 0:
                 emit(patches, sid, path, value / f if invert else value * f)
 
-    # Patrone in der Kammer (1.32.0): 65 der 92 Waffen geben nach dem
-    # Nachladen eine Zusatzpatrone, 27 nicht. Der Schalter zieht die 27 nach.
+    # Enable the chambered extra round only for weapons that lack it.
     if s.chamber_round:
         for _sid, _node in sorted(gd.weapongeneral.children.items()):
             if "#" in _sid:
                 continue
             _raw = _node.values.get("AdditionalBulletsAfterReloadingCount")
             if _raw is not None and parse_number(_raw) < 1:
-                # Stueckzahl: als Ganzzahl schreiben wie Vanilla ("1", nicht "1.0")
+                # Write counts as integer literals.
                 patches.setdefault(_sid, {})["AdditionalBulletsAfterReloadingCount"] = "1"
 
-    # Munition in der Waffe eines toten NPCs (1.32.0). ⚠ -1 heisst "nicht
-    # gesetzt" und wird uebersprungen (16 bzw. 19 Waffen) - ein Faktor
-    # darauf ergaebe -2 und damit Unsinn.
+    # Skip -1 sentinel values for ammunition remaining on dead NPC weapons.
     if _neq(s.dropped_ammo_factor, 1.0) and s.dropped_ammo_factor >= 0:
         for _sid, _node in sorted(gd.weapongeneral.children.items()):
             if "#" in _sid:
@@ -3687,40 +3320,25 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 if _new != int(_value):
                     patches.setdefault(_sid, {})[_key] = str(_new)
 
-    # Ladehemmung (1.31.0): die Wahrscheinlichkeit selbst, NICHT die
-    # Haltbarkeits-Schwellen, ab denen sie greift (MinJamDurabilityThreshold
-    # 0.75 / MaxJamDurabilityThreshold 0.1 bleiben vanilla — sie sagen, AB
-    # WANN geklemmt wird, und das laesst sich nicht in einen Satz fassen).
-    # "jamchance" steht bewusst NICHT in WEAPON_PARAMS: damit faellt
-    # _weapon_factor immer auf den globalen Regler zurueck (Muster wie
-    # "equiptime" seit 1.29.0).
+    # Scale jam probability independently of durability thresholds.
+    # Jam chance is global rather than a per-weapon cascade parameter.
     scale("MinJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
     scale("MaxJamChance", "jamchance", s.jam_chance_factor, skip_unchanged=True)
 
-    # Erholung nach dem Schuss (1.32.0). Rueckstoss UND Streuung haben je
-    # ein eigenes RadiusNormalizationModifiers-Struct; beide Zeiten werden
-    # INVERS skaliert (200 % = halb so lang, also schnelleres Beruhigen).
-    # Delay steht bei vielen Waffen auf 0.0 und bleibt es (skip_unchanged).
+    # Scale recoil and dispersion recovery times inversely; preserve zero delays.
     for _branch in ("RecoilParams", "DispersionParams"):
         for _key in ("RadiusNormalizationInterval", "RadiusNormalizationDelay"):
             scale(f"{_branch}.ShootingStateParams.RadiusNormalizationModifiers.{_key}",
                   "recoilrecovery", s.recoil_recovery_factor, invert=True,
                   skip_unchanged=True)
 
-    # Streuungs-Aufbau bei Dauerfeuer (1.32.0). ⚠ Nur der DispersionParams-
-    # Zweig: auf der Rueckstoss-Seite stehen ALLE 92 Waffen auf 0.0/0.0/0,
-    # dort gibt es in Vanilla gar keinen Aufbau (gemessen 07.09.2026).
-    # RadiusExtensionBulletCount (ab dem wievielten Schuss) bleibt
-    # unangetastet — das ist eine andere Achse als "wie stark".
+    # Scale sustained-fire dispersion buildup, excluding the zero-valued recoil
+    # branch and its separate shot-count threshold.
     for _key in ("MaxRadiusExtensionModifier", "PerIterationRadiusExtensionModifier"):
         scale(f"DispersionParams.ShootingStateParams.RadiusExtensionModifiers.{_key}",
               "spreadbloom", s.spread_bloom_factor, skip_unchanged=True)
-    # Wie stark Zielen und Ducken die Waffe beruhigen (1.32.0,
-    # experimentell). Vanilla: auf der Rueckstoss-Seite senkt Ducken um
-    # 15 %, auf der Streuungs-Seite nimmt Zielen sie bei 71 Waffen KOMPLETT
-    # weg (-1.0). Der Betrag wird deshalb bei 1.0 gedeckelt — mehr als
-    # "faellt ganz weg" gibt es in den Spieldaten nirgends, und was das
-    # Spiel mit -2.0 taete, weiss niemand.
+    # Scale aim/crouch reductions with magnitude capped at one.
+    # Larger negative values have unverified game behavior.
     if _neq(s.aim_steady_factor, 1.0) and s.aim_steady_factor >= 0:
         for _branch in ("RecoilParams", "DispersionParams"):
             for _key in ("AimModifier", "AimCrouchModifier",
@@ -3732,13 +3350,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                     if _neq(_new, _value):
                         emit(patches, _sid, _path, _new)
 
-    # Hueftfeuer und Bewegung (1.32.0) - dieselbe Familie wie die
-    # Aim-Modifikatoren darueber: unter ShootingStateParams liegen DREI
-    # gleichartige Bloecke (AimModifiers, HipModifiers,
-    # MovementSpeedModifiers), je einmal fuer Rueckstoss und Streuung.
-    # Vanilla: Ducken senkt die Hueft-Streuung um 0.2, Springen hebt sie um
-    # 0.3, und Laufen hebt sie um 0.1 bis 1.0. Betrag wieder auf 1.0
-    # gedeckelt - mehr kommt in den Spieldaten nirgends vor.
+    # Scale hip-fire and movement-state modifiers in recoil and dispersion
+    # branches, capping magnitude at one.
     for _factor, _keys, _group in (
             (s.hip_steady_factor,
              ("HipModifier", "HipCrouchModifier", "HipFullCrouchModifier",
@@ -3756,44 +3369,28 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                     if _neq(_new, _value):
                         emit(patches, _sid, _path, _new)
 
-    # Pause, nach der das Rueckstossmuster von vorn beginnt (Vanilla 0.3 s,
-    # 18 Waffen 1.0, zwei 5.0). Die RICHTUNG des Musters steckt in einem
-    # IoStore-Asset und bleibt unerreichbar - nur diese Pause ist cfg-seitig.
+    # Adjust the cfg recoil-pattern reset delay; pattern directions remain in assets.
     scale("RecoilParams.RecoilPatternInterval", "recoilpattern",
           s.recoil_pattern_factor, skip_unchanged=True)
 
     scale("DispersionParams.FirstShotDispersionRadius", "spread",
           s.spread_factor)
     scale("RecoilParams.RecoilRadius", "recoil", s.recoil_factor)
-    # Feuerrate: Faktor 2 = doppelt so schnell -> Intervalle halbieren;
-    # RecoilInterval synchron, sonst laufen Rueckstoss und Schuss auseinander
+    # Scale firing and recoil intervals inversely together to keep their timing aligned.
     scale("FireInterval", "firerate", invert=True)
     scale("RecoilInterval", "firerate", invert=True)
     scale("AimingMovementSpeedModifier", "adsspeed", s.ads_speed_factor)
-    # Ziel-Geschwindigkeit: Faktor 2 = doppelt so schnell im Ziel ->
-    # Zeiten halbieren (Nexus-Wunsch "change ADS speed"; der aeltere
-    # adsspeed-Regler ist nur das BEWEGUNGSTEMPO waehrend des Zielens)
+    # Scale aim transition times inversely; ADS movement speed is a separate control.
     for key in WEAPON_AIMTIME_KEYS:
         scale(key, "aimtime", s.aim_time_factor, invert=True)
-    # 1.29.0: Waffe ziehen und wegstecken (ShowEquipmentTime /
-    # HideEquipmentTime, Vanilla je 1.0 an allen 92 Basis- und 11
-    # Editions-Waffen). Zeit / Faktor wie beim Nachladen; anders als der
-    # Nachlade-Regler nimmt dieser die Editions-Waffen mit, weil sie den
-    # Schluessel selbst tragen und sonst spuerbar anders waeren.
-    # "equiptime" ist KEIN Kaskaden-Parameter (nicht in WEAPON_PARAMS) -
-    # _weapon_factor faellt damit immer auf den globalen Regler zurueck.
+    # Scale draw/holster times inversely for base and edition setups.
+    # This option uses the global factor rather than the weapon cascade.
     for key in ("ShowEquipmentTime", "HideEquipmentTime"):
         scale(key, "equiptime", s.equip_speed_factor, invert=True)
 
-    # 1.29.0: uebersprungene Schuss-Animationen. Der Schluessel steht an
-    # allen 92 Basis- und 11 Editions-Waffen auf 0 und ist der einzige
-    # cfg-Hebel, der ueberhaupt etwas mit dem Anim-Timing beim Schiessen zu
-    # tun hat (eine Suche ueber ALLE cfg nach PlayRate/RateScale/Anim*Speed
-    # ergab fuer Waffen nichts - Tempo und Ton liegen in gekochten Assets).
-    # Absolutwert und ganzzahlig; weil Vanilla 0 ist, liefert
-    # weapon_general_values() hier nichts und die Structs werden direkt
-    # durchlaufen. Wirkung im Spiel voellig offen - Deutung nur aus dem
-    # Schluesselnamen.
+    # Write the experimental integer firing-animation-skip value directly.
+    # Its baseline is zero and its in-game effect is unverified; this does not
+    # rescale cooked animation or audio assets.
     if int(s.shooting_anim_skip) != 0:
         wanted = str(max(0, int(s.shooting_anim_skip)))
         key = "ShootingAnimationNumberToSkip"
@@ -3814,10 +3411,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                     continue
                 dlc_patches.setdefault(ed, {}).setdefault(sid, {})[key] = wanted
 
-    # ADS-Zoom (06.09.2026, Nexus 'No zoom while aiming' / 'Zoom in when
-    # aiming'): AimingFOVModifier < 1 = Zoom beim Zielen (0.92/0.88/0.83).
-    # Faktor auf den ABSTAND zu 1.0: 0 = kein Zoom, 2 = doppelter Zoom;
-    # Deckel 0.2, damit das Bild nie kippt. OffsetAiming genauso.
+    # Scale ADS FOV's distance from 1.0, including offset aiming.
+    # Zero removes zoom; clamp FOV multiplier to at least 0.2.
     if _neq(s.ads_zoom_factor, 1.0) and s.ads_zoom_factor >= 0:
         for key in ("AimingFOVModifier", "OffsetAimingFOVModifier"):
             for sid, value in sorted(gd.weapon_general_values(key).items()):
@@ -3829,10 +3424,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 if _neq(new, value):
                     dlc_patches.setdefault(ed, {}).setdefault(sid, {})[key] = _num(new)
 
-    # Magazingroesse an der WAFFE (Basiswert ohne Magazin-Aufsatz): ganzzahlig,
-    # seit 03.09. der 10. Kaskaden-Parameter (Nexus-Wunsch Qfander): Einzel-
-    # waffe > Kategorie > globaler Regler, wie scale() - nur mit Ganzzahl-
-    # Rundung und ohne Division, darum eigene Schleife.
+    # Scale base weapon magazine capacity through individual/category/global
+    # precedence, retaining integer counts.
     mag_values = gd.weapon_general_values("MaxAmmo")
     mag_dlc = gd.dlc_weapon_general_values("MaxAmmo")
     for sid, value in sorted(mag_values.items()):
@@ -3852,9 +3445,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         if scaled_int != int(value):
             dlc_patches.setdefault(ed, {}).setdefault(sid, {})[
                 "MaxAmmo"] = str(scaled_int)
-    # Einzelwaffen-Override auf einer Waffe, die MaxAmmo nur ERBT: am
-    # eigenen Struct emittieren (Wert aufgeloest), sonst traefe der
-    # Template-Patch die ganze Kategorie.
+    # Emit inherited per-weapon capacity overrides on the weapon itself so
+    # other template children remain unaffected.
     mag_dlc_defined = {sid for _ed, sid in mag_dlc}
     for sid, params in sorted(s.weapon_overrides.items()):
         f = params.get("magazine")
@@ -3873,29 +3465,17 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         bucket = dlc_patches.setdefault(ed, {}) if ed is not None else patches
         bucket.setdefault(sid, {})["MaxAmmo"] = str(scaled_int)
 
-    # Kaliberwechsel (GitHub Issue #6, Molkerr): AmmoCaliber umsetzen und
-    # die Projektile der bestehenden Sorten-Slots auf das neue Kaliber
-    # umbiegen.
-    #
-    # Bewusst werden NUR vorhandene Slots umgeschrieben, nie welche
-    # angelegt oder entfernt. Ob {bpatch} ein Array verlaengern kann, ist
-    # im Projekt nie im Spiel geprueft worden (docs/SPEC.md fuehrt es als
-    # offene Frage) — und es waere auch nicht noetig: eine Waffe behaelt
-    # einfach so viele Munitionssorten, wie sie vorher hatte.
-    #
-    # Die Sorte wird pro Index AUS DEN DATEN gelesen, nie aus der
-    # Position geschlossen: sechs Scharfschuetzengewehre haben auf [0]
-    # Supersonic statt Default. Kennt das Zielkaliber die Sorte nicht,
-    # bekommt der Slot dessen Default-Projektil — so entsteht nie ein
-    # Slot, der ins Leere zeigt.
+    # Update caliber and projectiles only in existing ammunition slots.
+    # Read each slot's type from data; indices do not imply types. If the target
+    # caliber lacks a type, use its Default projectile. Do not resize the array.
     caliber_tables = swappable_calibers(gd) if s.weapon_calibers else {}
     for sid, wanted in sorted(s.weapon_calibers.items()):
         table = caliber_tables.get(wanted)
         if table is None:
-            continue                      # unbekanntes/gesperrtes Kaliber
+            continue                      # Unknown or blocked caliber.
         ed = dlc_eds.get(sid)
         if gd.weapon_caliber(sid, ed) == wanted:
-            continue                      # Vanilla — kein Patch (_neq-Regel)
+            continue                      # Vanilla value: emit no patch.
         slots = gd.weapon_ammo_slots(sid, ed)
         if not slots:
             continue
@@ -3912,12 +3492,9 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for key, value in node.items():
             existing = bucket.setdefault(sid, {})
             existing[key] = value
-    # 1.26.0: Nachladegeschwindigkeit (stalker-world 'schnelleres Nachladen',
-    # die Felder aus dem offiziellen Weapon-Animation-Guide) - alle
-    # *ReloadTimeMultiplier direkt am Struct und je Magazin-Aufsatz, Zeit /
-    # Faktor - und Klemmer-Beseitigung (WeaponJamParams.FullJamTime, Zeit /
-    # Faktor). Nur selbst definierte Werte der Basisdatei; die Editions-
-    # Waffen im DLC-Zweig behalten Vanilla. Wirkung im Spiel offen.
+    # Scale explicit base-file reload multipliers and jam-clear times inversely.
+    # Edition-specific reload values remain unchanged; gameplay/animation sync
+    # is not established by this cfg change.
     reload_on = _neq(s.reload_speed_factor, 1.0) and s.reload_speed_factor > 0
     jam_on = _neq(s.jam_clear_factor, 1.0) and s.jam_clear_factor > 0
     jam_chance_on = _neq(s.jam_chance_factor, 1.0) and s.jam_chance_factor >= 0
@@ -3942,13 +3519,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                             rows[idx] = row
                     if rows:
                         cfg["WeaponReloadTimePerAttachment"] = rows
-            # WeaponJamParams.[i] traegt GENAU zwei Schluessel: JamChanceCoef
-            # (wie wahrscheinlich es klemmt) und FullJamTime (wie lange das
-            # Beseitigen dauert). Bis 1.31.0 schrieb der Klemmer-Regler nur
-            # FullJamTime hinein - ein HALBER Array-Eintrag. Sollte {bpatch}
-            # Array-Eintraege ersetzen statt zusammenzufuehren (docs/SPEC.md
-            # par. 0, offene Frage), haette das den Klemm-Koeffizienten still
-            # geloescht. Beide Regler geben den Eintrag jetzt KOMPLETT aus.
+            # Emit both JamChanceCoef and FullJamTime for each indexed jam entry,
+            # so possible array replacement cannot erase its sibling field.
             if jam_on or jam_chance_on:
                 table = node.children.get("WeaponJamParams")
                 if table is not None:
@@ -3967,7 +3539,7 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                             row["JamChanceCoef"] = (
                                 _num(value * s.jam_chance_factor)
                                 if jam_chance_on and value > 0 else coef_raw.strip())
-                        # Nur schreiben, wenn sich wirklich etwas aendert
+                        # Emit only actual changes.
                         if row and any(
                                 row.get(k) != (entry.values.get(k) or "").strip()
                                 for k in row):
@@ -3984,7 +3556,7 @@ def _weight_params_patch(gd: GameData, s: Settings) -> dict:
     ps = min(s.penalty_start_weight, m - 1.0)
     if not _neq(m, VANILLA_MAX_CARRY) and not _neq(ps, VANILLA_PENALTY_START):
         return {}
-    # Stufen zwischen Malus-Start und Maximum verteilen (Vanilla: 50/60/70/80)
+    # Space penalty thresholds between their start and maximum.
     t1 = ps + (m - ps) / 3.0
     t2 = ps + 2.0 * (m - ps) / 3.0
     thresholds = {
@@ -4029,9 +3601,7 @@ def _weight_params_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _effect_max_patch(gd: GameData, s: Settings) -> dict:
-    """ObjEffectMaxParams: Tragegewicht-Deckel (seit je) und seit 1.26.0 die
-    Schutz-Deckel (ap-pro 'Max Stats Patch'): alles, was Ruestung und
-    Artefakte ueber 90 % (Strike 4.5) geben, verpufft in Vanilla."""
+    """Adjust ObjEffectMaxParams carry-weight and protection caps."""
     entries: dict = {}
     if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):
         scale = s.max_carry_weight / VANILLA_MAX_CARRY
@@ -4056,11 +3626,7 @@ def _effect_max_patch(gd: GameData, s: Settings) -> dict:
                 continue
             suffix = "f" if raw.strip().endswith(("f", "F")) else ""
             entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
-    # 1.33.0: die zwei restlichen Deckel. Die Liste hat genau zehn Eintraege
-    # (gemessen): sechs Schutzwerte (oben), PenaltyLessWeight 90 und
-    # AdditionalInventoryWeight 140 (haengen am Traglast-Regler) - und diese
-    # beiden hier, die bisher an keinem Regler hingen. "More Uncapped"
-    # (Nexus 858) nimmt alle zehn mal zehn.
+    # Include the remaining effect caps alongside protection and carry-weight limits.
     if _neq(s.effect_cap_other_factor, 1.0) and s.effect_cap_other_factor > 0:
         root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
         values = root.children.get("MaxEffectValues") if root is not None else None
@@ -4084,11 +3650,7 @@ def _effect_max_patch(gd: GameData, s: Settings) -> dict:
 
 def _effects_patch(gd: GameData, s: Settings) -> dict:
     patches: dict = {}
-    # 1.26.0: Kolbenschlag-Abnutzung (ButtStroke_Corrosion, 5 Haltbarkeit je
-    # Schlag x Faktor), Wachen-Insta-Kill (KillVolumeEffect: die drei Zusatz-
-    # Effekte leeren, sdwvit NoInstaGibByGuards), Psy-Phantome statt echter
-    # Stalker (sdwvit NoPsyStalkerSpawns), Teleports ohne Blende (sdwvit
-    # InstaTeleports), Klicker-Blendschaden (sdwvit FlashbangAnomalyNerf).
+    # Weapon-butt wear, guard kill effects, psy spawns, teleport fades and clicker damage.
     if _neq(s.butt_wear_factor, 1.0) and s.butt_wear_factor >= 0:
         node = gd.effects.children.get("ButtStroke_Corrosion")
         if node is not None:
@@ -4101,15 +3663,8 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                         cfg[key] = scaled
             if cfg:
                 patches["ButtStroke_Corrosion"] = cfg
-    # 1.33.0: Ausruestungs-Verschleiss in Anomalien. Gefunden beim
-    # Gegenlesen von "Better Durability 3.0" (Nexus 1695), die genau diese
-    # Familie durch 4 teilt. Gemessen 07.09.2026: die Effekt-Typen
-    # `Corrosion` und `VelocityCorrosion` bilden fuenf Anomalie-Saetze
-    # (Burning/Carousel/Chemical/Clicker/Electro, dazu die Prolog-Variante)
-    # mit je einem Eintrag fuer Body/Head/Pistol/Weapon/SecWeapon, Werte
-    # 0.2 bis 25 Haltbarkeit je Treffer. Die gleichnamigen Composite-Eltern
-    # stehen auf 0.f und bleiben unberuehrt (Wert 0). ButtStroke_Corrosion
-    # gehoert dem eigenen Kolbenschlag-Regler und wird hier ausgelassen.
+    # Scale anomaly Corrosion/VelocityCorrosion equipment effects.
+    # Preserve zero composite parents and the separate weapon-butt wear effect.
     if _neq(s.anomaly_wear_factor, 1.0) and s.anomaly_wear_factor >= 0:
         for sid, node in gd.effects.children.items():
             if sid == "ButtStroke_Corrosion" or "#" in sid:
@@ -4127,15 +3682,8 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = scaled
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
-    # 1.35.0: Kamera-Bremsen. Gemessen 08.09.2026 - die Typen
-    # `TurnRateChangeYaw`/`TurnRateChangePitch` gibt es GENAU sechsmal mit
-    # Wirkung: Chemie-Anomalie -0.6, Stacheldraht -0.8, Fliegenfaenger -0.7,
-    # je Yaw und Pitch. Die zwei Wasser-Effekte stehen auf 0% und bleiben es.
-    # Bewusst NICHT dabei: die zwei `Concussion`-Effekte (1.0 und 25.0) -
-    # das sind keine Prozentwerte, ihre Einheit ist unbekannt, und der
-    # Blutsauger-Schrei ueber einen "Kamera"-Regler zu verstellen waere
-    # geraten. Der Betrag ist bei 1.0 gedeckelt: mehr als "Blick steht
-    # still" gibt es in den Spieldaten nirgends.
+    # Scale percentage yaw/pitch slowing effects with magnitude capped at one.
+    # Exclude Concussion effects with unknown units and preserve zero water effects.
     if _neq(s.camera_slowdown_factor, 1.0) and s.camera_slowdown_factor >= 0:
         for sid, node in gd.effects.children.items():
             if "#" in sid:
@@ -4149,9 +3697,7 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                 value = parse_number(raw) if raw is not None else 0.0
                 if raw is None or value == 0:
                     continue
-                # Betrags-Deckel: die Werte sind NEGATIV (-0.6 bis -0.8), und
-                # `cap` in _scale_literal deckelt nur nach oben. Mehr als
-                # "Blick steht still" (-1.0) kommt in den Daten nicht vor.
+                # Clamp negative magnitude explicitly; _scale_literal's cap only limits upward values.
                 factor = s.camera_slowdown_factor
                 if abs(value * factor) > 1.0:
                     factor = 1.0 / abs(value)
@@ -4206,8 +3752,7 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
             if sid in gd.effects.children:
                 patches[sid] = {"ValueMin": "0%", "ValueMax": "0%"}
 
-    # Artefakt-Effekte: alle Artifact*-Structs sind ein sauberer Namensraum.
-    # Strahlung (ArtifactAddRadiation*) hat einen eigenen Regler.
+    # Artifact effects use their own namespace; radiation has a separate control.
     effect_on = _neq(s.artifact_effect_factor, 1.0)
     radiation_on = _neq(s.artifact_radiation_factor, 1.0)
     carry_on = _neq(s.armor_carry_bonus_factor, 1.0)
@@ -4222,7 +3767,7 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                 continue
         elif (carry_on and node.values.get("Type")
                 == "EEffectType::AdditionalInventoryWeight"):
-            # Exo-/Ruestungs-/Upgrade-Tragegewicht-Boni (Artefakte oben)
+            # Exoskeleton/armor/upgrade carry-weight bonuses; artifacts handled above.
             factor = s.armor_carry_bonus_factor
         else:
             continue
@@ -4239,7 +3784,7 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
         if cfg:
             patches[sid] = cfg
 
-    # Anomalie-Schaden je Element-Typ (SID-Sets verifiziert, Werte live)
+    # Anomaly damage per element (verified SID sets, live values).
     anomaly_factors = {
         "electro": s.anomaly_electro_factor,
         "chemical": s.anomaly_chemical_factor,
@@ -4264,12 +3809,8 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
 
-    # Consumable-Staerke (dynamische Whitelist ueber Item-Referenzen + Typ).
-    # Der Heil-Regler stapelt MULTIPLIKATIV auf den Health-Effekten
-    # medizinischer Items (Medkits/Verbaende, live erkannt) — beide auf
-    # 200 % ergibt also x4 Heilung; Essen/Getraenke sieht nur den
-    # Consumable-Faktor. Ein Effekt wird genau EINMAL mit dem kombinierten
-    # Faktor emittiert, es entstehen keine doppelten Patch-Zeilen.
+    # Compose consumable strength and medical-healing factors multiplicatively
+    # for positive medical Health effects, emitting each effect once.
     if _neq(s.consumable_factor, 1.0) or _neq(s.healing_factor, 1.0):
         healing_sids = gd.medical_healing_effects()
         for sid, node in sorted(gd.consumable_effects().items()):
@@ -4288,11 +3829,8 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
                     cfg[key] = scaled
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
-    # Wirkdauer von Verbrauchsguetern (Nexus-Trend seit 2.0, "Increased
-    # Consumable Duration"): nur LAUFENDE Effekte (Duration >= 10 s -
-    # Energydrink 45 s, Hercules 300 s, Zimt 180 s, PSY-Blocker 60 s ...).
-    # Sofort-Effekte (Heilung/Blutstopp/Antirad ueber 1-2 s) bleiben, sonst
-    # wuerde ein Medkit langsamer heilen statt laenger zu wirken.
+    # Extend ongoing consumable effects without slowing short healing,
+    # bleeding-stop or radiation-removal effects.
     if (_neq(s.consumable_duration_factor, 1.0)
             and s.consumable_duration_factor > 0):
         for sid, raw in sorted(gd.consumable_duration_effects().items()):
@@ -4300,13 +3838,8 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None and scaled != raw.strip():
                 patches.setdefault(sid, {})["Duration"] = scaled
 
-    # Rueckstoss-Reduktion aus Upgrades/Aufsaetzen (Community-Weg der
-    # Nexus-Mod "Dead Steady" 2478, auf Patch 2.0 bestaetigt): alle Effekte
-    # vom Typ Recoil mit NEGATIVEM Wert (= senken den Rueckstoss, Vanilla
-    # -5 % .. -30 %, inkl. Scope-Varianten) werden skaliert, Deckel bei
-    # -100 %. Positive Recoil-Effekte (Munitionsumbauten, Muedigkeit)
-    # bleiben unangetastet. Greift nur bei Waffen, in denen ein solches
-    # Upgrade/Attachment steckt - Tooltip und FAQ sagen das ehrlich.
+    # Scale beneficial negative recoil effects from upgrades/attachments, capped
+    # at -100%. Preserve positive recoil penalties.
     if _neq(s.recoil_upgrade_factor, 1.0) and s.recoil_upgrade_factor > 0:
         for sid, node in gd.effects.children.items():
             if "#" in sid or node.values.get("Type") != "EEffectType::Recoil":
@@ -4332,19 +3865,13 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _floatprovider_patch(gd: GameData, s: Settings) -> dict:
-    """Scope-Sway ueber den Konstant-Provider regeln (Bugfix).
+    """Scale the scope-sway constant while preserving its provider chain.
 
-    Vanilla speist ScopeIdleSwayValue = ScopeIdleSwayConstValue x
-    (1 - OffsetAimAlpha) die Sway-Effekte pro Tick und blendet den Daempfer
-    beim Offset-Aiming (seitliches Zielen am ZF vorbei) auf 0 aus. Ein Patch
-    direkt an den Effekten (ValueProviderSID=Empty) legte diese Ausblendung
-    still -- die Offset-Aim-Animation blieb aus (Nexus-Bugreport).
-    Hier wird nur die Konstante skaliert; die Provider-Kette bleibt intakt.
-    """
+    ScopeIdleSwayValue includes (1 - OffsetAimAlpha); bypassing that provider
+    breaks offset-aim attenuation and animation behavior."""
     if not _neq(s.scope_sway_pct, 100):
         return {}
-    # Vanilla-Konstante -0.2 = -20 % Sway im ZF; 100 % = Vanilla, 0 % = -1.0
-    # (kein Sway). Dazwischen linear auf dem Rest-Sway (1 + Konstante).
+    # Interpolate remaining sway via 1 + constant; zero sway corresponds to -1.0.
     vanilla = parse_number(
         gd.resolve(gd.floatproviders, "ScopeIdleSwayConstValue", "Value"), -0.2)
     value = -(1.0 - (1.0 + vanilla) * s.scope_sway_pct / 100.0)
@@ -4367,10 +3894,9 @@ def _holdbreath_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _saveload_patch(gd: GameData, s: Settings) -> dict:
-    """SaveLoadVariables (unbinarisiert wie CoreVariables): SavesLimit je
-    Speichertyp (Vanilla Manual 31 / Quick 3 / Auto 10; 0 = unbegrenzt).
-    Nexus "Bode's Unlimited Saves", Recherche 05.09.2026. Live gelesen,
-    nur Abweichungen geschrieben."""
+    """Set SaveLoadVariables limits by save type, emitting live-baseline differences.
+
+    Zero means unlimited."""
     node = gd.saveload.children.get("DefaultConfig")
     limits = node.children.get("SavesLimit") if node else None
     if limits is None:
@@ -4386,8 +3912,8 @@ def _saveload_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _autosave_patch(gd: GameData, s: Settings) -> dict:
-    """AutoSaveVariables (unbinarisiert): AutoSaveIntervalTime in Sekunden
-    (Vanilla 600 = 10 min). Der Regler arbeitet in Minuten."""
+    """Unbinarized AutoSaveVariables: AutoSaveIntervalTime in seconds.
+    Vanilla is 600 seconds (10 minutes); the slider uses minutes."""
     node = gd.autosave.children.get("DefaultConfig")
     raw = node.values.get("AutoSaveIntervalTime") if node else None
     if raw is None or s.autosave_interval_min <= 0:
@@ -4399,10 +3925,9 @@ def _autosave_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quicksave_patch(gd: GameData, s: Settings) -> dict:
-    """QuickSaveVariables (unbinarisiert, 1.28.0): QuickSaveOverwriteTime in
-    Sekunden (Vanilla 300 = 5 min) - so lange ueberschreibt ein neuer
-    Schnellspeicher denselben Slot. Regler in Minuten, 0 = jeder
-    Schnellspeicher bekommt einen eigenen Slot; ganzzahlig, live verglichen."""
+    """Set the quicksave overwrite window from minutes to integer seconds.
+
+    Zero gives each quicksave a separate slot."""
     node = gd.quicksave.children.get("DefaultConfig")
     raw = node.values.get("QuickSaveOverwriteTime") if node else None
     if raw is None or s.quicksave_overwrite_min < 0:
@@ -4414,12 +3939,9 @@ def _quicksave_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _corevars_custom_patch(gd: GameData, core: dict) -> dict:
-    """Versicherung fuer die zweite Kern-Datei (1.28.0, docs/CORE_SWEEP_RESEARCH.md
-    par. 0): CoreVariablesCustom.cfg / CustomConfigOverride wiederholt vier
-    DefaultConfig-Schluessel mit identischen Werten. Ob der Override nach
-    DefaultConfig greift, ist unbekannt - darum bekommt er dieselben Werte,
-    sobald der CoreVariables-Patch einen dieser Schluessel enthaelt (nur
-    Schluessel, die dort live stehen). Harmlos, falls er nie greift."""
+    """Mirror changed CoreVariables keys into existing CoreVariablesCustom overrides.
+
+    Their load precedence is unverified; mirror only keys actually present."""
     wanted = {k: v for k, v in (core.get("DefaultConfig") or {}).items()
               if k in COREVARS_CUSTOM_KEYS}
     if not wanted:
@@ -4432,10 +3954,9 @@ def _corevars_custom_patch(gd: GameData, core: dict) -> dict:
 
 
 def _enemy_evaluator_patch(gd: GameData, s: Settings) -> dict:
-    """EnemyEvaluatorPrototypes (1.28.0 P3, docs/CORE_SWEEP_RESEARCH.md par. 2.5):
-    das einzige Struct [0] (SID empty) wird als '[0] : struct.begin {bpatch}'
-    gepatcht (Muster IgnoreEquippedWeight in _items_patch). NotPlayerCoeff:
-    Vorzeichen unbewiesen - experimentell, der Tooltip sagt es."""
+    """Patch the indexed NPC target evaluator.
+
+    NotPlayerCoeff direction remains experimental."""
     node = gd.enemyevaluators.children.get("[0]")
     if node is None:
         return {}
@@ -4455,12 +3976,9 @@ def _enemy_evaluator_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _cover_evaluator_patch(gd: GameData, s: Settings) -> dict:
-    """CoverEvaluatorPrototypes (1.28.0 P3, par. 2.5): NUR DefaultCoverEvaluator
-    (CoverEvaluatorSID an 1605 NPC-Objekten). Boss/Strelok/Scar/Korshunov
-    stehen auf der Tabu-Liste; Attack/Zombie/DLC01_ZulusMate/Default/
-    LeaveCrossfire deklarieren alles selbst, haengen an keinem Objekt und
-    bleiben ebenfalls unangetastet. Min <= Max bleibt gewahrt, MaxPathLength
-    bleibt ganzzahlig."""
+    """Patch DefaultCoverEvaluator only, preserving boss and unused specialized profiles.
+
+    Keep ordered bounds and integral MaxPathLength."""
     node = gd.coverevaluators.children.get("DefaultCoverEvaluator")
     if node is None:
         return {}
@@ -4484,7 +4002,7 @@ def _cover_evaluator_patch(gd: GameData, s: Settings) -> dict:
         raw = node.values.get("MaxPathLength")
         if raw is not None and parse_number(raw) > 0:
             core = raw.strip()
-            if core.lstrip("-").isdigit():           # 2000 bleibt ganzzahlig
+            if core.lstrip("-").isdigit():           # Keep 2000 integral.
                 cfg["MaxPathLength"] = str(max(1, int(round(int(core) * s.cover_path_factor))))
             else:
                 scaled = _scale_literal(raw, s.cover_path_factor)
@@ -4510,11 +4028,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     if s.no_overweight_penalty:
         cfg["InventorySPOverweightDrainCoef"] = "0.0"
 
-    # 1.35.0: Blicktempo. Dieselben zwei Schluessel stehen am Player-Struct
-    # (40/30) und hier (50.0/30.0) - welchen das Spiel benutzt, ist unbewiesen,
-    # also werden beide mit demselben Faktor skaliert. Die fuenfte Recherche
-    # hatte sie mit "dafuer gibt es einen Menuepunkt" verworfen; das Menue hat
-    # aber nur EINE Empfindlichkeit und kann das Verhaeltnis nicht aendern.
+    # Scale look rates in both core and Player data because their precedence is unverified.
     for key, factor, fallback in (("BaseTurnRate", s.look_speed_h_factor, 50.0),
                                   ("BaseLookUpRate", s.look_speed_v_factor, 30.0)):
         if _neq(factor, 1.0) and factor > 0:
@@ -4522,9 +4036,9 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if vanilla > 0:
                 cfg[key] = _num(vanilla * factor)
 
-    # Tageslaenge (Nexus-Dauerbrenner "Longer Days"): RealToGameTimeCoef =
-    # Spielsekunden je Echtsekunde (Vanilla 24 = ein Spieltag pro Echtstunde).
-    # Faktor 2 = halber Koeffizient = doppelt so langer Tag.
+    # Day length: RealToGameTimeCoef =
+    # Game seconds per real second; vanilla 24 means one game day per real hour.
+    # Factor 2 halves the coefficient and doubles the day length.
     if _neq(s.day_length_factor, 1.0) and s.day_length_factor > 0:
         vanilla = gd.corevar("RealToGameTimeCoef", 24.0)
         value = vanilla / s.day_length_factor
@@ -4532,32 +4046,25 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                                      if abs(value - round(value)) < 1e-9
                                      else _num(value))
 
-    # Interaktions-Reichweite (Recherche 05.09.2026): allgemeine
-    # Interaktionsdistanz (Aufheben, Tueren) und Behaelter/Verstecke,
-    # Vanilla je 200 cm. Leichen haengen am Player (ObjPrototypes).
+    # Adjust general and container interaction distances; corpse distance is on Player.
     if _neq(s.interaction_range_factor, 1.0) and s.interaction_range_factor > 0:
         for key in ("MaxInteractionDistance", "ItemContainerInteractRange"):
             vanilla = gd.corevar(key, 200.0)
             if vanilla > 0:
                 cfg[key] = _num(vanilla * s.interaction_range_factor)
 
-    # Sichtfeld (06.09.2026): CutsceneFOVDefault 90, FOVDefault 90 -
-    # Absolutwerte, live verglichen. DialogFOVDefault stand hier bis 1.35.0
-    # mit dabei und ist zurueckgezogen: im Spiel ohne Wirkung (GitHub #10).
-    # Die zwei uebrigen sind unverifiziert und sitzen im selben Struct.
+    # Set default gameplay/cutscene FOV targets. These remain unverified;
+    # retired DialogFOVDefault has no emitted patch.
     for key, wanted in (("CutsceneFOVDefault", s.cutscene_fov),
                         ("FOVDefault", s.default_fov)):
         live = gd.corevar(key, 0.0)
         if live > 0 and _neq(wanted, live):
             cfg[key] = _num(wanted)
 
-    # Leichen (06.09.2026, Nexus 'Corpse Despawn Time Increased'): die fuenf
-    # Zeiten skalieren (Literalform bleibt: 6000 -> 12000, 1800.0 -> 3600.0),
-    # Hoechstzahl Leichen um den Spieler als Absolutwert.
+    # Scale corpse timers while preserving literal format; set the nearby corpse cap absolutely.
     if _neq(s.corpse_time_factor, 1.0) and s.corpse_time_factor > 0:
         node = gd.corevars.children.get("DefaultConfig")
-        # 1.28.0 P5 (par. 1.4): CorpseOffscreenLifetime (3.0 s nach dem Blick
-        # weg) und CorpseDespawnToOfflineTimeCoef (0.5) skalieren mit
+        # Include offscreen lifetime and the despawn-to-offline time coefficient.
         for key in ("CorpseOnlineTime", "CorpseSeenOnlineTime", "CorpseLootedOnlineTime",
                     "CorpseALifeOnlineTime", "CorpseTimeout",
                     "CorpseOffscreenLifetime", "CorpseDespawnToOfflineTimeCoef"):
@@ -4565,7 +4072,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if raw is None or parse_number(raw) <= 0:
                 continue
             core = raw.strip().rstrip(";").strip()
-            if core.lstrip("-").isdigit():          # 6000 bleibt ganzzahlig
+            if core.lstrip("-").isdigit():          # Keep 6000 integral.
                 cfg[key] = str(int(round(int(core) * s.corpse_time_factor)))
             else:
                 scaled = _scale_literal(raw, s.corpse_time_factor)
@@ -4575,13 +4082,13 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     if live_max > 0 and int(s.corpse_max_count) != int(live_max):
         cfg["CorpseConditionOnlineCount"] = str(max(1, int(s.corpse_max_count)))
 
-    # Startgeld (06.09.2026): PlayerStartingMoney, Vanilla 0, nur neues Spiel.
+    # Starting money applies only to new games.
     if int(s.starting_money) != int(gd.corevar("PlayerStartingMoney", 0.0)):
         cfg["PlayerStartingMoney"] = str(max(0, int(s.starting_money)))
 
-    # NPC-Taschenlampen im Kampf (Recherche 05.09.2026): Nutzungschance je
-    # Rang, Vanilla Newbie 1 / Experienced 0.75 / Veteran 0.5 / Master 0.25,
-    # Deckel 1.0; Faktor 0 = nie.
+    # NPC flashlights in combat: use probability per
+    # Rank: Newbie 1 / Experienced 0.75 / Veteran 0.5 / Master 0.25.
+    # Cap 1.0; factor 0 means never.
     if _neq(s.npc_flashlight_combat_factor, 1.0) and s.npc_flashlight_combat_factor >= 0:
         node = gd.corevars.children.get("DefaultConfig")
         chance = node.children.get("FlashlightCombatUseChance") if node else None
@@ -4594,13 +4101,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if ranks:
                 cfg["FlashlightCombatUseChance"] = ranks
 
-    # 1.26.0 (Ace's CoreVariables-Liste, Shay's Distant Horizons): gerade
-    # nach unten (ViewPitchDownLimit -80 -> -90, im Spiel bestaetigt durch
-    # craigduk76 auf 1.35.0), Zoom mit leeren Haenden (HandlessFOVAimModifier
-    # 0.8, kleiner = mehr Zoom, Deckel 0.2..1.0) und die Sichtweite des
-    # A-Life-Rasters (8500 / 7500 cm). "Auf Leitern umschauen"
-    # (ClimbViewYaw/PitchLimit) stand bis 1.35.0 hier und ist
-    # zurueckgezogen: dieselbe Pak, dasselbe Struct, keine Wirkung (GitHub #11).
+    # Adjust downward view limit, unarmed zoom and A-Life grid distances.
+    # Retired climbing-view limits remain excluded after issue #11's game report.
     if s.look_straight_down:
         live = gd.corevar("ViewPitchDownLimit", 0.0)
         if live != 0 and _neq(live, -90.0):
@@ -4617,8 +4119,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if live > 0:
                 cfg[key] = _num(live * s.alife_vision_factor)
 
-    # 1.27.0 (Schluessel-Sweep): Absolutwerte werden live verglichen,
-    # Faktoren ueber _scale_literal (Suffix f bleibt).
+    # Compare absolute targets live; scale factors with suffix-preserving helpers.
     node = gd.corevars.children.get("DefaultConfig")
     raw_of = (lambda key: node.values.get(key) if node is not None else None)
     live = gd.corevar("SlowRunThreshold", -1.0)
@@ -4674,10 +4175,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if raw is not None and parse_number(raw) > 0:
                 cfg[key] = "0.f"
 
-    # 1.28.0 P1 (Kern-Sweep, docs/CORE_SWEEP_RESEARCH.md par. 1.1): Humpeln
-    # nach harter Landung - Array-Eintraege KOMPLETT ausgeben (EffectSID +
-    # Threshold, Muster StaminaRegenStateCoefs); der Schalter setzt beide
-    # Schwellen auf Vanilla x 1000 und schlaegt den Faktor.
+    # Emit complete hard-landing threshold entries. The disable option takes
+    # precedence over the factor by raising vanilla thresholds substantially.
     limp_factor = 1000.0 if s.no_landing_limp else s.limp_threshold_factor
     if _neq(limp_factor, 1.0) and limp_factor > 0:
         arr = node.children.get("LimpEffectSIDToThresholdMap") if node is not None else None
@@ -4695,8 +4194,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                             "Threshold": scaled if scaled is not None else raw.strip()}
         if changed:
             cfg["LimpEffectSIDToThresholdMap"] = entries
-    # Blutung je Treffer (VitalBaseBleedingValue 10 gegen MaxBleeding 100)
-    # und bei nicht durchschlagenden Treffern (Chance + Punkte, je 1.0)
+    # Bleeding buildup from penetrating and nonpenetrating hits.
     for keys, factor in ((("VitalBaseBleedingValue",), s.bleeding_hit_factor),
                          (("BleedingChanceNonPenetrationMod", "BleedingPointsNonPenetrationMod"),
                           s.bleeding_nonpen_factor)):
@@ -4709,19 +4207,13 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, factor)
             if scaled is not None:
                 cfg[key] = scaled
-    # Taschenlampe im Dialog: Vanilla dimmt auf 52.5 %
+    # Dialogue flashlight dimming.
     if s.flashlight_dialog_bright:
         live = gd.corevar("FlashlightDialogIntensityPercent", -1.0)
         if live >= 0 and _neq(live, 1.0):
             cfg["FlashlightDialogIntensityPercent"] = "1.0"
-    # Eingefaltet in vorhandene Regler (par. 3b - kein neuer Regler):
-    # - Traglast-Ausdauer unterhalb der Ueberlast (InventorySPDrainCoef
-    #   0.024) in den Schalter, der InventorySPOverweightDrainCoef auf 0 setzt
-    # - Lande-Ausdauer (StaminaFallingDamageCoef 0.5) in den Sprung-Kosten-Regler
-    # - fuenf Leiter-Abspielraten (je 1.0f) in climb_speed_factor
-    # - vier Reichweiten + Loot-Hoehenfenster (max) in interaction_range_factor
-    # - Leichen-Greifzeit (DeadBodyPickUpTime 2.0) INVERS in corpse_drag_factor
-    # - drei globale Marker-Distanzen (300/30/20 m) in map_reveal_factor
+    # Compose related fields into existing controls: inventory/landing stamina,
+    # ladder rates, interaction ranges, corpse pickup time and marker distances.
     if s.no_overweight_penalty:
         raw = raw_of("InventorySPDrainCoef")
         if raw is not None and parse_number(raw) > 0:
@@ -4749,10 +4241,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg[key] = scaled
 
-    # 1.28.0 P2 (Ruestung und Trefferrechnung, par. 1.1): Granatenschutz je
-    # Strike-Stufe - Array KOMPLETT ausgeben (ProtectionStrike +
-    # GrenadeDamageResist, Literalform mit f bleibt), Deckel 1.0;
-    # Faktor 0 = Granaten ignorieren die Ruestung.
+    # Emit complete grenade-protection entries and cap resistance at one.
+    # Zero makes grenades ignore this armor-protection contribution.
     if _neq(s.grenade_resist_factor, 1.0) and s.grenade_resist_factor >= 0:
         arr = node.children.get("StrikeGrenadeResistCoefs") if node is not None else None
         entries = {}
@@ -4770,9 +4260,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                             "GrenadeDamageResist": scaled if scaled is not None else raw.strip()}
         if changed:
             cfg["StrikeGrenadeResistCoefs"] = entries
-    # Schutzverlust durch Abnutzung (experimentell, Richtung unbekannt -
-    # docs/SPEC.md par. 1.11): EIN Absolutregler fuer beide Koeffizienten,
-    # 0..1, live verglichen, Suffix f bleibt.
+    # Set both experimental wear/protection coefficients to one absolute target;
+    # effect direction remains unverified.
     wanted_wear = max(0.0, min(1.0, float(s.armor_wear_coef)))
     for key in ("ArmorDurabilityParamsCoef", "HelmetDurabilityParamsCoef"):
         raw = raw_of(key)
@@ -4781,7 +4270,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         live = parse_number(raw, -1.0)
         if live >= 0 and _neq(wanted_wear, live):
             cfg[key] = _num(wanted_wear) + ("f" if raw.strip().endswith(("f", "F")) else "")
-    # Ruestung gegen Anomalie-Schlag (experimentell; Geschwister von
+    # Armor protection against anomaly strikes, experimental; adjacent to
     # ArmorDifferenceCoef 2 / Explosion 0.5 / PlayerMelee 0.6)
     if _neq(s.anomaly_armor_difference_factor, 1.0) and s.anomaly_armor_difference_factor >= 0:
         raw = raw_of("StrikeAnomalyArmorDifferenceCoef")
@@ -4790,10 +4279,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg["StrikeAnomalyArmorDifferenceCoef"] = scaled
 
-    # 1.28.0 P3 (NPC-Verhalten, par. 1.3): verwundete NPCs. Absolutwerte
-    # ganzzahlig, live verglichen (Kommentare hinter den Werten strippt der
-    # Parser); UnkillableNPCWoundedStateResurrectionTime (Questrisiko) und
-    # WoundHitAreasThresholds (ungeklaert) bleiben bewusst tabu.
+    # Adjust ordinary wounded-NPC settings; preserve unkillable-NPC resurrection
+    # and unresolved hit-area thresholds.
     for key, wanted, lo, hi in (("ChanceToGetHealOverTimeWhenWounded", s.wounded_heal_chance, 0, 100),
                                 ("CooldownOnFallingWounded", s.wounded_cooldown_s, 0, None),
                                 ("HpThresholdToHealWound", s.wounded_heal_threshold, 0, 100)):
@@ -4812,10 +4299,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg["WoundedStateHealthRegen"] = scaled
 
-    # 1.28.0 P4 (Mutanten, par. 1.3 / 1.1): Burer-Waffenfeuer - zehn benannte
-    # Unter-Structs (A012 ... A045), also normaler bpatch je Struct; und das
-    # Ausweiden: Vanilla true = Animation OHNE Loot-Fenster (beide
-    # Animationssaetze liegen in der Datei), false = Fenster-Ablauf.
+    # Patch named Burer ammunition blocks and the mutant-looting workflow toggle.
     if _neq(s.burer_fire_interval_factor, 1.0) and s.burer_fire_interval_factor > 0:
         arr = node.children.get("PossessedWeaponFireIntervals") if node is not None else None
         entries = {}
@@ -4831,11 +4315,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     if s.mutant_loot_widget and _bool_literal(raw_of("UseMutantLootWithoutWidget")) is True:
         cfg["UseMutantLootWithoutWidget"] = "false"
 
-    # 1.28.0 P5 (Leichen, par. 1.4): die drei Offline-Distanzen sind QUADRIERTE
-    # Zentimeter (100 m -> 1e8), ein Distanz-Faktor f wirkt dort als f^2;
-    # DistanceToDestroyCorpsesIfOverpopulated (30000 = 300 m) linear und
-    # ganzzahlig. Nur DefaultConfig (LowMemoryProfileXSS ist Konsolen-Kram).
-    # CorpseRagdollQuestProtection* bleiben tabu.
+    # Squared-centimeter corpse distances need factor squared; ordinary distance
+    # uses the linear factor. Preserve console profiles and quest protection.
     if _neq(s.corpse_distance_factor, 1.0) and s.corpse_distance_factor > 0:
         sq = s.corpse_distance_factor * s.corpse_distance_factor
         for key in ("CorpseOfflineSquaredDistance", "CorpseOfflineTimeConditionSquaredDistance",
@@ -4853,11 +4334,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     if live >= 0 and int(s.alife_corpse_hardcap) != int(round(live)):
         cfg["AlifeCorpsesHardcap"] = str(max(1, int(s.alife_corpse_hardcap)))
 
-    # 1.28.0 P6 (Strahlungsfelder, par. 1.2): die vier harmlosen Presets
-    # (Light/Medium/Strong/Topaz) - ueber den PRESET-NAMEN gefiltert, nicht
-    # ueber den Index, damit Deadly und RadBlock (Karten-Todeszonen mit 9000
-    # Schaden) und Custom garantiert draussen bleiben. Array-Eintraege
-    # komplett; RadioactivityValue bleibt unangetastet.
+    # Select ordinary radiation presets by name, excluding death barriers and Custom.
+    # Emit complete entries while preserving RadioactivityValue.
     rad_on = [(f, key, cap) for f, key, cap in
               ((s.radiation_dose_factor, "RadiationPerSecondValue", None),
                (s.radiation_filter_factor, "PostProcessRadiationIntensity", 1.0),
@@ -4884,8 +4362,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                 entries[idx] = full
         if entries:
             cfg["RadiationPresetValues"] = entries
-    # Kampfmusik (par. 1.3): Schwelle (ein normaler NPC zaehlt 10) und
-    # Nachlauf, beide absolut und live verglichen (Suffix f bleibt).
+    # Set combat-music threshold and trailing duration from live baselines.
     for key, wanted in (("MusicManagerCombatScoreThreshold", s.music_combat_threshold),
                         ("MusicManagerCombatEnemyAttackActionLifetimeSeconds", s.music_combat_lifetime)):
         raw = raw_of(key)
@@ -4895,10 +4372,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         if live >= 0 and _neq(float(wanted), live):
             cfg[key] = _num(max(0.0, float(wanted))) + ("f" if raw.strip().endswith(("f", "F")) else "")
 
-    # 1.28.0 P7 (Artefakte und Loot, par. 3b / 1.3): der Mindestabstand, ab dem
-    # ein Artefakt ueberhaupt wegzuhuepfen beginnt, gehoert zum Keep-away-Regler
-    # (die eigentliche Distanz steht je Artefakt in ItemPrototypes); dazu die
-    # Loot-Neuauslosung beim Rangaufstieg (Radius 400 m, Verzoegerung 10 s).
+    # Compose artifact flee-start distance with keep-away controls;
+    # also adjust rank-up loot regeneration radius/delay.
     for key, factor in (("ArtifactStrafeMinDistance", s.artifact_keepaway_factor),
                         ("RegenerateItemsOnRankUpdateRadius", s.loot_reroll_radius_factor),
                         ("RegenerateItemsOnRankUpdateTimer", s.loot_reroll_timer_factor)):
@@ -4911,10 +4386,8 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         if scaled is not None:
             cfg[key] = scaled
 
-    # 1.28.0 P8 (Haendler und Wirtschaft, par. 1.3): Reparaturpreis je Ruf -
-    # der Schalter zieht alle vier Stufen (Enemy 2.0 / Disaffection 1.5 /
-    # Neutral 1.0 / Friend 0.75) auf den Neutral-Wert 1.0, Array-Eintraege
-    # komplett (RelationLevel + Modifier). Dazu die Geruechte-Auffrischung.
+    # Neutralize reputation repair modifiers with complete indexed entries;
+    # adjust rumor refresh independently.
     if s.repair_cost_reputation:
         arr = node.children.get("ReputationRepairCostModifiers") if node is not None else None
         entries: dict = {}
@@ -4934,7 +4407,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         cfg["InfotopicRefreshHours"] = str(max(1, int(s.infotopic_refresh_hours)))
 
     if _neq(s.stamina_sprint, 1.0):
-        # Dauer-Drain (Sprint/Run): komplette Eintraege ausgeben
+        # Continuous drain (Sprint/Run): emit complete entries.
         node = gd.corevars.children.get("DefaultConfig")
         coefs = node.children.get("StaminaRegenStateCoefs") if node else None
         if coefs:
@@ -4951,10 +4424,9 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
-    """ItemPrototypes: Gewichte, Munitions-Mods, Detektoren, Magazine,
-    Ruestungsschutz. Liefert (Basis-Patches, {Edition: Patches}) — die
-    Editions-Ruestungen (SEVA Monolith & Co.) werden in den jeweiligen
-    DLCGameData-Zweig gepatcht."""
+    """Patch item weights, ammunition, detectors, magazines and player protection.
+
+    Return base and edition-specific patches routed to their correct GameData branches."""
     patches: dict = {}
     if _neq(s.item_weight_factor, 1.0) and s.item_weight_categories:
         for sid, (cat, weight) in sorted(gd.item_weights().items()):
@@ -4963,25 +4435,20 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             patches[sid] = {"Weight": _num(weight * s.item_weight_factor)}
     if s.ignore_equipped_weight:
         patches["[0]"] = {"IgnoreEquippedWeight": "true"}
-    # 1.33.0: maximale Haltbarkeit von Waffen und Ruestung (BaseDurability).
-    # Bis dahin haben wir den Wert nur GELESEN (Haendler-Mindestzustand),
-    # nie gepatcht - "Better Durability 3.0" (Nexus 1695) nimmt ihn mal
-    # fuenf. gear_durability() liefert nur echte Ausruestung (die 1.0 des
-    # Basis-Structs faellt raus). Ganzzahlig macht das Spiel selbst nicht,
-    # also bleibt der skalierte Wert eine Kommazahl wie in Vanilla.
+    # Scale actual gear BaseDurability, excluding the base placeholder.
+    # Preserve floating-point values as used by the game.
     if _neq(s.gear_durability_factor, 1.0) and s.gear_durability_factor > 0:
         for sid, (_cat, vanilla) in sorted(gd.gear_durability().items()):
             new = vanilla * s.gear_durability_factor
             if _neq(new, vanilla):
                 patches.setdefault(sid, {})["BaseDurability"] = _num(new)
-    # Quest-Items wiegen nichts (Nexus "quest item weight to 0"): die
-    # Kategorie-Regler lassen Quest-Items aus, hier explizit Weight = 0.
+    # Quest-item weight uses an explicit zero override outside category weight controls.
     if s.quest_items_weightless:
         for sid in sorted(gd.quest_items_with_weight()):
             patches.setdefault(sid, {})["Weight"] = "0.0"
-    # Artefakt-Slots (06.09.2026, Nexus 'Armor Artifact Slots'): +N je
-    # Koerperruestung, Deckel 5 = Vanilla-Maximum (3 Ruestungen haben 5).
-    # Helme bleiben draussen. Editions-Ruestungen in den DLC-Zweig.
+    # Artifact slots: add N per
+    # body armor, capped at the vanilla maximum of 5 (three armors already have 5).
+    # Exclude helmets; edition armors use the DLC branch.
     dlc_slot_patches: dict = {}
     if int(s.artifact_slots_bonus) > 0:
         for sid, (vanilla, edition) in sorted(gd.armor_artifact_slots().items()):
@@ -4990,9 +4457,8 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 continue
             bucket = patches if edition is None else dlc_slot_patches.setdefault(edition, {})
             bucket.setdefault(sid, {})["ArtifactSlots"] = str(target)
-    # Pistolenslot (06.09.2026, Nexus 1735 dukeen / 1533 overjoony): Waffen
-    # der gewaehlten Klassen bekommen ItemSlotType = Pistol (Text live aus
-    # einem Pistolen-Item). Die Hauptslots nehmen weiterhin jede Waffe.
+    # Assign selected weapon classes to the live pistol-slot enum;
+    # main weapon slots retain their existing acceptance rules.
     level = int(s.pistol_slot_level)
     if level > 0:
         literal = gd.pistol_slot_literal()
@@ -5005,9 +4471,7 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             bucket = patches if edition is None else dlc_slot_patches.setdefault(edition, {})
             bucket.setdefault(sid, {})["ItemSlotType"] = literal
 
-    # Munitions-Modifikatoren (pro Munitions-Item, aufgeloeste Vanilla-Werte).
-    # Kaskade: Einzelsorte > globaler Regler -- der Override ERSETZT den
-    # globalen Faktor, er stapelt sich nicht (vgl. _weapon_factor).
+    # Per-ammunition overrides replace the global factor for that parameter.
     ammo_globals = {
         "damage": s.ammo_damage_factor,
         "piercing": s.ammo_piercing_factor,
@@ -5021,13 +4485,12 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         "dispersion": s.ammo_dispersion_factor,
         "aimdispersion": s.ammo_aim_dispersion_factor,
     }
-    # Ohne "or s.ammo_overrides" faende ein Pak mit AUSSCHLIESSLICH
-    # Einzelsorten-Overrides gar nicht statt.
+    # Individual ammunition overrides must also activate this builder.
     if any(_neq(f, 1.0) for f in ammo_globals.values()) or s.ammo_overrides:
         for sid, mods in sorted(gd.ammo_mods().items()):
             over = s.ammo_overrides.get(sid) or {}
             cfg = {}
-            for param in AMMO_PARAMS:          # Reihenfolge = Patch-Reihenfolge
+            for param in AMMO_PARAMS:          # Order matches patch output.
                 key = AMMO_PARAM_KEYS[param]
                 if key not in mods:
                     continue
@@ -5037,35 +4500,25 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 vanilla = mods[key]
                 scaled = vanilla * factor
                 if param == "stack":
-                    # Stapelgroesse ist eine STUECKZAHL: ganzzahlig, nie unter
-                    # 1, und gedeckelt auf 300000 — den Wert, den das Spiel
-                    # selbst fuer "praktisch unbegrenzt" benutzt (PDAs,
-                    # Notizen, Schluessel). Darueber hinaus zu gehen waere
-                    # geraten, nicht gemessen.
+                    # Round stack counts to at least one and cap at the observed large-count bound.
                     new_stack = max(1, min(300000, int(round(scaled))))
                     if new_stack != int(vanilla):
                         cfg[key] = str(new_stack)
                     continue
-                # Vanilla 0 bleibt 0 -> _neq faengt es ab: kein Scheinpatch,
-                # kein Absturz (A545D ArmorPiercingMod ist 0.0).
+                # Preserve zero baselines and omit no-op patches.
                 if _neq(scaled, vanilla):
                     cfg[key] = _num(scaled)
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
 
-    # Stapelgroesse Nahrung & Medizin (GitHub Issue #7, Molkerr). Vanilla 999
-    # bei 24 Gegenstaenden — eine Grenze, die man im Spiel kaum erreicht; der
-    # Tooltip sagt das auch. Die Gitarre (MaxStackCount 1) faellt durch die
-    # >1-Regel in stack_counts() heraus.
+    # Scale food/medicine stack sizes, excluding inherently nonstackable items.
     if _neq(s.consumable_stack_factor, 1.0):
         for sid, vanilla in sorted(gd.stack_counts("consumable").items()):
             target = max(1, min(300000, int(round(vanilla * s.consumable_stack_factor))))
             if target != vanilla:
                 patches.setdefault(sid, {})["MaxStackCount"] = str(target)
 
-    # Platz im Inventar je Gegenstand (1.32.0): ItemGridWidth/-Height
-    # stehen an allen 1375 Items (1x1 bis 6x3). Ganzzahlig, nie unter 1 -
-    # ein Gegenstand ohne Flaeche waere im Raster nicht darstellbar.
+    # Keep inventory dimensions integral and at least one grid cell.
     if _neq(s.item_grid_factor, 1.0) and s.item_grid_factor > 0:
         for sid, node in sorted(gd.items.children.items()):
             if sid == "[0]" or "#" in sid:
@@ -5084,8 +4537,8 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if cfg:
                 patches.setdefault(sid, {}).update(cfg)
 
-    # Dauer von Inventar-Aktionen (1.32.0), INVERS: 200 % = halb so lang.
-    # Vanilla 2.5 bis 5.0 s an 243 Gegenstaenden.
+    # Inventory action duration, inverse: 200% means half the duration.
+    # Vanilla 2.5–5.0 s across 243 items.
     if _neq(s.inventory_action_factor, 1.0) and s.inventory_action_factor > 0:
         for sid, node in sorted(gd.items.children.items()):
             if sid == "[0]" or "#" in sid:
@@ -5097,30 +4550,23 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
             if scaled is not None and scaled != raw.strip():
                 patches.setdefault(sid, {})["InventoryActionTime"] = scaled
 
-    # Packungsgroesse der Munition (1.31.0, aus "Stalker Unlimited"):
-    # wieviele Schuss eine aufgesammelte Packung hergibt. Bewusst NUR ein
-    # globaler Regler und KEIN Baum-Parameter — das ist eine Fundmenge,
-    # kein Ballistik-Wert, und der Sorten-Baum haette sonst zehn Regler.
+    # AmmoPackCount is a global pickup-quantity control, separate from ballistic overrides.
     if _neq(s.ammo_pack_factor, 1.0):
         for sid, vanilla in sorted(gd.ammo_pack_counts().items()):
             target = max(1, int(round(vanilla * s.ammo_pack_factor)))
             if target != int(vanilla):
                 patches.setdefault(sid, {})["AmmoPackCount"] = str(target)
 
-    # Artefakt-Detektor-Items (Echo/Bear/Veles/Gilka): Reichweiten skalieren
+    # Scale artifact detector ranges: Echo/Bear/Veles/Gilka.
     if _neq(s.detector_range_factor, 1.0):
         for sid, radii in sorted(gd.detector_items().items()):
             cfg = {key: _num(value * s.detector_range_factor) + "f"
                    for key, value in radii.items()}
             patches.setdefault(sid, {}).update(cfg)
 
-    # Magazin-Aufsaetze: Magazine.MaxAmmo (80 konkrete Magazine, ganzzahlig).
-    # Seit 03.09. kaskadiert (Nexus-Wunsch Qfander): ein Magazin folgt den
-    # Waffen, die es laut WeaponReloadTimePerAttachment benutzen - irgendein
-    # Einzelwaffen-Override gewinnt, sonst irgendein Kategorie-Faktor, sonst
-    # der globale Regler. Geteilte Magazine (GunAK_MagPaired: AK-Familie)
-    # folgen damit der ersten Waffe mit Override - Tooltip/FAQ sagen es.
-    # Magazine ohne bekannte Waffe (Waisen) sehen nur den globalen Regler.
+    # Magazine attachments follow their linked weapons' factor precedence.
+    # Shared magazines use the first applicable weapon override; orphan magazines
+    # use only the global factor.
     magazine_on = ((_neq(s.magazine_factor, 1.0) and s.magazine_factor > 0)
                    or any("magazine" in p for p in s.weapon_overrides.values())
                    or any("magazine" in p
@@ -5158,10 +4604,8 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                 patches.setdefault(sid, {})["Magazine"] = {
                     "MaxAmmo": str(scaled_int)}
 
-    # Ruestungsschutz je Schadensart (nur die Spieler-Protection;
-    # ProtectionNPC bleibt unangetastet). Kaskade wie bei der Munition:
-    # der Einzelruestungs-Override ERSETZT den globalen Faktor fuer diesen
-    # Wert an dieser Ruestung, er stapelt sich nicht.
+    # Per-armor overrides replace global factors for player Protection.
+    # ProtectionNPC remains outside these controls.
     protection_globals = {
         "strike": s.armor_strike_factor,
         "burn": s.armor_burn_factor,
@@ -5170,24 +4614,22 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         "radiation": s.armor_radiation_factor,
         "psy": s.armor_psy_factor,
     }
-    # Ohne "or s.armor_overrides" faende ein Pak mit AUSSCHLIESSLICH
-    # Einzelruestungs-Overrides gar nicht statt (vgl. Ammo oben).
+    # Individual armor overrides must also activate this builder.
     dlc_patches: dict[str, dict] = {}
     if any(_neq(f, 1.0) for f in protection_globals.values()) or s.armor_overrides:
         for sid, values in sorted(gd.armor_protection().items()):
             over = s.armor_overrides.get(sid) or {}
             cfg = {}
-            for param in ARMOR_PARAMS:         # Reihenfolge = Patch-Reihenfolge
+            for param in ARMOR_PARAMS:         # Order matches patch output.
                 key = ARMOR_PARAM_KEYS[param]
-                if key not in values:          # 0 in Vanilla: kein Patch
+                if key not in values:          # Zero baseline: emit no patch.
                     continue
                 factor = over.get(param, protection_globals[param])
                 if _neq(factor, 1.0):
                     cfg[key] = _num(values[key] * factor)
             if cfg:
                 patches.setdefault(sid, {}).setdefault("Protection", {}).update(cfg)
-        # Editions-Ruestungen: dieselbe Kaskade, aber der Patch gehoert in
-        # den DLCGameData-Zweig der jeweiligen Edition (analog Waffen)
+        # Route edition armor patches to the corresponding DLCGameData branch.
         for sid, (slot, values, ed) in sorted(gd.dlc_player_armors().items()):
             over = s.armor_overrides.get(sid) or {}
             cfg = {}
@@ -5205,15 +4647,8 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for sid, cfg in extra.items():
             dlc_patches.setdefault(edition, {}).setdefault(sid, {}).update(cfg)
 
-    # --- 1.33.0: dieselben Regler auch fuer die Editions-Gegenstaende ------
-    # Gemeldet von Molkerr (GitHub #9, 07.09.2026): "Resizing icons in the
-    # inventory doesn't work with DLC armor and weapons". Stimmt - die 22
-    # Editions-Stuecke (Deluxe 11, PreOrder 4, Ultimate 7) deklarieren
-    # Weight, ItemGridWidth/-Height, InventoryActionTime und BaseDurability
-    # SELBST, aber bis hierher lief nur der Basiszweig. Eine frueher Sitzung
-    # hatte "DLC-Gewichte, nur 22 Items, lohnt nicht" notiert - genau das ist
-    # jemandem aufgefallen. Kategorie kommt aus der Vererbungskette
-    # (dlc_item_chain springt in die Basis-Templates).
+    # Apply item controls to explicit edition values as well as base items.
+    # Resolve each edition item's category through cross-file inheritance.
     grid_on = _neq(s.item_grid_factor, 1.0) and s.item_grid_factor > 0
     act_on = _neq(s.inventory_action_factor, 1.0) and s.inventory_action_factor > 0
     dur_on = _neq(s.gear_durability_factor, 1.0) and s.gear_durability_factor > 0
@@ -5263,7 +4698,7 @@ def _items_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
 
 
 def _passive_detector_patch(gd: GameData, s: Settings) -> dict:
-    """Anomalie-Piepser & Searchpoint-Scanner: DetectorRadius skalieren."""
+    """Scale DetectorRadius for anomaly warning devices and searchpoint scanners."""
     if not _neq(s.detector_range_factor, 1.0):
         return {}
     patches: dict = {}
@@ -5278,10 +4713,9 @@ def _passive_detector_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _fasttravel_patch(gd: GameData, s: Settings) -> dict:
-    """RequiredMoney je Reiseziel skalieren (0 = Schnellreise gratis); seit
-    1.26.0 dazu die Uebergewichts-Sperre (OverweightLock Full/Partial/NoLock,
-    die drei Werte stehen so in der Spiel-EXE) und GuideDelay (Vanilla 120,
-    Bedeutung im Spiel offen) je Guide."""
+    """Scale guide travel costs and adjust overweight locks and guide delay.
+
+    Zero cost makes travel free; guide-delay semantics remain unverified."""
     cost_on = _neq(s.fast_travel_cost_factor, 1.0)
     wanted_lock = FAST_TRAVEL_LOCKS.get(int(s.fast_travel_lock), FAST_TRAVEL_LOCKS[2])
     lock_on = wanted_lock != FAST_TRAVEL_LOCKS[2]
@@ -5319,7 +4753,7 @@ def _fasttravel_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _restock_patch(gd: GameData, s: Settings) -> dict:
-    """TradeRegen-Bedingungen: Days/Hours skalieren (Minimum 1)."""
+    """TradeRegen conditions: scale Days/Hours with a minimum of 1."""
     if not _neq(s.trader_restock_factor, 1.0):
         return {}
     patches: dict = {}
@@ -5368,15 +4802,9 @@ def _trade_patch(gd: GameData, s: Settings) -> dict:
 # ------------------------------------------------------------------ assembly
 
 def _emission_patch(gd: GameData, s: Settings) -> dict:
-    """Emissions-Dauer: reine ZEITSTRECKUNG des Default-Prototyps.
+    """Stretch recurring DEFAULT emission timing uniformly, preserving overlaps.
 
-    Alle Zeitwerte der Ablauf-Struktur (PhaseStartTime, PhaseDuration,
-    AIEventStartTime) werden mit demselben Faktor multipliziert — damit
-    bleiben auch die Vanilla-Ueberlappungen (ShockWave laeuft in die
-    Active-Phase hinein) exakt erhalten. Zwei bewusste Ausnahmen:
-    die ActivateQuest-Stufe behaelt ihre Dauer (Quest-Triggerfenster),
-    und die 5 Story-Emissionen (E06/E15) werden gar nicht angefasst
-    (der Accessor liefert nur den Default-Prototyp)."""
+    Keep the ActivateQuest trigger duration and all story emissions unchanged."""
     f = s.emission_duration_factor
     if not _neq(f, 1.0) or f <= 0:
         return {}
@@ -5417,16 +4845,9 @@ def _emission_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
-    """Cooldown wiederholbarer Quests (Nexus-Wunsch).
+    """Scale RSQ job cooldown timers only, excluding story and other side quests.
 
-    Fundort: SetTimer-Knoten der RSQ-Quests in QuestNodePrototypes.cfg
-    (Vanilla: 8 Knoten, alle InGameHours = 24 — die Wartezeit, bis ein
-    Auftraggeber neue Jobs hat). NUR QuestSID "RSQ*" wird angefasst; die
-    78 uebrigen SetTimer gehoeren zu Story-/Nebenquests und bleiben tabu.
-    Die 75-MB-Datei wird wie beim Loot-Regler NUR geparst, wenn der
-    Faktor nicht auf 100 % steht. Faktor 0 = sofort neue Jobs (bewaehrtes
-    Muster der "No Quest Delay"-Mods). Bereits laufende Timer im Save
-    ticken mit ihrer alten Endzeit fertig."""
+    Parse lazily when needed. Existing saved timers retain their current end time."""
     if not _neq(s.repeatable_quest_factor, 1.0) or s.repeatable_quest_factor < 0:
         return {}
     patches: dict = {}
@@ -5438,24 +4859,10 @@ def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
-    """Jobs, die ein Auftraggeber pro Runde ausgibt (GitHub Issue #8).
+    """Set jobs-per-round limits, capped by each giver's available task pool.
 
-    Fundort: je RSQ-Geber EIN If-Knoten mit `Less <Zaehler> 3` in
-    QuestNodePrototypes.cfg. Das ist die einzige Zahl, die das Limit setzt —
-    der Zaehler wird beim Abgeben eines Jobs nie heruntergezaehlt, nur der
-    24-h-Timer setzt ihn auf 0 zurueck (das ist der Cooldown-Regler
-    nebenan). Beide Schrauben zusammen ergeben "wie viele Jobs, wie oft".
-
-    Gedeckelt wird je Geber auf seinen eigenen Aufgaben-Topf (6 bis 10):
-    mehr Jobs als er verschiedene Aufgaben hat, zieht nur Wiederholungen.
-
-    Der Bedingungs-Eintrag wird KOMPLETT ausgegeben (alle Schluessel, nicht
-    nur VariableValue): ob {bpatch} verschachtelte Array-Eintraege
-    zusammenfuehrt oder ersetzt, ist nicht belegt (docs/SPEC.md par. 0) —
-    komplett ist der Patch unter beiden Lesarten richtig.
-
-    Die 75-MB-Datei wird nur geparst, wenn der Regler nicht auf Vanilla
-    steht (dasselbe Lazy-Muster wie beim Cooldown-Regler)."""
+    The counter resets on cooldown, not hand-in. Emit complete condition entries
+    and parse the large quest file only when required."""
     target = int(s.repeatable_jobs_per_round)
     if target == Settings.repeatable_jobs_per_round or target < 1:
         return {}
@@ -5489,7 +4896,7 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
         dialog_sid = giver.get("dialog_sid")
         dialog = giver.get("dialog_node")
         if not (accept and dialog_sid and dialog is not None):
-            continue          # Geber ohne erkennbare Zusage bleibt vanilla
+            continue          # A giver without a recognized acceptance node remains vanilla.
         launchers = dialog.children.get("Launchers")
         if launchers is None:
             continue
@@ -5504,8 +4911,7 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
                        for c in conns.children.values()]
             if not sources:
                 continue
-            # Zusage-Wache oder Job-Start-Wache: umdrehen. Finish-Wache und
-            # alles andere: unangetastet, wie bei der Vorlage.
+            # Invert acceptance/job-start guards; preserve completion guards and other conditions.
             is_accept = accept in sources
             is_start = all("OnJournalQuestEvent" in src and src.endswith("_Start")
                            for src in sources)
@@ -5525,31 +4931,11 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
     return patches
 
 def _quest_menu_patch(gd: GameData, s: Settings) -> dict:
-    """Job-Menue statt Abbruch-Zweig, wenn schon ein Job gehalten wird
-    (DialogPrototypes; Teil 2 des Mehrfach-Job-Schalters, 1.36.0).
+    """Route the held-job dialogue gate back to its menu.
 
-    Gemessen 09.09.2026: jede der acht Job-Dialogketten beginnt mit einem
-    If-Knoten, dessen True-Zweig eine Bridge-Bedingung `NotEqual` auf die
-    Zusage (`Technical_GetQuest`) traegt - Zusage noch nicht erfolgt: Job-
-    Menue; erfolgt: Abbruch-Zweig. Solange das Ergebnis der Zusage steht,
-    fuehrt der wieder geoeffnete Dialog also in den Abbruch-Zweig. Genau das
-    hat Molkerr auf 1.35.0 gesehen ("nur noch die Abbruch-Zeile").
-
-    Zone Contracts loest das mit einem Zusatzknoten, der das Ergebnis der
-    Zusage drei Sekunden nach der Annahme loescht (`_quest_taken_patch` tut
-    dasselbe). Dieser Builder ist der BODEN darunter, der auch dann haelt,
-    wenn neue Knoten nicht geladen werden: der False-Zweig des If-Knotens
-    zeigt per {bpatch} auf dasselbe Ziel wie der True-Zweig, das Menue.
-    Abbrechen geht weiter ueber den eigenen "Auftrag abbrechen"-Dialog, den
-    die Zusage scharf macht. Nur der eine Schluessel wird geschrieben,
-    `Terminate` und alles andere bleibt. Erkennung datengetrieben (siehe
-    GameData.job_menu_switch).
-
-    ⚠ Erste Patchdatei des Werkzeugs in DialogPrototypes: neue Datei in
-    NEEDED_FILES (31.6 MB, lazy), CACHE_SCHEMA 23. Dieselbe Regel wie bei
-    QuestNodePrototypes - eine Datei je Familie, Patch als
-    `DialogPrototypes/DialogPrototypes_patch_<Mod>.cfg`; RSO legt dort
-    eigene Dateien ab, die Familie nimmt also Patches an."""
+    Resolve the gate from GameData.job_menu_switch. Patch only its false target,
+    preserving termination and other dialogue settings. The separate cancellation
+    dialogue remains available; delayed acceptance cleanup is handled elsewhere."""
     if not s.repeatable_jobs_multi:
         return {}
     patches: dict = {}
@@ -5572,30 +4958,11 @@ def _quest_menu_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quest_taken_patch(gd: GameData, s: Settings) -> dict:
-    """Genommene Jobs verschwinden aus dem Menue (Teil 3 des Mehrfach-Job-
-    Schalters, 1.36.0) - NEUE Knoten, eigene Datei.
+    """Create delayed cleanup nodes to hide accepted jobs from the menu.
 
-    Das Menue zeigt je Job eine Option, die per Bridge-Bedingung am
-    Ergebnis von `<Q>_Add_C0x` haengt (gemessen 09.09.2026 in
-    DialogPrototypes, `VisibleOnFailedCondition = false`). Solange das
-    Ergebnis steht, steht der Job im Menue - auch nach der Annahme. Zone
-    Contracts loescht es darum je Job drei Sekunden nach der Zusage, und
-    dazu das Ergebnis der Zusage selbst: ein Technical-Knoten mit StartDelay
-    3.0, gestartet vom Pin des Behaelters (der auf die Zusage-Phrase
-    wartet), und dahinter ein BridgeCleanUp mit `Add_C0x` +
-    `Technical_GetQuest`. Genau so, Knoten fuer Knoten, auch hier - je
-    Behaelter zwei, 69 Behaelter an acht Gebern (GameData.repeatable_job_slots).
-
-    Warum eine EIGENE Datei (`QuestNodePrototypes/<Mod>_Jobs.cfg`, kein
-    `{bpatch}`): die zwei Mods, deren neue Quest-Knoten nachweislich laufen
-    (RSO, Living Zone), legen sie genau so ab; unsere ersten zwei Entwuerfe
-    hatten neue Knoten in die `{bpatch}`-Datei gemischt und taten nichts.
-
-    Fehlerfall, bewusst harmlos: laden diese Knoten nicht, bleibt ein
-    genommener Job im Menue stehen - sonst passiert nichts. Und weil
-    `_quest_menu_patch` das Menue unabhaengig davon offen haelt, ist genau
-    das die Frage, die Molkerrs naechster Test nebenbei beantwortet: werden
-    unsere neuen Knoten ueberhaupt geladen?"""
+    For each discovered slot, a Technical delay leads to BridgeCleanUp of its
+    pool-add and acceptance results. Emit new nodes in their own quest file,
+    without bpatch. Node loading and gameplay behavior require game validation."""
     if not s.repeatable_jobs_multi:
         return {}
     patches: dict = {}
@@ -5634,20 +5001,10 @@ def _quest_taken_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
-    """Der Auftraggeber bietet den naechsten Job sofort an (Issue #8).
+    """Rearm the job dialogue from the limit check's True branch.
 
-    In Vanilla haengt sein SetDialog-Knoten am FALSE-Ausgang des
-    Limit-Knotens: der Job-Dialog wird erst wieder scharf, wenn der Geber
-    LEER ist. Auf True umgehaengt fragt er sofort wieder — das ist die
-    Haelfte der Anfrage, die "mehrmals ansprechen" heisst.
-
-    Geaendert wird nur der Pin-Name; der Verbindungs-Eintrag geht mit
-    seiner SID KOMPLETT raus, und mit ihm der ganze Launcher-Eintrag samt
-    seiner uebrigen Verbindungen (Array-Regel wie oben). Der Verbindungs-
-    Index ist NICHT bei allen Gebern gleich — er wird live gesucht.
-
-    Ohne diesen Schalter bringt ein hoeheres Limit wenig; dieselbe
-    Kombination faehrt die Nexus-Mod "New Game Start" (1211)."""
+    Resolve the actual connection index and emit the complete launcher entry,
+    preserving all other connections."""
     if not s.repeatable_jobs_instant:
         return {}
     patches: dict = {}
@@ -5663,26 +5020,11 @@ def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _relations_patch(gd: GameData, s: Settings) -> dict:
-    """Fraktionsbeziehungen + Reputations-Rollback (RelationPrototypes.cfg).
+    """Patch existing faction pairs and reputation rollback cooldowns.
 
-    Beziehungspaare: nur Schluessel patchen, die es in Vanilla gibt (die
-    Schreibrichtung "A<->B" ist je Paar fest; neue Paare anzulegen ist
-    ungetestet und bleibt tabu). Diese Baseline gilt fuer NEUE Spielstaende;
-    wer bestehende erreichen will, schaltet `relations_runtime` ein
-    (`_relations_runtime_patch`) - der Weg, den auch die einzige grosse
-    Beziehungs-Mod geht.
-
-    ⚠ **`RelationVersion` wird NICHT mehr angefasst.** Von 1.12.0 bis 1.36.0
-    schrieb der Patch bei mindestens einem geaenderten Paar Vanilla+1
-    hinein - in der Hoffnung, bestehende Saves bemerkten so die neue
-    Baseline. Am 08.09.2026 widerlegt (siehe `GameData.relation_version`),
-    am 09.09.2026 auf Entscheidung des Besitzers gestrichen: der Zaehler
-    gehoert GSC, ein Bump ohne passenden Delta-Eintrag wirkt nicht und
-    koennte den Spielstand ein kuenftiges echtes Update ueberspringen lassen.
-
-    Rollback: skaliert die Basis-Cooldown-Sekunden UND die 19
-    fraktionsspezifischen Cooldowns; die Hub-/Lair-Modifier bleiben
-    unangetastet (sie multiplizieren die Basis und skalieren so mit)."""
+    Preserve exact pair-key direction and GSC's RelationVersion. Runtime updates
+    are a separate optional mechanism. Scale base and faction cooldowns while
+    leaving hub/lair multipliers intact."""
     out: dict = {}
 
     if s.faction_relations:
@@ -5691,13 +5033,12 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
         for key, target in sorted(s.faction_relations.items()):
             vanilla = vanilla_pairs.get(key)
             if vanilla is None:
-                continue                     # anderes Spiel / alter Preset
+                continue                     # Different game version or old preset.
             try:
                 value = int(round(float(target)))
             except (TypeError, ValueError):
                 continue
-            # weit weg vom Sonderwert 100000 bleiben; unter -800 ist ohnehin
-            # Enemy, ueber 201 Friend (docs: RelationLevelRanges)
+            # Keep targets away from the special 100000 relation value.
             value = max(-2000, min(2000, value))
             if value != vanilla:
                 changed[key] = str(value)
@@ -5719,8 +5060,7 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
         if cooldowns:
             out["FactionRollbackCooldowns"] = cooldowns
 
-    # Reaktionsstaerke: alle Reputations-Deltas der 2x8 Tabellen skalieren
-    # (vorzeichen-erhaltend, ganzzahlig; Nullen bleiben Null).
+    # Scale signed integer reputation deltas, preserving zero.
     rf = s.relation_reaction_factor
     if _neq(rf, 1.0) and rf > 0:
         for table, idx, entry in gd.relation_reaction_tables():
@@ -5735,7 +5075,7 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
             if cfg:
                 out.setdefault(table, {})[idx] = cfg
 
-    # Handels-Schwelle: Vanilla = Disaffection (Index 1)
+    # Trading threshold: vanilla Disaffection, index 1.
     level = max(0, min(3, int(round(s.trade_min_level))))
     if level != 1:
         name = ("Enemy", "Disaffection", "Neutral", "Friend")[level]
@@ -5748,66 +5088,24 @@ def _relations_patch(gd: GameData, s: Settings) -> dict:
     return {"Default": out} if out else {}
 
 
-# Der Spieler als Ziel eines ChangeRelationships-Knotens. Gemessen am
-# 08.09.2026: in QuestNodePrototypes steht diese GUID 1436x als
-# `FirstTargetSID` und KEIN einziges Mal als `SecondTargetSID`; die Knoten,
-# die sie benutzen, heissen `..._SkifEnemy`, `..._KosoyEnemy` usw. Auch
-# RSO (Nexus 2009) adressiert den Spieler ausschliesslich so.
+# Use the player's GUID as FirstTargetSID, matching installed quest-node usage.
 PLAYER_TARGET_GUID = "A" * 32
 
-# Namen unserer Mini-Quest. Bewusst mit S2T-Praefix, damit nichts mit einer
-# Vanilla- oder Fremd-Quest kollidiert (test_orphan_sids prueft es).
+# Namespace generated quest SIDs with S2T to avoid collisions.
 RELATIONS_QUEST_SID = "S2T_Relations"
 RELATIONS_START_SID = "S2T_Relations_Start"
 
 
 def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dict]:
-    """Fraktionsbeziehungen auch im LAUFENDEN Spielstand setzen.
+    """Build quest nodes, a quest prototype and a launch script for runtime relations.
 
-    (quest_nodes, quest_prototypes, launch_script)
+    Use ChangeRelationships with absolute targets (UseDeltaValue=false,
+    UsePreset=false), started through Scripts/OnGameLaunch. Do not modify GSC's
+    RelationVersion migration counter.
 
-    **Warum es das gibt.** Die Baseline in RelationPrototypes.cfg liest das
-    Spiel nur beim Anlegen eines Spielstands; danach lebt der Wert im Save.
-    Seit 1.12.0 schrieb der Fraktions-Tab darum zusaetzlich
-    `RelationVersion = Vanilla+1` — in der Hoffnung, dass GSCs eigener
-    Versionszaehler bestehende Saves nachziehen laesst. **Am 08.09.2026
-    widerlegt** (RSO, Nexus 2009, alle acht Varianten gelesen): niemand
-    zaehlt den Wert hoch, RSO liefert sogar `0` aus, waehrend das Spiel auf
-    `7` steht. Der Zaehler gehoert GSC, und daneben steht
-    `RelationUpdateDeltas` — eine Liste von DELTAS je Version. Ein Bump ohne
-    passenden Delta-Eintrag wirkt darum nicht — seit 09.09.2026 wird er
-    nicht mehr geschrieben (Besitzer-Entscheidung, nach dem 1.36.0-Release).
-
-    **Was stattdessen wirkt** (RSOs Weg, jede Behauptung gegen vanilla/
-    nachgemessen):
-
-    1. `EQuestNodeType::ChangeRelationships` — ein Vanilla-Knotentyp, **1875x**
-       im Spiel. Er setzt zur Laufzeit die Beziehung zwischen zwei Zielen.
-    2. `GameData/Scripts/OnGameLaunch/` — ein Vanilla-Ordner mit 333 Dateien,
-       der bei jedem Spielstart Skriptzeilen ausfuehrt; `XStartQuestNodeBySID`
-       benutzt das Spiel dort selbst. Eine zusaetzliche Datei mit eigenem
-       SID haengt sich an (207 der vorhandenen Dateien benutzen `[0]` als
-       Top-Level-Schluessel, mehrere `[*]` — wir nehmen `[*]`, den
-       Anhaenge-Index, damit gar nichts kollidieren kann).
-
-    Daraus wird: eine eigene Mini-Quest, ein Startknoten, je geaendertem
-    Paar ein ChangeRelationships-Knoten, und ein Startskript.
-
-    **Absolut statt Delta.** RSO verschiebt Werte (`UseDeltaValue = true`),
-    weil es Belohnungen umbaut. Unser Regler nennt einen ZIELwert, also
-    `UseDeltaValue = false` + `UsePreset = false`. Das ist keine Erfindung:
-    91 Vanilla-Knoten stehen genau so, und ihre Werte sind unsere Skala
-    (10x `-800`, dazu `-599`, `801`, `-199`).
-
-    ⚠ **Was gemessen ist und was nicht.** Spieler ↔ Fraktion macht RSO
-    genauso (44 Knoten) — das ist im Feld erprobt. Fraktion ↔ Fraktion
-    macht RSO NICHT; dass beide Ziele ein Fraktionsname sein duerfen, ist
-    aus Vanilla belegt (35 Knoten tragen einen Namen als `FirstTargetSID`,
-    darunter Varta, Spark, Monolith, Noon, Neutrals), aber nicht von einer
-    laufenden Mod. Steht so im Tooltip und im FAQ.
-
-    ⚠ Nichts davon liegt im Spielstand: Pak raus = das Skript laeuft nicht
-    mehr, die Beziehungen bleiben auf dem zuletzt gesetzten Stand."""
+    Player/faction targeting follows existing mod patterns; faction/faction
+    nodes are supported by vanilla examples but still need mod game validation.
+    Removing the Pak stops future application; it does not restore saved relations."""
     if not (s.relations_runtime and s.faction_relations):
         return {}, {}, {}
 
@@ -5826,10 +5124,7 @@ def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dic
         if value == vanilla:
             continue
         first, second = key.split("<->", 1)
-        # Der Spieler wird ueber seine GUID adressiert, nicht ueber den
-        # Fraktionsnamen "Player" - so macht es RSO, und so stehen 1436
-        # Vanilla-Knoten da. Steht "Player" auf der zweiten Seite, drehen
-        # wir das Paar um, damit der Spieler immer das erste Ziel ist.
+        # Address Player by GUID and normalize it to the first target.
         if second == "Player":
             first, second = second, first
         if first == "Player":
@@ -5857,8 +5152,7 @@ def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dic
     if not nodes:
         return {}, {}, {}
 
-    # Startknoten. `LaunchOnQuestStart` UND das Startskript - beides wie bei
-    # RSO; die Verzoegerung gibt dem Spiel Zeit, den Spielstand zu laden.
+    # Use both LaunchOnQuestStart and the launch script; delay until save loading.
     nodes[RELATIONS_START_SID] = {
         "__new__": True,
         "SID": RELATIONS_START_SID,
@@ -5869,11 +5163,10 @@ def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dic
         "LaunchOnQuestStart": "true",
     }
 
-    # Die Quest selbst. Vanilla-Eintraege in QuestPrototypes tragen nur
-    # ihren SID (nachgesehen: 1304 Quests, die meisten sind zwei Zeilen).
+    # Create the quest prototype with its SID.
     quest = {RELATIONS_QUEST_SID: {"__new__": True, "SID": RELATIONS_QUEST_SID}}
 
-    # Das Startskript. `[*]` = anhaengen, damit kein Index kollidiert.
+    # Use [*] append syntax in the launch script to avoid index collisions.
     script = {"[*]": {
         "__new__": True,
         "SID": "S2T_OnGameLaunch_Relations",
@@ -5882,12 +5175,9 @@ def _relations_runtime_patch(gd: GameData, s: Settings) -> tuple[dict, dict, dic
     return nodes, quest, script
 
 
-# Begegnungs-Arten (Director): Settings-Feld -> Squad-Token (siehe
-# GameData.director_scenario_tokens). Ein Szenario gehoert zur Art, wenn ALLE
-# seine Squads dieses Token tragen (BlinddogPack, Blinddog3_5 ...); gemischte
-# Paare (Blinddog3_5VsBoar1_2) sieht nur der Mutanten-Anteil-Regler.
-# Bloodsucker fehlt bewusst: in den Karten-Gruppen steht das Gewicht auf 0,
-# und 0 bleibt 0 (Verhalten, das Vanilla nie nutzt, wird nicht erfunden).
+# Classify species-only scenarios when every squad matches the token.
+# Mixed-species scenarios use only the overall mutant factor. Preserve
+# zero-weight bloodsucker scenarios.
 ENCOUNTER_KINDS = {
     "enc_blinddog_factor": "Blinddog",
     "enc_boar_factor": "Boar",
@@ -5902,22 +5192,14 @@ DIRECTOR_DELAY_KEYS = ("SpawnDelayMin", "SpawnDelayMax",
 
 
 def _lairs_patch(gd: GameData, s: Settings) -> dict:
-    """Lager-Bestand und -Respawn (LairPrototypes.cfg, docs/ALIFE_SPAWN_RESEARCH.md).
+    """Scale camp populations and ordinary respawn timers by faction/rank.
 
-    MaxSpawnQuantity je (Lager, Fraktion, Rang) x Faktor - Mutanten- und
-    Menschen-Fraktionen getrennt, Guard*-Lager (Basis-Wachen) bleiben
-    vanilla. Ganzzahlig, nie unter 1; beim Verkleinern nicht unter
-    min(Vanilla, Summe MinQuantityPerArchetype) - Vanilla verletzt diese
-    Summe bei Freedom/Newbie selbst, die Luecke wird nur nicht vergroessert.
-    Respawn: die drei Timer / Faktor, NUR fuer Bloecke mit dem Standard-
-    Tripel (180/480/480); die Story-Lager mit 6/30/30 bleiben unangetastet."""
+    Preserve Guard camps and story refill schedules. Counts remain integral
+    and cannot worsen existing archetype-minimum violations."""
     mut_on = _neq(s.lair_mutant_factor, 1.0) and s.lair_mutant_factor > 0
     hum_on = _neq(s.lair_human_factor, 1.0) and s.lair_human_factor > 0
     rsp_on = _neq(s.lair_respawn_factor, 1.0) and s.lair_respawn_factor > 0
-    # 1.33.0 (neunte Datenrecherche): Startbefuellung und die Gewichte der
-    # selteneren Archetypen. Beides drehen "A-Life Extended" (273) und
-    # "More Enemies" (438); gemessen: InitialSpawnQuantityPercent 688x 0.5
-    # und 100x 1.0, SpawnWeight 2244x 1.0 / 237x 0 / 147x 0.2 / 23x 0.5.
+    # Initial camp population and rare-archetype weights.
     ini_on = (_neq(s.lair_initial_fill_factor, 1.0)
               and s.lair_initial_fill_factor > 0)
     arch_on = (_neq(s.lair_rare_archetype_factor, 1.0)
@@ -5949,10 +5231,7 @@ def _lairs_patch(gd: GameData, s: Settings) -> dict:
                 new = min(1.0, value * s.lair_initial_fill_factor)
                 if _neq(new, value):
                     cfg["InitialSpawnQuantityPercent"] = _num(new)
-        # Archetyp-Gewichte: NUR die selteneren (0 < w < 1.0) werden
-        # angehoben - alle gleichmaessig zu skalieren wuerde am Verhaeltnis
-        # nichts aendern, und die Nullen sind eine Design-Entscheidung des
-        # Spiels (der Archetyp kommt in diesem Lager gar nicht vor).
+        # Scale only rare positive archetype weights; preserve absent choices at zero.
         arch_cfg: dict = {}
         if arch_on and not blk["guard"]:
             for name, raw in sorted(blk["archetypes"].items()):
@@ -5975,14 +5254,9 @@ def _lairs_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _director_patch(gd: GameData, s: Settings) -> dict:
-    """Zufallsbegegnungen (ALifeDirectorScenarioPrototypes.cfg).
+    """Adjust random encounter timing, mutant/species weights and pack caps.
 
-    Frequenz: SpawnDelay*/PostSpawnDirectorTimeout* aller Gruppen und die
-    Default-Werte / Faktor (ganzzahlig, >= 1). Mutanten-Anteil: ScenarioWeight
-    der rein-Mutanten-Szenarien (kein Human-Squad) x Faktor, Art-Regler
-    obendrauf (ENCOUNTER_KINDS); ganzzahlig, Vanilla 0 bleibt 0, sonst >= 1.
-    Rudel-Groesse: MaxCount der Rang-Deckel fuer Typen, die NICHT in
-    ProhibitedAgentTypes stehen (live gelesen); Vanilla 0 bleibt 0."""
+    Use integer timing/counts, preserve zero weights and respect prohibited agent types."""
     d = gd.director_preset()
     if d is None:
         return {}
@@ -5994,15 +5268,12 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
         _neq(v, 1.0) and v >= 0 for v in kinds.values())
     pack = s.encounter_pack_factor
     pack_on = _neq(pack, 1.0) and pack > 0
-    # 1.33.0: zwei Einzelwerte desselben Presets, die an keinem Regler
-    # hingen. "A-Life Extended" (273) halbiert die Ausbreitungszeit
-    # (120 -> 60); FallbackMaxSpawnCount (3) ist der Notnagel, wenn der
-    # Director keine passende Gruppe findet.
+    # Adjust expansion timing and the director's fallback spawn count.
     exp_on = (_neq(s.lair_expansion_player_factor, 1.0)
               and s.lair_expansion_player_factor > 0)
     fb_on = int(s.fallback_spawn_count) != int(
         parse_number(d.values.get("FallbackMaxSpawnCount")) or 3)
-    # 1.35.0: Zustand der Begegnung (lebend/verwundet/tot)
+    # Encounter alive/wounded/dead proportions.
     wounded_on = (_neq(s.encounter_wounded_factor, 1.0)
                   and s.encounter_wounded_factor >= 0)
     dead_on = (_neq(s.encounter_dead_factor, 1.0)
@@ -6045,10 +5316,10 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
             for skey, sc in (sids.children.items() if sids else ()):
                 toks = tokens.get(skey)
                 if not toks or "Human" in toks:
-                    continue                      # Menschen/gemischt: tabu
+                    continue                      # Human/mixed scenarios remain excluded.
                 w = parse_number(sc.values.get("ScenarioWeight"))
                 if w <= 0:
-                    continue                      # 0 bleibt 0
+                    continue                      # Preserve zero.
                 f = share if _neq(share, 1.0) and share >= 0 else 1.0
                 for token, kf in kinds.items():
                     if toks == {token} and _neq(kf, 1.0) and kf >= 0:
@@ -6071,23 +5342,14 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                 continue
             new = max(1, int(round(count * pack)))
             if new != int(count):
-                # kompletter [i]-Eintrag (Array-Eintraege nie halb patchen)
+                # Complete [i] entry; never emit an incomplete array entry.
                 (preset.setdefault("ALifeScenarioNPCArchetypesLimitsPerPlayerRank", {})
                        .setdefault(ri, {}).setdefault("Restrictions", {})
                        )[ti] = {"AgentType": f"EAgentType::{atype}",
                                 "MaxCount": str(new)}
 
-    # 1.35.0: in welchem Zustand eine Begegnung ankommt. Jeder der 95
-    # Squad-Eintraege traegt vier Zahlen: AliveMultiplierMin/Max (wie gross
-    # der lebende Anteil ist, 72x 0.4/0.8), WoundedMultiplier und
-    # DeadMultiplier. Gemessen 08.09.2026 - und die Notiz aus der neunten
-    # Recherche war zu duester: **Vanilla HAT Verwundeten-Begegnungen**, es
-    # gibt acht eigene Szenarien dafuer (Humans_Wounded_Friendly/_Enemy und
-    # ihre Gruppen-Varianten, 0.1 bis 0.2). Sie sind nur selten. Darum
-    # skalieren wir, was da ist, statt Verwundete zu erfinden: Nullen
-    # bleiben Nullen, der Anteil ist bei 1.0 gedeckelt.
-    # Der Eintrag geht KOMPLETT raus (Array-Regel), also mit Archetyp,
-    # Feind-Flag, Gruppe und beiden Alive-Werten unveraendert.
+    # Scale existing wounded/dead encounter fractions, preserving zero and capping at one.
+    # Emit complete squad entries with unchanged identity, flags and alive bounds.
     if wounded_on or dead_on:
         scenarios = d.children.get("Scenarios")
         for scen_key, scen in (scenarios.children.items() if scenarios else ()):
@@ -6101,7 +5363,7 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                         continue
                     raw = entry.values.get(key)
                     if raw is None or parse_number(raw) <= 0:
-                        continue          # 0 bleibt 0 - nichts erfinden
+                        continue          # Preserve zero; do not invent a nonzero value.
                     scaled = _scale_literal(raw, factor, cap=1.0)
                     if scaled is not None and _neq(parse_number(scaled),
                                                    parse_number(raw)):
@@ -6117,7 +5379,7 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
 
 
 UPGRADE_LOCK_KEYS = {
-    # Settings-Flag -> Sperrliste im Upgrade-Prototyp
+    # Settings flag -> upgrade prototype restriction list.
     "upgrades_take_both": "BlockingUpgradePrototypeSIDs",
     "upgrades_no_blueprint": "RequiredItemPrototypeSIDs",
     "upgrades_no_tiers": "RequiredUpgradePrototypeSIDs",
@@ -6125,14 +5387,10 @@ UPGRADE_LOCK_KEYS = {
 
 
 def _upgrades_patch(gd: GameData, s: Settings) -> dict:
-    """Techniker-Upgrade-Sperren loesen (UpgradePrototypes.cfg, 1288
-    Upgrades). Vorbild: die Nexus-Mods "Take Both Upgrades" (2549) und
-    "Unrestricted Upgrades" (+NoTiers, 2545) - beide leeren die jeweilige
-    Liste per bpatch mit einem leeren Skalar (`Key =`); `[0] = empty`
-    funktioniert laut Autor NICHT (das Spiel sucht dann ein Item namens
-    empty). Hier live aus den Spieldaten: jedes Upgrade, dessen Liste in
-    Vanilla nicht leer ist (die Mods lassen 4/1/1 davon aus). Was die
-    Techniker warten, steht nicht in dieser Datei und bleibt vanilla."""
+    """Clear nonempty technician upgrade prerequisite/blocking lists with 'Key ='.
+
+    Do not replace them with an empty item SID. Technician service coverage
+    is defined elsewhere and remains unchanged."""
     patches: dict = {}
     for flag, key in UPGRADE_LOCK_KEYS.items():
         if not getattr(s, flag):
@@ -6140,11 +5398,7 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
         for sid in gd.upgrade_sids_with(key):
             patches.setdefault(sid, {})[key] = ""
 
-    # Upgrade-Preis je Upgrade (1.32.0, Nr. 14): `BaseCost` steht an allen
-    # 1288 Upgrades (5400-21700). Bewusst KEIN eigener Regler - der
-    # vorhandene "Upgrade cost" skalierte bisher nur den Difficulty-
-    # Multiplikator; jetzt zieht er die Einzelpreise mit, genau wie in
-    # 1.28.0 die NPC-Haendlerwerte in die Preisregler gewandert sind.
+    # Scale per-upgrade BaseCost alongside the existing difficulty cost factor.
     if _neq(s.upgrade_cost_factor, 1.0) and s.upgrade_cost_factor >= 0:
         for sid, node in sorted(gd.upgrades.children.items()):
             if "#" in sid:
@@ -6156,12 +5410,7 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None and scaled != raw.strip():
                 patches.setdefault(sid, {})["BaseCost"] = scaled
 
-    # Reparatur-Aufschlag je verbautem Upgrade (1.31.0). `RepairCostModifier`
-    # steht in Vanilla bei ALLEN 1288 Upgrades auf 0.2f — der Posten, den
-    # die Formel in docs/SPEC.md par. 1.10 als "0.1-Koeffizient ohne cfg-
-    # Schluessel" fuehrte. Absolutregler, weil der Wert einheitlich ist;
-    # verglichen wird trotzdem je Upgrade gegen den live gelesenen Wert.
-    # Gefunden in "Stalker Unlimited" (Nexus 1453).
+    # Set per-upgrade RepairCostModifier absolutely, comparing each live baseline.
     for sid, node in sorted(gd.upgrades.children.items()):
         if "#" in sid:
             continue
@@ -6170,7 +5419,7 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
             continue
         if not _neq(s.upgrade_repair_surcharge, parse_number(raw)):
             continue
-        # Literalform erhalten (Vanilla schreibt "0.2f")
+        # Preserve literal style; vanilla uses "0.2f".
         suffix = "f" if raw.strip().endswith(("f", "F")) else ""
         patches.setdefault(sid, {})["RepairCostModifier"] = (
             _num(s.upgrade_repair_surcharge) + suffix)
@@ -6180,13 +5429,9 @@ def _upgrades_patch(gd: GameData, s: Settings) -> dict:
 # ------------------------------------------------------------ 1.26.0
 
 def _obj_flags_patch(gd: GameData, s: Settings) -> dict:
-    """ObjPrototypes-Schalter je Prototyp: Mutanten loesen Anomalien aus
-    (sdwvit AnomaliesHitAllMutants - Vanilla sind Bloodsucker, Chimaere,
-    Controller, Poltergeist, Pseudohund, Riese, Hirsch und Ratten immun)
-    und menschliche NPCs pluendern keine Leichen (sdwvit NPCsDontLootCorpses).
-    Jeder Struct, der den Wert aufgeloest 'falsch herum' hat, bekommt eine
-    eigene Zeile - Erben eingeschlossen, das ist harmlos und deckt Structs
-    ab, die den Wert selbst ueberschreiben."""
+    """Enable anomaly triggering for affected mutants and optionally prevent human corpse looting.
+
+    Resolve values per prototype, including inherited overrides."""
     patches: dict = {}
     if s.mutants_trigger_anomalies:
         for sid in sorted(gd.mutants()):
@@ -6200,9 +5445,9 @@ def _obj_flags_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _guard_patch(gd: GameData, s: Settings) -> dict:
-    """Basis-Wachen: GuardGun*_NPC (BaseDamage 500) auf den Schaden ihrer
-    normalen NPC-Waffe (refkey-Elternteil, z.B. AK 9.5) setzen - zusammen
-    mit dem geleerten KillVolumeEffect ist das sdwvit NoInstaGibByGuards."""
+    """Replace GuardGun NPC damage with its ordinary parent weapon damage.
+
+    This complements removal of the guard KillVolumeEffect."""
     if not s.guards_no_instakill:
         return {}
     patches: dict = {}
@@ -6220,14 +5465,10 @@ def _guard_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _explosion_patch(gd: GameData, s: Settings) -> dict:
-    """ExplosionPrototypes (Granaten, Werfer, Faesser, Gasflaschen):
-    Radius/ImpulseRadius/ConcussionRadius x Faktor (sdwvit
-    IncreaseGrenadeRadius) und DamageNPC x Faktor - der Spieler-Schaden
-    laeuft weiter ueber den Schwierigkeits-Multiplikator."""
+    """Scale explosion radii and NPC damage; player damage uses the difficulty multiplier."""
     radius_on = _neq(s.explosion_radius_factor, 1.0) and s.explosion_radius_factor > 0
     npc_on = _neq(s.explosion_npc_damage_factor, 1.0) and s.explosion_npc_damage_factor >= 0
-    # 1.32.0 (Siebte Datenrecherche Nr. 11/12): Ruestungsschaden,
-    # Ruestungsdurchschlag und Schaden an zerstoerbaren Objekten
+    # Explosion armor damage, penetration and destructible-object damage.
     armor_on = _neq(s.explosion_armor_damage_factor, 1.0) and s.explosion_armor_damage_factor >= 0
     pierce_on = _neq(s.explosion_armor_pierce_factor, 1.0) and s.explosion_armor_pierce_factor >= 0
     destr_on = _neq(s.explosion_destructible_factor, 1.0) and s.explosion_destructible_factor >= 0
@@ -6262,8 +5503,7 @@ def _explosion_patch(gd: GameData, s: Settings) -> dict:
                 continue
             for key in keys:
                 raw = node.values.get(key)
-                # Vanilla-0 bleibt 0 - DamageArmorNPC steht bei sechs der
-                # zwoelf Explosionen auf 0., sonst gaebe es Scheinpatches
+                # Preserve zero explosion armor-damage values and omit no-op patches.
                 if raw is None or parse_number(raw) <= 0:
                     continue
                 scaled = _scale_literal(raw, factor)
@@ -6275,8 +5515,7 @@ def _explosion_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _phantom_dog_patch(gd: GameData, s: Settings) -> dict:
-    """Pseudohund-Trugbilder (AbilityPrototypes PseudoDogSummon_*): Damage
-    und Bleeding x Faktor, 0 = harmlos (sdwvit NoPseudoDogCloneDamage)."""
+    """Scale pseudodog illusion damage and bleeding; zero makes these effects harmless."""
     if not (_neq(s.phantom_dog_damage_factor, 1.0) and s.phantom_dog_damage_factor >= 0):
         return {}
     patches: dict = {}
@@ -6296,10 +5535,7 @@ def _phantom_dog_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _mutant_loot_patch(gd: GameData, s: Settings) -> dict:
-    """Trophaeen-Chance je Mutantenart (<Art>LootGenerator, Vanilla 0.1 bis
-    1.0) x Faktor, Deckel 1 ('100% Chance Mutant Loot', sdwvit
-    AlternativeMutantsAlwaysDropLoot). Die grosse Generator-Datei wird nur
-    bei aktivem Regler geparst."""
+    """Scale per-species mutant trophy chances, capped at one; parse generators lazily."""
     if not (_neq(s.mutant_loot_chance_factor, 1.0) and s.mutant_loot_chance_factor >= 0):
         return {}
     patches: dict = {}
@@ -6327,9 +5563,7 @@ def _mutant_loot_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _corpse_clue_patch(gd: GameData, s: Settings) -> dict:
-    """Versteck-Hinweise auf Leichen (CorpseClueStashPrototypes, je Region
-    BaseSpawnChance 0.02 / AddSpawnChance 0.01) x Faktor, Deckel 1
-    ('More Stash Clues', sdwvit StashClueRework)."""
+    """Scale regional corpse stash-clue chances, capped at one."""
     if not (_neq(s.stash_clue_factor, 1.0) and s.stash_clue_factor >= 0):
         return {}
     patches: dict = {}
@@ -6347,9 +5581,7 @@ def _corpse_clue_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _marker_patch(gd: GameData, s: Settings) -> dict:
-    """PDA-Karte (MarkerPrototypes): Aufdeck-/Erkundungsdistanz der Orte
-    (Vanilla meist 100 m / 20 m) x Faktor und Regionsnamen von Anfang an
-    (RegionMarker Hidden -> Explored, stalker-world 'alle Ortsnamen')."""
+    """Scale map discovery/exploration distances and optionally reveal region names."""
     reveal_on = _neq(s.map_reveal_factor, 1.0) and s.map_reveal_factor > 0
     if not (reveal_on or s.map_all_regions):
         return {}
@@ -6357,11 +5589,8 @@ def _marker_patch(gd: GameData, s: Settings) -> dict:
     for sid, node in sorted(gd.markers.children.items()):
         if sid == "[0]" or "#" in sid:
             continue
-        # ~320 der 359 Marker sind index-adressierte Top-Level-Eintraege
-        # ([1] ...): die werden wie beim Wetter KOMPLETT (aufgeloest)
-        # ausgegeben, weil unklar ist, ob {bpatch} solche Eintraege
-        # zusammenfuehrt oder ersetzt (docs/SPEC.md); benannte Marker nur
-        # mit den geaenderten Schluesseln.
+        # Emit resolved indexed marker entries completely because partial merge behavior
+        # is unverified; named markers need only changed fields.
         indexed = sid.startswith("[")
         values = _resolved_struct(gd.markers, node) if indexed else node.values
         cfg: dict = {}
@@ -6389,8 +5618,8 @@ def _marker_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _weird_artifact_patch(gd: GameData, s: Settings) -> dict:
-    """Weird-Artefakte (Cost of Hope): EffectsDuration / MaxCharge x Faktor
-    (sdwvit NoWeirdArtifactRecharge)."""
+    """Weird artifacts (Cost of Hope): EffectsDuration / MaxCharge x factor.
+    Reference: sdwvit NoWeirdArtifactRecharge."""
     if not (_neq(s.weird_artifact_factor, 1.0) and s.weird_artifact_factor > 0):
         return {}
     patches: dict = {}
@@ -6410,9 +5639,7 @@ def _weird_artifact_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _skip_intro_patch(gd: GameData, s: Settings) -> dict:
-    """Intro-Video (QuestNode E01_MQ01_PlayVideo): die Startverbindung des
-    Knotens leeren, das Spiel laeuft direkt weiter (sdwvit SkipIntroCutscene).
-    Parst die 75-MB-Datei nur bei aktivem Schalter."""
+    """Disconnect the intro-video start link; parse quest data only when enabled."""
     if not s.skip_intro:
         return {}
     node = gd.questnodes.children.get("E01_MQ01_PlayVideo")
@@ -6432,9 +5659,7 @@ def _skip_intro_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _buy_limits_patch(gd: GameData, s: Settings) -> dict:
-    """Haendler kaufen keine Waffen/Ruestungen: BuyLimitations jedes
-    Handelsgenerators um Weapon und Armor ergaenzen (vorhandene Sperren
-    bleiben; sdwvit TradersDontBuyWeaponsArmor)."""
+    """Add Weapon/Armor to trader BuyLimitations while preserving existing restrictions."""
     if not s.traders_no_gear_buy:
         return {}
     patches: dict = {}
@@ -6462,11 +5687,7 @@ def _buy_limits_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _posteffect_patch(gd: GameData, s: Settings) -> dict:
-    """Duck-Vignette (PostEffectProcessorPrototypes CrouchEffectProcessor.
-    Intensity 0.6) x Faktor, Deckel 1 ('Remove Crouch Vignette'); seit
-    1.28.0 auch die 15 Schadens-Bildschirmeffekte (DAMAGE_SCREEN_RE, je
-    Intensity 1.0) x Faktor 0..1 - jeder Prozessor einzeln, weil jedes
-    Kind Intensity selbst deklariert (docs/CORE_SWEEP_RESEARCH.md par. 3b)."""
+    """Scale crouch vignette and selected damage-screen intensities per explicit processor."""
     patches: dict = {}
     if _neq(s.crouch_vignette_factor, 1.0) and s.crouch_vignette_factor >= 0:
         node = gd.posteffects.children.get("CrouchEffectProcessor")
@@ -6481,7 +5702,7 @@ def _posteffect_patch(gd: GameData, s: Settings) -> dict:
             if sid == "[0]" or "#" in sid or not DAMAGE_SCREEN_RE.match(sid):
                 continue
             raw = node.values.get("Intensity")
-            if raw is None:                  # heute deklariert jedes Kind selbst
+            if raw is None:                  # Each current child declares its own values.
                 raw = gd.resolve(gd.posteffects, sid, "Intensity")
             value = parse_number(raw)
             if raw is None or value <= 0:
@@ -6493,9 +5714,7 @@ def _posteffect_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _anomaly_patch(gd: GameData, s: Settings) -> dict:
-    """Klicker-Anomalie (AnomalyPrototypes ClickerAnomaly.ParticleMaxCount,
-    Vanilla 20) x Faktor, mindestens 1; der Blendschaden sitzt in
-    _effects_patch (ClickerAnomalyHit)."""
+    """Scale clicker particle count with a minimum of one; damage is handled by effects."""
     if not (_neq(s.clicker_factor, 1.0) and s.clicker_factor >= 0):
         return {}
     node = gd.anomalies.children.get("ClickerAnomaly")
@@ -6512,10 +5731,9 @@ def _anomaly_patch(gd: GameData, s: Settings) -> dict:
 # ------------------------------------------------------------ 1.27.0
 
 def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
-    """Staerke der Techniker-Upgrades: alle Effekte, die UpgradePrototypes
-    referenzieren, nach Effekt-Typ in Familien (UPGRADE_FAMILIES) - je Familie
-    ein Regler. Nur die Bonus-Richtung wird skaliert (Malus-Effekte wie
-    RecoilNeg20 bleiben), Prozent-Boni deckeln bei -100 bzw. Schutz bei 100."""
+    """Scale beneficial technician-upgrade effect families, preserving penalties.
+
+    Cap negative percentage reductions and percentage protection at valid limits."""
     factors = {fam: getattr(s, fam) for fam in UPGRADE_FAMILIES}
     if not any(_neq(f, 1.0) and f >= 0 for f in factors.values()) and not any(
             c.group == "upgrade" for c, _value in detail_controls.changes(s.detail_overrides)):
@@ -6539,7 +5757,7 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
             continue
         fam, direction = by_type[typ]
         factor = detail_controls.upgrade_factor(s, typ, factors[fam])
-        if not (_neq(factor, 1.0) and factor >= 0):      # 0 = Upgrades wirken nicht
+        if not (_neq(factor, 1.0) and factor >= 0):      # Zero disables the upgrade's scaled contribution.
             continue
         cfg: dict = {}
         for key in ("ValueMin", "ValueMax"):
@@ -6567,14 +5785,8 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
         if cfg:
             patches[sid] = cfg
 
-    # 1.33.0: Composite-Effekte nachziehen. Ein Composite (31 Stueck, z.B.
-    # BattleExoskeleton_Varta_Armor_accuracy "20 %") traegt selbst KEINE
-    # Wirkung, sondern nur die Zahl fuers Techniker-Menue und verweist per
-    # ApplyExtraEffectPrototypeSIDs auf die echten Effekte
-    # (IdleSwayXPos20 + IdleSwayYPos20 + DispersionPos15). Bisher haben wir
-    # die Kinder skaliert und die angezeigte Zahl stehen lassen - die
-    # Anzeige log dann. Nur wenn ALLE Kinder mit DEMSELBEN Faktor skaliert
-    # wurden, ist die Anzeige eindeutig; sonst bleibt sie bewusst vanilla.
+    # Update a composite effect's displayed amount only when every referenced
+    # child was scaled by the same factor; mixed factors have no single faithful label.
     for sid in sorted(refs):
         node = gd.effects.children.get(sid)
         if node is None or sid in patches:
@@ -6611,7 +5823,7 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
                 value = float(number.rstrip(".") or "0")
             except ValueError:
                 continue
-            if value == 0:                     # 0.f-Platzhalter bleiben
+            if value == 0:                     # Preserve 0.f placeholders.
                 continue
             new = value * factor
             if not _neq(new, value):
@@ -6623,9 +5835,7 @@ def _upgrade_strength_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _scope_patch(gd: GameData, s: Settings) -> dict:
-    """Zielfernrohre (EffectPrototypes): Vergroesserung AimingFOVX2..X8
-    (-43..-70 %, Deckel -90) und die Nachteile ScopeAimingTimeNeg* /
-    ScopeAimingMovementNeg* (0 = keine)."""
+    """Scale scope zoom and aiming/movement penalties; cap zoom magnitude at 90%."""
     zoom_on = _neq(s.scope_zoom_factor, 1.0) and s.scope_zoom_factor > 0
     pen_on = _neq(s.scope_penalty_factor, 1.0) and s.scope_penalty_factor >= 0
     if not (zoom_on or pen_on):
@@ -6659,11 +5869,9 @@ def _scope_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _scope_override_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
-    """Pro-Fernrohr (1.27.0): fuer jedes Fernrohr mit Override einen abgeleiteten
-    Effekt S2T_<Scope>_<Effekt> {refkey=<Effekt>;bpatch} mit Vanilla x Faktor
-    anlegen (Zoom-Deckel -90 %) und die komplette EffectPrototypeSIDs-Liste des
-    Items mit den ersetzten Eintraegen ausgeben (jedes Scope-Item definiert
-    die Liste in Vanilla selbst). Liefert (Effekt-Patches, Item-Patches)."""
+    """Create derived per-scope effects and replace their references in complete item lists.
+
+    Return effect and item patches; cap zoom magnitude at 90%."""
     if not s.scope_overrides:
         return {}, {}
     table = gd.scope_effects()
@@ -6719,9 +5927,7 @@ def _scope_override_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
 
 
 def _combat_sync_patch(gd: GameData, s: Settings) -> dict:
-    """CombatSynchronizationPrototypes: Token-Budgets (MaxScore) je Grad und
-    Spielerrang - wie viele Gegner gleichzeitig im Nahkampf angreifen,
-    Faehigkeiten einsetzen, Granaten werfen oder Sperrfeuer geben."""
+    """Adjust combat token budgets by difficulty and rank for concurrent NPC actions."""
     factors = {fam: getattr(s, fam) for fam in SYNC_GROUPS}
     if not any(_neq(f, 1.0) and f > 0 for f in factors.values()):
         return {}
@@ -6757,8 +5963,7 @@ def _combat_sync_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _container_patch(gd: GameData, s: Settings) -> dict:
-    """ItemContainerPrototypes: RespawnTimeSeconds (Vanilla 0 = nie) auf
-    Stunden x 3600 - Behaelter fuellen sich wieder (experimentell)."""
+    """Set experimental container respawn time from hours to seconds."""
     hours = float(s.container_respawn_hours)
     if hours <= 0:
         return {}
@@ -6776,24 +5981,11 @@ def _container_patch(gd: GameData, s: Settings) -> dict:
 
 
 def input_ini(s: Settings) -> str | None:
-    """Der Inhalt von `Stalker2/Config/UserInput.ini` — oder None (1.35.0).
+    """Return optional Stalker2/Config/UserInput.ini content.
 
-    **Ein zweiter Auslieferungsweg.** Bisher schreibt das Werkzeug
-    ausschliesslich cfg-Dateien unterhalb von GameData; diese INI liegt
-    daneben im Spielordner und wird ueber `root_files` an die Pak-Wurzel
-    gelegt (der Mount-Punkt der Pak IST der Spielordner). Genau so macht es
-    "Fluid Movement and Aiming Overhaul" (Nexus 562) — deren Datei habe ich
-    geoeffnet, um das FORMAT zu kennen; die zwei Schluessel sind
-    Unreal-Standard (`/Script/Engine.InputSettings`), keine Spielwerte.
-
-    Warum ueberhaupt: Maus-Glaettung und Sicht-Beschleunigung lassen sich im
-    Spielmenue nicht abschalten. Beides sind Ein/Aus-Fahnen, darum zwei
-    Schalter statt Regler.
-
-    ⚠ Anders als alle anderen Ausgaben ist das eine ganze Datei, kein
-    `{bpatch}`: liefert eine andere Mod dieselbe INI, entscheidet die
-    Ladereihenfolge, und unser Mod-Scan sieht das nicht (er vergleicht nur
-    cfg-Blaetter). Steht so im Tooltip."""
+    Deliver through root_files rather than GameData. It uses Unreal input flags
+    for mouse smoothing/acceleration. This replaces a whole INI, so other mods
+    with the same path can conflict outside the cfg-leaf scanner's coverage."""
     lines = []
     if s.no_view_acceleration:
         lines.append("bViewAccelerationEnabled=False")
@@ -6819,7 +6011,7 @@ def build_root_files(gd: GameData, s: Settings) -> dict[str, str | bytes]:
 
 
 def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
-    """{Pfad relativ zu GameData/: cfg-Text} fuer alle aktiven Tweaks."""
+    """Return GameData-relative cfg paths and text for active tweaks."""
     n = s.mod_name
     out: dict[str, str] = {}
     list(artifact_extensions.changes(s.artifact_overrides))  # validate before emitting any file
@@ -6916,9 +6108,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     cws_patches.update(_npc_weapon_patch(gd, s))
     for sid, cfg in _guard_patch(gd, s).items():
         cws_patches.setdefault(sid, {}).update(cfg)
-    # NACH _npc_weapon_patch/_guard_patch mergen: die beiden benutzen
-    # dict.update auf Struct-Ebene und wuerden einen fertigen Eintrag
-    # sonst ueberschreiben.
+    # Merge after NPC weapon/guard builders, whose struct-level updates could
+    # overwrite already assembled fields.
     for sid, cfg in _npc_vs_npc_patch(gd, s).items():
         cws_patches.setdefault(sid, {}).update(cfg)
     for sid, cfg in _zombie_spread_patch(gd, s).items():
@@ -6938,8 +6129,8 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         f"WeaponGeneralSetupPrototypes_patch_{n}.cfg",
         wgs_patches,
     )
-    # Editions-Waffen: eigene Patch-Dateien im DLCGameData-Zweig
-    # ("//" = relativ zu Stalker2/Content/, siehe pakio.pack_mod)
+    # Edition weapons: separate patch files under DLCGameData.
+    # "//" means relative to Stalker2/Content/; see pakio.pack_mod.
     for edition, ed_patches in sorted(wgs_dlc.items()):
         add(
             f"//GameLite/DLCGameData/{edition}/WeaponData/"
@@ -6980,15 +6171,14 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         _holdbreath_patch(gd, s))
     core_patch = _corevars_patch(gd, s)
     add(f"CoreVariables.cfg_patch_{n}.cfg", core_patch)
-    # 1.28.0: dieselben Gewichts-/Ausdauer-Werte auch in CoreVariablesCustom
+    # Mirror affected weight/stamina values into CoreVariablesCustom.
     add(f"CoreVariablesCustom.cfg_patch_{n}.cfg", _corevars_custom_patch(gd, core_patch))
     add(f"SaveLoadVariables.cfg_patch_{n}.cfg", _saveload_patch(gd, s))
     add(f"AutoSaveVariables.cfg_patch_{n}.cfg", _autosave_patch(gd, s))
     add(f"QuickSaveVariables.cfg_patch_{n}.cfg", _quicksave_patch(gd, s))
     add(f"StashPrototypes/StashPrototypes_patch_{n}.cfg", _stash_patch(gd, s))
-    # Drei Builder teilen sich die Generator-Datei (Mengen, Waffen-Zustand,
-    # Haendler-Bestand) und teils denselben PossibleItems-Eintrag -> mergen
-    # loot_extensions composes global and species trophy settings.
+    # Merge builders sharing generator nodes, including quantities, condition
+    # and trader stock. loot_extensions composes global/species trophy settings.
     add(f"ItemGeneratorPrototypes/ItemGeneratorPrototypes_patch_{n}.cfg",
         gen_patches)
     add(f"AIGlobals.cfg_patch_{n}.cfg", _aiglobals_patch(gd, s))
@@ -7046,21 +6236,14 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
         isolated, job_guards, job_journals = build_job_isolation(gd)
         _merge_nested(quest_patches, isolated)
     add(f"QuestNodePrototypes/QuestNodePrototypes_patch_{n}.cfg", quest_patches)
-    # Mehrfach-Jobs, Teil 2 + 3 (1.36.0): der Menue-Boden in DialogPrototypes
-    # ({bpatch}, erste Patchdatei dort) und die Taken/Clear-Knoten in einer
-    # EIGENEN Datei ohne {bpatch} - Begruendung in den zwei Buildern.
+    # Keep dialogue patches and new taken-job cleanup nodes in their respective files.
     add(f"DialogPrototypes/DialogPrototypes_patch_{n}.cfg", _quest_menu_patch(gd, s))
     job_nodes = _quest_taken_patch(gd, s)
     job_nodes.update(job_guards)
     add(f"QuestNodePrototypes/{n}_Jobs.cfg", job_nodes)
     add(f"JournalQuestPrototypes/{n}_Jobs.cfg", job_journals)
-    # Beziehungen im laufenden Spielstand (1.36.0): drei Dateien. Die neuen
-    # Knoten bekommen bewusst eine EIGENE Datei statt in die {bpatch}-Datei
-    # oben zu wandern: die zwei Mods, deren neue Quest-Knoten nachweislich
-    # laufen (RSO, Living Zone), legen sie genau so ab - und unser einziger
-    # Versuch, neue Knoten in eine gemischte {bpatch}-Datei zu schreiben
-    # (der Mehrfach-Job-Schalter), hat im Spiel zweimal nicht gewirkt.
-    # Ob die Ablage der Grund war, ist unbewiesen; sie kostet nichts.
+    # Runtime relation nodes use a separate quest file alongside the prototype
+    # and launch script, preserving the distinction between new nodes and bpatches.
     rel_nodes, rel_quest, rel_script = _relations_runtime_patch(gd, s)
     add(f"QuestNodePrototypes/{n}_Relations.cfg", rel_nodes)
     add(f"QuestPrototypes/QuestPrototypes_patch_{n}.cfg", rel_quest)
@@ -7079,8 +6262,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"PhysicsInteractionPrototypes/PhysicsInteractionPrototypes_patch_{n}.cfg",
         _physics_patch(gd, s))
     add(f"WeatherChainPrototypes/WeatherChainPrototypes_patch_{n}.cfg", _weatherchain_patch(gd, s))
-    # SingletonConstants ist unbinarisiert -> Patchdatei direkt in GameData/
-    # (gleiche Konvention wie CoreVariables/AIGlobals, docs/SPEC.md par. 0)
+    # Place unbinarized SingletonConstants patches directly under GameData.
     add(f"SingletonConstants.cfg_patch_{n}.cfg", _singleton_patch(gd, s))
     add(f"ALifePrototypes/ALifePolicyPrototypes/ALifePolicyPrototypes_patch_{n}.cfg",
         _alife_policy_patch(gd, s))
@@ -7096,7 +6278,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
 
 
 def summarize(s: Settings) -> list[str]:
-    """Kurze englische Zusammenfassung der aktiven Tweaks (fuer GUI/Log)."""
+    """Return a short English summary of active tweaks for the GUI and log."""
     lines = extension_controls.regional_weather.summarize(s.regional_weather_overrides)
     lines.extend(artifact_extensions.summarize(s.artifact_overrides))
     lines.extend(detail_controls.summarize(s.detail_overrides))
@@ -7164,7 +6346,7 @@ def summarize(s: Settings) -> list[str]:
     if s.no_overweight_penalty:
         lines.append("No overweight penalty (speed/stamina)")
     if _neq(s.item_weight_factor, 1.0):
-        # Ohne angehakte Kategorie baut _item_weight_patch nichts -> das auch sagen
+        # Explain when no selected weight category can produce a patch.
         if s.item_weight_categories:
             cats = ", ".join(sorted(CATEGORY_LABELS[c] for c in s.item_weight_categories))
             lines.append(f"Item weight × {s.item_weight_factor:g} ({cats})")
@@ -7530,7 +6712,7 @@ def summarize(s: Settings) -> list[str]:
     f("Bullet wall penetration", s.bullet_penetration_factor)
     f("Bullet max range", s.bullet_range_factor)
     f("NPC vs NPC damage", s.npc_vs_npc_damage_factor)
-    # 1.35.0: kleine Kandidaten
+    # Additional verified controls.
     f("NPC vs player damage", s.npc_vs_player_damage_factor)
     f("NPC vs allies damage", s.npc_vs_friendly_damage_factor)
     f("Bullet penetration depth", s.bullet_penetration_depth_factor)
@@ -7552,7 +6734,7 @@ def summarize(s: Settings) -> list[str]:
     if s.stat_bars_follow:
         lines.append("Inventory stat bars follow your changes")
     f("Ammo pack size", s.ammo_pack_factor)
-    # 1.33.0 (neunte Datenrecherche)
+    # Additional verified controls.
     f("Anomaly wear on gear", s.anomaly_wear_factor)
     f("Weapon & armor max condition", s.gear_durability_factor)
     f("Damage at extreme range", s.far_damage_factor)
@@ -7570,9 +6752,7 @@ def summarize(s: Settings) -> list[str]:
     f("Ammo trajectory flatness", s.ammo_flatness_factor)
     f("Ammo weapon wear", s.ammo_wear_factor)
     f("Food & medicine stack size", s.consumable_stack_factor)
-    # Strenger als die Waffen-Schleife weiter unten: ein Muellschluessel aus
-    # einem von Hand bearbeiteten Preset darf hier kein KeyError werfen.
-    # Das Praefix "Ammo " haelt A545A davon ab, wie eine Waffen-SID zu wirken.
+    # Ignore invalid preset keys without KeyError; prefix ammunition labels clearly.
     for sid, params in sorted(s.ammo_overrides.items()):
         parts = [f"{AMMO_PARAM_LABELS[p].lower()} × {v:g}"
                  for p, v in sorted(params.items())
@@ -7594,9 +6774,7 @@ def summarize(s: Settings) -> list[str]:
             from .names import WEAPON_ALIASES
             lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: "
                          + ", ".join(parts))
-    # Kaliberwechsel eigene Zeile: er ist kein Faktor und gehoert nicht in
-    # die Aufzaehlung darueber — aber unbedingt in die Zusammenfassung,
-    # weil er die Waffe staerker veraendert als jeder Regler.
+    # Report caliber changes separately from numeric factors.
     for sid, caliber in sorted(s.weapon_calibers.items()):
         from .names import WEAPON_ALIASES
         lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: ammunition "

@@ -1,23 +1,7 @@
-"""Stapelgroesse im Inventar (GitHub Issue #7, Molkerr, 07.09.2026).
+"""Check inventory stack sizes against live ItemPrototypes.
 
-Die Anfrage: "Is it possible to add a function to increase stack size in the
-inventory (for example, ammo more than 900 per stack)?"
-
-Gemessen VOR dem Bauen (Projektregel: erst die Daten, dann Code) — der
-Schluessel `MaxStackCount` steht 1375x in ItemPrototypes.cfg:
-
-    900     35x   Munition (TemplateAmmo + 34 Sorten)  <- die einzige Grenze,
-                  die im Spiel wirklich stoert
-    999    607x   Waffen, Ruestung, Artefakte, Aufsaetze, Nahrung, Medizin
-    300000 701x   PDAs, Notizen, Schluessel, Questgegenstaende, Granaten
-    1       31x   Ferngläser, Detektoren, Weird-Artefakte, GELDKARTEN
-    100      1x   Malahit_KeyCard
-
-Die 1er sind eine Design-Entscheidung des Spiels und bleiben unangetastet —
-`stack_counts()` filtert alles <= 1 heraus. Das prueft dieser Test, ebenso
-den Deckel bei 300000 (der Wert, den das Spiel selbst fuer "unbegrenzt"
-benutzt) und dass Stueckzahlen ganzzahlig bleiben.
-"""
+Exclude counts <= 1, retain integers and enforce the supported upper cap.
+Per-ammunition overrides replace their global factor."""
 import sys
 from pathlib import Path
 
@@ -37,76 +21,76 @@ def items(patches):
     return cfgparse.parse(patches[KEY]).children
 
 
-# --- 1) Bestand live gegen die Spieldaten -------------------------------
+# Verify current stackable item inventory.
 ammo = gd.stack_counts("ammo")
 cons = gd.stack_counts("consumable")
 assert len(ammo) == 34, len(ammo)
 assert set(ammo.values()) == {900}, sorted(set(ammo.values()))
 assert len(cons) == 22, len(cons)
 assert set(cons.values()) == {999}, sorted(set(cons.values()))
-print(f"Live: {len(ammo)} Munitionssorten auf 900, {len(cons)} Konsumgueter auf 999  OK")
+print(f"Live: {len(ammo)} ammunition types set to 900, {len(cons)} consumables set to 999  OK")
 
-# Die bewussten Einzelstuecke duerfen NICHT auftauchen
+# Items intentionally restricted to single units must remain excluded.
 for sid in ("Binoculars_01", "Veles", "AArtifactWeirdBolt", "MoneyCommon", "GuitarUsable"):
     for cat in ("ammo", "consumable", "misc", "artifact"):
-        assert sid not in gd.stack_counts(cat), f"{sid} darf nicht stapelbar werden"
-print("Ferngläser, Detektoren, Weird-Artefakte, Geldkarten und Gitarre bleiben draussen  OK")
+        assert sid not in gd.stack_counts(cat), f"{sid} must not become stackable"
+print("Binoculars, detectors, weird artifacts, money cards and guitar remain excluded  OK")
 
-# --- 2) Neutral erzeugt nichts ------------------------------------------
+# --- 2) Neutral produces nothing ---
 assert not build_patches(gd, Settings())
-print("Neutral: kein Patch  OK")
+print("Neutral: no patch  OK")
 
-# --- 3) Globaler Munitions-Regler ---------------------------------------
+# --- 3) Global ammunition slider ---
 p = items(build_patches(gd, Settings(ammo_stack_factor=10.0)))
 hit = {sid: n.values["MaxStackCount"] for sid, n in p.items()
        if "MaxStackCount" in n.values}
 assert len(hit) == 34, len(hit)
 assert set(hit.values()) == {"9000"}, set(hit.values())
-assert "TemplateAmmo" not in hit, "die Vorlage wird nicht gepatcht"
-print(f"Munition x10: {len(hit)} Sorten auf 9000, ganzzahlig  OK")
+assert "TemplateAmmo" not in hit, "Template is not patched"
+print(f"Ammunition x10: {len(hit)} types set to 9000, integers  OK")
 
-# --- 4) Deckel und Untergrenze ------------------------------------------
+# Check upper and lower bounds.
 p = items(build_patches(gd, Settings(ammo_stack_factor=1000.0)))
 werte = {n.values["MaxStackCount"] for n in p.values() if "MaxStackCount" in n.values}
-assert werte == {"300000"}, werte      # 900 * 1000 = 900000 -> gedeckelt
+assert werte == {"300000"}, werte      # 900 * 1000 = 900000 -> capped
 p = items(build_patches(gd, Settings(ammo_stack_factor=0.0)))
 werte = {n.values["MaxStackCount"] for n in p.values() if "MaxStackCount" in n.values}
-assert werte == {"1"}, werte           # nie unter 1
-print("Deckel 300000 und Untergrenze 1 halten  OK")
+assert werte == {"1"}, werte           # Never below 1.
+print("Upper cap 300000 and lower bound 1 hold  OK")
 
-# --- 5) Nahrung & Medizin getrennt --------------------------------------
+# --- 5) Separate food and medicine ---
 p = items(build_patches(gd, Settings(consumable_stack_factor=3.0)))
 hit = {sid: n.values["MaxStackCount"] for sid, n in p.items()
        if "MaxStackCount" in n.values}
 assert len(hit) == 22 and set(hit.values()) == {"2997"}, (len(hit), set(hit.values()))
-assert not any(sid in hit for sid in ammo), "Munition darf hier nicht mitlaufen"
-print("Nahrung/Medizin x3: 22 Gegenstaende auf 2997, Munition unberuehrt  OK")
+assert not any(sid in hit for sid in ammo), "Ammunition must not be included here"
+print("Food/medicine x3: 22 items set to 2997, ammunition unchanged  OK")
 
-# --- 6) Pro Sorte (der Baum im Ammo-Tab) --------------------------------
+# Check per-ammunition overrides.
 p = items(build_patches(gd, Settings(ammo_overrides={"A545D": {"stack": 5.0}})))
 hit = {sid: n.values["MaxStackCount"] for sid, n in p.items()
        if "MaxStackCount" in n.values}
 assert hit == {"A545D": "4500"}, hit
-print("Einzelne Sorte x5: nur A545D auf 4500  OK")
+print("Individual type x5: only A545D set to 4500  OK")
 
-# Die eigene Sorte schlaegt den globalen Regler (wie bei den vier Mods)
+# Individual ammunition overrides replace the global factor.
 p = items(build_patches(gd, Settings(ammo_stack_factor=2.0,
                                      ammo_overrides={"A545D": {"stack": 5.0}})))
 hit = {sid: n.values["MaxStackCount"] for sid, n in p.items()
        if "MaxStackCount" in n.values}
 assert hit["A545D"] == "4500" and hit["A762D"] == "1800", (hit["A545D"], hit["A762D"])
-print("Sorte schlaegt global (4500 neben 1800)  OK")
+print("Individual type overrides global (4500 alongside 1800)  OK")
 
-# --- 7) Die vier alten Mods bleiben unberuehrt --------------------------
+# --- 7) The four existing modifiers remain unchanged ---
 p = items(build_patches(gd, Settings(ammo_stack_factor=2.0)))
 for sid, node in p.items():
     assert set(node.values) == {"MaxStackCount"}, (sid, node.values)
-print("Der Stapel-Regler fasst DamageMod & Co. nicht an  OK")
+print("Stack slider leaves DamageMod and other modifiers unchanged  OK")
 
-# --- 8) Tweak-Liste -----------------------------------------------------
+# --- 8) Tweak list -----------------------------------------------------
 lines = summarize(Settings(ammo_stack_factor=10.0, consumable_stack_factor=2.0))
 assert any("Ammo stack size" in l for l in lines), lines
 assert any("Food & medicine stack size" in l for l in lines), lines
-print("Zeilen in der Tweak-Liste  OK")
+print("Lines in the tweak list  OK")
 
-print("\nSTAPELGROESSEN-TEST OK")
+print("\nSTACK SIZE TEST PASSED")

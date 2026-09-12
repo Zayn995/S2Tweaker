@@ -1,6 +1,6 @@
 # Zone Borders / Contracts reference review (Nexus 2638)
 
-Audit date: 2026-09-11. This is a static review of the owner's already downloaded version-1 archive associated with [Nexus mod 2638](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2638). It is not a game test, a compatibility endorsement, or permission to redistribute the mod. No reference implementation was copied into S2Tweaker production code.
+Audit date: 2026-09-11. This is a static review of a downloaded version-1 archive associated with [Nexus mod 2638](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2638). It is not a game test, a compatibility endorsement, or permission to redistribute the mod. No reference implementation was copied into S2Tweaker production code.
 
 The inspected archive filename is `ZZZ ZoneBordersContracts P 2638 1 2026-09-07T08-33Z vusaOsS2X.zip`. Its extracted Pak is 1,648,471 bytes with SHA-256 `1adab2eb56bc2dc14dbcaedf957cb24a6d0d91e184641e8d85d2cea59f1cd693`. Findings below apply to those exact bytes. They must not be generalized to another download or a future release.
 

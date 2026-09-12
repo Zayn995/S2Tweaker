@@ -1,10 +1,6 @@
-"""1.25.0-Paket (06.09.2026): Dialog-/Cutscene-/Standard-FOV, HUD-Schalter je
-Schwierigkeitsgrad, Leichen-Zeiten und -Hoechstzahl, Wetterdauer,
-Geschossabfall, Geschoss-Geschwindigkeit, Pistolenslot, Mutantenschutz,
-Schlaf. Sollwerte live aus vanilla/; Anker sind nur die bekannten
-Vanilla-Groessen (FOV 70/90/90, Corpse 1800/900/300/1800/6000 + 10,
-BulletDropHeight 170, Speed 20000-42000, MinSleepHours 7, Slots 99/20).
-"""
+"""Check FOV/HUD, corpses, weather, ballistics, slots, protection and sleep controls.
+
+Expected values come from installed data."""
 import sys
 from pathlib import Path
 
@@ -44,20 +40,18 @@ for name, keys in ((CORE, ("FOVDefault", "Corpse")), (DIFF, ("bShouldDisable",))
                    (CWS, ("BulletDrop",)), (ITEMS, ("ItemSlotType",)), (OBJ, ("Protection",))):
     text = neutral.get(name, "")
     assert not any(k in text for k in keys), (name, keys)
-print("Neutral: keine 1.25.0-Schluessel  OK")
+print("Neutral: no 1.25.0 keys  OK")
 
 # --- 1) FOV ----------------------------------------------------------------
 assert (gd.corevar("DialogFOVDefault"), gd.corevar("CutsceneFOVDefault"), gd.corevar("FOVDefault")) == (70.0, 90.0, 90.0)
 core = parsed(build_patches(gd, S(dialog_fov=90, cutscene_fov=100, default_fov=110)), CORE).children["DefaultConfig"].values
-# 1.36.0: "Dialog field of view" ist zurueckgezogen (GitHub #10, craigduk76:
-# DialogFOVDefault 105 im Spiel ohne Wirkung, kein zweiter cfg-Hebel). Das
-# Feld existiert noch, schreibt aber nichts; die zwei Nachbarn bleiben.
+# Retired dialogue FOV remains a preset field without generating a patch.
 assert "DialogFOVDefault" not in core, core
 assert (core["CutsceneFOVDefault"], core["FOVDefault"]) == ("100.0", "110.0"), core
 assert "FOV" not in build_patches(gd, S(dialog_fov=70, cutscene_fov=90, default_fov=90)).get(CORE, "")
-print("FOV: Dialog zurueckgezogen, 90/90 -> 100/110, Vanilla-Werte erzeugen nichts  OK")
+print("FOV: dialog control withdrawn, 90/90 -> 100/110, vanilla values produce nothing  OK")
 
-# --- 2) HUD-Schalter: je Grad nur die Abweichung -------------------------
+# HUD overrides emit only differences for each difficulty.
 levels = [sid for sid in gd.difficulty.children if sid != "[0]" and "#" not in sid]
 stalker = [sid for sid in levels if sid.startswith("Stalker")]
 assert len(levels) >= 10 and len(stalker) == 2, (len(levels), stalker)
@@ -72,18 +66,18 @@ assert all(c.children["EnvironmentDifficulty"].values["bShouldDisableCrosshair"]
 p = build_patches(gd, S(hud_body_markers=2, hud_stash_markers=1))
 text = p[DIFF]
 assert text.count("bShouldDisableDeadBodyMarkers = true") == len(levels) - 2 and text.count("bShouldDisableStashMarkers = false") == 2
-print(f"HUD: {len(levels)} Grade, Master-Paar {stalker}, nur Abweichungen  OK")
+print(f"HUD: {len(levels)} Grade, Master-Paar {stalker}, changed values only  OK")
 
-# --- 3) Leichen ------------------------------------------------------------
+# --- 3) Corpses ---
 core = parsed(build_patches(gd, S(corpse_time_factor=2.0, corpse_max_count=25)), CORE).children["DefaultConfig"].values
 assert core["CorpseOnlineTime"] == "3600.0" and core["CorpseSeenOnlineTime"] == "1800.0", core
 assert core["CorpseLootedOnlineTime"] == "600.0" and core["CorpseALifeOnlineTime"] == "3600.0", core
 assert core["CorpseTimeout"] == "12000", core["CorpseTimeout"]
 assert core["CorpseConditionOnlineCount"] == "25"
 assert "Corpse" not in build_patches(gd, S(corpse_max_count=10)).get(CORE, "")
-print("Leichen: Zeiten x2 (Literalform erhalten), Hoechstzahl 25  OK")
+print("Corpses: times x2, literal format preserved, maximum count 25  OK")
 
-# --- 4) Wetterdauer --------------------------------------------------------
+# --- 4) Weather duration --------------------------------------------------------
 p = build_patches(gd, S(weather_duration_factor=2.0))
 root = parsed(p, WEATHER)
 vanilla_root = gd.weatherselection
@@ -100,9 +94,9 @@ for sid, node in root.children.items():
             assert sub.values[key].endswith("f") == van.strip().endswith("f")
             checked += 1
 assert checked >= 300, checked
-print(f"Wetterdauer: {checked} Min/Max-Werte verdoppelt, Suffix erhalten  OK")
+print(f"Wetterdauer: {checked} Min/Max values doubled, suffix preserved  OK")
 
-# --- 5) Geschossabfall -----------------------------------------------------
+# --- 5) Projectile drop ---
 p = build_patches(gd, S(bullet_drop_factor=0.0))
 cws = parsed(p, CWS)
 heights = {sid: c.values["BulletDropHeight"] for sid, c in cws.children.items() if "BulletDropHeight" in c.values}
@@ -112,9 +106,9 @@ vanilla_h = parse_number(gd.weaponsettings.children["TemplateWeapon"].values["Bu
 assert vanilla_h == 170.0, vanilla_h
 p = build_patches(gd, S(bullet_drop_factor=0.5))
 assert parsed(p, CWS).children["TemplateWeapon"].values["BulletDropHeight"] == "85.0"
-print(f"Geschossabfall: {len(heights)} Vorlagen, 170 -> 0 / 85, NPC-Settings unberuehrt  OK")
+print(f"Projectile drop: {len(heights)} templates, 170 -> 0 / 85, NPC settings unchanged  OK")
 
-# --- 6) Geschoss-Geschwindigkeit -------------------------------------------
+# --- 6) Projectile speed ---
 p = build_patches(gd, S(bullet_speed_factor=2.0))
 proj = parsed(p, PROJ)
 assert 8 <= len(proj.children) <= 14, len(proj.children)
@@ -122,9 +116,9 @@ for sid, c in proj.children.items():
     van = parse_number(gd.projectiles.children[sid].values["Speed"])
     assert 10000 <= van < 1_000_000 and abs(parse_number(c.values["Speed"]) - 2 * van) < 1e-6, (sid, van)
 assert not any(sid in proj.children for sid in ("PGA", "PPG7V", "PHEDP", "PVOG", "empty"))
-print(f"Geschoss-Geschwindigkeit: {len(proj.children)} Kugeln x2, Gauss/RPG/Granaten unberuehrt  OK")
+print(f"Projectile speed: {len(proj.children)} bullets x2, Gauss/RPG/grenades unchanged  OK")
 
-# --- 7) Pistolenslot -------------------------------------------------------
+# --- 7) Pistol slot ---
 weapons = gd.slot_weapon_items()
 base = {sid: v for sid, v in weapons.items() if v[2] is None}
 assert sum(1 for v in base.values() if v[1] == "PrimaryWeapon") >= 90 and sum(1 for v in base.values() if v[1] == "Pistol") >= 15
@@ -138,9 +132,9 @@ p = build_patches(gd, S(pistol_slot_level=3))
 got3 = {sid for sid, c in parsed(p, ITEMS).children.items() if "ItemSlotType" in c.values}
 assert got3 == {sid for sid, (cat, slot, ed) in base.items() if slot == "PrimaryWeapon"}
 assert not any(sid in got3 for sid, (cat, slot, ed) in base.items() if slot == "Pistol")
-print(f"Pistolenslot: Stufe 1 = {len(smgs)} MPs, Stufe 3 = {len(got3)} Hauptwaffen, Pistolen unberuehrt  OK")
+print(f"Pistol slot: level 1 = {len(smgs)} MPs, Stufe 3 = {len(got3)} primary weapons, pistols unchanged  OK")
 
-# --- 8) Mutantenschutz -----------------------------------------------------
+# --- 8) Mutant protection -----------------------------------------------------
 prot = gd.mutant_protections()
 assert len(prot) >= 40, len(prot)
 p = build_patches(gd, S(mutant_protection_factor=0.5))
@@ -155,16 +149,16 @@ obj = parsed(p, OBJ)
 bs = [sid for sid in prot if gd.mutant_faction(sid) == "Bloodsucker"]
 assert bs and all(parse_number(obj.children[sid].children["Protection"].values["Strike"]) == 0 for sid in bs)
 assert not any(sid in obj.children for sid in prot if gd.mutant_faction(sid) != "Bloodsucker")
-print(f"Mutantenschutz: {len(prot)} Prototypen x0.5, Art-Override Bloodsucker -> 0  OK")
+print(f"Mutant protection: {len(prot)} prototypes x0.5, Bloodsucker species override -> 0  OK")
 
-# --- 9) Schlaf --------------------------------------------------------------
+# --- 9) Sleep --------------------------------------------------------------
 sleep = parsed(build_patches(gd, S(sleep_anytime=True, min_sleep_hours=2, sleep_in_emission=True)), SLEEP)
 v = sleep.children["DefaultSleepParams"].values
 assert v == {"AllowSleepThreshold": "0", "MinSleepHours": "2", "bAllowEmissionSleep": "true"}, v
 assert SLEEP not in build_patches(gd, S(min_sleep_hours=7))
-print("Schlaf: Schwelle 0, 2 h, Emission erlaubt  OK")
+print("Sleep: threshold 0, 2 h, emission allowed  OK")
 
-# --- 10) Zusammenfassung ---------------------------------------------------
+# --- 10) Summary ---
 joined = "\n".join(summarize(S(dialog_fov=80, hud_crosshair=2, corpse_time_factor=2.0, corpse_max_count=20,
                                weather_duration_factor=0.5, bullet_drop_factor=0.0, bullet_speed_factor=2.0,
                                pistol_slot_level=3, mutant_protection_factor=0.0, sleep_anytime=True,
@@ -174,6 +168,6 @@ for needle in ("Crosshair always hidden", "Bodies stay", "Max bodies near you 20
                "Mutant physical protection", "Sleep whenever you like", "Minimum sleep 3 h",
                "Sleeping during emissions allowed"):
     assert needle in joined, needle
-print("Zusammenfassung nennt alle zwoelf  OK")
+print("Summary includes all twelve controls  OK")
 
 print("\nV125-TEST OK")

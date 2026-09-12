@@ -1,9 +1,7 @@
-"""S2Tweaker - Einstiegspunkt fuer die Entwicklung (python main.py).
+"""Development entry point: run with python main.py.
 
-Der ausgelieferte Programmordner startet NICHT ueber diese Datei: dort ist
-S2Tweaker.exe die signierte pythonw.exe von python.org, und
-_internal/sitecustomize.py (Quelle: tools/launcher.py) ruft die GUI.
-"""
+Portable builds launch through the signed pythonw.exe and
+_internal/sitecustomize.py (tools/launcher.py)."""
 
 
 def main():

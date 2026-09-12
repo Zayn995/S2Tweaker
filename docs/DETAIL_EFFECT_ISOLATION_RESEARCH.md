@@ -1,6 +1,6 @@
 # Isolation rules for special-artifact and medical detail effects
 
-Research for the authorized detail controls, 2026-09-11. No animation, asset, injector, Dev Kit, production-code or game-installation changes were made by this audit. Numeric effect settings do not require animation edits. This is a static implementation design, not a gameplay result.
+Research for optional detail controls, 2026-09-11. No animation, asset, injector, Dev Kit, production-code or game-installation changes were made by this audit. Numeric effect settings do not require animation edits. This is a static implementation design, not a gameplay result.
 
 All game paths below are relative to `vanilla/Stalker2/Content/GameLite/GameData/`. The inventory and scalar baseline are also documented in [SLIDER_AUDIT_ARTIFACTS.md](SLIDER_AUDIT_ARTIFACTS.md). Private reproducible evidence: `out/slider_audit_1401/artifacts/isolation.py` and `isolation.json`.
 

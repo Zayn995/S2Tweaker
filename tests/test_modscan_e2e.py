@@ -1,4 +1,4 @@
-"""End-to-End: echter Scan-Thread ueber eine Fake-~mods im Temp-Spielordner."""
+"""Run the real scan worker against temporary fake game/mod directories."""
 import sys
 import tempfile
 import time
@@ -13,8 +13,7 @@ from s2tweaker import gui, pakio
 SCRATCH = ROOT / "tests" / "_tmp"
 SCRATCH.mkdir(exist_ok=True)
 gui.SETTINGS_FILE = SCRATCH / "throwaway_settings.json"
-# Frisch starten: eine liegengebliebene Datei (z.B. von einem frueheren
-# Agenten-Lauf) wuerde den Neutral-Check faelschlich ausloesen.
+# Start with clean temporary state so leftovers cannot affect neutrality checks.
 gui.SETTINGS_FILE.unlink(missing_ok=True)
 
 from s2tweaker.gamedata import GameData
@@ -38,36 +37,36 @@ with tempfile.TemporaryDirectory(prefix="s2t_e2e_") as tmp:
     app.game_dir = game_dir
     app.update()
 
-    # Angebots-Dialog: erscheint genau einmal
+    # Offer dialog appears exactly once.
     app._maybe_offer_modscan()
     app.update()
     dialogs = [w for w in app.winfo_children()
                if isinstance(w, gui.ctk.CTkToplevel)]
-    assert dialogs, "Angebots-Dialog fehlt"
-    dialogs[0].destroy()          # "Not now" simulieren wir per destroy
+    assert dialogs, "Offer dialog missing"
+    dialogs[0].destroy()          # Simulate "Not now" by destroying the dialog.
     assert app._modscan_offered
-    app._maybe_offer_modscan()    # zweiter Aufruf darf NICHT mehr fragen
+    app._maybe_offer_modscan()    # A second call must not prompt again.
     app.update()
     assert len([w for w in app.winfo_children()
                 if isinstance(w, gui.ctk.CTkToplevel)]) == 0
-    print("Angebots-Dialog: genau einmal  OK")
+    print("Offer dialog appears exactly once  OK")
 
-    # Echten Scan fahren (Thread + Queue + Ergebnisdialog)
+    # Run a real scan through the worker, queue and results dialog.
     app._start_modscan()
     t0 = time.time()
     while app._modscan_payload is None and not app.mod_conflicts:
         app.update()
         time.sleep(0.05)
         if time.time() - t0 > 60:
-            raise SystemExit("Scan haengt")
-    # Nachrichtenschleife weiterlaufen lassen, bis _finish_modscan lief
+            raise SystemExit("Scan stalled")
+    # Process events until _finish_modscan has run.
     t0 = time.time()
     while not app.modscan_results:
         app.update()
         time.sleep(0.05)
         if time.time() - t0 > 30:
-            raise SystemExit("modscan_done kam nie an")
-    print("Scan fertig:", [(i.name, i.readable) for i in app.modscan_results])
+            raise SystemExit("modscan_done never arrived")
+    print("Scan complete:", [(i.name, i.readable) for i in app.modscan_results])
 
     assert "pdmg" in app.mod_conflicts, app.mod_conflicts
     assert "npc_grenades" in app.mod_conflicts
@@ -78,11 +77,11 @@ with tempfile.TemporaryDirectory(prefix="s2t_e2e_") as tmp:
     assert row.dot is not None and row.dot.winfo_manager()
     assert row.dot.cget("text_color") == gui.MARK_INFO
     labels = app._conflict_labels("OXA_Fake_P")
-    print("Klartext-Regler:", labels)
+    print("Readable slider labels:", labels)
     assert any("damage" in l.lower() for l in labels)
-    # Ergebnis-Dialog offen? (transient Toplevel)
+    # Results dialog open? (transient Toplevel)
     tops = [w for w in app.winfo_children() if isinstance(w, gui.ctk.CTkToplevel)]
-    assert tops, "Ergebnis-Dialog fehlt"
+    assert tops, "Results dialog missing"
     for w in tops:
         w.destroy()
     app.destroy()

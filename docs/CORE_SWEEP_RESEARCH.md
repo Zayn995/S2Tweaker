@@ -1,7 +1,7 @@
 # Core sweep (sixth data research, 2026-09-06): unused CoreVariables keys and never-read core files
 
 **Status: implemented in 1.28.0 (packages P1-P8).** All 38 candidates from the
-table in `docs/ROADMAP.md` are built; the warnings in section 3 were honoured and
+implementation checklist are built; the warnings in section 3 were honoured and
 are pinned by the test suite `tests/test_v128_tweaks.py`.
 
 Research only — no code. Prepared for the next feature round after 1.27.1.
@@ -395,7 +395,7 @@ strings + need enums); `TeleportPrototypes.cfg`, `TeleportGroupPrototypes.cfg`,
   `DoorPrototypes.cfg` locks, quest teleports, `DailySchedule` need lists,
   PackOfItems rank locks.
 
-## 3b. Corrections after re-reading the project notes (HANDOVER, ROADMAP, SPEC)
+## 3b. Corrections after checking the specification and implementation
 
 - Ladder play-rates (§1.1 `Climb*Speed`) overlap the existing `climb_speed_factor`
   (1.24.0, `Player.MovementParams.ClimbSpeedCoef` 0.6) — fold them into that

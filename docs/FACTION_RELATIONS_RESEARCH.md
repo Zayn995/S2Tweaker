@@ -1,187 +1,119 @@
-# Fraktionsbeziehungen — Recherche (verifiziert am 02.09.2026)
+# Faction relationships: data reference
 
-Quelle: `vanilla/Stalker2/Content/GameLite/GameData/RelationPrototypes.cfg`
-(1.210 Zeilen, **genau EIN** Top-Level-Struct `Default`). Daneben liegen
-`Relations.csv` (Dev-Matrix derselben Werte, gute Gegenprobe) und
-`RelationColors*.json` (nur UI-Farben).
+Data inspected on 2026-09-02, with the save-version conclusion corrected on
+2026-09-09. Source: `RelationPrototypes.cfg` in the game's `GameData` directory
+(1,210 lines, one top-level struct named `Default`). `Relations.csv` provides
+a development matrix of the same values; `RelationColors*.json` controls UI colors.
+The inspected dataset contains **582 pairs**, not 644. Counts below describe
+that snapshot; the tool reads current installation values.
 
-**Korrektur zur ROADMAP:** Dort standen „644 Paare" — tatsächlich sind es
-**582** (programmatisch gezählt, Quersumme unten). Die ROADMAP-Zeile ist
-korrigiert.
+## Structure of Default
 
-## Struktur von `Default` (alle Pfade in Patch-Schreibweise)
-
-| Pfad | Inhalt | Vanilla |
+| Patch path | Meaning | Checked vanilla value |
 |---|---|---|
-| `Default.RelationVersion` | Versionszähler des Beziehungs-Datensatzes | **7** |
-| `Default.Relations.<A><->B>` | 582 Beziehungspaare, diskrete Werte | siehe Tabellen |
-| `Default.Factions.<Kind>` | 93 Fraktionen als Baum (`Kind = Eltern`) | 3 Wurzeln: `Humanoid`, `Player`, `Mutant` |
-| `Default.RelationLevelRanges` | 5 Bereiche Zahl → Level | s. u. |
-| `Default.MinRelationLevelToTrade` | Handels-Schwelle | `ERelationLevel::Disaffection` |
-| `Default.CharacterReactions` | 8 Event-Tabellen (Damage/Kill/Heal/Wounded/KillWounded/Grenade/FractionDamage/Melee), Reputations-Deltas je Übergang | z. B. Kill: `Neutral->Friend = -2000` |
-| `Default.FactionReactions` | dieselben 8 Events auf Fraktionsebene (kleinere Werte, z. B. Kill `Neutral->Friend = -10`); **`[5]` (Grenade) ist LEER** | |
-| `Default.ReputationRollbackCooldown` | Rollback lokaler Reaktionen (Sekunden) | 3600 |
-| `Default.Hub/LairReputationRollbackCooldownModifier` | Rollback-Tempo in Hubs/Lagern | 0.05 / 0.1 |
-| `Default.FactionRollbackCooldowns.<Fraktion>` | Kürzerer Rollback je Fraktion (19 Einträge) | alle 900 |
-| `Default.RelationUpdateDeltas` | **Update-Mechanismus für Saves** (s. u.) | ein leerer Eintrag `[0]` mit `RelationVersion = 0` |
-| `Default.ExpansionPolicies.AttackLairRestrictions` | wer darf wessen Lager angreifen (A-Life), `A->B = true` | 74 Einträge |
-| `Default.PositiveReactionsExcludedFactions` / `Negative…` | Story-Schutz: Paare ohne Reputations-Drift (Arrays, 36 / 26 Einträge) | u. a. `Player<->Monolith` |
+| `Default.RelationVersion` | Relationship dataset version | 7 |
+| `Default.Relations.<A><->B>` | 582 relationship pairs | Tables below |
+| `Default.Factions.<Child>` | 93-faction inheritance tree | Humanoid, Player and Mutant roots |
+| `Default.RelationLevelRanges` | Numeric ranges mapped to levels | Five ranges below |
+| `Default.MinRelationLevelToTrade` | Trading threshold | `ERelationLevel::Disaffection` |
+| `Default.CharacterReactions` | Eight event tables with local reputation deltas | Kill: `Neutral->Friend = -2000`, for example |
+| `Default.FactionReactions` | Corresponding faction-wide event tables | Kill: `Neutral->Friend = -10`; `[5]` Grenade is empty |
+| `Default.ReputationRollbackCooldown` | Local reaction rollback, seconds | 3600 |
+| `Default.Hub/LairReputationRollbackCooldownModifier` | Hub/lair rollback modifiers | 0.05 / 0.1 |
+| `Default.FactionRollbackCooldowns.<Faction>` | 19 faction-specific cooldowns | 900 each |
+| `Default.RelationUpdateDeltas` | Versioned save migration data | Empty `[0]`, `RelationVersion = 0` |
+| `Default.ExpansionPolicies.AttackLairRestrictions` | A-Life lair attack permissions, `A->B = true` | 74 entries |
+| `Default.PositiveReactionsExcludedFactions` / `Negative…` | Exemptions from reputation changes | 36 / 26 array entries, including `Player<->Monolith` |
 
-### RelationLevelRanges (Zahl → Verhalten)
+The reaction events are Damage, Kill, Heal, Wounded, KillWounded, Grenade,
+FractionDamage and Melee.
 
-| Bereich | Level | Bedeutung (belegt durch CoreVariables + RSO-Mod, s. u.) |
+### RelationLevelRanges
+
+| Range | Level | Interpretation in the inspected data and community reports |
 |---|---|---|
-| ≤ −800 | `Enemy` | Kill on sight, kein Handel |
-| −799 … −201 | `Disaffection` | reden/handeln erlaubt (Vanilla-Handelsschwelle) |
-| −200 … 200 | `Neutral` | Standard |
-| 201 … 99999 | `Friend` | beste Techniker-Preise |
-| exakt 100000 | 5. Stufe (intern, vmtl. „Self") | taucht in Reaktions-Tabellen als Ziel `…->Self` auf |
+| <= -800 | Enemy | Hostile; no trading |
+| -799 through -201 | Disaffection | Conversation/trading allowed by the vanilla threshold |
+| -200 through 200 | Neutral | Default behavior |
+| 201 through 99999 | Friend | Lowest reputation-based repair cost |
+| Exactly 100000 | Internal fifth level, probably Self | Appears as `…->Self` in reaction tables |
 
-`CoreVariables.cfg` → `ReputationRepairCostModifiers`: Reparaturkosten
-skalieren mit dem Level (Enemy 2.0 / Disaffection 1.5 / Neutral 1.0 /
-Friend 0.75) — Beziehungen haben also auch einen Ökonomie-Effekt.
+`CoreVariables.ReputationRepairCostModifiers` uses Enemy 2.0, Disaffection 1.5,
+Neutral 1.0 and Friend 0.75. Relationships therefore affect repair prices too.
+The exact boundary matters: -799 is Disaffection, -800 is Enemy, and 201 is Friend.
+Both 600 and 800 lie in the game's Friend range even if UI labels distinguish them.
 
-### Die diskrete Werteskala
+## Count cross-check
 
-Vanilla benutzt NUR diese 10 Werte (Verteilung über alle 582 Paare):
-0 (×324), −800 (×167), −799 (×27), 800 (×21), 600 (×19), −599 (×11),
-201 (×7), −600 (×3), −399 (×2), −299 (×1).
-**Achtung Grenzfälle:** −799 ist noch Disaffection, −800 ist Enemy;
-201 ist schon Friend. GSC setzt bewusst „−599 statt −600" u. ä., um klar
-im gewünschten Level zu bleiben.
+- 582 total pairs = 62 involving Player + 520 without Player.
+- Player pairs: 51 zero values; seven -800 values (Mutant, ArenaEnemy, Bandits,
+  Monolith, Militaries, Mercenaries, EnemyVarta); three -600 values (VaranBandits,
+  ShahBandits, NoonFaustians); one +800 value (ArenaFriend).
+- Non-player pairs: 247 nonzero and 273 zero. The full distribution is below.
 
-## Zählungen (Quersumme)
+## Existing saves and RelationVersion
 
-- 582 Paare gesamt = 62 mit `Player` + 520 ohne.
-- Player: 11 ≠ 0 (7× −800: `Mutant`, `ArenaEnemy`, `Bandits`, `Monolith`,
-  `Militaries`, `Mercenaries`, `EnemyVarta`; 3× −600: `VaranBandits`,
-  `ShahBandits`, `NoonFaustians`; 1× +800: `ArenaFriend`), 51× 0.
-- Ohne Player: 247 ≠ 0, 273 × 0. (62+247+273 = 582 ✓)
+Relationship baselines do not automatically replace reputation stored in an
+existing save. Vanilla includes `RelationVersion` and `RelationUpdateDeltas`,
+but the inspected data contains no populated delta example. The exact migration
+syntax has not been established.
 
-## Der Save-Mechanismus (RelationVersion) — WICHTIGSTE ERKENNTNIS
+Versions 1.12.0 through 1.36.0 emitted vanilla `RelationVersion + 1` under the
+unverified assumption that this refreshed relationships. That approach was
+removed after the September 9 comparison of all eight
+[RSO variants](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2009): they
+do not increment the counter, and merely changing a version without matching
+delta entries is not a demonstrated migration. It could also collide with a
+future game migration. **The generator now leaves RelationVersion unchanged.**
 
-- Die Beziehungswerte werden **beim Spielstart in den Save kopiert und
-  leben danach im Save** (Reputation ändert sich durchs Spielen). Ein
-  geänderter Baseline-Wert in der cfg erreicht einen bestehenden
-  Spielstand daher NICHT automatisch.
-- GSC hat dafür einen eingebauten Migrationsweg: `RelationVersion = 7`
-  plus `RelationUpdateDeltas` (im Vanilla-Stand ein leerer Eintrag
-  `[0]` mit `RelationVersion = 0`, `RelationDeltas =` leer). Es gibt
-  **kein befülltes Vanilla-Beispiel** — die exakte Delta-Syntax ist
-  unbekannt und `RelationVersion`/`RelationDeltas` kommen in KEINER
-  anderen cfg der Spieldaten vor (geprüft per Volltextsuche).
-- Praxis-Beleg aus der Community: Der größte Relations-Mod
-  ([RSO, Nexus-Mod 2009](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2009))
-  schreibt „Only works with New game / NOT working with Story mode" —
-  der Autor hat Save-Migration also nicht gelöst oder nicht versucht.
-- **Plan für unser Tool:** Baseline-Werte patchen UND `RelationVersion`
-  live gelesen +1 patchen (aktuell also 7 → 8). Hypothese: Beim Laden
-  merkt das Spiel „Save-Version < cfg-Version" und übernimmt die neuen
-  Werte. **Das ist bis zum In-Game-Test eine HYPOTHESE** — der Tab
-  bekommt bis dahin einen ehrlichen Disclaimer („verified on new games;
-  effect on existing saves untested"). Der In-Game-Test ist einfach:
-  `Bandits<->Player` auf +800, bestehenden Save laden, schauen ob
-  Banditen im Feld freundlich sind.
-- Risiko des Bumps: Speichert ein Save unsere Version 8 und GSC liefert
-  später selbst Version 8 mit echten Deltas, würden diese Saves GSCs
-  Migration überspringen. Bewusst in Kauf genommen (GSC hat in 2 Jahren
-  Patches genau 7 Versionen verbraucht); ins FAQ schreiben.
+The optional existing-save path introduced in 1.36.0 instead generates a small
+quest using `ChangeRelationships` nodes, started from `Scripts/OnGameLaunch/`.
+See `_relations_runtime_patch` in `s2tweaker/tweaks.py` and
+`tests/test_relations_runtime.py`. Structural tests validate the generated
+graph; they do not establish behavior for every story state or saved NPC.
 
-> **Stand 09.09.2026 — Hypothese widerlegt, Bump gestrichen.** Das
-> Gegenlesen von RSO (Nexus 2009, alle acht Varianten) zeigte: niemand
-> zählt `RelationVersion` hoch, RSO liefert sogar `0` aus, während das
-> Spiel auf `7` steht; daneben liegt `RelationUpdateDeltas`, eine Liste
-> von Deltas je Version — ein Bump ohne passenden Delta-Eintrag wirkt
-> nicht. Der Patch schrieb von 1.12.0 bis 1.36.0 Vanilla+1; ab der
-> Version nach 1.36.0 bleibt der Zähler unangetastet. Bestehende
-> Spielstände erreicht seit 1.36.0 der RSO-Weg (Mini-Quest aus
-> `ChangeRelationships`-Knoten, gestartet aus `Scripts/OnGameLaunch/`;
-> siehe `tweaks._relations_runtime_patch` und
-> `tests/test_relations_runtime.py`).
+## Runtime limits
 
-## Runtime-Verhalten, das der Patch NICHT kontrolliert
+Quests and scripts can override relationships. Related values appear in quest,
+dialog, infotopic and threat prototypes. Scripted NPCs can have individual
+relationships independent of their faction. `CharacterReactions` controls large,
+local, temporary changes; `FactionReactions` controls smaller faction-wide changes.
+Rollback can restore local values later. Community reports describe hub guards
+unexpectedly returning to neutral in modified configurations.
 
-(belegt durch RSO-Erfahrungsbericht + Struktur der Datei)
+Relevant external references are [RSO](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2009)
+and [Faction Relations Live PDA Tab](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2557).
+These are historical research sources, not a current compatibility endorsement.
 
-1. **Quests/Skripte ändern Beziehungen zur Laufzeit** —
-   `ERelationLevel::` wird auch in `QuestNodePrototypes.cfg`,
-   `DialogPrototypes.cfg`, `InfotopicPrototypes.cfg`,
-   `AIPrototypes/ThreatPrototypes.cfg` benutzt. Story-Beats überschreiben
-   unsere Werte gezielt (und sollen das).
-2. **Scripted NPCs** haben feste Individual-Beziehungen (nicht
-   fraktionsgebunden).
-3. **Rollback**: Das Spiel setzt lokale Verschlechterungen nach
-   `ReputationRollbackCooldown` zurück; Hub-Wachen können in gedrehten
-   Konstellationen buggy „neutral" zurückfallen (RSO Known issue 1/2).
-4. `CharacterReactions` (groß, lokal, temporär) vs. `FactionReactions`
-   (klein, global, permanent) — zwei getrennte Systeme.
+## Scope and invariants
 
-## WARNUNGEN — nicht anfassen / nicht in die GUI
+The normal faction controls use Neutrals (Loners), Bandits, Militaries (Military),
+Varta (Ward), Duty, Freedom, Mercenaries, Monolith, Noon (Noontide), Spark, Corpus
+(Corps), Scientists, and the Mutant umbrella faction. Twelve human factions form
+66 distinct human pairs plus 12 pairs against Mutant; each also has a Player pair.
 
-- **Story-/Boss-/Arena-Fraktionen** dürfen NICHT in die GUI (Kämpfe und
-  Quest-Logik hängen daran): `ScarBoss_Faction`, `KorshunovBoss_Faction`,
-  `StrelokBoss_Faction`, `FaustBoss_Faction`, `ArenaEnemy`, `ArenaFriend`,
-  `EnemyVarta`, `SQ72_Varta`, `SQ89_SidorMercs`,
-  `CNPP_Archanomaly_PhantomZombie`, `NoonFaustians` (Faust-Anhänger),
-  `VartaSIRCAA`, `SIRCAA_Scientist`, `MALACHITE_Scientist`,
-  `DepoVictims`, `DocileLabMutants`, `YantarZombie`, `NoahLesya`,
-  `Lessy`, `FriendlyBlinddog`, `MoldyBlinddog`, `CrazyGuardians` und
-  alle Sub-Banditen-Lager (`VaranStashBandits` …) — kurz: **alles, was
-  nicht in der Haupt-Fraktionsliste unten steht.**
-- `PositiveReactionsExcludedFactions`/`Negative…` sind Arrays — per
-  bpatch nur index-weise überschreibbar, ANHÄNGEN ungeklärt. Nicht
-  patchen (Story-Schutz von GSC, RSO hat sie entfernt und braucht
-  deshalb New Game).
-- `RelationUpdateDeltas` nicht befüllen (Syntax unbekannt, s. o.).
-- `Factions`-Baum nicht umhängen (NPC-Prototypen referenzieren die
-  Fraktions-SIDs; Vererbung der Paare läuft über den Baum).
-- Werte außerhalb −800…800 nicht anbieten (Vanilla-Skala; RSO berichtet
-  „can go below −800 / above 800" nur durch Laufzeit-Drift).
-- Die leere `FactionReactions[5]`-Tabelle (Grenade) leer lassen.
+Story, boss, arena and special subfactions remain outside that normal selection.
+Examples include `ScarBoss_Faction`, `KorshunovBoss_Faction`,
+`StrelokBoss_Faction`, `FaustBoss_Faction`, `ArenaEnemy`, `ArenaFriend`,
+`EnemyVarta`, `SQ72_Varta`, `SQ89_SidorMercs`, `CNPP_Archanomaly_PhantomZombie`,
+`NoonFaustians`, `VartaSIRCAA`, `SIRCAA_Scientist`, `MALACHITE_Scientist`,
+`DepoVictims`, `DocileLabMutants`, `YantarZombie`, `NoahLesya`, `Lessy`,
+`FriendlyBlinddog`, `MoldyBlinddog`, `CrazyGuardians` and special bandit camps.
 
-## Empfehlung für den Tab (Umsetzung mit `add-tweak`)
+Preserve the faction tree, reaction-exclusion arrays and empty Grenade reaction
+table. Do not invent migration deltas. The UI range is -800..800; runtime drift
+outside it does not justify expanding the baseline controls. Neutral settings
+emit no patch, and exact irregular vanilla values such as -599 remain selectable.
 
-**Haupt-Fraktionen für die GUI** (12 + Mutanten-Schirm; PDA-Namen in
-Klammern = Anzeigename): `Neutrals` (Loners), `Bandits`, `Militaries`
-(Military), `Varta` (Ward), `Duty`, `Freedom`, `Mercenaries`, `Monolith`,
-`Noon` (Noontide), `Spark`, `Corpus` (Corps), `Scientists` — plus
-`Mutant` (Schirm-Fraktion aller Mutanten).
+Rollback controls include the main cooldown, all 19 faction cooldowns and both
+hub/lair modifiers. Pair selection and reputation mechanics do not authorize
+unrelated story edits or a dataset version increment.
 
-1. **Sektion „Player vs. factions"**: je Haupt-Fraktion eine
-   5-Stufen-Auswahl (OptionMenu): `(vanilla)` / Enemy −800 /
-   Disaffected −400 / Neutral 0 / Friend 600 / Ally 800. Vanilla-Wert
-   live aus `Default.Relations.<X><->Player>` lesen; `(vanilla)` = kein
-   Patch (eiserne Regel). 13 Steuerelemente.
-2. **Sektion „Faction vs. faction"**: aufklappbarer Baum wie beim
-   Waffen-Baum — je Haupt-Fraktion ein Block mit ihren Paaren zu den
-   anderen Haupt-Fraktionen (66 einzigartige Paare + 12
-   `X<->Mutant`-Paare), gleiche 5-Stufen-Auswahl. Lazy bauen wie
-   `IwCategoryBlock`.
-3. **Sektion „Reputation mechanics"** (Regler): Rollback-Cooldown-Faktor
-   (`ReputationRollbackCooldown` ×25–400 %, inkl. der 19
-   `FactionRollbackCooldowns` und beider Modifier), optional später:
-   Handels-Schwelle, Reaktions-Stärke.
-4. ~~Patch schreibt zusätzlich IMMER `RelationVersion = <vanilla+1>`,
-   sobald mindestens ein Beziehungswert abweicht.~~ (1.12.0–1.36.0;
-   gestrichen am 09.09.2026, siehe Stand-Notiz oben.)
-5. Datei in `NEEDED_FILES` aufnehmen ⇒ **CACHE_SCHEMA 10 → 11**.
-6. Disclaimer im Tab (englisch): quests/scripts override relations at
-   any time; effect on existing saves is untested; changes are designed
-   for the living world (A-Life), not for story encounters.
+## Complete vanilla tables (generated from CFG data, 2026-09-02)
 
-Quellen neben den Spieldaten:
-[RSO-Mod](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2009)
-(Mechanik-Erfahrungswerte),
-[Faction Relations Live PDA Tab](https://www.nexusmods.com/stalker2heartofchornobyl/mods/2557)
-(liest Beziehungen aus dem Save — Beleg für „Werte leben im Save").
+### Faction tree (93 factions, child -> parent inheritance)
 
----
-
-# Vollständige Vanilla-Tabellen (generiert aus der cfg, 02.09.2026)
-
-### Fraktionsbaum (93 Fraktionen, Kind → Eltern-Vererbung)
-
-- **`Humanoid`** (Wurzel)
+- **`Humanoid`** (root)
   - `Bandits`
     - `WildBandits`
     - `NeutralBandits`
@@ -243,8 +175,8 @@ Quellen neben den Spieldaten:
   - `ArenaFriend`
     - `CNPP_Archanomaly_PhantomZombie`
   - `SQ72_Varta`
-- **`Player`** (Wurzel)
-- **`Mutant`** (Wurzel)
+- **`Player`** (root)
+- **`Mutant`** (root)
   - `Controller`
   - `Poltergeist`
   - `Bloodsucker`
@@ -275,9 +207,9 @@ Quellen neben den Spieldaten:
   - `AlliedMutants`
   - `StrelokBoss_Faction`
 
-### Alle Player-Paare (62)
+### All Player pairs (62)
 
-| Paar | Vanilla | Level |
+| Pair | Vanilla | Level |
 |---|---|---|
 | `Army<->Player` | 0 | Neutral |
 | `FreeStalkers<->Player` | 0 | Neutral |
@@ -342,9 +274,9 @@ Quellen neben den Spieldaten:
 | `ArenaFriend<->Player` | 800 | Friend |
 | `Player<->Player` | 0 | Neutral |
 
-### Nicht-neutrale Paare ohne Player (247; die uebrigen 273 Nicht-Player-Paare stehen alle auf 0)
+### Nonzero non-player pairs (247; the remaining 273 are zero)
 
-| Paar | Vanilla | Level |
+| Pair | Vanilla | Level |
 |---|---|---|
 | `AlliedMutants<->AlliedMutants` | 600 | Friend |
 | `ArenaEnemy<->ArenaEnemy` | 600 | Friend |
@@ -594,9 +526,9 @@ Quellen neben den Spieldaten:
 | `Zombie<->Controller` | 800 | Friend |
 | `Zombie<->Zombie` | 800 | Friend |
 
-### Werteverteilung aller 582 Paare
+### Value distribution across all 582 pairs
 
-| Wert | Anzahl | Level |
+| Value | Count | Level |
 |---|---|---|
 | -800 | 167 | Enemy |
 | -799 | 27 | Disaffection |

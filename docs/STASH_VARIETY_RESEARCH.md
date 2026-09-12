@@ -109,7 +109,7 @@ Recommended user-facing options: **Extra stash finds**, default off, with indepe
 
 Before implementation, finish an effective consumer graph with array-override handling and quest/trade/NPC exclusions. Select only appropriate world-stash instances or isolated generator targets. Copying the full historical cfg or globally changing every shared base cannot provide those guarantees. Define category probability using a verified generator structure before presenting a percentage or a maximum-one-item promise. Resolve new array positions against current data; do not reuse old numeric indices.
 
-The implementation fits the existing generated-Pak architecture without additional runtime injection, hooks or executable dependencies. That supports the owner's antivirus-friendly design preference; it is not a guarantee about antivirus classifications.
+The implementation fits the existing generated-Pak architecture without additional runtime injection, hooks or executable dependencies. Antivirus classifications still depend on the scanner and build.
 
 `ItemGeneratorPrototypes`, `ItemPrototypes`, `EffectPrototypes`, `TradePrototypes`, `StashPrototypes`, `ArtifactSpawnerPrototypes` and `ObjPrototypes` are already in NEEDED_FILES. `SpawnActorPrototypes` is not. If the implementation uses it for scope verification, add it with a CACHE_SCHEMA increment (currently 23). No cache schema or product code was changed for this research.
 
