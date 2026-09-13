@@ -237,12 +237,13 @@ assert len(costs) == 1282, len(costs)
 assert not hasattr(Settings(), "upgrade_base_cost_factor")
 print("Upgrade price: 1282 upgrades, included in the existing slider  OK")
 
-# Emit both fields of each indexed jam entry, including the unchanged sibling.
+# Each jam control writes only its own field.
 for setting in (Settings(jam_clear_factor=2.0), Settings(jam_chance_factor=0.5)):
     p = build_patches(gd, setting)[WGS]
-    assert p.count("JamChanceCoef") == p.count("FullJamTime") > 0, (
-        p.count("JamChanceCoef"), p.count("FullJamTime"))
-print("Jamming entry: both keys in both sliders  OK")
+    own, other = (("FullJamTime", "JamChanceCoef") if setting.jam_clear_factor != 1
+                  else ("JamChanceCoef", "FullJamTime"))
+    assert p.count(own) > 0 and other not in p
+print("Jamming entries: disjoint clearing-time/probability writes OK")
 
 # --- Hip fire, movement, recoil pattern, chamber and loaded ammunition ---
 p = build_patches(gd, Settings(hip_steady_factor=2.0))[WGS]

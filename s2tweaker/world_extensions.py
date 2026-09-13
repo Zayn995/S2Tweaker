@@ -85,14 +85,12 @@ def build(gd, s):
                                     s.surface_noise_overrides.get(material, 1))
                     if value is not None:
                         _put(ai, path, "CharacterNoiseCoef", value)
-                        _put(ai, path, "MaterialType", node.values["MaterialType"])
                 if "WeatherLuminanceCoefficients" in path:
                     weather = node.values.get("WeatherType", "").split("::")[-1]
                     value = _scaled(node.values.get("Coefficient"),
                                     s.weather_luminance_overrides.get(weather, 1))
                     if value is not None:
                         _put(ai, path, "Coefficient", value)
-                        _put(ai, path, "WeatherType", node.values["WeatherType"])
     if ai:
         out["AIGlobals.cfg"] = {"AISettings": ai}
 

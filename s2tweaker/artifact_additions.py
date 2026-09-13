@@ -107,12 +107,11 @@ def apply(gd, settings, source, patches, selected):
         if source != "ItemPrototypes":
             continue
         item_patch = patches.setdefault(target, {})
-        for array, values in layout.items():
-            values.update(item_patch.get(array, {}))  # Retain existing individual changes.
+        for array in ARRAYS:
+            values = item_patch.setdefault(array, {})
             for index, name, visible in added:
                 values[index] = {"EffectPrototypeSIDs": name, "ShouldShowEffects": "true" if visible else "false",
                                  "EffectsDisplayTypes": DISPLAY}[array]
-            item_patch[array] = values
         # A new parent index must not give its bonus to a fake or quest child.
         # Restore each descendant's effective original slot, or an empty hidden slot.
         for child in descendants(gd, target):
@@ -127,9 +126,7 @@ def apply(gd, settings, source, patches, selected):
                     additions[index] = value if value is not None else fallback
                 if additions:
                     changed = patches.setdefault(child, {})
-                    values.update(changed.get(array, {}))
-                    values.update(additions)
-                    changed[array] = values
+                    changed.setdefault(array, {}).update(additions)
 
 
 def footprint(gd, target, kind):

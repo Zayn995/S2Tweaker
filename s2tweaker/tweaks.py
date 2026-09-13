@@ -618,7 +618,8 @@ class Settings:
     npcs_no_weapon_pickup: bool = False      # AIGlobals AllowWeaponPickupWhenLooting/BasedOnPrice -> false
     darkness_factor: float = 1.0             # AIGlobals TimeOfDayBaseLuminance (night 0.2 ...), cap 1.0
     corpse_threat_factor: float = 1.0        # AIGlobals DeadBodyToConsiderAsThreatDuration (120)
-    damage_mercy_factor: float = 1.0         # Difficulty AccumulatedDamageReductionCurveWeightMin/Max (cap 1)
+    damage_mercy_factor: float = 1.0         # Difficulty damage-reduction curve weights.
+    damage_mercy_uncapped: bool = False     # Opt in to experimental weights above 1.0.
     psy_phantom_factor: float = 1.0          # Difficulty PsyPhantomNPCOverrides[*].PsyPhantomNPCCountMultiplier
     min_resale_pct: float = 10.0             # CoreVariables ItemCostMinPercent (0.1)
     container_respawn_hours: float = 0.0     # ItemContainerPrototypes RespawnTimeSeconds (0 = never)
@@ -1394,10 +1395,7 @@ def _struct_dict(node) -> dict:
 
 
 def _resolved_struct(root, node, depth: int = 0) -> dict:
-    """Resolve same-file refkey inheritance before converting to a dictionary.
-
-    Emit complete indexed top-level entries because merge/replacement semantics
-    are not verified for partial indexed structs."""
+    """Resolve same-file refkey inheritance into a separate baseline dictionary."""
     base: dict = {}
     ref = node.attr_dict().get("refkey")
     if ref and depth < 8 and ref in root.children:
@@ -1553,7 +1551,7 @@ def _vision_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _hearing_patch(gd: GameData, s: Settings) -> dict:
-    """Emit complete SoundEvents entries and scale only positive HearingDistance values."""
+    """Scale positive hearing distances without rewriting event identities."""
     if not _neq(s.npc_hearing_factor, 1.0):
         return {}
     patches: dict = {}
@@ -1569,7 +1567,6 @@ def _hearing_patch(gd: GameData, s: Settings) -> dict:
             if distance <= 0:
                 continue
             entries[idx] = {
-                "Type": entry.values.get("Type", "ESoundEventType::None"),
                 "HearingDistance": _num(distance * s.npc_hearing_factor),
             }
         if entries:
@@ -1775,7 +1772,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         settings["MinALifeSpawnDistance"] = _num(new_spawn)
         settings["MinALifeDespawnDistance"] = _num(new_despawn)
 
-    # Emit complete indexed posture-coefficient entries.
+    # Indexed posture entries merge recursively; emit only changed coefficients.
     crouch_on = _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0
     noise_on = _neq(s.movement_noise_factor, 1.0) and s.movement_noise_factor >= 0
     if crouch_on or noise_on:
@@ -1794,9 +1791,11 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
                 new_noise = _scale_literal(noise, 1.0 / s.crouch_stealth_factor) or new_noise
             elif noise_on and short in ("Walk", "Run", "Sprint", "None"):
                 new_noise = _scale_literal(noise, s.movement_noise_factor) or new_noise
-            if new_vis != vis.strip() or new_noise != noise.strip():
-                entries[idx] = {"Pose": pose, "VisibilityCoef": new_vis,
-                                "NoiseCoef": new_noise}
+            row = {key: value for key, value, raw in (
+                ("VisibilityCoef", new_vis, vis), ("NoiseCoef", new_noise, noise))
+                if _neq(parse_number(value), parse_number(raw))}
+            if row:
+                entries[idx] = row
         if entries:
             settings["CharacterPoseSettings"] = entries
 
@@ -1805,9 +1804,7 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         weather = root.children.get("WeatherSettings")
         entries = {}
         for idx, entry in (weather.children.items() if weather else ()):
-            sid = (entry.values.get("WeatherSID") or "").strip()
-            cfg = {"WeatherSID": sid}
-            changed = False
+            cfg = {}
             for key in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"):
                 raw = entry.values.get(key)
                 if raw is None:
@@ -1816,10 +1813,9 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
                 new = coef
                 if coef < 1.0:
                     new = max(0.05, min(1.0, 1.0 - (1.0 - coef) * s.weather_stealth_factor))
-                cfg[key] = _num(new)
                 if _neq(new, coef):
-                    changed = True
-            if changed:
+                    cfg[key] = _num(new)
+            if cfg:
                 entries[idx] = cfg
         if entries:
             settings["WeatherSettings"] = entries
@@ -1869,7 +1865,8 @@ def _threats_patch(gd: GameData, s: Settings) -> dict:
     """Adjust DefaultNPC threat thresholds and memory, preserving boss/mutant profiles.
 
     Clamp integer action thresholds to valid threat limits. Scale freeze times
-    directly and decay rates inversely; emit complete indexed action entries."""
+    directly and decay rates inversely. Patch only changed leaves, including
+    inside indexed structs, so separate threshold and memory Paks compose."""
     alert = s.npc_alertness_factor
     alert_on = _neq(alert, 1.0) and alert > 0
     mem = s.npc_search_time_factor
@@ -1880,20 +1877,20 @@ def _threats_patch(gd: GameData, s: Settings) -> dict:
     for key, prof in gd.threats.children.items():
         if (prof.values.get("SID") or "").strip() != "DefaultNPC":
             continue
+        baseline = _resolved_struct(gd.threats, prof)
         cfg: dict = {}
-        max_level = parse_number(prof.values.get("MaxThreatLevelValue"), 1000.0)
+        max_level = parse_number(baseline.get("MaxThreatLevelValue"), 1000.0)
         if mem_on:
-            raw = prof.values.get("DefaultThreatValueFreezeTimeSeconds")
+            raw = baseline.get("DefaultThreatValueFreezeTimeSeconds")
             if raw is not None and parse_number(raw) > 0:
                 cfg["DefaultThreatValueFreezeTimeSeconds"] = _scale_literal(raw, mem)
-            raw = prof.values.get("DefaultThreatValueLossPerSecond")
+            raw = baseline.get("DefaultThreatValueLossPerSecond")
             if raw is not None and parse_number(raw) > 0:
                 cfg["DefaultThreatValueLossPerSecond"] = _scale_literal(raw, 1.0 / mem)
-        actions = prof.children.get("Actions")
+        actions = baseline.get("Actions", {})
         entries: dict = {}
-        for idx, act in (actions.children.items() if actions else ()):
-            v = act.values
-            entry = {k: val.strip() for k, val in v.items()}
+        for idx, v in actions.items():
+            entry = {}
             changed = False
             if alert_on and parse_number(v.get("ThreatLevelValueMin")) > 0:
                 new = int(round(parse_number(v["ThreatLevelValueMin"]) / alert))
@@ -1915,11 +1912,6 @@ def _threats_patch(gd: GameData, s: Settings) -> dict:
         if entries:
             cfg["Actions"] = entries
         if cfg:
-            if key.startswith("["):
-                # The profile is stored at index [1]; emit the complete entry.
-                # Emit complete entries (see _resolved_struct); action entries
-                # Were already patched.
-                cfg = _merge_nested(_resolved_struct(gd.threats, prof), cfg)
             patches[key] = cfg
     return patches
 
@@ -2067,7 +2059,7 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
                         cfg[key] = scaled
             if spawn_on:
                 chance = parse_number(rank_node.values.get("SpawnChanceBase"))
-                if chance > 0:
+                if chance > 0 and _neq(min(100.0, chance * s.artifact_spawn_factor), chance):
                     cfg["SpawnChanceBase"] = _num(
                         min(100.0, chance * s.artifact_spawn_factor)) + "f"
             if rarity_on:
@@ -2086,7 +2078,7 @@ def _artifact_spawner_patch(gd: GameData, s: Settings) -> dict:
                         new["Common"] = max(0.0, total - sum(new.values()))
                         if any(_neq(new[k], weights[k]) for k in new):
                             cfg["RarityChance"] = {
-                                k: _num(v) + "f" for k, v in new.items()}
+                                k: _num(v) + "f" for k, v in new.items() if _neq(v, weights[k])}
             if cfg:
                 ranks[rank] = cfg
         if ranks:
@@ -2118,7 +2110,7 @@ def _mutants_patch(gd: GameData, s: Settings) -> dict:
         for sid, hp in sorted(gd.mutants().items()):
             factor = _mutant_factor(s, gd.mutant_faction(sid), "hp",
                                     s.mutant_hp_factor)
-            if _neq(factor, 1.0) and factor > 0:
+            if _neq(factor, 1.0) and factor > 0 and _neq(max(1.0, hp * factor), hp):
                 # Merge into the same VitalParams node used by regeneration below.
                 patches.setdefault(sid, {}).setdefault("VitalParams", {})[
                     "MaxHP"] = _num(max(1.0, hp * factor))
@@ -2192,7 +2184,7 @@ def _mutant_attack_patch(gd: GameData, s: Settings) -> dict:
                 value = str(new)
             else:
                 value = _scale_literal(raw, s.mutant_attack_bleed_factor)
-                if value is None or value == raw:
+                if value is None or not _neq(parse_number(value), parse_number(raw)):
                     continue
             node = patches.setdefault(sid, {})
             for part in parts[:-1]:
@@ -2264,7 +2256,7 @@ def _npc_flashlight_node(gd: GameData):
 
 
 def _flashlight_patch(gd: GameData, s: Settings) -> dict:
-    """Patch NPC flashlight distance bands with complete array entries.
+    """Patch only changed NPC flashlight distance-band values.
 
     Player light values are not exposed in this table. Preserve GSC's Intencity spelling."""
     want_light = _neq(s.npc_flashlight_factor, 1.0) and s.npc_flashlight_factor > 0
@@ -2280,18 +2272,18 @@ def _flashlight_patch(gd: GameData, s: Settings) -> dict:
     for idx, entry in table.children.items():
         if "#" in idx:
             continue
-        distance = parse_number(entry.values.get("Distance"))
-        intensity = parse_number(entry.values.get("Intencity"))
-        radius = parse_number(entry.values.get("AttenuationRadius"))
-        cone = parse_number(entry.values.get("OuterConeAngle"))
-        if want_light:
-            intensity *= s.npc_flashlight_factor
-            radius *= s.npc_flashlight_factor
-        if want_cone:
-            cone = min(NPC_FLASHLIGHT_CONE_CAP, cone * s.npc_flashlight_cone_factor)
-        entries[idx] = {"Distance": _num(distance), "Intencity": _num(intensity),
-                        "AttenuationRadius": _num(radius),
-                        "OuterConeAngle": _num(cone)}
+        row = {}
+        for on, leaf, factor, cap in (
+                (want_light, "Intencity", s.npc_flashlight_factor, None),
+                (want_light, "AttenuationRadius", s.npc_flashlight_factor, None),
+                (want_cone, "OuterConeAngle", s.npc_flashlight_cone_factor, NPC_FLASHLIGHT_CONE_CAP)):
+            raw = entry.values.get(leaf)
+            if on and raw is not None:
+                scaled = _scale_literal(raw, factor, cap=cap)
+                if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                    row[leaf] = scaled
+        if row:
+            entries[idx] = row
     if not entries:
         return {}
     return {key: {"ExtraLightDistanceBasedParameters": entries}}
@@ -2336,10 +2328,8 @@ def _weather_patch(gd: GameData, s: Settings) -> dict:
                     if scaled is not None:
                         cfg.setdefault(wtype, {})[key] = scaled
         if cfg:
-            if sid.startswith("["):
-                # Indexed templates [0]/[1]/[2]/[3]/[35]; regions inherit via
-                # refkey=[1]): emit the complete entry; see _resolved_struct.
-                cfg = _merge_nested(_resolved_struct(root, node), cfg)
+            # Indexed templates also use recursive bpatches. Repeating their
+            # baseline would reset unrelated rain, emission or duration Paks.
             patches[sid] = cfg
     return extension_controls.regional_weather.apply(gd, s, patches)
 
@@ -2441,7 +2431,6 @@ def _mutant_hearing_patch(gd: GameData, s: Settings) -> dict:
         if distance <= 0:
             continue
         entries[idx] = {
-            "Type": entry.values.get("Type", "ESoundEventType::None"),
             "HearingDistance": _num(distance * s.mutant_hearing_factor),
         }
     if not entries:
@@ -2482,7 +2471,7 @@ def _flair_patch(gd: GameData, s: Settings) -> dict:
 def _needs_patch(gd: GameData, s: Settings) -> dict:
     """Scale AI.Need.Expansion growth in NPC needs presets.
 
-    Find entries by NeedTag, not array position; emit them completely.
+    Find entries by NeedTag and patch only their growth rates.
     Preserve the inert ReuniteWithLair need."""
     expansion_on = _neq(s.squad_expansion_factor, 1.0) and s.squad_expansion_factor > 0
     camp_on = _neq(s.camp_life_factor, 1.0) and s.camp_life_factor > 0
@@ -2499,7 +2488,7 @@ def _needs_patch(gd: GameData, s: Settings) -> dict:
             for idx, entry in goals.children.items():
                 if entry.values.get("NeedTag", "").strip() != "AI.Need.Expansion":
                     continue
-                full = {k: v.strip() for k, v in entry.values.items()}
+                full = {}
                 changed = False
                 for key in ("MinIncreasePerMinute", "MaxIncreasePerMinute"):
                     raw = entry.values.get(key)
@@ -2514,16 +2503,15 @@ def _needs_patch(gd: GameData, s: Settings) -> dict:
             if entries:
                 cfg["GoalNeeds"] = entries
         # Camp activity needs on concrete presets.
-    # Exclude the [0] template; includes guitar, jokes and conversation.
-        # Smoking, sleeping, eating, resting and drinking: select by
-        # NeedType and emit the complete entry (NeedType, Min, Max, Radius, MaxCount).
+        # Exclude the [0] template. Select activities by NeedType and
+        # leave their identity, radius and count limits unchanged.
         needs = node.children.get("Needs")
         if camp_on and needs is not None:
             entries = {}
             for idx, entry in needs.children.items():
                 if (entry.values.get("NeedType") or "").strip() not in CAMP_LIFE_NEEDS:
                     continue
-                full = {k: v.strip() for k, v in entry.values.items()}
+                full = {}
                 changed = False
                 for key in ("IncreaseRateMin", "IncreaseRateMax"):
                     raw = entry.values.get(key)
@@ -2656,9 +2644,7 @@ def _destructible_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, s.explosive_container_factor)
             if scaled is None or not _neq(parse_number(scaled), parse_number(raw)):
                 continue
-            full = {k: v.strip() for k, v in phase.values.items()}
-            full["DamageDestroyThreshold"] = scaled
-            entries[idx] = full
+            entries[idx] = {"DamageDestroyThreshold": scaled}
         if entries:
             patches[key] = {"ObjectPhaseSettings": entries}
     return patches
@@ -2684,7 +2670,7 @@ def _physics_patch(gd: GameData, s: Settings) -> dict:
 def _weatherchain_patch(gd: GameData, s: Settings) -> dict:
     """Scale weather-transition duration inversely.
 
-    Emit complete TransitionSteps and WeatherChains entries; preserve chain weights."""
+    Patch only transition multipliers; preserve chain weights and step identities."""
     if not (_neq(s.weather_transition_factor, 1.0) and s.weather_transition_factor > 0):
         return {}
     factor = 1.0 / s.weather_transition_factor
@@ -2708,13 +2694,9 @@ def _weatherchain_patch(gd: GameData, s: Settings) -> dict:
                 scaled = _scale_literal(raw, factor)
                 if scaled is None or not _neq(parse_number(scaled), parse_number(raw)):
                     continue
-                full = {k: v.strip() for k, v in chain.values.items()}
-                full["WeatherTransitionTimeMultiplier"] = scaled
-                chain_entries[ci] = full
+                chain_entries[ci] = {"WeatherTransitionTimeMultiplier": scaled}
             if chain_entries:
-                full_step = {k: v.strip() for k, v in step.values.items()}
-                full_step["WeatherChains"] = chain_entries
-                step_entries[si] = full_step
+                step_entries[si] = {"WeatherChains": chain_entries}
         if step_entries:
             patches[sid] = {"TransitionSteps": step_entries}
     return patches
@@ -2805,7 +2787,7 @@ def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
 def _packofitems_patch(gd: GameData, s: Settings) -> dict:
     """Enable disabled ArtifactUncommon choices in hand-placed loot groups.
 
-    Emit complete item/weight entries and preserve other groups' rank gates.
+    Patch only disabled item weights and preserve other groups' rank gates.
     Whether zero-weight groups are selected in-game remains unverified."""
     if not s.artifact_caches_drop:
         return {}
@@ -2823,9 +2805,7 @@ def _packofitems_patch(gd: GameData, s: Settings) -> dict:
             raw = entry.values.get("Weight")
             if raw is None or parse_number(raw) != 0:
                 continue                      # Only entries disabled in vanilla.
-            full = {k: v.strip() for k, v in entry.values.items()}
-            full["Weight"] = "1"
-            entries[ii] = full
+            entries[ii] = {"Weight": "1"}
         if entries:
             settings[si] = {"Items": entries}
     return {"ArtifactUncommon": {"PackOfItemsSettings": settings}} if settings else {}
@@ -2948,21 +2928,23 @@ def _difficulty_patch(gd: GameData, s: Settings) -> dict:
     apply("NPCCombatDifficulty", "HipAccuracyMultiplier", s.npc_hip_accuracy_factor)
     apply("EconomyDifficulty", "Binoculars_Cost", s.device_price_factor)
     apply("EconomyDifficulty", "NightVisionGoggles_Cost", s.device_price_factor)
-    if _neq(s.damage_mercy_factor, 1.0) and s.damage_mercy_factor >= 0:
-        # Only explicit values, capped at 1.0.
-        for sid, node in gd.difficulty.children.items():
+    if not math.isfinite(s.damage_mercy_factor) or s.damage_mercy_factor < 0:
+        raise ValueError("Hidden damage mercy needs a finite, nonnegative multiplier.")
+    if _neq(s.damage_mercy_factor, 1.0):
+        for sid in gd.difficulty.children:
             if sid == "[0]" or "#" in sid:
-                continue
-            combat = node.children.get("NPCCombatDifficulty")
-            if combat is None:
                 continue
             for key in ("AccumulatedDamageReductionCurveWeightMin",
                         "AccumulatedDamageReductionCurveWeightMax"):
-                raw = combat.values.get(key)
+                raw = gd.resolve(gd.difficulty, sid, f"NPCCombatDifficulty.{key}")
                 value = parse_number(raw)
-                if raw is None or value <= 0:
+                if raw is None or not math.isfinite(value) or value <= 0:
                     continue
-                new = min(1.0, value * s.damage_mercy_factor)
+                new = value * s.damage_mercy_factor
+                if not math.isfinite(new):
+                    raise ValueError("Hidden damage mercy produced a non-finite curve weight.")
+                if not s.damage_mercy_uncapped:
+                    new = min(1.0, new)
                 if _neq(new, value):
                     patches.setdefault(sid, {}).setdefault("NPCCombatDifficulty", {})[key] = _num(new)
     if _neq(s.psy_phantom_factor, 1.0) and s.psy_phantom_factor >= 0:
@@ -3060,7 +3042,7 @@ def _weapon_settings_patch(gd: GameData, s: Settings) -> dict:
             raw = gd.resolve(gd.weaponsettings, sid, "ChanceBleedingPerShot")
             if raw is not None:
                 scaled_raw = _scale_literal(raw, bleed_factor)
-                if scaled_raw is not None and scaled_raw != raw.strip():
+                if scaled_raw is not None and _neq(parse_number(scaled_raw), parse_number(raw)):
                     patches.setdefault(sid, {})["ChanceBleedingPerShot"] = scaled_raw
 
         # Inventory bars are stored display values, not computed gameplay statistics.
@@ -3519,8 +3501,7 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                             rows[idx] = row
                     if rows:
                         cfg["WeaponReloadTimePerAttachment"] = rows
-            # Emit both JamChanceCoef and FullJamTime for each indexed jam entry,
-            # so possible array replacement cannot erase its sibling field.
+            # Jam probability and clearing time are independent indexed leaves.
             if jam_on or jam_chance_on:
                 table = node.children.get("WeaponJamParams")
                 if table is not None:
@@ -3529,16 +3510,14 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                         time_raw = entry.values.get("FullJamTime")
                         coef_raw = entry.values.get("JamChanceCoef")
                         row = {}
-                        if time_raw is not None:
+                        if jam_on and time_raw is not None:
                             value = parse_number(time_raw)
-                            row["FullJamTime"] = (
-                                _num(value / s.jam_clear_factor)
-                                if jam_on and value > 0 else time_raw.strip())
-                        if coef_raw is not None:
+                            if value > 0:
+                                row["FullJamTime"] = _num(value / s.jam_clear_factor)
+                        if jam_chance_on and coef_raw is not None:
                             value = parse_number(coef_raw)
-                            row["JamChanceCoef"] = (
-                                _num(value * s.jam_chance_factor)
-                                if jam_chance_on and value > 0 else coef_raw.strip())
+                            if value > 0:
+                                row["JamChanceCoef"] = _num(value * s.jam_chance_factor)
                         # Emit only actual changes.
                         if row and any(
                                 row.get(k) != (entry.values.get(k) or "").strip()
@@ -3559,56 +3538,37 @@ def _weight_params_patch(gd: GameData, s: Settings) -> dict:
     # Space penalty thresholds between their start and maximum.
     t1 = ps + (m - ps) / 3.0
     t2 = ps + 2.0 * (m - ps) / 3.0
-    thresholds = {
-        "[0]": {
-            "Threshold": f"{_num(m)}f",
-            "EffectPrototypeSIDs": {
-                "[0]": "OverweightStaminaPointsRegen",
-                "[1]": "OverweightBlockJoggingActionTypeEffect",
-                "[2]": "OverweightMovementVelocityChange_3",
-            },
-        },
-        "[1]": {
-            "Threshold": f"{_num(t2)}f",
-            "EffectPrototypeSIDs": {
-                "[0]": "OverweightMovementVelocityChange_3",
-                "[1]": "OverweightStaminaPointsRegen70kg",
-                "[2]": "OverweightBlockJoggingActionTypeEffect",
-            },
-        },
-        "[2]": {
-            "Threshold": f"{_num(t1)}f",
-            "EffectPrototypeSIDs": {
-                "[0]": "OverweightMovementVelocityChange_2",
-                "[1]": "OverweightStaminaPointsRegen60kg",
-            },
-        },
-        "[3]": {
-            "Threshold": f"{_num(ps)}f",
-            "EffectPrototypeSIDs": {
-                "[0]": "OverweightMovementVelocityChange_1",
-                "[1]": "OverweightStaminaPointsRegen50kg",
-            },
-        },
-    }
-    return {
-        "DefaultWeightParams": {
-            "MaxInventoryMass": _num(m),
-            "InventoryPenaltyLessWeight": _num(ps - 0.01),
-            "WeightEffectParams": thresholds,
-        }
-    }
+    cfg = {}
+    for path, wanted in (("MaxInventoryMass", m), ("InventoryPenaltyLessWeight", ps - 0.01),
+                         *((f"WeightEffectParams.[{i}].Threshold", value)
+                           for i, value in enumerate((m, t2, t1, ps)))):
+        raw = gd.resolve(gd.weightparams, "DefaultWeightParams", path)
+        if raw is None or not _neq(parse_number(raw), wanted):
+            continue
+        node = cfg
+        parts = path.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        suffix = "f" if raw.strip().endswith(("f", "F")) else ""
+        node[parts[-1]] = _num(wanted) + suffix
+    return {"DefaultWeightParams": cfg} if cfg else {}
 
 
 def _effect_max_patch(gd: GameData, s: Settings) -> dict:
     """Adjust ObjEffectMaxParams carry-weight and protection caps."""
     entries: dict = {}
     if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):
-        scale = s.max_carry_weight / VANILLA_MAX_CARRY
-        entries["[1]"] = {"EffectSID": "EEffectType::PenaltyLessWeight",
-                          "MaxValue": _num(90 * scale)}
-        entries["[9]"] = {"EffectSID": "EEffectType::AdditionalInventoryWeight",
-                          "MaxValue": _num(140 * scale)}
+        live_max = parse_number(gd.resolve(gd.weightparams, "DefaultWeightParams", "MaxInventoryMass"))
+        root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
+        values = root.children.get("MaxEffectValues") if root is not None else None
+        for idx, entry in (values.children.items() if values is not None else ()):
+            if entry.values.get("EffectSID") not in ("EEffectType::PenaltyLessWeight", "EEffectType::AdditionalInventoryWeight"):
+                continue
+            raw = entry.values.get("MaxValue")
+            if raw is not None and live_max > 0:
+                scaled = _scale_literal(raw, s.max_carry_weight / live_max)
+                if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
+                    entries[idx] = {"MaxValue": scaled}
     if _neq(s.protection_cap_factor, 1.0) and s.protection_cap_factor > 0:
         root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
         values = root.children.get("MaxEffectValues") if root is not None else None
@@ -3625,7 +3585,7 @@ def _effect_max_patch(gd: GameData, s: Settings) -> dict:
             if not _neq(new, value):
                 continue
             suffix = "f" if raw.strip().endswith(("f", "F")) else ""
-            entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
+            entries[idx] = {"MaxValue": _num(new) + suffix}
     # Include the remaining effect caps alongside protection and carry-weight limits.
     if _neq(s.effect_cap_other_factor, 1.0) and s.effect_cap_other_factor > 0:
         root = gd.effectmax.children.get("DefaultEffectMaxParamsSID")
@@ -3642,7 +3602,7 @@ def _effect_max_patch(gd: GameData, s: Settings) -> dict:
             if not _neq(new, value):
                 continue
             suffix = "f" if raw.strip().endswith(("f", "F")) else ""
-            entries[idx] = {"EffectSID": sid, "MaxValue": _num(new) + suffix}
+            entries[idx] = {"MaxValue": _num(new) + suffix}
     if not entries:
         return {}
     return {"DefaultEffectMaxParamsSID": {"MaxEffectValues": entries}}
@@ -3779,7 +3739,7 @@ def _effects_patch(gd: GameData, s: Settings) -> dict:
             if raw is None:
                 continue
             scaled = _scale_literal(raw, factor)
-            if scaled is not None and scaled != raw.strip():
+            if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
                 cfg[key] = scaled
         if cfg:
             patches[sid] = cfg
@@ -4021,9 +3981,11 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
     ps = min(s.penalty_start_weight, m - 1.0)
     if _neq(m, VANILLA_MAX_CARRY) or _neq(ps, VANILLA_PENALTY_START):
         t1 = ps + (m - ps) / 3.0
-        cfg["InventoryPenaltyLessWeight"] = _num(ps)
-        cfg["MediumEffectStartUI"] = _num(ps)
-        cfg["CriticalEffectStartUI"] = _num(t1)
+        for key, wanted in (("InventoryPenaltyLessWeight", ps), ("MediumEffectStartUI", ps),
+                            ("CriticalEffectStartUI", t1)):
+            raw = gd.resolve(gd.corevars, "DefaultConfig", key)
+            if raw is not None and _neq(parse_number(raw), wanted):
+                cfg[key] = _num(wanted)
 
     if s.no_overweight_penalty:
         cfg["InventorySPOverweightDrainCoef"] = "0.0"
@@ -4096,7 +4058,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             ranks: dict = {}
             for rank, raw in chance.values.items():
                 value = parse_number(raw, -1.0)
-                if value >= 0:
+                if value >= 0 and _neq(min(1.0, value * s.npc_flashlight_combat_factor), value):
                     ranks[rank] = _num(min(1.0, value * s.npc_flashlight_combat_factor))
             if ranks:
                 cfg["FlashlightCombatUseChance"] = ranks
@@ -4175,7 +4137,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if raw is not None and parse_number(raw) > 0:
                 cfg[key] = "0.f"
 
-    # Emit complete hard-landing threshold entries. The disable option takes
+    # Patch hard-landing thresholds only. The disable option takes
     # precedence over the factor by raising vanilla thresholds substantially.
     limp_factor = 1000.0 if s.no_landing_limp else s.limp_threshold_factor
     if _neq(limp_factor, 1.0) and limp_factor > 0:
@@ -4190,8 +4152,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             scaled = _scale_literal(raw, limp_factor) if parse_number(raw) > 0 else None
             if scaled is not None and scaled != raw.strip():
                 changed = True
-            entries[idx] = {"EffectSID": sid.strip(),
-                            "Threshold": scaled if scaled is not None else raw.strip()}
+                entries[idx] = {"Threshold": scaled}
         if changed:
             cfg["LimpEffectSIDToThresholdMap"] = entries
     # Bleeding buildup from penetrating and nonpenetrating hits.
@@ -4241,7 +4202,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             if scaled is not None:
                 cfg[key] = scaled
 
-    # Emit complete grenade-protection entries and cap resistance at one.
+    # Patch grenade resistance only, capped at one.
     # Zero makes grenades ignore this armor-protection contribution.
     if _neq(s.grenade_resist_factor, 1.0) and s.grenade_resist_factor >= 0:
         arr = node.children.get("StrikeGrenadeResistCoefs") if node is not None else None
@@ -4256,8 +4217,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                       if parse_number(raw) > 0 else None)
             if scaled is not None and _neq(parse_number(scaled), parse_number(raw)):
                 changed = True
-            entries[idx] = {"ProtectionStrike": strike.strip(),
-                            "GrenadeDamageResist": scaled if scaled is not None else raw.strip()}
+                entries[idx] = {"GrenadeDamageResist": scaled}
         if changed:
             cfg["StrikeGrenadeResistCoefs"] = entries
     # Set both experimental wear/protection coefficients to one absolute target;
@@ -4335,7 +4295,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         cfg["AlifeCorpsesHardcap"] = str(max(1, int(s.alife_corpse_hardcap)))
 
     # Select ordinary radiation presets by name, excluding death barriers and Custom.
-    # Emit complete entries while preserving RadioactivityValue.
+    # Dose, screen filter and Geiger intensity use separate leaves.
     rad_on = [(f, key, cap) for f, key, cap in
               ((s.radiation_dose_factor, "RadiationPerSecondValue", None),
                (s.radiation_filter_factor, "PostProcessRadiationIntensity", 1.0),
@@ -4348,7 +4308,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
             preset = (entry.values.get("Preset") or "").strip()
             if preset not in RADIATION_PRESETS_OK:
                 continue
-            full = {k: v.strip() for k, v in entry.values.items()}
+            full = {}
             changed = False
             for factor, key, cap in rad_on:
                 raw = entry.values.get(key)
@@ -4386,7 +4346,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         if scaled is not None:
             cfg[key] = scaled
 
-    # Neutralize reputation repair modifiers with complete indexed entries;
+    # Neutralize only non-neutral reputation repair modifiers;
     # adjust rumor refresh independently.
     if s.repair_cost_reputation:
         arr = node.children.get("ReputationRepairCostModifiers") if node is not None else None
@@ -4399,7 +4359,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                 continue
             if _neq(parse_number(raw), 1.0):
                 changed = True
-            entries[idx] = {"RelationLevel": level.strip(), "Modifier": "1.0"}
+                entries[idx] = {"Modifier": "1.0"}
         if changed:
             cfg["ReputationRepairCostModifiers"] = entries
     live = gd.corevar("InfotopicRefreshHours", -1.0)
@@ -4407,7 +4367,7 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
         cfg["InfotopicRefreshHours"] = str(max(1, int(s.infotopic_refresh_hours)))
 
     if _neq(s.stamina_sprint, 1.0):
-        # Continuous drain (Sprint/Run): emit complete entries.
+        # Continuous drain (Sprint/Run): leave other stamina states alone.
         node = gd.corevars.children.get("DefaultConfig")
         coefs = node.children.get("StaminaRegenStateCoefs") if node else None
         if coefs:
@@ -4416,9 +4376,9 @@ def _corevars_patch(gd: GameData, s: Settings) -> dict:
                 tag = entry.values.get("StateTag", "EStateTag::None")
                 value = parse_number(entry.values.get("Value"))
                 if value < 0 and tag in SPRINT_DRAIN_TAGS:
-                    value *= s.stamina_sprint
-                entries[idx] = {"StateTag": tag, "Value": _num(value)}
-            cfg["StaminaRegenStateCoefs"] = entries
+                    entries[idx] = {"Value": _num(value * s.stamina_sprint)}
+            if entries:
+                cfg["StaminaRegenStateCoefs"] = entries
 
     return {"DefaultConfig": cfg} if cfg else {}
 
@@ -4783,11 +4743,11 @@ def _trade_patch(gd: GameData, s: Settings) -> dict:
         gens: dict = {}
         for idx, values in entries.items():
             patch: dict = {}
-            if durability_on and (
-                "WeaponSellMinDurability" in values or "ArmorSellMinDurability" in values
-            ):
-                patch["WeaponSellMinDurability"] = min_dur
-                patch["ArmorSellMinDurability"] = min_dur
+            if durability_on:
+                for leaf in ("WeaponSellMinDurability", "ArmorSellMinDurability"):
+                    raw = gd.resolve(gd.trade, trader, f"TradeGenerators.{idx}.{leaf}")
+                    if raw is not None and _neq(parse_number(raw), parse_number(min_dur)):
+                        patch[leaf] = min_dur
             if buy_on and "BuyModifier" in values:
                 patch["BuyModifier"] = f"{_num(values['BuyModifier'] * s.trader_buy_price_factor)}f"
             if sell_on and "SellModifier" in values:
@@ -4861,7 +4821,7 @@ def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
 def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
     """Set jobs-per-round limits, capped by each giver's available task pool.
 
-    The counter resets on cooldown, not hand-in. Emit complete condition entries
+    The counter resets on cooldown, not hand-in. Patch only the counter limit
     and parse the large quest file only when required."""
     target = int(s.repeatable_jobs_per_round)
     if target == Settings.repeatable_jobs_per_round or target < 1:
@@ -4872,18 +4832,14 @@ def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
         if not _neq(want, giver["cap"]):
             continue
         outer, inner = giver["cond_path"]
-        conditions = giver["cap_node"].children["Conditions"]
-        entry = _struct_dict(conditions.children[outer].children[inner])
-        entry["VariableValue"] = str(want)
-        patches[giver["cap_key"]] = {"Conditions": {outer: {inner: entry}}}
+        patches[giver["cap_key"]] = {"Conditions": {outer: {inner: {"VariableValue": str(want)}}}}
     return patches
 
 
 def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
     """Re-arm the existing offer dialog after accepting a job.
 
-    Acceptance is confirmed by Molkerr (GitHub #9, 10 September 2026),
-    but he must interact again; this does not force the conversation open.
+    The player must interact again; this does not force the conversation open.
     The earlier End=false workaround did not protect sibling jobs because
     they shared a journal. quest_jobs.build_job_isolation now separates
     journals and guards round cleanup, leaving the End behavior vanilla.
@@ -4917,13 +4873,7 @@ def _quest_multi_patch(gd: GameData, s: Settings) -> dict:
                            for src in sources)
             if not (is_accept or is_start):
                 continue
-            complete: dict = {}
-            for cidx, c in conns.children.items():
-                one = {"SID": (c.values.get("SID") or "").strip()}
-                if "Name" in c.values:
-                    one["Name"] = (c.values.get("Name") or "").strip()
-                complete[cidx] = one
-            flipped[idx] = {"Excluding": "false", "Connections": complete}
+            flipped[idx] = {"Excluding": "false"}
         if flipped:
             patches.setdefault(dialog_sid, {})["Launchers"] = flipped
         # End behavior stays vanilla. build_job_isolation guards cleanup
@@ -5003,8 +4953,7 @@ def _quest_taken_patch(gd: GameData, s: Settings) -> dict:
 def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
     """Rearm the job dialogue from the limit check's True branch.
 
-    Resolve the actual connection index and emit the complete launcher entry,
-    preserving all other connections."""
+    Resolve the actual connection index and patch only its branch name."""
     if not s.repeatable_jobs_instant:
         return {}
     patches: dict = {}
@@ -5012,10 +4961,8 @@ def _quest_dialog_patch(gd: GameData, s: Settings) -> dict:
         if giver["pin"] == "True":
             continue
         launcher_key, conn_key = giver["link_path"]
-        launcher = giver["dialog_node"].children["Launchers"].children[launcher_key]
-        entry = _struct_dict(launcher)
-        entry["Connections"][conn_key]["Name"] = "True"
-        patches[giver["dialog_key"]] = {"Launchers": {launcher_key: entry}}
+        patches[giver["dialog_key"]] = {"Launchers": {
+            launcher_key: {"Connections": {conn_key: {"Name": "True"}}}}}
     return patches
 
 
@@ -5342,14 +5289,13 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                 continue
             new = max(1, int(round(count * pack)))
             if new != int(count):
-                # Complete [i] entry; never emit an incomplete array entry.
+                # Preserve the existing archetype identity at this index.
                 (preset.setdefault("ALifeScenarioNPCArchetypesLimitsPerPlayerRank", {})
                        .setdefault(ri, {}).setdefault("Restrictions", {})
-                       )[ti] = {"AgentType": f"EAgentType::{atype}",
-                                "MaxCount": str(new)}
+                       )[ti] = {"MaxCount": str(new)}
 
     # Scale existing wounded/dead encounter fractions, preserving zero and capping at one.
-    # Emit complete squad entries with unchanged identity, flags and alive bounds.
+    # Wounded and dead fractions must not rewrite each other's values.
     if wounded_on or dead_on:
         scenarios = d.children.get("Scenarios")
         for scen_key, scen in (scenarios.children.items() if scenarios else ()):
@@ -5370,11 +5316,9 @@ def _director_patch(gd: GameData, s: Settings) -> dict:
                         cfg[key] = scaled
                 if not cfg:
                     continue
-                full = {k: v.strip() for k, v in entry.values.items()}
-                full.update(cfg)
                 (preset.setdefault("Scenarios", {})
                        .setdefault(scen_key, {})
-                       .setdefault("ScenarioSquads", {}))[skey] = full
+                       .setdefault("ScenarioSquads", {}))[skey] = cfg
     return {"ALifeDirectorPreset": preset} if preset else {}
 
 
@@ -5589,8 +5533,7 @@ def _marker_patch(gd: GameData, s: Settings) -> dict:
     for sid, node in sorted(gd.markers.children.items()):
         if sid == "[0]" or "#" in sid:
             continue
-        # Emit resolved indexed marker entries completely because partial merge behavior
-        # is unverified; named markers need only changed fields.
+        # Resolve indexed marker inheritance, then emit only changed fields.
         indexed = sid.startswith("[")
         values = _resolved_struct(gd.markers, node) if indexed else node.values
         cfg: dict = {}
@@ -5608,12 +5551,7 @@ def _marker_patch(gd: GameData, s: Settings) -> dict:
                 cfg["InitDiscoverState"] = "EMarkerState::Explored"
         if not cfg:
             continue
-        if indexed:
-            full = _resolved_struct(gd.markers, node)
-            full.update(cfg)
-            patches[sid] = full
-        else:
-            patches[sid] = cfg
+        patches[sid] = cfg
     return patches
 
 
@@ -5680,7 +5618,11 @@ def _buy_limits_patch(gd: GameData, s: Settings) -> dict:
                     wanted.append(kind)
             if wanted == existing:
                 continue
-            rows[idx] = {"BuyLimitations": {f"[{i}]": kind for i, kind in enumerate(wanted)}}
+            # Keep observed indices; append only missing restrictions.
+            last = max((int(k[1:-1]) for k in limits.values
+                        if k.startswith("[") and k.endswith("]") and k[1:-1].isdigit()), default=-1) if limits else -1
+            rows[idx] = {"BuyLimitations": {f"[{last + i + 1}]": kind
+                         for i, kind in enumerate(wanted[len(existing):])}}
         if rows:
             patches[sid] = {"TradeGenerators": rows}
     return patches
@@ -5869,7 +5811,7 @@ def _scope_patch(gd: GameData, s: Settings) -> dict:
 
 
 def _scope_override_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
-    """Create derived per-scope effects and replace their references in complete item lists.
+    """Create derived per-scope effects and patch only their item-list references.
 
     Return effect and item patches; cap zoom magnitude at 90%."""
     if not s.scope_overrides:
@@ -5922,7 +5864,8 @@ def _scope_override_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         entries = gd.scope_effect_list(sid)
         if not entries:
             continue
-        items[sid] = {"EffectPrototypeSIDs": {idx: replacements.get(v, v) for idx, v in entries.items()}}
+        items[sid] = {"EffectPrototypeSIDs": {idx: replacements[v] for idx, v in entries.items()
+                                           if v in replacements}}
     return effects, items
 
 
@@ -6584,6 +6527,8 @@ def summarize(s: Settings) -> list[str]:
     f("Night darkness for NPC eyes", s.darkness_factor)
     f("Bodies alarm NPCs", s.corpse_threat_factor)
     f("Hidden damage mercy", s.damage_mercy_factor)
+    if s.damage_mercy_uncapped:
+        lines.append("Allow damage-mercy weights above 1.0 (experimental; used above 100%)")
     f("Psy phantom count", s.psy_phantom_factor)
     if _neq(s.min_resale_pct, 10.0):
         lines.append(f"Minimum resale value {s.min_resale_pct:g} % (vanilla 10)")

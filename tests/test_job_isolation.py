@@ -48,6 +48,8 @@ for giver in gd.repeatable_quest_givers():
     assert _struct_dict(guard.children['Launchers']) == _struct_dict(
         gd.questnodes.children[giver['cleanup_sid']].children['Launchers'])
     cleanup = effective[giver['cleanup_sid']]
+    assert all('Excluding' not in row.values for row in
+               patched[giver['cleanup_sid']].children['Launchers'].children.values())
     for launcher in cleanup['Launchers'].values():
         assert launcher['Excluding'] == 'false'
         assert list(launcher['Connections'].values()) == [{'SID': guard_sid, 'Name': 'True'}]

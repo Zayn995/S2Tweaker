@@ -126,11 +126,12 @@ check(build(far_damage_factor=1.0) == {}, "At vanilla, the slider produces nothi
 print("\n5) Stamina & bleeding caps")
 caps = parse(build(effect_cap_other_factor=2.0), EFFMAX)
 entries = caps["DefaultEffectMaxParamsSID"].children["MaxEffectValues"].children
-sids = {e.values.get("EffectSID") for e in entries.values()}
+sids = {gd.resolve(gd.effectmax, "DefaultEffectMaxParamsSID", f"MaxEffectValues.{idx}.EffectSID") for idx in entries}
 check(sids == {"EEffectType::RegenStamina", "EEffectType::DegenBleeding"},
       f"Exactly the two previously uncapped entries: {sorted(sids)}")
-for e in entries.values():
-    if e.values["EffectSID"].endswith("RegenStamina"):
+for idx, e in entries.items():
+    assert set(e.values) == {"MaxValue"}
+    if gd.resolve(gd.effectmax, "DefaultEffectMaxParamsSID", f"MaxEffectValues.{idx}.EffectSID").endswith("RegenStamina"):
         check(e.values["MaxValue"] == "60.0f", f"RegenStamina 30 -> {e.values['MaxValue']}")
 
 

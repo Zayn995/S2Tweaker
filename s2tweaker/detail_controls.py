@@ -6,12 +6,11 @@ See SLIDER_AUDIT_1_40_1.md and the linked bounded source inventories.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from copy import deepcopy
 import math
 
 from .cfgparse import parse_number
 from .artifact_extensions import _literal, _put
-from .npc_equipment import _clone, _merge
+from .npc_equipment import _clone
 from . import detail_effects
 from .detail_scope import WEAPON_ITEMS
 
@@ -270,51 +269,10 @@ def available(gd):
     return getattr(gd, "detail_editor", {}) if gd is not None else {}
 
 
-def _get(tree, parts):
-    for part in parts:
-        tree = tree.get(part, {})
-    return tree
-
-
-def _drop(tree, parts):
-    parents = []
-    for part in parts[:-1]:
-        if part not in tree:
-            return
-        parents.append((tree, part))
-        tree = tree[part]
-    tree.pop(parts[-1], None)
-    for parent, part in reversed(parents):
-        if not parent[part]:
-            del parent[part]
-
-
-def _same(a, b):
-    if isinstance(a, dict) or isinstance(b, dict):
-        return isinstance(a, dict) and isinstance(b, dict) and a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)
-    return a == b or (_finite_number(a) and _finite_number(b)
-                     and math.isclose(parse_number(a), parse_number(b), rel_tol=1e-9, abs_tol=1e-9))
-
-
-def _finite_number(value):
-    return isinstance(value, str) and math.isfinite(parse_number(value, math.nan))
-
-
 def _write(patches, sid, path, value, raw, row):
-    if row is None:
-        _put(patches, sid, path, value, raw)
-        return
-    parts = (sid, *path.split("."))
-    full = deepcopy(row)
-    _merge(full, _get(patches, parts[:-1]))
-    full[parts[-1]] = value
-    if _same(full, row):
-        _drop(patches, parts[:-1])
-    else:
-        parent = patches
-        for part in parts[:-2]:
-            parent = parent.setdefault(part, {})
-        parent[parts[-2]] = full
+    # Indexed rows use the same recursive merge as named nodes. A detail
+    # override that cancels its global removes only that leaf, not its siblings.
+    _put(patches, sid, path, value, raw)
 
 
 def apply(gd, settings, source, patches):

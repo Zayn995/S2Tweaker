@@ -1,6 +1,6 @@
 """Check core control families against installed game data.
 
-Cover complete indexed entries, related field composition, neutral output
+Cover sparse indexed entries, related field composition, neutral output
 and mirrored CoreVariablesCustom values; see CORE_SWEEP_RESEARCH.md."""
 import sys
 from pathlib import Path
@@ -60,16 +60,16 @@ neutral = build_patches(gd, S())
 assert not neutral, sorted(neutral)
 print("P1.1 Neutral: no patch file  OK")
 
-# --- P1.2) Limping after a hard landing: complete array ---
+# --- P1.2) Limping after a hard landing: changed thresholds only ---
 core = parsed(build_patches(gd, S(limp_threshold_factor=2.0)), CORE).children["DefaultConfig"]
 arr = core.children["LimpEffectSIDToThresholdMap"].children
 assert set(arr) == {"[0]", "[1]"}, set(arr)
-assert arr["[0]"].values == {"EffectSID": "WeakLimp", "Threshold": "50.0"}, arr["[0]"].values
-assert arr["[1]"].values == {"EffectSID": "MediumLimp", "Threshold": "130.0"}, arr["[1]"].values
+assert arr["[0]"].values == {"Threshold": "50.0"}, arr["[0]"].values
+assert arr["[1]"].values == {"Threshold": "130.0"}, arr["[1]"].values
 assert not core.values, core.values                                        # Nothing else.
 arr = parsed(build_patches(gd, S(no_landing_limp=True)), CORE).children["DefaultConfig"] \
     .children["LimpEffectSIDToThresholdMap"].children
-assert arr["[0]"].values == {"EffectSID": "WeakLimp", "Threshold": "25000.0"}, arr["[0]"].values
+assert arr["[0]"].values == {"Threshold": "25000.0"}, arr["[0]"].values
 assert arr["[1]"].values["Threshold"] == "65000.0"
 arr = parsed(build_patches(gd, S(no_landing_limp=True, limp_threshold_factor=3.0)), CORE) \
     .children["DefaultConfig"].children["LimpEffectSIDToThresholdMap"].children
@@ -77,7 +77,7 @@ assert arr["[1]"].values["Threshold"] == "65000.0"                          # To
 assert CORE not in build_patches(gd, S(limp_threshold_factor=1.0))
 text = build_patches(gd, S(limp_threshold_factor=2.0))[CORE]
 assert "LimpEffectSIDToThresholdMap : struct.begin {bpatch}" in text and "[0] : struct.begin {bpatch}" in text
-print("P1.2 Limping: x2 -> 50/130, toggle -> 25000/65000, both entries complete  OK")
+print("P1.2 Limping: x2 -> 50/130, toggle -> 25000/65000, sparse thresholds OK")
 
 # Bleeding from penetrating and nonpenetrating hits.
 core = core_values(bleeding_hit_factor=0.0, bleeding_nonpen_factor=2.0)
@@ -149,14 +149,17 @@ print("P1.7 Collapsed: encumbrance drain, landing stamina, 5 ladder rates, 5 ran
       "Corpse interaction duration (inverse), 3 marker distances  OK")
 
 # Mirror core overrides only when their corresponding fields change.
-for kw, keys in ((dict(max_carry_weight=200), {"InventoryPenaltyLessWeight"}),
+for kw, keys in ((dict(max_carry_weight=200), set()),
                  (dict(penalty_start_weight=60), {"InventoryPenaltyLessWeight"}),
                  (dict(no_overweight_penalty=True), {"InventorySPOverweightDrainCoef", "InventorySPDrainCoef"}),
                  (dict(stamina_jump=2.0), {"StaminaFallingDamageCoef"}),
                  (dict(max_carry_weight=120, no_overweight_penalty=True, stamina_jump=0.0),
-                  set(COREVARS_CUSTOM_KEYS))):
+                  set(COREVARS_CUSTOM_KEYS) - {"InventoryPenaltyLessWeight"})):
     p = build_patches(gd, S(**kw))
     core = parsed(p, CORE).children["DefaultConfig"].values
+    if not keys:
+        assert CUSTOM not in p
+        continue
     cus = parsed(p, CUSTOM).children["CustomConfigOverride"].values
     assert set(cus) == keys, (kw, cus)
     assert all(cus[k] == core[k] for k in keys), (kw, cus, core)           # Match the patched DefaultConfig value.
@@ -192,26 +195,25 @@ assert abs(gd.corevar("StrikeAnomalyArmorDifferenceCoef") - 1.0) < 1e-9
 assert not build_patches(gd, S(grenade_resist_factor=1.0, armor_wear_coef=0.7, anomaly_armor_difference_factor=1.0))
 print("P2.0 Live: 5 Strike levels, wear coefficients match default 0.7, neutral empty  OK")
 
-# --- P2.1) Grenade protection: complete array, f suffix, cap 1.0 ---
+# --- P2.1) Grenade protection: positive bases only, f suffix, cap 1.0 ---
 def resist(factor):
     core = parsed(build_patches(gd, S(grenade_resist_factor=factor)), CORE).children["DefaultConfig"]
     assert not core.values, core.values                                      # Nothing else.
     return core.children["StrikeGrenadeResistCoefs"].children
 
 arr = resist(2.0)
-assert set(arr) == {"[0]", "[1]", "[2]", "[3]", "[4]"}, set(arr)
-assert arr["[0]"].values == {"ProtectionStrike": "0.f", "GrenadeDamageResist": "0.0f"}, arr["[0]"].values
-assert arr["[1]"].values == {"ProtectionStrike": "1.f", "GrenadeDamageResist": "0.2f"}, arr["[1]"].values
+assert set(arr) == {"[1]", "[2]", "[3]", "[4]"}, set(arr)
+assert arr["[1]"].values == {"GrenadeDamageResist": "0.2f"}, arr["[1]"].values
 assert arr["[2]"].values["GrenadeDamageResist"] == "0.4f" and arr["[3]"].values["GrenadeDamageResist"] == "0.8f"
-assert arr["[4]"].values == {"ProtectionStrike": "4.f", "GrenadeDamageResist": "1.0f"}, arr["[4]"].values  # cap
+assert arr["[4]"].values == {"GrenadeDamageResist": "1.0f"}, arr["[4]"].values  # cap
 arr = resist(0.0)
-assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f"] * 5
+assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f"] * 4
 arr = resist(3.0)
-assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.0f", "0.3f", "0.6f", "1.0f", "1.0f"]
+assert [e.values["GrenadeDamageResist"] for e in arr.values()] == ["0.3f", "0.6f", "1.0f", "1.0f"]
 text = build_patches(gd, S(grenade_resist_factor=0.5))[CORE]
-assert "StrikeGrenadeResistCoefs : struct.begin {bpatch}" in text and text.count("[") == 5, text
+assert "StrikeGrenadeResistCoefs : struct.begin {bpatch}" in text and text.count("[") == 4, text
 assert CORE not in build_patches(gd, S(grenade_resist_factor=1.0))
-print("P2.1 Grenade protection: x2 -> 0/0.2/0.4/0.8/1.0f (capped), x0 -> all zero, x3 capped, complete entries  OK")
+print("P2.1 Grenade protection: positive bases scaled/capped, unchanged zero omitted OK")
 
 # --- P2.2) Absolute wear control: both coefficients, f suffix ---
 assert core_values(armor_wear_coef=0.3) == {"ArmorDurabilityParamsCoef": "0.3f", "HelmetDurabilityParamsCoef": "0.3f"}
@@ -406,19 +408,18 @@ assert not build_patches(gd, S(squad_expansion_factor=1.0, refill_cooldown_facto
                                corpse_distance_factor=1.0, alife_corpse_hardcap=1500))
 print("P5.0 Files: three new, schema 22, 16 live expansion entries (MutantGeneric at [1]), 29 factions, neutral empty  OK")
 
-# --- P5.1) Squad expansion: 16 presets, complete entries, special values ---
+# --- P5.1) Squad expansion: 16 presets, sparse entries, special values ---
 p = build_patches(gd, S(squad_expansion_factor=2.0))
 nd = parsed(p, NEEDS)
 assert len(nd.children) == 16, sorted(nd.children)
 human = nd.children["HumanGenericNeedsPreset"].children["GoalNeeds"].children
 assert list(human) == ["[0]"] and human["[0]"].values == {
-    "NeedTag": "AI.Need.Expansion", "InitialNeedValue": "65.0", "MinIncreasePerMinute": "12.0",
-    "MaxIncreasePerMinute": "20.0", "NeedSatisfactionThreshold": "100.0"}, human["[0]"].values
+    "MinIncreasePerMinute": "12.0", "MaxIncreasePerMinute": "20.0"}, human["[0]"].values
 zombie = nd.children["ZombieNeedsPreset"].children["GoalNeeds"].children["[0]"].values
-assert zombie["MinIncreasePerMinute"] == "2.0" and zombie["MaxIncreasePerMinute"] == "6.0" and zombie["InitialNeedValue"] == "0.0"
+assert zombie == {"MinIncreasePerMinute": "2.0", "MaxIncreasePerMinute": "6.0"}
 mut = nd.children["MutantGenericNeedsPreset"].children["GoalNeeds"].children
 assert list(mut) == ["[1]"] and mut["[1]"].values["MinIncreasePerMinute"] == "14.0" and mut["[1]"].values["MaxIncreasePerMinute"] == "22.0"
-assert mut["[1]"].values["InitialNeedValue"] == "80.0" and len(mut["[1]"].values) == 5
+assert len(mut["[1]"].values) == 2
 for absent in ("ReuniteWithLair", "MilitariesNeedsPreset", "NoonNeedsPreset", "SparkNeedsPreset", "CorpusNeedsPreset",
                "MutantGenericNeedsNoExpansionPreset", "ScientistsNeedsPreset", "QuestNPCNeedsPreset",
                "   Needs : struct.begin"):
@@ -428,7 +429,7 @@ assert NEEDS not in build_patches(gd, S(squad_expansion_factor=1.0))
 quarter = parsed(build_patches(gd, S(squad_expansion_factor=0.25)), NEEDS).children["DutyNeedsPreset_Guard"] \
     .children["GoalNeeds"].children["[0]"].values
 assert quarter["MinIncreasePerMinute"] == "1.5" and quarter["MaxIncreasePerMinute"] == "2.5"
-print("P5.1 Expansion: 16 presets x2 (6/10 -> 12/20, Zombie 2/6, MutantGeneric [1] 14/22), complete entries  OK")
+print("P5.1 Expansion: 16 presets x2, only growth rates emitted OK")
 
 # --- P5.2) A-Life policy: cooldowns, integer distance range, budget ---
 p = build_patches(gd, S(refill_cooldown_factor=0.5, refill_distance_factor=2.0, corpse_budget=60))
@@ -512,15 +513,14 @@ p = build_patches(gd, S(radiation_dose_factor=2.0, radiation_filter_factor=2.0, 
 rad = parsed(p, CORE).children["DefaultConfig"].children["RadiationPresetValues"].children
 assert sorted(rad) == ["[0]", "[1]", "[2]", "[6]"], sorted(rad)
 assert len(RADIATION_PRESETS_OK) == 4
-assert rad["[0]"].values == {"Preset": "ERadiationPreset::Light", "RadioactivityValue": "15.f",
-                             "RadiationPerSecondValue": "2.0f", "GeigerRadiationIntensity": "0.2f",
+assert rad["[0]"].values == {"RadiationPerSecondValue": "2.0f", "GeigerRadiationIntensity": "0.2f",
                              "PostProcessRadiationIntensity": "1.0f"}, rad["[0]"].values
 assert rad["[2]"].values["RadiationPerSecondValue"] == "12.0f" and rad["[2]"].values["PostProcessRadiationIntensity"] == "1.0f"
-assert rad["[6]"].values["GeigerRadiationIntensity"] == "0.1f" and rad["[6]"].values["RadioactivityValue"] == "15.f"
+assert rad["[6]"].values["GeigerRadiationIntensity"] == "0.1f" and "RadioactivityValue" not in rad["[6]"].values
 for tabu in ("Deadly", "RadBlock", "Custom", "RadBlockFieldDamage", "EffectPrototypeSIDs"):
     assert tabu not in p[CORE], tabu
 assert CORE not in build_patches(gd, S(radiation_dose_factor=1.0))
-print("P6.1 Radiation: complete [0]/[1]/[2]/[6], dose x2, filter capped at 1.0f, Geiger x0.5, death zones absent  OK")
+print("P6.1 Radiation: sparse [0]/[1]/[2]/[6], independent dose/filter/Geiger values, death zones absent OK")
 
 # --- P6.2) Combat music: absolute values compared with live data, f suffix ---
 assert core_values(music_combat_threshold=50, music_combat_lifetime=10) == {
@@ -542,7 +542,7 @@ assert parsed(build_patches(gd, S(barbed_wire_factor=20.0)), BW).children["Limit
 assert "ArmorPiercing" not in build_patches(gd, S(barbed_wire_factor=2.0))[BW]
 print("P6.3 Barbed wire: both prototypes x2 / x0, chance capped at 1.0, base [0] unchanged  OK")
 
-# --- P6.4) Explosive containers: 22 explosion structs, complete phase ---
+# --- P6.4) Explosive containers: 22 explosion structs, threshold only ---
 live_exp = [k for k, n in gd.destructibles.children.items()
             if (n.values.get("SID") or "").startswith("Exp_") or "_Exp_" in (n.values.get("SID") or "")]
 assert len(live_exp) == 22, len(live_exp)
@@ -550,11 +550,11 @@ p = build_patches(gd, S(explosive_container_factor=0.5))
 des = parsed(p, DES)
 assert len(des.children) == 22 and all(k.startswith("[") for k in des.children), sorted(des.children)[:3]
 first = des.children[live_exp[0]].children["ObjectPhaseSettings"].children["[0]"].values
-assert first == {"DamageIgnoranceThreshold": "3.0", "DamageDestroyThreshold": "20.0"}, first
+assert first == {"DamageDestroyThreshold": "20.0"}, first
 assert "DestructibleActions" not in p[DES] and "AssetPath" not in p[DES] and "OriginalMesh" not in p[DES]
 assert "ObjectPhaseSettings : struct.begin {bpatch}" in p[DES]
 assert DES not in build_patches(gd, S(explosive_container_factor=1.0))
-print(f"P6.4 Containers: {len(des.children)} explosion prototypes, threshold 40 -> 20, phase with both scalars, assets excluded  OK")
+print(f"P6.4 Containers: {len(des.children)} explosion prototypes, threshold 40 -> 20, other fields omitted OK")
 
 # --- P6.5) Impulse: all 88 prototypes ---
 phy = parsed(build_patches(gd, S(push_force_factor=2.0)), PHY)
@@ -564,24 +564,24 @@ assert all(list(n.values) == ["PlayerPushImpulse"] for n in phy.children.values(
 assert PHY not in build_patches(gd, S(push_force_factor=1.0))
 print("P6.5 Impulse: all 88 prototypes x2, only the single key  OK")
 
-# --- P6.6) Weather transitions: 22 multipliers, both levels complete, inverse ---
+# --- P6.6) Weather transitions: 22 multipliers, sparse nested entries, inverse ---
 p = build_patches(gd, S(weather_transition_factor=2.0))
 wch = parsed(p, WCH)
 total = 0
 for n in wch.children.values():
     for st in n.children["TransitionSteps"].children.values():
-        assert "WeatherChainWeight" in st.values, st.values          # Complete first level.
+        assert not st.values, st.values
         for ch in st.children["WeatherChains"].children.values():
-            assert "WeatherType" in ch.values, ch.values             # Complete second level.
+            assert set(ch.values) == {"WeatherTransitionTimeMultiplier"}, ch.values
             assert ch.values["WeatherTransitionTimeMultiplier"] == "0.5"
             total += 1
 assert total == 22, total
-assert wch.children["ClearlyToRainy"].children["TransitionSteps"].children["[0]"].values["WeatherChainWeight"] == "100"
+assert "WeatherChainWeight" not in p[WCH]
 assert parsed(build_patches(gd, S(weather_transition_factor=0.5)), WCH).children["ClearlyToRainy"] \
     .children["TransitionSteps"].children["[0]"].children["WeatherChains"].children["[0]"] \
     .values["WeatherTransitionTimeMultiplier"] == "2.0"
 assert WCH not in build_patches(gd, S(weather_transition_factor=1.0))
-print(f"P6.6 Weather: {total} inverse multipliers (x2 -> 0.5), weights emitted unchanged  OK")
+print(f"P6.6 Weather: {total} inverse multipliers (x2 -> 0.5), weights omitted OK")
 
 # Use a separate sky patch with protected keys absent.
 assert len(SKY_KEYS) == 6
@@ -598,7 +598,7 @@ for tabu in ("Latitude", "Longitude", "TimeZone", "NorthOffsetAngle", "StartYear
 assert SKY not in build_patches(gd, S(moon_brightness_factor=1.0))
 print("P6.7 Sky: SingletonConstants.cfg_patch_* in GameData/, 6 keys with f suffix, clouds capped, excluded keys absent  OK")
 
-# Patch only supported camp needs with complete entries.
+# Patch only the growth rates of supported camp needs.
 assert len(CAMP_LIFE_NEEDS) == 8
 p = build_patches(gd, S(camp_life_factor=2.0))
 nd = parsed(p, NEEDS)
@@ -606,19 +606,19 @@ nd = parsed(p, NEEDS)
 assert len(nd.children) == 25 == len(gd.needspresets.children) - 1, len(nd.children)
 assert "[0]" not in nd.children
 seen = set()
-for node in nd.children.values():
+for sid, node in nd.children.items():
     assert "GoalNeeds" not in node.children                       # Without the expansion slider.
-    for e in node.children["Needs"].children.values():
-        t = e.values["NeedType"]
+    for idx, e in node.children["Needs"].children.items():
+        t = gd.resolve(gd.needspresets, sid, f"Needs.{idx}.NeedType")
         seen.add(t)
         assert t in CAMP_LIFE_NEEDS, t
-        assert {"NeedType", "IncreaseRateMin", "IncreaseRateMax", "Radius", "MaxCount"} <= set(e.values), e.values
+        assert set(e.values) <= {"IncreaseRateMin", "IncreaseRateMax"}, e.values
 assert seen == set(CAMP_LIFE_NEEDS), sorted(seen)
-guitar = next(e.values for e in nd.children["NeutralsNeedsPreset"].children["Needs"].children.values()
-              if e.values["NeedType"] == "EContextualActionNeeds::Guitar")
+guitar = next(e.values for idx, e in nd.children["NeutralsNeedsPreset"].children["Needs"].children.items()
+              if gd.resolve(gd.needspresets, "NeutralsNeedsPreset", f"Needs.{idx}.NeedType") == "EContextualActionNeeds::Guitar")
 # Scale the nonstandard Neutrals guitar values while retaining suffixes.
 assert guitar["IncreaseRateMin"] == "10.0f" and guitar["IncreaseRateMax"] == "30.0f", guitar
-assert guitar["Radius"] == "5500.f" and guitar["MaxCount"] == "1", guitar
+assert "Radius" not in guitar and "MaxCount" not in guitar, guitar
 # Match excluded needs by full enum name, avoiding unrelated preset-name substrings.
 for tabu in ("Patrolling", "Emission", "Work", "Guard", "Monolog", "RunOnTalking",
              "WeaponCleaning", "PDA", "Idle", "Detector"):
@@ -626,7 +626,7 @@ for tabu in ("Patrolling", "Emission", "Work", "Guard", "Monolog", "RunOnTalking
 both = parsed(build_patches(gd, S(camp_life_factor=2.0, squad_expansion_factor=2.0)), NEEDS)
 assert "GoalNeeds" in both.children["HumanGenericNeedsPreset"].children
 assert "Needs" in both.children["HumanGenericNeedsPreset"].children
-print("P6.8 Camp life: 25 presets, only 8 needs, complete entries, combined with expansion  OK")
+print("P6.8 Camp life: 25 presets, only 8 needs, sparse entries, combined with expansion OK")
 
 # --- P6.9) Summary ---
 joined = "\n".join(summarize(S(radiation_dose_factor=2.0, radiation_filter_factor=0.0, geiger_volume_factor=2.0,
@@ -711,13 +711,13 @@ assert list(poi.children) == ["ArtifactUncommon"], list(poi.children)
 entries = poi.children["ArtifactUncommon"].children["PackOfItemsSettings"].children["[0]"] \
     .children["Items"].children
 assert len(entries) == 20, len(entries)
-assert all(e.values["Weight"] == "1" and e.values.get("ItemPrototypeSID") for e in entries.values())
-assert entries["[0]"].values["ItemPrototypeSID"] == "EArtifactMoonlight", entries["[0]"].values
+assert all(e.values == {"Weight": "1"} for e in entries.values())
+assert live_items["[0]"].values["ItemPrototypeSID"] == "EArtifactMoonlight"
 assert "ArtifactUncommon : struct.begin {bpatch}" in p[POI]
 for other in ("Medkits", "Stimulator", "Drink", "Food", "empty"):
     assert other not in p[POI], other
 assert POI not in build_patches(gd, S())
-print("P7.4 Stashes: ArtifactUncommon only, 20 complete entries set to Weight 1, other groups unchanged  OK")
+print("P7.4 Stashes: ArtifactUncommon only, 20 weights set to 1, other fields omitted OK")
 
 # --- P7.5) Reroll loot on rank increase ---
 assert core_values(loot_reroll_radius_factor=2.0, loot_reroll_timer_factor=0.5) == {
@@ -751,15 +751,15 @@ assert [e.values["Modifier"] for e in rep.values()] == ["2.0", "1.5", "1.0", "0.
 assert not build_patches(gd, S(repair_cost_reputation=False, infotopic_refresh_hours=24))
 print("P8.0 File: NPCPrototypes in NEEDED_FILES, intentionally excluded from mod scan, live values match defaults  OK")
 
-# Emit complete reputation repair entries at the neutral modifier.
+# Omit already-neutral repair modifiers and all identities.
 p = build_patches(gd, S(repair_cost_reputation=True))
 arr = parsed(p, CORE).children["DefaultConfig"].children["ReputationRepairCostModifiers"].children
-assert sorted(arr) == ["[0]", "[1]", "[2]", "[3]"], sorted(arr)
-assert arr["[0]"].values == {"RelationLevel": "ERelationLevel::Enemy", "Modifier": "1.0"}
-assert arr["[3]"].values == {"RelationLevel": "ERelationLevel::Friend", "Modifier": "1.0"}
+assert sorted(arr) == ["[0]", "[1]", "[3]"], sorted(arr)
+assert arr["[0]"].values == {"Modifier": "1.0"}
+assert arr["[3]"].values == {"Modifier": "1.0"}
 assert all(e.values["Modifier"] == "1.0" for e in arr.values())
 assert "BaseRepairCostModifier" not in p[CORE]                    # The general price control remains separate.
-print("P8.1 Repair reputation: all four levels set to 1.0, RelationLevel included  OK")
+print("P8.1 Repair reputation: three changed modifiers set to 1.0, neutral row omitted OK")
 
 # --- P8.2) Rumor refresh: absolute integer ---
 assert core_values(infotopic_refresh_hours=6) == {"InfotopicRefreshHours": "6"}

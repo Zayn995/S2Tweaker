@@ -9,6 +9,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_sparse_control_patches.py",
+    "test_npc_patch_compatibility.py",
     "test_public_files.py",
     "test_detail_controls.py",
     "test_artifact_additions.py",

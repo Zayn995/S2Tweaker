@@ -5,6 +5,36 @@ Keywords include synonyms and common spelling variants for feature discovery."""
 
 FAQ_ENTRIES = [
     {
+        "q": "Can NPC search time and alertness use separate Paks?",
+        "a": "The current development generator writes separate fields: alertness "
+             "changes reaction thresholds, while search time changes memory freeze "
+             "times and decay rates. The new patches omit unchanged values. "
+             "Rebuild BOTH Paks with this generator and use different mod names; "
+             "remove their old versions. Paks from 1.42.0 and earlier repeat the "
+             "complete NPC profile and can undo the other setting. Rain frequency, "
+             "emission frequency and weather duration receive the same correction. "
+             "Different values for the same setting still conflict. Pak readback, "
+             "scan footprints and a local recursive-merge model have been checked; "
+             "the new indexed patches still need in-game validation.",
+        "k": "npc search alertness separate combined pak compatibility overwrite "
+             "suspicion memory weather rain emission duration indexed sparse bpatch",
+    },
+    {
+        "q": "Why does Hidden damage mercy omit Easy or Custom above 100%?",
+        "a": "The default mode caps each damage-reduction curve weight at 1.0. "
+             "If an installed difficulty already has both weights at 1.0, raising "
+             "the multiplier makes no change and creates no patch for it. Enable "
+             "'Allow damage-mercy weights above 1.0 (experimental)' to remove the "
+             "tool's cap: at 300%, a weight of 1.0 becomes 3.0. Both explicit and "
+             "inherited difficulty values are resolved from your game data. "
+             "The new option is off by default and has no output at 100%. The "
+             "game may clamp higher weights or interpret them unexpectedly; "
+             "this does not promise three times the protection. No in-game "
+             "confirmation exists for the extended mode.",
+        "k": "hidden damage mercy difficulty easy custom default empty missing "
+             "cap uncapped extended weights 300 100 experimental protection",
+    },
+    {
         "q": "Can I edit one artifact or detector without changing all the others?",
         "a": "Open World > Artifact editor & related settings, select a family and "
              "item, then Edit selected settings. Details shows the loaded baseline. "
@@ -345,7 +375,9 @@ FAQ_ENTRIES = [
              "Re-equip after changing the mod. Molkerr reports extra bonuses "
              "working in 1.40 and shows Liquid Stone with nine bonus rows. "
              "Exact magnitudes, every combination and inherited fake/quest "
-             "protection still need game tests. No UE4SS is required.",
+             "protection still need game tests. Generate multiple additions to "
+             "the same artifact together: separate Paks can compete for the same "
+             "new effect slot. No UE4SS is required.",
         "k": "artifact add extra new bonus bonuses fire burn protection liquid "
              "stone additional effects strength carry stamina radiation",
     },

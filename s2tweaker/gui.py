@@ -952,6 +952,7 @@ SLIDER_FIELDS: dict[str, str] = {
 }
 
 CHECK_FIELDS: dict[str, str] = {
+    "dmg_mercy_uncapped": "damage_mercy_uncapped",
     "relations_runtime": "relations_runtime",
     "improved_vaulting": "improved_vaulting",
     "vault_sprint": "vault_sprint",
@@ -1098,6 +1099,8 @@ def footprint_settings(key: str) -> list[Settings] | None:
         # conflict coverage rather than borrowing a pair's footprint.
         if field_name == "relations_runtime":
             return None
+        if field_name == "damage_mercy_uncapped":
+            return [Settings(damage_mercy_factor=3.0, damage_mercy_uncapped=True)]
         return [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
     if field_name is None:
@@ -4935,13 +4938,17 @@ class App(WorkbenchMixin, ctk.CTk):
                      "How little suspicion it takes before NPCs turn their "
                      "head (200), search (350), move in (500) or call allies "
                      "(700 points; a gunshot is worth 700). 200 % = they react "
-                     "at half the suspicion. Human NPCs only.")
+                     "at half the suspicion. Human NPCs only. Writes reaction "
+                     "thresholds only; search timing stays untouched. Separate "
+                     "Paks must both be rebuilt to use the new sparse patches.")
         self._slider(f, "npc_search", "NPC search time", 25, 1000, 5, 100, fmt_pct,
                      "How long NPCs stay suspicious and keep searching "
                      "(vanilla: suspicion frozen 30 s, then fades 30 points/s). "
                      "25 % = they forget you fast. craigduk76 reports longer "
                      "searches at 400 % (GitHub #13). Up to 1000 % is now "
-                     "available; values above 400 % are not play-tested.")
+                     "available; values above 400 % are not play-tested. Writes "
+                     "memory timing only; alertness thresholds stay untouched. "
+                     "Separate Paks must both be rebuilt to use the new sparse patches.")
         self._slider(f, "npc_courage", "NPC courage", 25, 300, 5, 100, fmt_pct,
                      "Confidence needed before human squads attack or fall "
                      "back (vanilla bandits 2 / 1, monolith 0.5 / 0, others "
@@ -4964,11 +4971,20 @@ class App(WorkbenchMixin, ctk.CTk):
                      "everywhere). Direction assumed: higher = more precise. "
                      "Not play-tested yet.")
         self._slider(f, "dmg_mercy", "Hidden damage mercy", 0, 300, 5, 100, fmt_pct,
-                     "The game dampens damage you take in quick succession; "
-                     "the curve weights are 0.33-0.75 on Medium, 0.15-0.5 on "
-                     "Hard, 0.12-0.4 on Stalker, 1.0 on Easy. Scaled per "
-                     "difficulty, capped at 1.0. Direction not verified - "
-                     "experimental.")
+                     "Scales both damage-reduction curve weights from each "
+                     "installed difficulty, including inherited values. "
+                     "0 % writes zero; 100 % keeps vanilla. The default cap "
+                     "is 1.0: profiles already at 1.0 cannot increase. Enable "
+                     "the option below to try weights above 1.0. A 300 % "
+                     "weight does not establish three times the protection; "
+                     "gameplay effects remain experimental.")
+        self._check(f, "dmg_mercy_uncapped",
+                    "Allow damage-mercy weights above 1.0 (experimental)",
+                    "Removes the tool's 1.0 cap. With the slider at 300 %, "
+                    "a live weight of 1.0 becomes 3.0, including Easy and "
+                    "Custom profiles. Game behavior above 1.0 is unverified "
+                    "and may be clamped or behave unexpectedly. Off by default "
+                    "to preserve existing presets. At 100 % this creates no patch.")
         self._slider(f, "psy_phantoms_n", "Psy phantom count (Stalker difficulty)", 25, 400, 5, 100, fmt_pct,
                      "The Stalker difficulty spawns twice the psy phantoms "
                      "(multiplier 2.0); other difficulties have no entry. Not "
@@ -6928,6 +6944,7 @@ class App(WorkbenchMixin, ctk.CTk):
             darkness_factor=s["darkness"].get() / 100.0,
             corpse_threat_factor=s["corpse_threat"].get() / 100.0,
             damage_mercy_factor=s["dmg_mercy"].get() / 100.0,
+            damage_mercy_uncapped=bool(self.checks["dmg_mercy_uncapped"].get()),
             psy_phantom_factor=s["psy_phantoms_n"].get() / 100.0,
             min_resale_pct=float(s["min_resale"].get()),
             container_respawn_hours=float(s["container_respawn"].get()),

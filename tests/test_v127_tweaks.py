@@ -160,12 +160,12 @@ assert eff.children["S2T_Gauss_Scope_AimingFOVX4Effect"].values["ValueMin"] == "
 assert eff.children["S2T_RU_ColimScope_2_ScopeAimingTimeNeg7Effect"].values["ValueMin"] == "14.0%"
 assert "AimingFOVX4Effect" not in eff.children                                     # Global unchanged.
 lst = parsed(p, ITEMS).children["RU_X4Scope_1"].children["EffectPrototypeSIDs"].values
-assert len(lst) == len(gd.scope_effect_list("RU_X4Scope_1")) >= 5
+assert len(lst) == 3 < len(gd.scope_effect_list("RU_X4Scope_1"))
 assert "S2T_RU_X4Scope_1_AimingFOVX4Effect" in lst.values() and "AimingFOVX4Effect" not in lst.values()
-assert "ScopeRecoilPos20Effect" in lst.values()                                   # Preserve the rest of the list.
+assert "ScopeRecoilPos20Effect" not in lst.values()  # Unrelated effects are not rewritten.
 assert "{refkey=AimingFOVX4Effect;bpatch}" in p[EFF]
 assert "S2T_" not in build_patches(gd, S()).get(EFF, "")
-print("Per scope: 17 scopes, derived effects with refkey, complete lists  OK")
+print("Per scope: 17 scopes, derived effects with refkey, sparse references OK")
 
 # --- 9) Summary ---
 joined = "\n".join(summarize(S(back_speed_factor=2.0, air_control_factor=2.0, limp_speed_factor=2.0, slow_run_threshold_pct=0,

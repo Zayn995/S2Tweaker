@@ -28,9 +28,6 @@ def _remap(node, journal, replacement, stages):
     for key, child in node.children.items():
         child_patch = _remap(child, journal, replacement, stages)
         if child_patch:
-            if key.startswith("["):
-                from .tweaks import _struct_dict, _merge_nested
-                child_patch = _merge_nested(_struct_dict(child), child_patch)
             patch[key] = child_patch
     return patch
 
@@ -284,7 +281,7 @@ def build_job_isolation(gd, *, localization_aliases=None):
         # Replace EVERY original incoming edge, retaining its array index.
         # Thus no individual completion bypasses the all-jobs guard.
         existing[cleanup_sid] = {"Launchers": {
-            idx: {"Excluding": "false", "Connections": {
+            idx: {"Connections": {
                 next(iter(entry.children["Connections"].children)):
                     {"SID": guard_sid, "Name": "True"}}}
             for idx, entry in launchers.children.items()}}

@@ -246,10 +246,8 @@ touched = [(s, k) for s, sc in scen_out.items()
 check(sorted(touched) == sorted(wounded),
       "Only the eight existing entries are changed; zeros remain zero")
 entry = scen_out[wounded[0][0]].children["ScenarioSquads"].children[wounded[0][1]].values
-check(set(entry) == {"AgentArchetype", "bPlayerEnemy", "RelationGroup",
-                     "AliveMultiplierMin", "AliveMultiplierMax",
-                     "WoundedMultiplier", "DeadMultiplier"},
-      "Emit the COMPLETE array entry (all seven keys)")
+check(set(entry) == {"WoundedMultiplier"},
+      "Emit only the wounded fraction; preserve dead fraction and identity")
 check(parse_number(entry["WoundedMultiplier"]) == 0.3, "0.1 x 3 = 0.3")
 p3 = build(encounter_wounded_factor=20.0)
 vals = [parse_number(sc.children["ScenarioSquads"].children[k].values["WoundedMultiplier"])

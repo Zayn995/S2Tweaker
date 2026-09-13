@@ -2,16 +2,34 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.42.0
-File version:  1.42.0
+Name:          S2Tweaker 1.43.0
+File version:  1.43.0
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Desktop redesign with 24 color palettes and a teal/ice-blue Standard. Clearer sections and change cards; Oodle, Mousewheel and build actions stay visible. Extract the entire ZIP. No Pak rebuild needed for this visual update.
+Independent controls now omit unchanged sibling values from generated patches.
+This fixes the unwanted overlap between NPC Search Time and Alertness and the
+same pattern in flashlight, radiation, weapon jam, weather, encounter and detail
+settings. Artifact additions preserve existing slots. An optional experimental
+damage-mercy mode permits curve weights above 1.0; the default cap is unchanged.
+Rebuild affected Paks. Use different mod names for separate exports. Conflicting
+assignments to the same value still require a combined export. NOT play-tested.
+No UE4SS required. All 19 native runtime binaries remain unchanged.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.43.0 - control compatibility and optional extended damage mercy
+
+Independent controls now omit unchanged sibling values from generated patches.
+This fixes the unwanted overlap between NPC Search Time and Alertness and the
+same pattern in flashlight, radiation, weapon jam, weather, encounter and detail
+settings. Artifact additions preserve existing slots. An optional experimental
+damage-mercy mode permits curve weights above 1.0; the default cap is unchanged.
+Rebuild affected Paks. Use different mod names for separate exports. Conflicting
+assignments to the same value still require a combined export. NOT play-tested.
+No UE4SS required. All 19 native runtime binaries remain unchanged.
+
 1.42.0 - desktop redesign and 24 color palettes
 
 - Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten additional general

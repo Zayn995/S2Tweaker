@@ -11,7 +11,18 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.42.0 — DESKTOP DESIGN AND 24 COLOR PALETTES
+NEW IN 1.43.0 — CONTROL PATCH COMPATIBILITY
+------------------------------------------
+Independent controls now omit unchanged sibling values from generated patches.
+This fixes the unwanted overlap between NPC Search Time and Alertness and the
+same pattern in flashlight, radiation, weapon jam, weather, encounter and detail
+settings. Artifact additions preserve existing slots. An optional experimental
+damage-mercy mode permits curve weights above 1.0; the default cap is unchanged.
+Rebuild affected Paks. Use different mod names for separate exports. Conflicting
+assignments to the same value still require a combined export. NOT play-tested.
+No UE4SS required. All 19 native runtime binaries remain unchanged.
+
+INCLUDED FROM 1.42.0 — DESKTOP DESIGN AND 24 COLOR PALETTES
 --------------------------------------------------
 - Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes
   and all eleven faction palettes. Choose Design -> Standard for the new default.

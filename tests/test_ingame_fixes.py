@@ -51,7 +51,7 @@ check(not new, f"not a single new node{new}")
 check(raw.count(" : struct.begin") == raw.count("{bpatch}"),
       "Every struct and array entry carries {bpatch}")
 
-# Disable acceptance/job-start exclusion guards with complete launcher entries;
+# Disable acceptance/job-start exclusion guards with sparse launcher entries;
 # preserve completion guards.
 total_flipped, total_starts = 0, 0
 for giver in givers:
@@ -63,12 +63,9 @@ for giver in givers:
         assert idx in vanilla, (giver["quest"], idx)
         assert entry.values == {"Excluding": "false"}, (giver["quest"], idx, entry.values)
         v_conns = vanilla[idx].children["Connections"].children
-        p_conns = entry.children["Connections"].children
-        assert list(p_conns) == list(v_conns), (giver["quest"], idx)
-        for cidx in v_conns:
-            assert p_conns[cidx].values["SID"] == v_conns[cidx].values["SID"].strip()
-    sources = {c.values["SID"] for e in flipped.values()
-               for c in e.children["Connections"].children.values()}
+        assert not entry.children, (giver["quest"], idx)
+    sources = {c.values["SID"] for idx in flipped
+               for c in vanilla[idx].children["Connections"].children.values()}
     assert giver["accept"] in sources, giver["quest"]
 
     def _sources(entry):

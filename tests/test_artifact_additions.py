@@ -96,7 +96,7 @@ class SyntheticAdditions(unittest.TestCase):
                 if name=='EffectPrototypeSIDs' and index=='[2]':
                     self.assertEqual(items['EArtifactFlash'][name][index],a.clone_sid(s.mod_name,'EArtifactFlash','ArtifactProtectionShock1'))
                 else:
-                    self.assertEqual(items['EArtifactFlash'][name][index],value)
+                    self.assertNotIn(index,items['EArtifactFlash'][name])
         effective=deepcopy(self.gd.items)
         for sid,node in items.items():
             original=_struct_dict(effective.children[sid])
@@ -159,7 +159,7 @@ class LiveAdditions(unittest.TestCase):
             original=_struct_dict(self.gd.items.children[c.target])
             for name in extra.ARRAYS:
                 for index,value in original[name].items():
-                    self.assertEqual(items[c.target][name][index],value,c.key)
+                    self.assertNotIn(index,items[c.target][name],c.key)
             new_indices=set(items[c.target]['EffectPrototypeSIDs'])-set(original['EffectPrototypeSIDs'])
             for index in new_indices:
                 self.assertIn(items[c.target]['EffectPrototypeSIDs'][index],effects,c.key)
@@ -180,8 +180,8 @@ class LiveAdditions(unittest.TestCase):
         effects=cfgparse.parse(next(v for k,v in result.items() if k.startswith('EffectPrototypes/')))
         self.assertEqual(set(items.children),{'CArtifactLiquidStone','CArtifactLiquidStone_Fake'})
         own=items.children['CArtifactLiquidStone'].children['EffectPrototypeSIDs'].values
-        self.assertEqual(own['[0]'],'ArtifactProtectionRadiation4')
-        self.assertEqual(own['[2]'],'ArtifactDurabilityIncrease4')
+        self.assertNotIn('[0]',own)
+        self.assertNotIn('[2]',own)
         self.assertEqual(effects.children[own['[3]']].values['ValueMin'],'20')
         self.assertEqual(effects.children[own['[3]']].values['EffectLevel'],'EEffectLevel::Strong')
         self.assertEqual(effects.children[own['[1]']].values['ValueMin'],'17.5')

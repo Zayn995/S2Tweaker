@@ -1,7 +1,7 @@
 """Check repeatable-job pool limits, cooldowns and dialogue rearming against live data.
 
 Counters count jobs issued per round, not currently held jobs. Resolve varying
-launcher indices, cap limits by pool size, and emit complete array entries.
+launcher indices, cap limits by pool size, and emit only changed values.
 Neutral settings must avoid parsing the large quest file."""
 import sys
 from pathlib import Path
@@ -46,18 +46,15 @@ assert not build_patches(fresh, Settings())
 assert "questnodes" not in fresh.__dict__, "Neutral settings parse QuestNodePrototypes"
 print("Neutral: no patch, 75-MB file untouched  OK")
 
-# --- 3) Limit patch: complete condition entry ---
+# --- 3) Limit patch: preserve the existing condition except its limit ---
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=6)))
 assert len(p) == 8, sorted(p)
 for sid, node in p.items():
     entry = node.children["Conditions"].children["[0]"].children["[0]"]
-    # Emit complete condition/launcher entries for either array-merge interpretation.
-    assert set(entry.values) == {
-        "ConditionType", "ConditionComparance", "GlobalVariablePrototypeSID",
-        "ChangeValueMode", "VariableValue"}, (sid, sorted(entry.values))
-    assert entry.values["ConditionComparance"] == "EConditionComparance::Less"
+    assert set(entry.values) == {"VariableValue"}, (sid, sorted(entry.values))
+    assert gd.resolve(gd.questnodes, sid, "Conditions.[0].[0].ConditionComparance") == "EConditionComparance::Less"
     assert entry.values["VariableValue"] == "6", (sid, entry.values["VariableValue"])
-print("Limit 6: 8 nodes, complete condition with all five keys  OK")
+print("Limit 6: 8 nodes, only the limit is written OK")
 
 # --- 4) Cap each giver to its job pool ---
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=10)))
@@ -77,24 +74,19 @@ vals = {n.children["Conditions"].children["[0]"].children["[0]"].values["Variabl
 assert vals == {"1"}, vals
 print("Slider 1: stricter than vanilla, all eight set to 1  OK")
 
-# --- 5) Dialog changes: complete launcher entry ---
+# --- 5) Dialog changes: only the resolved pin ---
 p = nodes(build_patches(gd, Settings(repeatable_jobs_instant=True)))
 assert len(p) == 8, sorted(p)
 for giver in givers:
     node = p[giver["dialog_key"]]
     launcher_key, conn_key = giver["link_path"]
     launcher = node.children["Launchers"].children[launcher_key]
-    # Emit the complete launcher entry: Excluding and ALL connections.
-    assert "Excluding" in launcher.values, giver["quest"]
+    assert not launcher.values, giver["quest"]
     conns = launcher.children["Connections"].children
     vanilla_conns = (giver["dialog_node"].children["Launchers"]
                      .children[launcher_key].children["Connections"].children)
-    assert set(conns) == set(vanilla_conns), (giver["quest"], sorted(conns))
-    for key, conn in conns.items():
-        # Preserve SID on each connection.
-        assert conn.values["SID"] == vanilla_conns[key].values["SID"], (giver["quest"], key)
-        want = "True" if key == conn_key else vanilla_conns[key].values.get("Name", "")
-        assert conn.values.get("Name", "") == want, (giver["quest"], key, conn.values)
+    assert set(conns) == {conn_key}, (giver["quest"], sorted(conns))
+    assert conns[conn_key].values == {"Name": "True"}
 print("Dialog changes: only one pin set to True, SIDs and adjacent entries unchanged  OK")
 
 # Patch RSQ nodes only.

@@ -11,6 +11,16 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.43.0 compatibility corrections:** independent controls now write only
+their changed fields, including NPC threat settings, flashlights, radiation,
+weapon jams, encounters, weather and indexed detail settings. Extra artifact
+bonuses preserve existing slots. Related controls that deliberately share values
+should be configured in one export.
+An optional experimental damage-mercy mode permits weights above 1.0 and resolves
+inherited difficulty values. Existing profiles retain the default cap. Rebuild old
+Paks before combining them. [Release notes](release/NOTES_v1.43.0.md).
+[Details and game-test limits](docs/NPC_PATCH_COMPATIBILITY.md).
+
 **1.42.0 refreshes the desktop editor:** 24 color palettes with a teal/ice-blue
 Standard, clearer sections and change cards, and persistent game-data, Oodle,
 Mousewheel and build controls. The previous olive/amber preview is available as

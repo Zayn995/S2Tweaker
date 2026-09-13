@@ -45,7 +45,7 @@ struct.end""")
         gd = SimpleNamespace(aiglobals=ai)
         patch = world.build(gd, Settings(weather_luminance_overrides={"Fogy": .5}))
         rows = patch["AIGlobals.cfg"]["AISettings"]["LuminanceSettings"]["EnvironmentLuminanceCoefficients"]["WeatherLuminanceCoefficients"]
-        self.assertEqual(rows, {"[1]": {"Coefficient": "0.3", "WeatherType": "EWeather::Fogy"}})
+        self.assertEqual(rows, {"[1]": {"Coefficient": "0.3"}})
 
     def test_control_registry_collects_and_resets_nested_overrides(self):
         class Row:

@@ -1,6 +1,6 @@
 """Check NPC flashlight prototypes, switching hours and combat chance.
 
-Verify extraction coverage, actual indexed keys, complete distance-band entries,
+Verify extraction coverage, actual indexed keys, sparse distance-band entries,
 caps, live scaling and neutral output. Player light values remain outside cfg coverage."""
 import re
 import sys
@@ -51,7 +51,7 @@ assert all(parse_number(e.values["Intencity"]) == 0 for e in prow), \
 print(f"Inventory: {len(structs)} Structs, NPC flashlight = {npc_key}, "
       f"Intencity {v_int}, Radius {v_rad}, Kegel {v_cone}  OK")
 
-# --- 2) Brightness x2 + cone x1.5: complete entries, values x factor ---
+# --- 2) Brightness x2 + cone x1.5: only changed values ---
 text = build_patches(gd, Settings(npc_flashlight_factor=2.0,
                                   npc_flashlight_cone_factor=1.5))[KEY]
 assert f"{npc_key} : struct.begin {{bpatch}}" in text, text[:120]
@@ -59,27 +59,27 @@ assert "ExtraLightDistanceBasedParameters : struct.begin {bpatch}" in text
 assert text.count(": struct.begin {bpatch}") == 2 + len(rows), text
 for got, want in ((nums(text, "Intencity"), [v * 2 for v in v_int]),
                   (nums(text, "AttenuationRadius"), [v * 2 for v in v_rad]),
-                  (nums(text, "OuterConeAngle"), [v * 1.5 for v in v_cone]),
-                  (nums(text, "Distance"), v_dist)):
+                  (nums(text, "OuterConeAngle"), [v * 1.5 for v in v_cone])):
     assert len(got) == len(rows) and all(abs(g - w) < 1e-6 for g, w in zip(got, want)), (got, want)
 # Only the actual NPC top-level key is patched; nested array indices are independent.
 top_level = [ln for ln in text.splitlines() if ln and not ln.startswith(" ") and ln.endswith("{bpatch}")]
 assert top_level == [f"{npc_key} : struct.begin {{bpatch}}"], top_level
-print("Patch: top-level key, {bpatch} at 3 levels, 3 complete entries, x2 / x1.5  OK")
+assert not nums(text, "Distance")
+print("Patch: top-level key, recursive bpatch, independent brightness/cone values OK")
 
 # --- 3) Cone capped at 170 degrees ---
 text = build_patches(gd, Settings(npc_flashlight_cone_factor=3.0))[KEY]
 cones = nums(text, "OuterConeAngle")
 assert max(cones) == 170.0 and all(c <= 170.0 for c in cones), cones
-assert nums(text, "Intencity") == v_int, "Cone slider must not change brightness"
+assert not nums(text, "Intencity"), "Cone slider must not write brightness"
 print(f"Cone x3 -> {cones} (Deckel 170)  OK")
 
 # --- 4) Combat chance per rank, capped at 1.0, factor 0 = never ---
 text = build_patches(gd, Settings(npc_flashlight_combat_factor=1.5))[CORE]
 block = text[text.index("FlashlightCombatUseChance"):]
 chances = dict(re.findall(r"(\w+) = ([0-9.]+)", block.split("struct.end")[0]))
-assert set(chances) >= {"Newbie", "Experienced", "Veteran", "Master"}, chances
-assert float(chances["Newbie"]) == 1.0 and float(chances["Experienced"]) == 1.0
+assert set(chances) == {"Experienced", "Veteran", "Master"}, chances
+assert float(chances["Experienced"]) == 1.0
 assert abs(float(chances["Veteran"]) - 0.75) < 1e-9 and abs(float(chances["Master"]) - 0.375) < 1e-9
 text0 = build_patches(gd, Settings(npc_flashlight_combat_factor=0.0))[CORE]
 assert all(float(v) == 0 for v in dict(re.findall(r"(\w+) = ([0-9.]+)",

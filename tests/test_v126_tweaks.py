@@ -182,7 +182,7 @@ print("Fast travel: 14 guides NoLock/Partial, GuideDelay 120 -> 60  OK")
 # --- 14) Protection caps ------------------------------------------------------
 emax = parsed(build_patches(gd, S(protection_cap_factor=1.5)), EMAX)
 entries = emax.children["DefaultEffectMaxParamsSID"].children["MaxEffectValues"].children
-by_kind = {e.values["EffectSID"]: e.values["MaxValue"] for e in entries.values()}
+by_kind = {gd.resolve(gd.effectmax, "DefaultEffectMaxParamsSID", f"MaxEffectValues.{idx}.EffectSID"): e.values["MaxValue"] for idx, e in entries.items()}
 assert by_kind["EEffectType::ProtectionShock"] == "100.0f" and by_kind["EEffectType::ProtectionStrike"] == "6.75f"
 assert by_kind["EEffectType::ProtectionRadiation"] == "100.0f" and "EEffectType::PenaltyLessWeight" not in by_kind
 carry_only = parsed(build_patches(gd, S(max_carry_weight=160.0)), EMAX)
@@ -209,9 +209,13 @@ vanilla_gens = sum(len(n.children["TradeGenerators"].children) for sid, n in gd.
                    if sid != "[0]" and "TradeGenerators" in n.children)
 patched_gens = sum(len(n.children["TradeGenerators"].children) for n in trade.children.values())
 assert patched_gens < vanilla_gens, (patched_gens, vanilla_gens)   # Preserve existing Weapon/Armor restrictions.
-for n in trade.children.values():
-    for gen_node in n.children["TradeGenerators"].children.values():
-        vals = list(gen_node.children["BuyLimitations"].values.values())
+for sid, n in trade.children.items():
+    for idx, gen_node in n.children["TradeGenerators"].children.items():
+        original = gd.trade.children[sid].children["TradeGenerators"].children[idx].children.get("BuyLimitations")
+        combined = dict(original.values) if original else {}
+        assert not (combined.keys() & gen_node.children["BuyLimitations"].values.keys())
+        combined.update(gen_node.children["BuyLimitations"].values)
+        vals = list(combined.values())
         assert "EItemType::Weapon" in vals and "EItemType::Armor" in vals and len(vals) == len(set(vals))
 print(f"Traders: {patched_gens} of {vanilla_gens} generators updated, existing restrictions preserved  OK")
 

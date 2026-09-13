@@ -92,7 +92,9 @@ class RegionalWeather(unittest.TestCase):
         self.assertNotIn("Rainy", patch[REGION])
         self.assertIn("Fogy", patch[REGION])
         self.assertIn("Emission", patch[REGION])  # the explicitly enabled global duration still applies
-        self.assertEqual(set(patch["[1]"]), set(weather.WEATHERS) | {"Emission", "CalmBeforeEmission", "Underground", "SID", "Priority"})
+        self.assertEqual(set(patch["[1]"]), set(weather.WEATHERS) | {"Emission", "CalmBeforeEmission", "Underground"})
+        self.assertNotIn("SID", patch["[1]"])
+        self.assertNotIn("Priority", patch["[1]"])
 
     def test_red_forest_group_uses_each_baseline(self):
         patch = _weather_patch(self.gd, Settings(regional_weather_overrides={RED: {"Clearly": {"weight": 2}}}))

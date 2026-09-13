@@ -28,31 +28,30 @@ def ai(p):
     return cfgparse.parse(p[AIG]).children["AISettings"]
 
 
-# --- 1) Crouch stealth x2: complete pose entries, player coefficients ---
+# --- 1) Crouch stealth x2: sparse pose entries, player coefficients ---
 p = build_patches(gd, Settings(crouch_stealth_factor=2.0))
 assert set(p) == {AIG, OBJ}, set(p)
 poses = ai(p).children["CharacterPoseSettings"].children
 assert set(poses) == {"[0]", "[1]"}, set(poses)
-assert poses["[1]"].values == {"Pose": "EStateTag::Crouch", "VisibilityCoef": "0.375",
+assert poses["[1]"].values == {"VisibilityCoef": "0.375",
                                "NoiseCoef": "0.05"}, poses["[1]"].values
-assert poses["[0]"].values["Pose"] == "EStateTag::LowCrouchInPlace"
+assert "Pose" not in poses["[0]"].values
 pl = cfgparse.parse(p[OBJ]).children["Player"].children["StealthParams"].values
 assert pl == {"VisibilityCrouchCoef": "0.15", "NoiseCrouchCoef": "0.15"}, pl
-print("Crouch stealth x2: 2 complete poses + player 0.3 -> 0.15  OK")
+print("Crouch stealth x2: 2 sparse poses + player 0.3 -> 0.15 OK")
 
 # --- 2) Movement noise x0: Walk/Run/Sprint/None, visibility unchanged ---
 p = build_patches(gd, Settings(movement_noise_factor=0.0))
 poses = ai(p).children["CharacterPoseSettings"].children
-assert {e.values["Pose"].split("::")[-1] for e in poses.values()} == {"Walk", "Run", "Sprint", "None"}
+assert {gd.resolve(gd.aiglobals, "AISettings", f"CharacterPoseSettings.{idx}.Pose").split("::")[-1] for idx in poses} == {"Walk", "Run", "Sprint", "None"}
 assert all(e.values["NoiseCoef"] == "0.0" for e in poses.values())
-sprint = next(e for e in poses.values() if e.values["Pose"].endswith("Sprint"))
-assert sprint.values["VisibilityCoef"] == "1.2"
+assert all(set(e.values) == {"NoiseCoef"} for e in poses.values())
 assert OBJ not in p
 print("Movement noise x0: 4 silent poses, visibility unchanged  OK")
 
 # --- 3) Weather x2 / x0: double/remove penalties, exclude Clearly ---
 p = build_patches(gd, Settings(weather_stealth_factor=2.0))
-w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
+w = {gd.resolve(gd.aiglobals, "AISettings", f"WeatherSettings.{idx}.WeatherSID"): e.values for idx, e in ai(p).children["WeatherSettings"].children.items()}
 assert "Clearly" not in w
 # Patch 2.0.5 changed weather hearing coefficients. Check the intended
 # reduction against the installed baseline instead of pinning pre-patch values.
@@ -63,7 +62,7 @@ assert {"Fogy", "Thundery"} <= set(w)
 for sid, values in w.items():
     for key in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"):
         before = parse_number(baseline[sid][key])
-        after = parse_number(values[key])
+        after = parse_number(values.get(key, baseline[sid][key]))
         if before >= 1:
             assert after == before, (sid, key)
         elif 2 * before - 1 < .05:
@@ -71,8 +70,8 @@ for sid, values in w.items():
         else:
             assert abs((1 - after) - 2 * (1 - before)) < 1e-6, (sid, key)
 p = build_patches(gd, Settings(weather_stealth_factor=0.0))
-w = {e.values["WeatherSID"]: e.values for e in ai(p).children["WeatherSettings"].children.values()}
-assert all(v[k] == "1.0" for v in w.values() for k in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"))
+w = {gd.resolve(gd.aiglobals, "AISettings", f"WeatherSettings.{idx}.WeatherSID"): e.values for idx, e in ai(p).children["WeatherSettings"].children.items()}
+assert all(parse_number(v.get(k, baseline[sid][k])) == 1 for sid, v in w.items() for k in ("VisibilityCoef", "HearingDistanceCoef", "FlairCoef"))
 print("Weather x2 / x0: live vanilla penalties doubled, floor 0.05, x0 = all 1.0  OK")
 
 # --- 4) Flashlight x0 ---
@@ -82,29 +81,26 @@ assert fl == {"FlashlightMinVisionScorePerSecond": "0.0f", "FlashlightMaxVisionS
 assert cfgparse.parse(p[OBJ]).children["Player"].children["StealthParams"].values == {"FlashLightCoef": "0.0"}
 print("Flashlight x0: vision points 0 and player coefficient 0  OK")
 
-# Scale DefaultNPC vigilance/search time with complete action entries.
+# Scale DefaultNPC vigilance/search time with disjoint sparse fields.
 p = build_patches(gd, Settings(npc_alertness_factor=2.0, npc_search_time_factor=2.0))
 assert list(p) == [THR]
 root = cfgparse.parse(p[THR])
 assert list(root.children) == ["[1]"], list(root.children)     # Exclude boss and mutant profiles.
 prof = root.children["[1]"]
-# Emit the complete indexed threat profile, preserving unchanged top-level values.
+# Unchanged top-level values must remain absent from the patch.
 assert prof.values["DefaultThreatValueFreezeTimeSeconds"] == "60.0", prof.values
 assert prof.values["DefaultThreatValueLossPerSecond"] == "15.0", prof.values
-vanilla_prof = {k: v.strip() for k, v in gd.threats.children["[1]"].values.items()}
-assert set(prof.values) == set(vanilla_prof), (set(prof.values) ^ set(vanilla_prof))
-for k, v in vanilla_prof.items():
-    if k not in ("DefaultThreatValueFreezeTimeSeconds", "DefaultThreatValueLossPerSecond"):
-        assert prof.values[k] == v, (k, v, prof.values[k])
-acts = {a.values["Type"].split("::")[-1]: a.values for a in prof.children["Actions"].children.values()}
+assert set(prof.values) == {"DefaultThreatValueFreezeTimeSeconds", "DefaultThreatValueLossPerSecond"}
+base_actions = gd.threats.children["[1]"].children["Actions"].children
+acts = {base_actions[k].values["Type"].split("::")[-1]: a.values for k, a in prof.children["Actions"].children.items()}
 assert acts["TurnHead"]["ThreatLevelValueMin"] == "100" and acts["CallAllies"]["ThreatLevelValueMin"] == "350"
 assert acts["SearchEnemy"]["ThreatValueFreezeTimeSeconds"] == "60.0" and acts["SearchEnemy"]["ThreatValueLossPerSecond"] == "10.0"
-assert all(set(a) >= {"Type", "ThreatLevelValueMin", "ThreatLevelValueMax"} for a in acts.values())
+assert all(set(a) == {"ThreatLevelValueMin", "ThreatValueFreezeTimeSeconds", "ThreatValueLossPerSecond"} for a in acts.values())
 # Clamp reduced-vigilance thresholds to MaxThreatLevelValue.
 p = build_patches(gd, Settings(npc_alertness_factor=0.5))
-acts = {a.values["Type"].split("::")[-1]: a.values for a in cfgparse.parse(p[THR]).children["[1]"].children["Actions"].children.values()}
+acts = {base_actions[k].values["Type"].split("::")[-1]: a.values for k, a in cfgparse.parse(p[THR]).children["[1]"].children["Actions"].children.items()}
 assert acts["CallAllies"]["ThreatLevelValueMin"] == "1000" and acts["TurnHead"]["ThreatLevelValueMin"] == "400"
-print("Awareness x2 / x0.5 + search time x2: DefaultNPC, complete actions, cap 1000  OK")
+print("Awareness x2 / x0.5 + search time x2: DefaultNPC, sparse actions, cap 1000  OK")
 
 # Issue #13: new 1000% ceiling scales the live baseline without changing
 # the anomaly event's zero confidence time or empty RelationLevels.
@@ -114,10 +110,8 @@ base = gd.threats.children['[1]']
 for key, factor in [('DefaultThreatValueFreezeTimeSeconds', 10.0),
                     ('DefaultThreatValueLossPerSecond', 0.1)]:
     assert abs(parse_number(search.values[key]) - parse_number(base.values[key]) * factor) < 1e-6
-for node in search.walk():
-    if node.values.get('SoundType') == 'ESoundEventType::AnomalyActivated':
-        assert parse_number(node.values['ConfidenceDropToZeroTimeSeconds']) == 0
-        assert node.values['RelationLevels'] == ''
+assert 'ThreatParams' not in search.children
+assert all('ThreatLevelValueMin' not in node.values for node in search.walk())
 print('Search time 1000%: live scaling and unchanged anomaly entry OK')
 
 # --- 6) Courage x2: three human types, mutants excluded ---
@@ -150,13 +144,13 @@ for sid, node in root.children.items():
 assert not build_patches(gd, Settings(npc_weapon_rank_add=0))
 print(f"Difficulty: {len(root.children)} difficulties, cooldowns and rank +2  OK")
 
-# --- 9) Director limits: complete [i] entries with AgentType + MaxCount ---
+# --- 9) Director limits: MaxCount only, preserve existing AgentType ---
 p = build_patches(gd, Settings(encounter_pack_factor=2.0))
 lim = (cfgparse.parse(p[DIR]).children["ALifeDirectorPreset"]
        .children["ALifeScenarioNPCArchetypesLimitsPerPlayerRank"])
 entry = lim.children["[0]"].children["Restrictions"].children["[0]"].values
-assert set(entry) == {"AgentType", "MaxCount"} and entry["AgentType"].startswith("EAgentType::"), entry
-print("Director limits: complete [i] entries  OK")
+assert set(entry) == {"MaxCount"}, entry
+print("Director limits: only changed counts OK")
 
 # --- 10) Neutral + Summary --------------------------------------------------
 assert not build_patches(gd, Settings())

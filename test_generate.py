@@ -176,7 +176,8 @@ s = Settings(
     upg_armor_misc_factor=2.0, weapon_warning_count=5, weapon_warning_delay_factor=2.0,
     camper_time_factor=3.0, sync_melee_factor=0.4, sync_ability_factor=2.0,
     sync_grenade_factor=2.0, sync_suppress_factor=0.5, npcs_no_weapon_pickup=True,
-    darkness_factor=0.5, corpse_threat_factor=2.0, damage_mercy_factor=0.5,
+    darkness_factor=0.5, corpse_threat_factor=2.0, damage_mercy_factor=3.0,
+    damage_mercy_uncapped=True,
     psy_phantom_factor=0.5, min_resale_pct=25, container_respawn_hours=24,
     energy_tolerance_factor=2.0, npc_hip_accuracy_factor=1.5, device_price_factor=0.5,
     limp_threshold_factor=3.0, bleeding_hit_factor=0.5, bleeding_nonpen_factor=0.0,   # 1.28.0 P1

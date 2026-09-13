@@ -55,7 +55,7 @@ class Contracts(unittest.TestCase):
         self.assertIn('sliders', editor_state.GROUPS)
         self.assertNotIn('detail_overrides', editor_state.GROUPS)  # normal slider persistence, not a competing state store
 
-    def test_synthetic_weather_full_rows_and_cancellation(self):
+    def test_synthetic_weather_sparse_rows_and_cancellation(self):
         gd = GameData(Path('unused'))
         gd.__dict__['detail_editor'] = {key('weather', 'Rainy', 'HearingDistanceCoef'): [
             ('AIGlobals', 'AISettings', 'WeatherSettings.[7].HearingDistanceCoef', '.62f',
@@ -64,7 +64,7 @@ class Contracts(unittest.TestCase):
         patch = {}
         d.apply(gd, s, 'AIGlobals', patch)
         self.assertAlmostEqual(cfgparse.parse_number(patch['AISettings']['WeatherSettings']['[7]']['HearingDistanceCoef']), .24)
-        self.assertEqual(patch['AISettings']['WeatherSettings']['[7]']['VisibilityCoef'], '.91f')
+        self.assertEqual(set(patch['AISettings']['WeatherSettings']['[7]']), {'HearingDistanceCoef'})
         s.weather_stealth_factor = .5
         d.apply(gd, s, 'AIGlobals', patch)
         self.assertEqual(patch, {})
@@ -170,7 +170,10 @@ class InstalledData(unittest.TestCase):
         camps = parsed(files, 'NPCNeedsPresetPrototypes/')
         self.assertTrue(camps.children)
         self.assertTrue(all(sid.removesuffix('NeedsPreset') in d.CAMPS for sid in camps.children))
-        self.assertTrue(all(node.values.get('NeedType') == 'EContextualActionNeeds::Guitar' for root in camps.children.values() for node in root.children['Needs'].children.values()))
+        for sid, root in camps.children.items():
+            for idx, node in root.children['Needs'].children.items():
+                self.assertEqual(self.gd.resolve(self.gd.needspresets, sid, f'Needs.{idx}.NeedType'), 'EContextualActionNeeds::Guitar')
+                self.assertEqual(set(node.values), {'IncreaseRateMin', 'IncreaseRateMax'})
         scanner = parsed(files, 'PassiveDetectorPrototypes/')
         self.assertEqual(set(scanner.children), {'[1]'})
         self.assertEqual(cfgparse.parse_number(scanner.get('[1].DetectorRadius')), 800)

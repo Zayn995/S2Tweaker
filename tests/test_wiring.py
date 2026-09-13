@@ -76,6 +76,7 @@ ALONE_EMPTY = {"stat_bars_follow", "artifact_stat_labels_follow", "no_mouse_smoo
                "relations_runtime"}
 
 COUPLED = {
+    "damage_mercy_uncapped": {"damage_mercy_factor": 3.0},
     "stash_extra_chance_pct": {"stash_extra_artifacts": True},
     "npc_armor_drop_min_pct": {"npc_armor_drop_chance_pct": 25.0},
     "npc_armor_drop_max_pct": {"npc_armor_drop_chance_pct": 25.0},

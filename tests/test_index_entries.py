@@ -1,128 +1,58 @@
-"""Verify complete indexed top-level entries for weather and NPC threat profiles.
+"""Check live indexed patches against unchanged vanilla baselines.
 
-Partial merge/replacement semantics remain unverified; named prototypes
-still use sparse field patches."""
+Apply the documented recursive bpatch contract locally, without executing
+Unreal. Unmodified leaves must survive every tested patch order.
+"""
+import itertools
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-VANILLA = str(ROOT / "vanilla" / "Stalker2" / "Content"
-              / "GameLite" / "GameData")
-
 from s2tweaker import cfgparse
-from s2tweaker.cfgparse import parse_number
 from s2tweaker.gamedata import GameData
-from s2tweaker.tweaks import (Settings, build_patches, _resolved_struct,
-                              _struct_dict)
+from s2tweaker.tweaks import Settings, build_patches, _resolved_struct
+from test_npc_patch_compatibility import apply_bpatch, leaves
 
-gd = GameData(VANILLA)
+gd = GameData(ROOT / "vanilla/Stalker2/Content/GameLite/GameData")
+for tree, settings in (
+    (gd.threats, [Settings(npc_search_time_factor=10), Settings(npc_alertness_factor=2)]),
+    (gd.weatherselection, [Settings(rain_factor=2), Settings(emission_factor=2),
+                           Settings(weather_duration_factor=2)]),
+):
+    baseline = leaves(tree)
+    patches = [cfgparse.parse(next(iter(build_patches(gd, s).values()))) for s in settings]
+    expected = dict(baseline)
+    for patch in patches:
+        changed = leaves(patch)
+        assert changed
+        assert set(changed) <= set(baseline)
+        assert all(cfgparse.parse_number(v) != cfgparse.parse_number(baseline[k]) for k, v in changed.items())
+        assert all(n.attrs == "bpatch" for top in patch.children.values() for n in top.walk())
+        expected.update(changed)
+    for a, b in itertools.combinations(patches, 2):
+        assert not (leaves(a).keys() & leaves(b).keys())
+    for order in itertools.permutations(patches):
+        applied = tree
+        for patch in order:
+            applied = apply_bpatch(applied, patch)
+        assert leaves(applied) == expected
+    print(f"{tree.name}: {len(patches)} disjoint patches, all orders preserve unrelated values OK")
 
-
-def keyset(d: dict, prefix: str = "") -> set:
-    """Yield all nested dictionary paths, including structs and leaves."""
-    out = set()
-    for k, v in d.items():
-        out.add(prefix + k)
-        if isinstance(v, dict):
-            out |= keyset(v, prefix + k + "/")
-    return out
-
-
-def weather_root(patches: dict):
-    key = [k for k in patches if "WeatherSelection" in k]
-    assert len(key) == 1, list(patches)
-    return cfgparse.parse(patches[key[0]])
-
-
-ws = gd.weatherselection
-idx = [k for k in ws.children if k.startswith("[")]
-assert idx == ["[0]", "[1]", "[2]", "[3]", "[35]"], idx
-
-# Check same-file refkey resolution.
-full1 = _resolved_struct(ws, ws.children["[1]"])
-assert full1["SID"] == "BaseWeatherHistory", full1["SID"]
-for wtype in ("Clearly", "Cloudy", "Fogy", "Stormy", "LightRainy", "Rainy",
-              "Thundery", "Emission", "CalmBeforeEmission", "Underground"):
-    assert set(full1[wtype]) == {
-        "BlendWeight", "BlendWeightIncrease", "WeatherDurationMin",
-        "WeatherDurationMax", "MaximumRepeatAmount",
-        "MaximumCooldownWeatherAmount", "bAllowInDialogueTransition"}, (
-        wtype, sorted(full1[wtype]))
-print("_resolved_struct: [1] with all 10 weather types x 7 keys  OK")
-
-# Patch only weather templates with positive rain weights; preserve special weather.
-root = weather_root(build_patches(gd, Settings(rain_factor=2.0)))
-patched_idx = [k for k in root.children if k.startswith("[")]
-assert set(patched_idx) >= {"[0]", "[1]"}, patched_idx
-assert set(patched_idx) <= set(idx), patched_idx
-for k in patched_idx:
-    got = _struct_dict(root.children[k])
-    want = _resolved_struct(ws, ws.children[k])
-    assert keyset(got) == keyset(want), (k, keyset(want) ^ keyset(got))
-    for wtype, sub in want.items():
-        if not isinstance(sub, dict):
-            assert got[wtype] == sub, (k, wtype, sub, got[wtype])
-            continue
-        for leaf, val in sub.items():
-            if (leaf == "BlendWeight" and wtype in gd.RAIN_WEATHER_TYPES
-                    and parse_number(val) > 0):
-                assert abs(parse_number(got[wtype][leaf])
-                           - 2 * parse_number(val)) < 1e-6, (
-                    k, wtype, val, got[wtype][leaf])
-            else:
-                assert got[wtype][leaf] == val, (
-                    k, wtype, leaf, val, got[wtype][leaf])
-named = [k for k in root.children if not k.startswith("[")]
-assert len(named) >= 20, named
-for k in named:
-    d = _struct_dict(root.children[k])
-    assert all(isinstance(v, dict) for v in d.values()), (k, d)
-    leaves = {leaf for sub in d.values() for leaf in sub}
-    assert leaves == {"BlendWeight"}, (k, leaves)
-    assert set(d) <= set(gd.RAIN_WEATHER_TYPES), (k, sorted(d))
-print(f"Regen x2: {len(patched_idx)} of {len(idx)} indexed templates patched, "
-      f"all complete (only rain weights changed), {len(named)} Regionen "
-      "As a BlendWeight-only partial patch  OK")
-
-# --- 2) Emission slider x2 ---
-root = weather_root(build_patches(gd, Settings(emission_factor=2.0)))
-patched_idx = [k for k in root.children if k.startswith("[")]
-assert set(patched_idx) >= {"[0]", "[1]"}, patched_idx
-for k in patched_idx:
-    got = _struct_dict(root.children[k])
-    want = _resolved_struct(ws, ws.children[k])
-    assert keyset(got) == keyset(want), k
-    assert abs(parse_number(got["Emission"]["BlendWeightIncrease"])
-               - 2 * parse_number(want["Emission"]["BlendWeightIncrease"])
-               ) < 1e-6, (k, got["Emission"])
-    got["Emission"]["BlendWeightIncrease"] = want["Emission"]["BlendWeightIncrease"]
-    assert got == want, k
-print("Emission x2: complete indexed templates, only BlendWeightIncrease doubled  OK")
-
-# --- 3) ThreatPrototypes [1] = DefaultNPC ----------------------------------
-p = build_patches(gd, Settings(npc_alertness_factor=2.0))
-key = [k for k in p if "Threat" in k]
-assert len(key) == 1, list(p)
-root = cfgparse.parse(p[key[0]])
-assert list(root.children) == ["[1]"], list(root.children)
-prof = gd.threats.children["[1]"]
-assert prof.values.get("SID", "").strip() == "DefaultNPC"
-got = _struct_dict(root.children["[1]"])
-want = _resolved_struct(gd.threats, prof)
-assert keyset(got) == keyset(want), (keyset(want) ^ keyset(got))
-changed = [i for i, e in got["Actions"].items()
-           if e["ThreatLevelValueMin"] != want["Actions"][i]["ThreatLevelValueMin"]]
-assert changed, "No threshold changed?"
-for i in changed:
-    assert int(got["Actions"][i]["ThreatLevelValueMin"]) == max(1, round(
-        parse_number(want["Actions"][i]["ThreatLevelValueMin"]) / 2)), i
-for k2, v in want.items():
-    if k2 != "Actions":
-        assert got[k2] == v, k2
-print(f"ThreatPrototypes [1]: emitted completely, {len(changed)} Schwellen "
-      "halved, everything outside Actions identical  OK")
-
-# --- 4) Neutral remains neutral ---
+fixture = cfgparse.parse("""
+[0] : struct.begin
+Keep = 9
+Nested : struct.begin
+Value = 3
+struct.end
+struct.end
+[1] : struct.begin {refkey=[0]}
+Nested : struct.begin
+Other = 4
+struct.end
+struct.end
+""")
+assert _resolved_struct(fixture, fixture.children["[1]"]) == {
+    "Keep": "9", "Nested": {"Value": "3", "Other": "4"}}
 assert not build_patches(gd, Settings())
-print("\nINDEX-ENTRIES-TEST OK")
+print("INDEX-ENTRIES-TEST OK")

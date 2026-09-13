@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.42.0: desktop design and 24 color palettes.[/b] Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes and all faction colors. Clearer sections, quieter navigation and improved change cards. Game folder, Confirm/Reload, Oodle help, Mousewheel and build actions stay visible. Mousewheel starts OFF; status colors stay consistent. Purely visual: no Pak rebuild needed. Existing signed runtime unchanged.
+[b]New in 1.43.0:[/b] Independent controls now write only changed fields, including NPC Search Time and Alertness. The wider audit fixes the same unnecessary overrides in flashlight, radiation, weapon jam, weather, encounter, artifact and detail settings. An optional experimental damage-mercy mode permits weights above 1.0; existing presets keep their cap. Rebuild affected Paks and give separate exports distinct mod names. Competing assignments to the same field still conflict. Generated output is tested; in-game confirmation remains open. No UE4SS.
+
+[b]Included from 1.42.0:[/b] Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes and all faction colors. Clearer sections, quieter navigation and improved change cards. Game folder, Confirm/Reload, Oodle help, Mousewheel and build actions stay visible. Mousewheel starts OFF; status colors stay consistent. Purely visual: no Pak rebuild needed. Existing signed runtime unchanged.
 
 [b]Included from 1.41.0: additional detail settings — NOT PLAY-TESTED.[/b] 486 additional supported values on the checked 2.0.5 data: special artifacts, medicine/buffs, individual weapon weight/price/inventory size, weather senses, camp needs, ranked grenades, optional helmets, selective upgrades and passive scanners. Open World -> Additional detail settings; helmet chances are in the existing NPC equipment editor. Profiles, undo/redo, reset and Pak previews supported. Animation-dependent extensions remain deferred. No UE4SS or Dev Kit needed.
 
@@ -33,10 +35,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.42.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.43.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.42.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.43.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -262,6 +264,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.43.0 - control compatibility and optional extended damage mercy[/b]
+[list]
+[*]NPC Search Time and Alertness write only their own changed fields, preserving each other's settings in separately named exports.
+[*]The same correction covers flashlights, radiation, weapon jams, scopes, encounters, weather/senses, movement noise, camps, map markers, effect caps and repeatable-job connections.
+[*]Carry caps and indices use installed values. Numeric no-ops are omitted. Existing artifact bonuses and required inheritance shields are preserved.
+[*]New optional experimental damage-mercy mode allows weights above 1.0 and resolves inherited difficulties. Default cap retained; these weights are not protection percentages.
+[*]Rebuild affected Paks; use unique tool mod names for separate exports. Shared fields and competing new list slots can still conflict.
+[*]60 local suites and a 5,652-case control audit passed. Generated config and local merge checks do not replace game testing.
+[*]No animation changes or UE4SS dependency. All 19 signed native runtime binaries unchanged; no new VirusTotal result claimed.
+[/list]
+
 [b]v1.42.0 - desktop redesign and 24 color palettes[/b]
 [list]
 [*]New teal/ice-blue Standard palette, olive/amber Zone PDA and 24 palettes in total. Existing faction selections remain available.
@@ -273,6 +286,7 @@ If the ~mods folder doesn't exist, create it.
 [*]The signed starter and all runtime binaries remain unchanged. No new VirusTotal result claimed for this ZIP.
 [/list]
 
+[spoiler]
 [b]v1.41.0 - additional detail settings[/b]
 [list]
 [*]486 additional supported values on the checked game 2.0.5 data, including editions.
@@ -288,7 +302,6 @@ If the ~mods folder doesn't exist, create it.
 [*]The 19 signed runtime binaries are unchanged; no scan result for this new ZIP yet.
 [/list]
 
-[spoiler]
 [b]v1.40.1 - job text and return-marker repairs[/b]
 [list]
 [*]NOT PLAY-TESTED. Experimental repairs for issue 9; game confirmation remains open
