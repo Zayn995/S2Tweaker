@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.43.0:[/b] Independent controls now write only changed fields, including NPC Search Time and Alertness. The wider audit fixes the same unnecessary overrides in flashlight, radiation, weapon jam, weather, encounter, artifact and detail settings. An optional experimental damage-mercy mode permits weights above 1.0; existing presets keep their cap. Rebuild affected Paks and give separate exports distinct mod names. Competing assignments to the same field still conflict. Generated output is tested; in-game confirmation remains open. No UE4SS.
+[b]New in 1.44.0 — Animation & Sound Update (experimental):[/b] Optional native movement animation synchronization, pitch-preserving action and movement sounds, iron-sight idle sway (0–400%) and firing motion (0–100%). Fine values supported; all companion options start disabled. No UE4SS or player Zone Kit needed. About 52 KiB of original companion runtime, no game media. Draw/holster speed is corrected and reload/jam controls include edition values. Short Zone Kit checks passed; packaged campaign behavior and every weapon/mod combination remain unverified.
+
+[b]Included from 1.43.0:[/b] Independent controls now write only changed fields, including NPC Search Time and Alertness. The wider audit fixes the same unnecessary overrides in flashlight, radiation, weapon jam, weather, encounter, artifact and detail settings. An optional experimental damage-mercy mode permits weights above 1.0; existing presets keep their cap. Rebuild affected Paks and give separate exports distinct mod names. Competing assignments to the same field still conflict. Generated output is tested; in-game confirmation remains open. No UE4SS.
 
 [b]Included from 1.42.0:[/b] Teal/ice-blue Standard, olive/amber Zone PDA, Obsidian, ten more general palettes and all faction colors. Clearer sections, quieter navigation and improved change cards. Game folder, Confirm/Reload, Oodle help, Mousewheel and build actions stay visible. Mousewheel starts OFF; status colors stay consistent. Purely visual: no Pak rebuild needed. Existing signed runtime unchanged.
 
@@ -35,10 +37,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.43.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.44.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.43.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.44.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -246,7 +248,8 @@ If the ~mods folder doesn't exist, create it.
 [list]
 [*]Change values: move the sliders, build again - the new pak replaces the old one (same mod name = same file name)
 [*]Remove the mod: delete zzz_<YourModName>_P.pak from the ~mods folder, or click "Remove from ~mods" in the tool
-[*]Uninstall the tool: just delete your S2Tweaker folder - settings, cache and output all live inside it (fully portable, nothing else is written anywhere)
+[*]Optional animation/sound companion: Build pak also exports *_AnimationSync.zip with instructions; Install to ~mods installs it automatically. Close the game first and restart after changes. Use only one active profile. Companion files live in Stalker2/Mods/S2TRuntimeLab; the separate settings-only profile lives in %LOCALAPPDATA%/Stalker2/Saved/SaveGames/S2Tweaker_AnimationProfile_v1.sav. It contains no campaign progress.
+[*]Before uninstalling the tool, use Remove installed animation / sound companion if enabled. Remove/rebuild the CFG Pak separately. Then delete the S2Tweaker folder; ordinary tool settings, cache and output live there.
 [/list]
 
 [heading]GOOD TO KNOW[/heading]
@@ -255,14 +258,27 @@ If the ~mods folder doesn't exist, create it.
 [*]After a game update: start the tool and confirm the game folder again - it detects the new version and re-reads the vanilla values automatically. Then rebuild your pak
 [*]If you already use single-purpose mods that change the same values (e.g. "carry weight 200"), remove them - this tool covers them and its pak loads last anyway
 [*]Weapon fire rate, spread and recoil live in game data shared with NPCs - NPCs using those weapons are affected too (noted in the app)
-[*]Since game patch 2.0 the community reports that cfg-based movement-speed changes can desync from animations or partially not apply - the movement and carry-weight sliders carry an in-app warning until this settles
-[*]The fire-rate factor is reported to have the same animation limitation: firing animation and sound can desync from the actual shots. It stays available - test in-game and keep changes moderate
+[*]Optional native movement synchronization covers crouch/sprint/limping and preserves native action timing and overweight animation behavior. Independent movement sounds include native slowdown. Zone Kit checks passed; campaign behavior remains unverified. Audio mods occupying the same effect slots can conflict.
+[*]AK sustained fire was checked in the Zone Kit. The new firing-motion control changes pose amplitude, not gunshot timing; recoil, camera shake and inertia remain separate. Extreme fire rates, unusual animation mods and all weapon families are not validated.
 [*]S2Tweaker.exe is the unmodified pythonw.exe from python.org, signed by the Python Software Foundation - that is why it shows the Python icon and Python's version info. The signature covers the starter; each linked scan report applies only to its exact file hash
 [*]Reading the game's packed config files needs Oodle's oo2core_9_win64.dll (0.6 MB). It is proprietary, cannot be shipped with the tool, and the game does not ship it as a separate file either (Oodle is compiled into the game's own executable). Since 1.19.1 the tool does NOT download it - a program that fetches a library and then runs it is exactly what malware does, and that is one reason scanners flag tools like this one. Instead a setup window walks you through getting it once, with pictures, and shows you where to put it. It takes a minute, and afterwards the tool never asks again. You may already have the file: every Unreal Engine installation ships it
 [*]Debug checkbox: also exports the raw .cfg patch files to output\<ModName>_cfg so you can see exactly what the mod changes
 [/list]
 
 [heading]CHANGELOG[/heading]
+
+[b]v1.44.0 - Animation & Sound Update (experimental)[/b]
+[list]
+[*]Optional native movement synchronization and independent pitch-preserving weapon-action and movement sounds; no UE4SS or player Zone Kit installation.
+[*]Idle sway including iron sights: 0–400%. Firing-animation motion: 0–100%, 10% slider steps and fine numeric entry; reload/equip retain full weight.
+[*]Movement supports 5% steps/fine entry, limping and native overweight timing. Equipment audio follows installed individual/category/global values; unsupported or ambiguous factors report errors.
+[*]Draw/holster factors now scale native rates directly. Rebuild affected Paks and review presets. Reload/jam controls include explicit edition and auxiliary twin values without double-scaling inheritance.
+[*]Build pak exports a matching companion ZIP; Install to ~mods handles the companion/profile. Ownership checks and rollback protect unrelated files.
+[*]Original companion runtime is about 52 KiB unpacked, including two tiny original effect banks. No original game animations/audio or proprietary SDK files distributed.
+[*]A-Life grid warning now explains uncertain distance and saved consequences; no safe threshold claimed.
+[*]Short isolated Zone Kit checks passed. Packaged campaign behavior, every weapon/mod combination, jam-clearing sound and limp/run remain unverified.
+[*]All 19 signed desktop runtime binaries unchanged. No new VirusTotal result claimed.
+[/list]
 
 [b]v1.43.0 - control compatibility and optional extended damage mercy[/b]
 [list]
@@ -275,6 +291,7 @@ If the ~mods folder doesn't exist, create it.
 [*]No animation changes or UE4SS dependency. All 19 signed native runtime binaries unchanged; no new VirusTotal result claimed.
 [/list]
 
+[spoiler]
 [b]v1.42.0 - desktop redesign and 24 color palettes[/b]
 [list]
 [*]New teal/ice-blue Standard palette, olive/amber Zone PDA and 24 palettes in total. Existing faction selections remain available.
@@ -286,7 +303,6 @@ If the ~mods folder doesn't exist, create it.
 [*]The signed starter and all runtime binaries remain unchanged. No new VirusTotal result claimed for this ZIP.
 [/list]
 
-[spoiler]
 [b]v1.41.0 - additional detail settings[/b]
 [list]
 [*]486 additional supported values on the checked game 2.0.5 data, including editions.

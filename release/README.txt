@@ -11,7 +11,29 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.43.0 — CONTROL PATCH COMPATIBILITY
+NEW IN 1.44.0 — ANIMATION & SOUND UPDATE (EXPERIMENTAL)
+------------------------------------------------------
+Optional native movement animations, pitch-preserving weapon-action and
+movement sounds, idle sway (0-400%) and firing motion (0-100%). No UE4SS or player
+Zone Kit needed. New options start disabled; fine numeric values are supported.
+Draw/holster speed is corrected and reload/jam controls cover edition values.
+Short Zone Kit checks passed; packaged campaign behavior is NOT verified.
+The native companion adds about 52 KiB unpacked, with no original game media.
+All 19 signed desktop runtime binaries remain unchanged.
+
+Enable the experimental companion controls on Player or Weapons. Build pak
+also creates *_AnimationSync.zip with the native companion, numeric profile and
+installation instructions. Install to ~mods installs both automatically.
+Close the game before installing, restart after changes, and use only one active
+S2Tweaker companion profile. Its files live in Stalker2/Mods/S2TRuntimeLab and
+%LOCALAPPDATA%/Stalker2/Saved/SaveGames/S2Tweaker_AnimationProfile_v1.sav.
+This .sav contains only settings, not campaign progress. Use Remove installed
+animation / sound companion for removal; rebuild/remove the CFG Pak separately.
+Rebuild old draw/holster Paks: the previous speed factor was applied backwards.
+Audio mods using the same effect slots may conflict; a foreign weapon-slot layer
+replacement is left alone. Not every weapon, jam-clearing or limp/run is verified.
+
+INCLUDED FROM 1.43.0 — CONTROL PATCH COMPATIBILITY
 ------------------------------------------
 Independent controls now omit unchanged sibling values from generated patches.
 This fixes the unwanted overlap between NPC Search Time and Alertness and the
@@ -179,7 +201,8 @@ global switches, and 18 optional loot/world additions.
 New gameplay effects have not been play-tested. Experimental options are labelled.
 The first game-data load refreshes the cache once. Rebuild your Pak to use
 new settings. Existing presets remain readable. There is no in-game menu;
-movement/fire-rate animation desynchronization remains unresolved.
+see the 1.44.0 companion section above for supported animation/audio changes
+and the remaining campaign and mod-compatibility limits.
 
 Ammunition stacks at 900 per slot in vanilla - the Ammo tab can raise that,
 globally or per round, and food and medicine have their own slider.

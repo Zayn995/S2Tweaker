@@ -445,6 +445,7 @@ def build(distpath: Path) -> Path:
     # Copy assets and license notices.
     _copy(REPO / "assets" / "icon.ico", internal / "assets" / "icon.ico")
     _copy_tree(REPO / "assets" / "help", internal / "assets" / "help")
+    _copy_tree(REPO / "assets" / "animation_sync", internal / "assets" / "animation_sync")
     _copy(PREFIX / "LICENSE.txt", internal / "licenses" / "PYTHON-LICENSE.txt")
     _copy(REPO / "THIRD_PARTY_LICENSES.txt",
           internal / "licenses" / "THIRD_PARTY_LICENSES.txt")
@@ -457,7 +458,7 @@ def build(distpath: Path) -> Path:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--distpath", default=str(REPO / "dist"),
-                    help="Zielordner (Standard: dist/); darin entsteht S2Tweaker/")
+                    help="Destination directory (default: dist/); creates S2Tweaker/ inside")
     ap.add_argument("--no-selftest", action="store_true",
                     help="Assemble the directory without a test launch")
     args = ap.parse_args()
@@ -465,7 +466,7 @@ def main() -> None:
     out = build(Path(args.distpath).resolve())
     verify(out, selftest=not args.no_selftest)
     files = sum(1 for p in out.rglob("*") if p.is_file())
-    log(f"\nFertig: {out} ({files} files)")
+    log(f"\nDone: {out} ({files} files)")
 
 
 if __name__ == "__main__":

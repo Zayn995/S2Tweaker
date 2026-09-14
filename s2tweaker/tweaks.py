@@ -383,6 +383,13 @@ class Settings:
     fall_damage_pct: float = 100.0           # 100 = vanilla; 0 = no fall damage.
     walk_speed_factor: float = 1.0           # Walking and sneaking.
     run_speed_factor: float = 1.0            # Running and sprinting.
+    animation_sync: bool = False            # Optional native movement-animation companion.
+    sound_sync: bool = False                # Optional native action-sound duration companion.
+    movement_sound_sync: bool = False       # Independent footstep and gear-sound duration control.
+    weapon_sway_sync: bool = False          # Optional native idle-sway amplitude control.
+    weapon_sway_pct: float = 100.0          # Includes iron sights; separate from scoped effect strength.
+    weapon_shot_sync: bool = False         # Optional native firing-pose amplitude control.
+    weapon_shot_pct: float = 100.0         # Independent of recoil, dispersion and camera shake.
     jump_height_factor: float = 1.0
     vault_height_factor: float = 1.0         # MaxObstacleHeight x factor
     vault_distance_factor: float = 1.0       # MaxTestDistance+StartDistance
@@ -691,7 +698,7 @@ class Settings:
     repair_cost_reputation: bool = False     # Set ReputationRepairCostModifiers entries to 1.0.
     infotopic_refresh_hours: int = 24        # CoreVariables InfotopicRefreshHours (absolute, game hours)
     # --- 1.29.0 ---
-    equip_speed_factor: float = 1.0          # WeaponGeneralSetup Show/HideEquipmentTime (1.0 each), time / factor.
+    equip_speed_factor: float = 1.0          # Native Show/HideEquipmentTime animation-rate multipliers.
     shooting_anim_skip: int = 0              # WeaponGeneralSetup ShootingAnimationNumberToSkip (Vanilla 0), absolute
     # --- Ammunition: global settings across all types ---
     ammo_damage_factor: float = 1.0
@@ -1002,7 +1009,8 @@ def _is_empty_sid(raw: str | None) -> bool:
 # Include weapon and per-magazine reload-time multipliers.
 RELOAD_KEYS = ("TacticalReloadTimeMultiplier", "FullReloadTimeMultiplier",
                "SingleBulletReloadTimeMultiplier", "TwinReloadTimeMultiplier",
-               "TwinTacticalReloadTimeMultiplier")
+               "TwinTacticalReloadTimeMultiplier", "TwinAuxReloadTimeMultiplier",
+               "TwinTacticalAuxReloadTimeMultiplier")
 EXPLOSION_RADIUS_KEYS = ("Radius", "ImpulseRadius", "ConcussionRadius")
 # Percentage protection caps are limited to 100; Strike uses an uncapped point scale.
 PROTECTION_CAP_TYPES = {"ProtectionStrike": False, "ProtectionBurn": True,
@@ -3365,10 +3373,10 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
     # Scale aim transition times inversely; ADS movement speed is a separate control.
     for key in WEAPON_AIMTIME_KEYS:
         scale(key, "aimtime", s.aim_time_factor, invert=True)
-    # Scale draw/holster times inversely for base and edition setups.
-    # This option uses the global factor rather than the weapon cascade.
+    # Despite their names, these fields are native montage-rate multipliers.
+    # Scale directly, including the per-weapon/category cascade and editions.
     for key in ("ShowEquipmentTime", "HideEquipmentTime"):
-        scale(key, "equiptime", s.equip_speed_factor, invert=True)
+        scale(key, "equiptime", s.equip_speed_factor)
 
     # Write the experimental integer firing-animation-skip value directly.
     # Its baseline is zero and its in-game effect is unverified; this does not
@@ -3474,14 +3482,20 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for key, value in node.items():
             existing = bucket.setdefault(sid, {})
             existing[key] = value
-    # Scale explicit base-file reload multipliers and jam-clear times inversely.
-    # Edition-specific reload values remain unchanged; gameplay/animation sync
-    # is not established by this cfg change.
+    # Scale explicit reload/jam leaves in their owning base or edition file.
+    # Inherited leaves follow their patched parent without another multiplier.
+    # CFG timing changes alone do not establish animation/audio synchronization.
     reload_on = _neq(s.reload_speed_factor, 1.0) and s.reload_speed_factor > 0
     jam_on = _neq(s.jam_clear_factor, 1.0) and s.jam_clear_factor > 0
     jam_chance_on = _neq(s.jam_chance_factor, 1.0) and s.jam_chance_factor >= 0
     if reload_on or jam_on or jam_chance_on:
-        for sid, node in sorted(gd.weapongeneral.children.items()):
+        sources = [(None, gd.weapongeneral)]
+        sources.extend((edition, trees["weapongeneral"])
+                       for edition, trees in sorted(gd.dlc_editions.items())
+                       if "weapongeneral" in trees)
+        for edition, sid, node in (
+                (edition, sid, node) for edition, tree in sources
+                for sid, node in sorted(tree.children.items())):
             if sid.startswith("[") or "#" in sid:
                 continue
             cfg: dict = {}
@@ -3526,7 +3540,8 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
                     if rows:
                         cfg["WeaponJamParams"] = rows
             if cfg:
-                _merge_nested(patches.setdefault(sid, {}), cfg)
+                bucket = patches if edition is None else dlc_patches.setdefault(edition, {})
+                _merge_nested(bucket.setdefault(sid, {}), cfg)
     return patches, dlc_patches
 
 
@@ -6280,6 +6295,22 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Fall damage {s.fall_damage_pct:g} %")
     f("Walk & crouch speed", s.walk_speed_factor)
     f("Run & sprint speed", s.run_speed_factor)
+    if s.animation_sync and (_neq(s.walk_speed_factor, 1.0) or _neq(s.run_speed_factor, 1.0)
+                             or _neq(s.limp_speed_factor, 1.0)):
+        lines.append("Native movement animation synchronization (experimental)")
+    if s.sound_sync and (_neq(s.reload_speed_factor, 1.0) or _neq(s.jam_clear_factor, 1.0)
+                         or _neq(s.equip_speed_factor, 1.0)
+                         or any(_neq(row.get("equiptime", 1.0), 1.0)
+                                for group in (s.weapon_overrides, s.weapon_category_factors)
+                                for row in group.values())):
+        lines.append("Native weapon action sound synchronization (experimental)")
+    if s.weapon_sway_sync and _neq(s.weapon_sway_pct, 100):
+        lines.append(f"Native weapon idle sway {s.weapon_sway_pct:g} % (experimental)")
+    if s.weapon_shot_sync and _neq(s.weapon_shot_pct, 100):
+        lines.append(f"Native firing animation movement {s.weapon_shot_pct:g} % (experimental)")
+    if s.movement_sound_sync and (_neq(s.walk_speed_factor, 1.0) or _neq(s.run_speed_factor, 1.0)
+                                  or _neq(s.limp_speed_factor, 1.0)):
+        lines.append("Native movement sound synchronization (experimental)")
     f("Jump height", s.jump_height_factor)
 
     if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):

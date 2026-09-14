@@ -23,7 +23,7 @@ from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
 from . import extension_controls, regional_weather, artifact_extensions, npc_equipment, detail_controls
 from .workbench_ui import WorkbenchMixin
-from . import editor_state, mod_library, armor_extensions
+from . import editor_state, mod_library, armor_extensions, animation_sync
 from .tweaks import (
     ALL_CATEGORIES,
     input_ini,
@@ -770,6 +770,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "ap_shock": "armor_shock_factor", "ap_chem": "armor_chemical_factor",
     "ap_rad": "armor_radiation_factor", "ap_psy": "armor_psy_factor",
     "ap_carry": "armor_carry_bonus_factor", "sway": "scope_sway_pct",
+    "weapon_sway": "weapon_sway_pct",
+    "weapon_shot": "weapon_shot_pct",
     "breath_drain": "breath_drain_factor", "breath_regen": "breath_regen_factor",
     "spread": "spread_factor", "recoil": "recoil_factor",
     "recoil_upgrades": "recoil_upgrade_factor",
@@ -4281,8 +4283,41 @@ class App(WorkbenchMixin, ctk.CTk):
                      "0 % = no fall damage.")
         self._slider(f, "walk", "Walk & crouch speed", 50, 150, 5, 100, fmt_pct)
         self._slider(f, "run", "Run & sprint speed", 50, 150, 5, 100, fmt_pct,
-                     "Animations and footstep sounds can't scale with speed "
-                     "(engine limitation) – subtle changes feel best.")
+                     "Movement speed read from the installed game. Enable the "
+                     "optional native companion below to adjust sprint and crouch "
+                     "animations. Numeric entry also accepts values between slider steps.")
+        self._check(f, "animation_sync", "Synchronize movement animations (experimental)",
+                    "Optional native companion; no UE4SS or Zone Kit required. "
+                    "Crouch, sprint and limping animations follow the movement sliders, "
+                    "while active action montages retain native timing. Verified "
+                    "in the Zone Kit test scene; campaign testing remains open. "
+                    "Use the separate sound option for weapon action audio. Build pak "
+                    "exports a matching companion ZIP; Install to ~mods installs "
+                    "the companion and its separate numeric profile automatically. "
+                    "Exit the game first and restart after changing settings. "
+                    "Use one active S2Tweaker companion profile.")
+        self._check(f, "sound_sync", "Synchronize weapon action sounds (experimental)",
+                    "Optional native companion; no UE4SS or Zone Kit required. "
+                    "Adjusts supported reload, jam-clearing and draw/holster sound durations to "
+                    "the corresponding speed sliders without changing pitch. "
+                    "Supports 6.25% to 400%; weapon families are resolved from "
+                    "installed game data. Uses the last effect slot on the held "
+                    "weapon's reload and equipment-rattle audio groups; other audio mods using that "
+                    "slot can conflict. Campaign testing remains open. "
+                    "Build pak exports a companion ZIP; Install to ~mods installs "
+                    "it automatically. Exit the game before changing the profile.")
+        self._check(f, "movement_sound_sync", "Synchronize movement sounds (experimental)",
+                    "Adjusts footstep, backpack and clothing sound durations to "
+                    "the walk/crouch, run/sprint and limping speed settings, independently "
+                    "of reload sounds. Native overweight slowdown also contributes. "
+                    "Native animation events still trigger the "
+                    "steps. No pitch shift, UE4SS or replacement sound files. "
+                    "Supports 6.25% to 400%. Uses the last effect slot in these "
+                    "audio groups; other mods using that slot can conflict. "
+                    "Install/export works through the same native companion. "
+                    "Campaign testing remains open.")
+        ctk.CTkButton(f, text="Remove installed animation / sound companion", width=300,
+                      command=self._remove_animation_sync).pack(anchor="w", padx=12, pady=(2, 8))
         self._warning(f, "Players report that speed changes sometimes only "
                          "affect the animation instead of the actual movement. "
                          "Test in-game before settling on values. "
@@ -4531,8 +4566,9 @@ class App(WorkbenchMixin, ctk.CTk):
                      "How much you can steer mid-air (vanilla coefficient 0.1, "
                      "capped at 1.0). Not play-tested yet.")
         self._slider(f, "limp", "Limping speed (wounded)", 50, 200, 10, 100, fmt_pct,
-                     "Movement speed while limping (vanilla 50 % of normal, "
-                     "capped at 100 %). Not play-tested yet.")
+                     "Scales the installed wounded-movement coefficient, capped at normal speed. "
+                     "The optional movement-animation and sound settings also follow this slider. "
+                     "Campaign behavior remains unverified.")
         self._slider(f, "limp_threshold", "Limp threshold after hard landings", 1, 8, 0.1, 1, fmt_factor,
                      "How hard a landing must be before Skif starts limping "
                      "(vanilla thresholds 25 for the short limp, 65 for the "
@@ -5063,9 +5099,20 @@ class App(WorkbenchMixin, ctk.CTk):
                      "Vanilla: squads spawn ≥ 2500 m away. Lower = encounters "
                      "pop up closer to you; higher = quieter surroundings.")
         self._slider(f, "alife_vision", "NPC visibility distance (A-Life grid)", 50, 300, 10, 100, fmt_pct,
-                     "How far away NPC models are shown and simulated (vanilla "
-                     "85 m; 'Distant Horizons' uses 150 to 250 m). Higher costs "
-                     "performance. Not play-tested yet.")
+                     "Scales two installed A-Life/model grid distances. "
+                     "100% leaves them unchanged; this is not a measured "
+                     "in-game render distance or a Distant Horizons preset. "
+                     "Changes may affect encounters, quests and stability, "
+                     "not just performance. No tested safe threshold. "
+                     "Use a separate backup save; see the warning below.")
+        self._warning(f, "Increased A-Life distance has reports of missing or "
+                         "already-dead story/underground NPCs and crashes in "
+                         "Distant Horizons. Our grid-only control has not been "
+                         "shown to behave identically. Removing a Pak may not "
+                         "undo saved consequences. Keep a separate save from "
+                         "before testing; 139 m is not a verified safe limit "
+                         "for this slider. Leave 100% to omit its patch.",
+                      title="A-Life distance — quest and save risks")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "A-Life spawns: lairs & random encounters (experimental)")
@@ -5397,17 +5444,40 @@ class App(WorkbenchMixin, ctk.CTk):
 
         body = self._tab("Weapons")
         f = self._section(body, "Weapon handling (global – all weapons)")
+        self._check(f, "weapon_sway_sync", "Adjust weapon idle sway with native companion",
+                    "Controls visible idle sway, including iron sights. Requires "
+                    "the optional native companion, installed/exported with your pak. "
+                    "No UE4SS. The scoped-effect slider remains separate; this does "
+                    "not change recoil, shot dispersion or walking weapon bob.")
+        self._slider(f, "weapon_sway", "Weapon idle sway (native companion)", 0, 400, 5, 100, fmt_pct,
+                     "100 % preserves native sway; 50 % halves its amplitude; "
+                     "0 % disables idle sway. Enable the companion option above. "
+                     "Includes standing, crouching and moving sway modifiers. "
+                     "Checked in an isolated Zone Kit scene; campaign behavior "
+                     "and combinations with other animation mods are unverified.")
+        self._check(f, "weapon_shot_sync", "Adjust firing animation with native companion",
+                    "Reduces visible firing movement using the optional native companion. "
+                    "No UE4SS. Independent of recoil, bullet dispersion and camera shake.")
+        self._slider(f, "weapon_shot", "Firing animation movement (native companion)", 0, 100, 10, 100, fmt_pct,
+                     "100 % preserves the original firing pose; lower values blend toward "
+                     "the pose without the firing montage. 0 % suppresses that contribution, "
+                     "while camera motion and weapon inertia can remain. Requires the option above. "
+                     "Uses the shared native weapon layer and standard shooting montages. "
+                     "Reloading and equipment actions retain their normal animation. "
+                     "Experimental; checked with an AK in an isolated Zone Kit scene.")
         self._slider(f, "sway", "Scoped aim sway", 0, 100, 5, 100, fmt_pct,
-                     "0 % = steady scopes. Iron-sight sway is animation-driven and not cfg-tweakable.")
+                     "Scales the scope-specific sway modifier. 0 % removes that modifier's "
+                     "remaining sway; iron-sight sway and other weapon animation remain separate.")
         self._slider(f, "breath_drain", "Breath-hold drain", 0, 200, 5, 100, fmt_pct,
                      "0 % = hold breath forever while aiming.")
         self._slider(f, "breath_regen", "Breath recovery", 50, 400, 10, 100, fmt_pct)
         self._slider(f, "spread", "Weapon spread (bullet dispersion)", 0, 200, 5, 100, fmt_pct,
                      "0 % = laser accuracy (hip fire, aiming and first shot).")
         self._slider(f, "recoil", "Weapon recoil", 0, 200, 5, 100, fmt_pct,
-                     "Scales the kick per shot (RecoilRadius). 0 % = no kick. "
+                     "Scales the kick per shot (RecoilRadius). 0 % sets this recoil strength to zero. "
                      "The per-shot pattern shape is a game asset and keeps "
-                     "its direction, only its size follows the slider. Not "
+                     "its direction, only its size follows the slider. Separate firing "
+                     "animation and sway are not disabled. Not "
                      "play-tested yet - report back.")
         self._slider(f, "wrange", "Weapon effective range", 50, 200, 10, 100, fmt_pct,
                      "Scales effective fire distance and damage drop-off "
@@ -5465,12 +5535,12 @@ class App(WorkbenchMixin, ctk.CTk):
                      "1.6 m for both). The 'Increased Melee Range' idea from "
                      "Nexus. Not play-tested yet.")
         self._slider(f, "reload", "Reload speed", 50, 300, 5, 100, fmt_pct,
-                     "Scales every reload-time multiplier the game keeps per "
-                     "weapon and magazine (vanilla 1.0 everywhere, the fields "
-                     "the official Zone Kit guide points at). 200 % = half the "
-                     "time. Edition weapons (Deluxe/Pre-order) stay vanilla. "
-                     "NOT play-tested yet - the animation may or may not "
-                     "follow, report back.")
+                     "Scales reload-time multipliers read from the installed "
+                     "game, including magazine attachments, both parts of "
+                     "paired-magazine reloads, and edition weapons. 200 % = "
+                     "half the configured time. Animation and sound "
+                     "synchronization is not established by this CFG change. "
+                     "Not play-tested yet.")
         self._slider(f, "anim_skip", "Skipped shooting animations (experimental)", 0, 3, 1, 0, fmt_int,
                      "The game's own ShootingAnimationNumberToSkip, vanilla 0 "
                      "on every weapon. It is the only config key that touches "
@@ -5481,13 +5551,12 @@ class App(WorkbenchMixin, ctk.CTk):
                      "choppier, but it stops trailing the shots. Read from the "
                      "key name only, never play-tested - tell us what you see.")
         self._slider(f, "equip_speed", "Weapon draw & holster speed", 50, 400, 5, 100, fmt_pct,
-                     "How fast a weapon is raised and put away (the game's "
-                     "ShowEquipmentTime and HideEquipmentTime, vanilla 1.0 on "
-                     "every weapon). 200 % = half the time. Unlike the reload "
-                     "slider this one also covers the Deluxe and Pre-order "
-                     "weapons. The same animation caveat applies: the timing "
-                     "value changes, the animation may not follow. Not "
-                     "play-tested yet.")
+                     "Scales the native draw and holster animation rates. "
+                     "200 % plays the transition twice as fast. Includes edition "
+                     "weapons. Native body and weapon montage rates were checked "
+                     "in an isolated Zone Kit scene; campaign behavior remains "
+                     "unverified. Optional action-sound synchronization also "
+                     "adjusts supported weapon handling sounds.")
         self._check(f, "stat_bars",
                     "Inventory stat bars follow your changes",
                     "The damage/range/fire-rate bars in the inventory are "
@@ -6698,6 +6767,13 @@ class App(WorkbenchMixin, ctk.CTk):
             fall_damage_pct=s["fall"].get(),
             walk_speed_factor=s["walk"].get() / 100.0,
             run_speed_factor=s["run"].get() / 100.0,
+            animation_sync=bool(self.checks["animation_sync"].get()),
+            sound_sync=bool(self.checks["sound_sync"].get()),
+            movement_sound_sync=bool(self.checks["movement_sound_sync"].get()),
+            weapon_sway_sync=bool(self.checks["weapon_sway_sync"].get()),
+            weapon_sway_pct=s["weapon_sway"].get(),
+            weapon_shot_sync=bool(self.checks["weapon_shot_sync"].get()),
+            weapon_shot_pct=s["weapon_shot"].get(),
             jump_height_factor=s["jump"].get() / 100.0,
             vault_height_factor=s["vault_height"].get() / 100.0,
             vault_distance_factor=s["vault_distance"].get() / 100.0,
@@ -8265,7 +8341,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self.destroy()
 
     # ------------------------------------------------------------ actions
-    def _generate(self, out_pak: Path) -> bool:
+    def _generate(self, out_pak: Path, *, install_animation=False) -> bool:
         if self._wb_busy or self._scan_running:
             self._status_write("Wait for the current operation to finish.")
             return False
@@ -8301,10 +8377,24 @@ class App(WorkbenchMixin, ctk.CTk):
             return False
         extra_files = build_root_files(self.gd, s)
         root_files = {MANIFEST_NAME: self._build_manifest(s, active), **extra_files}
-        backup = mod_library.build_safely(patches, out_pak, root_files,
-                                         app_dir() / "pak_history")
+        companion = (animation_sync.installation_changes(s, self.game_dir, gd=self.gd)
+                     if install_animation else animation_sync.export_changes(s, out_pak, gd=self.gd))
+        with animation_sync.file_transaction(companion):
+            backup = mod_library.build_safely(patches, out_pak, root_files,
+                                             app_dir() / "pak_history")
 
         debug_note = (f"\n\nPrevious Pak retained: {backup.name}" if backup else "")
+        if companion:
+            if install_animation:
+                debug_note += ("\n\nAnimation / sound companion updated. Restart the game."
+                               if animation_sync.enabled(s) else
+                               "\n\nPreviously installed animation / sound companion removed.")
+            else:
+                exported = next(iter(companion))
+                debug_note += (f"\n\nMatching animation / sound companion:\n{exported}\n"
+                               "Follow README.txt inside it, or use Install to ~mods."
+                               if companion[exported] is not None else
+                               "\n\nPrevious animation / sound companion ZIP removed.")
         if self.debug_check.get():
             debug_root = out_pak.parent / f"{s.mod_name}_cfg"
             # An optional export failure must not make a successfully built Pak appear to fail.
@@ -8427,8 +8517,29 @@ class App(WorkbenchMixin, ctk.CTk):
         mods = game.mods_dir(self.game_dir)
         mods.mkdir(parents=True, exist_ok=True)
         try:
-            if self._generate(mods / self._out_name()):
+            if self._generate(mods / self._out_name(), install_animation=True):
                 self._status_write(f"Installed: {mods / self._out_name()}")
+        except Exception:
+            messagebox.showerror(APP_TITLE, traceback.format_exc())
+
+    def _remove_animation_sync(self):
+        if self.game_dir is None:
+            messagebox.showwarning(APP_TITLE, "No game folder selected.")
+            return
+        try:
+            changes = animation_sync.installation_changes(Settings(), self.game_dir)
+            with animation_sync.file_transaction(changes):
+                pass
+            self.checks["animation_sync"].set(False)
+            self.checks["sound_sync"].set(False)
+            self.checks["movement_sound_sync"].set(False)
+            self.checks["weapon_sway_sync"].set(False)
+            self.checks["weapon_shot_sync"].set(False)
+            self._save_ui_settings()
+            messagebox.showinfo(APP_TITLE,
+                "Animation / sound companion removed. Restart the game.\n"
+                "Your generated CFG Pak and its gameplay settings are unchanged."
+                if changes else "No tool-installed animation / sound companion was found.")
         except Exception:
             messagebox.showerror(APP_TITLE, traceback.format_exc())
 

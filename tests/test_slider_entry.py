@@ -54,14 +54,15 @@ assert not missed, f"{len(missed)} sliders cannot reach vanilla: {missed[:8]}"
 # Verify rail reachability as well as arithmetic.
 unreachable = []
 for key, row in app.sliders.items():
-    if row.log:
+    # Deferred overview controls have no rail; their neutral values were checked above.
+    if not isinstance(row, gui.SliderRow) or row.log:
         continue
     row.slider.set(row.default)          # Snap the rail to its nearest step.
     if abs(float(row.slider.get()) - row.default) > 1e-9:
         unreachable.append(key)
     row.reset()
 assert not unreachable, f"Vanilla value unreachable: {unreachable[:8]}"
-print(f"{len(app.sliders)} sliders: exact vanilla value reachable with the mouse  OK")
+print(f"{len(app.sliders)} controls neutral; all materialized rails reach vanilla  OK")
 
 # Untouched controls must remain neutral.
 assert not build_patches(app.gd, app._collect())
@@ -96,6 +97,20 @@ s = app._collect()
 assert abs(s.player_damage_factor - 1.37) < 1e-9, s.player_damage_factor
 assert build_patches(app.gd, s), "x1.37 must produce a patch"
 row.reset()
+
+# Fine movement values pass through the GUI into the native profile unchanged.
+from s2tweaker import animation_sync
+from s2tweaker.animation_profile import parse
+assert typed(app.sliders["walk"], "113") == 113
+assert typed(app.sliders["run"], "126") == 126
+app.checks["animation_sync"].set(True)
+movement = app._collect()
+assert movement.animation_sync
+assert parse(animation_sync.profile_bytes(movement)).payload == "S2T1\nmovement.crouch=1.13\nmovement.sprint=1.26"
+app.sliders["walk"].reset()
+app.sliders["run"].reset()
+app.checks["animation_sync"].set(False)
+print("Movement: fine numeric values reach the native animation profile  OK")
 
 # Percentage sliders preserve integer values.
 pct = app.sliders["stealth_kill"]                 # 50..300 %, Vanilla 100
@@ -146,7 +161,7 @@ print("Entry follows slider, locks and unlocks with it  OK")
 # Page scrolling remains available in both modes.
 assert gui.SliderRow._wheel_enabled is False
 assert str(app.btn_scroll.cget("fg_color")) == gui.BAD_RED
-assert "scrolls only" in app.btn_scroll.cget("text")
+assert "OFF" in app.btn_scroll.cget("text")
 
 
 def spin(r, times=3):
@@ -163,7 +178,7 @@ assert late.get() == 5, f"New row ignores initial state ({late.get()})"
 app._toggle_wheel()
 assert gui.SliderRow._wheel_enabled is True
 assert str(app.btn_scroll.cget("fg_color")) == gui.OK_GREEN
-assert "moves sliders" in app.btn_scroll.cget("text")
+assert "ON" in app.btn_scroll.cget("text")
 spin(late)
 assert late.get() != 5, "After enabling, the new row must follow the setting too"
 app._toggle_wheel()

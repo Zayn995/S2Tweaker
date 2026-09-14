@@ -1,5 +1,11 @@
 # Combat and equipment slider audit — 1.40.1
 
+Update: reload generation now includes both auxiliary paired-magazine
+multipliers and edition-owned reload/jam leaves. Inherited values follow their
+patched parent. The tables below retain the original audit results for 1.40.1;
+they do not describe the updated generator. Animation/audio synchronization
+still requires a runtime implementation and gameplay verification.
+
 Research date: 11 September 2026. This is an audit of the released controls and
 the locally extracted game data, not a new feature implementation or gameplay
 test. All paths below are relative to the repository. Values describe this

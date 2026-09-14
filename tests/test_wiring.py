@@ -16,6 +16,7 @@ from s2tweaker.gamedata import GameData
 from s2tweaker.tweaks import Settings, build_patches, input_ini, summarize
 # Import the module without constructing App.
 from s2tweaker.gui import SLIDER_FIELDS, CHECK_FIELDS
+from s2tweaker import animation_sync
 
 ok = 0
 
@@ -85,6 +86,22 @@ COUPLED = {
 t0 = time.time()
 dead, no_line = [], []
 for field in sorted(fields):
+    native = {"weapon_sway_pct": ("weapon_sway_sync", "visual.sway"),
+              "weapon_shot_pct": ("weapon_shot_sync", "visual.shot")}.get(field)
+    if native:
+        # These controls write the native profile, not a game CFG field.
+        enabled_field, profile_key = native
+        disabled = Settings(**{field: 50})
+        enabled = Settings(**{field: 50, enabled_field: True})
+        check(not animation_sync.profile_values(disabled, gd),
+              f"native control {field} remains opt-in")
+        payload = animation_sync.parse(animation_sync.profile_bytes(enabled, gd)).payload
+        check(f"{profile_key}=1.5" in payload,
+              f"native control {field} writes the requested profile value")
+        check(not build_patches(gd, enabled),
+              f"native control {field} leaves CFG values unchanged")
+        check(bool(summarize(enabled)), f"native control {field} appears in the tweak list")
+        continue
     default = getattr(Settings(), field)
     if isinstance(default, bool):
         probe = not default

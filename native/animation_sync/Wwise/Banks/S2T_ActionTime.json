@@ -1,0 +1,41 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "154",
+  "SoundBanks": [
+   {
+    "Id": "2700297076",
+    "Type": "User",
+    "GUID": "{56806CB0-0565-440B-A936-308DABFC41ED}",
+    "Language": "SFX",
+    "Hash": "{5F5D23A5-FF38-0D90-AF1C-4FF54239959E}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\S2T_ActionTime",
+    "ShortName": "S2T_ActionTime",
+    "Path": "S2T_ActionTime.bnk",
+    "Plugins": {
+     "ShareSets": [
+      {
+       "Id": "2700297076",
+       "Name": "S2T_ActionTime",
+       "ObjectPath": "\\Effects\\Default Work Unit\\S2T_ActionTime",
+       "GUID": "{804F4243-278D-4A77-82F7-54890C13996A}",
+       "LibName": "Wwise Time Stretch",
+       "LibId": "8519683"
+      }
+     ]
+    },
+    "GameParameters": [
+     {
+      "Id": "2753239479",
+      "Name": "S2T_ActionDuration",
+      "ObjectPath": "\\Game Parameters\\Default Work Unit\\S2T_ActionDuration",
+      "GUID": "{4DFF30C9-0481-57B8-8D9A-92392A7DD7C9}"
+     }
+    ]
+   }
+  ],
+  "FileHash": "{6928B40E-B266-7F64-18CB-0611493D7B67}"
+ }
+}

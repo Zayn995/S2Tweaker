@@ -480,6 +480,29 @@ FAQ_ENTRIES = [
              "shorter warning time survive",
     },
     {
+        "q": "Is NPC visibility distance (A-Life grid) safe to change?",
+        "a": "This control is experimental. Distant Horizons users report "
+             "missing or already-dead story/underground NPCs and crashes at "
+             "higher ranges. Its author also warns about save persistence. "
+             "Those reports do not establish identical behavior for our "
+             "grid-only control. It has no verified safe threshold. Keep a "
+             "separate save from before testing; removing a Pak may not undo "
+             "saved consequences. Leave 100% to omit this control's patch.",
+        "k": "alife a-life grid visibility distance distant horizons save "
+             "uninstall missing dead underground story quest crash risk backup",
+    },
+    {
+        "q": "Does the A-Life grid percentage equal a distance in metres?",
+        "a": "No. It multiplies two grid distances read from your installation; "
+             "100% leaves both unchanged. Config values do not prove the "
+             "actual distance at which the game renders or simulates NPCs. "
+             "The 139 m default discussed for Distant Horizons is not this "
+             "slider's default or a verified safe limit. This control has "
+             "not been shown to reproduce that mod's behavior.",
+        "k": "alife a-life grid visibility distance 139 85 75 metres meters "
+             "percent radius render default distant horizons",
+    },
+    {
         "q": "Can I make the Zone busier or emptier (A-Life)?",
         "a": "NPCs & AI tab, two experimental sections. 'Max "
              "simultaneous NPCs & mutants' is only a cap (52 in vanilla) "
@@ -569,11 +592,13 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Why can't I reduce iron-sight sway, only scope sway?",
-        "a": "Iron-sight sway is baked into animations, not into config "
-             "values - no config tool can change it. Scoped sway is a "
-             "real config value and has its own slider (Weapons tab); it "
-             "is patched in a way that keeps offset-aiming (leaning past "
-             "the scope) working.",
+        "a": "The 'Scoped aim sway' slider changes the scope-specific "
+             "modifier while preserving offset-aiming (leaning past the "
+             "scope). It does not control iron-sight sway or every movement "
+             "in the weapon animation. Enable the optional native 'Weapon "
+             "idle sway' control for iron sights, or 'Firing animation "
+             "movement' for the shooting pose. Both are experimental and "
+             "leave camera shake and weapon inertia separate.",
         "k": "sway iron sight wobble aim shake scope steady breath",
     },
     {
@@ -689,8 +714,13 @@ FAQ_ENTRIES = [
              "instead (vanilla -5 % to -30 %, capped at -100 %): at 2000 % "
              "any recoil upgrade removes the kick entirely. That route "
              "only affects weapons with such an upgrade installed, but it "
-             "is community-proven on patch 2.0. Iron-sight sway is "
-             "animation-driven and stays either way.",
+             "is community-proven on patch 2.0. These settings do not "
+             "disable iron-sight sway or the separate firing animation. "
+             "The optional native 'Weapon idle sway' control also covers "
+             "iron sights. The separate native 'Firing animation movement' "
+             "control reduces the shooting pose without changing reloads. "
+             "Camera shake and inertia still have their own behavior; "
+             "a completely motionless weapon is not guaranteed.",
         "k": "no recoil zero recoil remove recoil kick climb upgrades "
              "attachments dead steady 100 percent laser steady",
     },
@@ -1071,23 +1101,27 @@ FAQ_ENTRIES = [
     # ------------------------------------------------------------ known issues
     {
         "q": "Movement speed changes feel wrong or animations look broken",
-        "a": "Known game limitation since patch 2.0: speed changes can "
-             "desync from animations, and players report they sometimes "
-             "only affect the animation instead of the real speed. Small "
-             "changes (within ~10-20 % of vanilla) look best. Also note "
-             "the game caches movement values inside the savegame - "
-             "changes (and removals!) may only apply after a trigger "
-             "like entering water or taking damage.",
+        "a": "The Player page now offers 'Synchronize movement animations "
+             "(experimental)'. Its small native companion adjusts crouch, "
+             "sprint and limping animations from exact slider values without UE4SS. "
+             "Native overweight animation slowdown is preserved; the movement "
+             "sound option includes it in sound duration. "
+             "Movement and action alignment passed isolated Zone Kit tests; "
+             "packaged campaign testing remains open. Existing saves can "
+             "still retain cached movement behavior, as reported since patch "
+             "2.0. Restart the game after installing a new profile.",
         "k": "movement speed walk run sprint animation desync broken legs "
              "sliding not working savegame cached",
     },
     {
         "q": "Fire rate changes look or sound weird",
-        "a": "Same engine limitation as movement speed (reported by the "
-             "community): the firing animation and sound don't scale "
-             "with the changed rate, so they can drift apart. The actual "
-             "behavior is being verified in-game. Moderate factors show "
-             "it less.",
+        "a": "AK sustained hip/ADS fire followed a 130 % rate in an isolated "
+             "Zone Kit test with real tool CFGs. Other isolated AK tests also "
+             "verified changed shot/audio cadence. That does not establish "
+             "every weapon, firing animation or individual audio clip at "
+             "every rate. The movement companion preserves native action "
+             "timing. The separate sound options cover reload/jam, draw/holster and movement "
+             "groups; they do not time-stretch gunshot tails.",
         "k": "fire rate firerate rof animation sound desync weird rpm "
              "shooting faster slower",
     },
@@ -1105,15 +1139,15 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can this break my savegame or quests?",
-        "a": "The tool is deliberately conservative: loot sliders skip "
-             "quest items, story rewards, unique weapons and money by "
-             "checking every item against the game's own quest markers; "
-             "trader stock stays vanilla; only existing values are "
-             "scaled, never new ones created. Removing the pak returns "
-             "the game to vanilla - with the one known exception that "
-             "movement values can persist in a savegame until a refresh "
-             "trigger. Still: keep a backup save before big experiments, "
-             "as in-game verification is ongoing.",
+        "a": "Some options can affect quests or state stored by the game. "
+             "Removing a Pak stops loading its patches; it does not undo "
+             "NPC deaths, quest progress, applied faction relations or "
+             "other saved consequences. Existing movement values can also "
+             "persist. Keep a separate backup from before testing, especially "
+             "for experimental A-Life and job changes. To roll back, restore "
+             "that save with its original mods. Keep a multi-job Pak installed "
+             "until its active jobs end. A universal safe-uninstall guarantee "
+             "has not been established.",
         "k": "savegame broken quest safe corrupt backup risk items "
              "progress stuck",
     },
@@ -1160,14 +1194,17 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I reload faster or clear jams quicker?",
-        "a": "Weapons tab: 'Reload speed' scales the reload-time multipliers "
-             "the game keeps for every weapon and every magazine attachment "
-             "(vanilla 1.0 everywhere - the fields the official Zone Kit "
-             "weapon guide points at), 'Jam clearing speed' the 4 to 5.5 s it "
-             "takes to clear a jam. Honest note: neither has been "
-             "play-tested; the reload animation may or may not follow the "
-             "multiplier, so try 150 % first and report back. Edition "
-             "weapons (Deluxe, Pre-order) keep vanilla reload times.",
+        "a": "Weapons tab: 'Reload speed' scales the installed game's "
+             "reload-time multipliers, including magazine attachments, both "
+             "parts of paired-magazine reloads, and edition weapons. 'Jam "
+             "clearing speed' scales configured clearing durations independently "
+             "of jam probability. 200 % halves the configured time. AK "
+             "tactical reloads with real CFGs followed native montage timing "
+             "in isolated Zone Kit tests, including crouch transitions with "
+             "the movement companion. The optional weapon sound companion "
+             "also adjusts reload/jam sound durations independently of movement. "
+             "Jam clearing, all weapon variants "
+             "and packaged campaign behavior remain unverified.",
         "k": "reload faster magazine animation jam clear unjam speed",
     },
     {
@@ -1349,16 +1386,13 @@ FAQ_ENTRIES = [
     },
     {
         "q": "I raised the fire rate and the animation lags behind - can I fix that?",
-        "a": "Only partly, and only with one honest lever. Animation speed "
-             "and the shot sound live in baked game assets; no config patch "
-             "reaches them, which is why the fire-rate slider carries a "
-             "warning. The one config key that touches this is "
-             "ShootingAnimationNumberToSkip (vanilla 0 on every weapon): "
-             "Weapons tab, 'Skipped shooting animations'. Set 1 and the "
-             "game plays every other shooting animation, so it stops "
-             "trailing the shots - choppier, but in step. Read from the key "
-             "name, not play-tested. Real animation retiming needs the "
-             "official Zone Kit and new assets.",
+        "a": "The optional native movement companion prevents its crouch "
+             "or sprint rate from also scaling active weapon actions. "
+             "It does not provide general shooting-clip retiming. The "
+             "separate 'Skipped shooting animations' CFG control remains "
+             "experimental and is not a verified synchronization fix. "
+             "Use moderate fire-rate factors if a particular weapon "
+             "shows animation or sound problems.",
         "k": "fire rate animation desync lag behind sound shooting skip "
              "animations stutter out of sync weapon speed",
     },

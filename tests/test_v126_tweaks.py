@@ -134,7 +134,8 @@ wgs = parsed(build_patches(gd, S(reload_speed_factor=2.0, jam_clear_factor=2.0))
 reload_rows = [e for n in wgs.children.values() if "WeaponReloadTimePerAttachment" in n.children
                for e in n.children["WeaponReloadTimePerAttachment"].children.values()]
 RELOAD_KEYS = ("TacticalReloadTimeMultiplier", "FullReloadTimeMultiplier", "SingleBulletReloadTimeMultiplier",
-               "TwinReloadTimeMultiplier", "TwinTacticalReloadTimeMultiplier")
+               "TwinReloadTimeMultiplier", "TwinTacticalReloadTimeMultiplier",
+               "TwinAuxReloadTimeMultiplier", "TwinTacticalAuxReloadTimeMultiplier")
 assert len(reload_rows) >= 100, len(reload_rows)
 assert all(set(e.values) <= set(RELOAD_KEYS) and set(e.values.values()) == {"0.5"} for e in reload_rows)
 assert sum(1 for e in reload_rows if "TacticalReloadTimeMultiplier" in e.values) >= 100

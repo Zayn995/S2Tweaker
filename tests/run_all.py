@@ -17,6 +17,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_animation_sync.py",
+    "test_sound_sync.py",
+    "test_native_remaining_controls.py",
+    "test_reload_scope.py",
     "test_sparse_control_patches.py",
     "test_npc_patch_compatibility.py",
     "test_public_files.py",

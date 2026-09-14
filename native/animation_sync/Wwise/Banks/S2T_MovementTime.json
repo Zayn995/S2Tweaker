@@ -1,0 +1,41 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "154",
+  "SoundBanks": [
+   {
+    "Id": "2358922605",
+    "Type": "User",
+    "GUID": "{48AB04AF-4D16-5BEC-A0E4-817B1521F33C}",
+    "Language": "SFX",
+    "Hash": "{DEBD15C1-A1FB-BBC9-F782-9CC76226D5B4}",
+    "ObjectPath": "\\SoundBanks\\Default Work Unit\\S2T_MovementTime",
+    "ShortName": "S2T_MovementTime",
+    "Path": "S2T_MovementTime.bnk",
+    "Plugins": {
+     "ShareSets": [
+      {
+       "Id": "2358922605",
+       "Name": "S2T_MovementTime",
+       "ObjectPath": "\\Effects\\Default Work Unit\\S2T_MovementTime",
+       "GUID": "{70D42A47-E0D1-51EE-9909-DDCD8E941F84}",
+       "LibName": "Wwise Time Stretch",
+       "LibId": "8519683"
+      }
+     ]
+    },
+    "GameParameters": [
+     {
+      "Id": "2226688166",
+      "Name": "S2T_MovementDuration",
+      "ObjectPath": "\\Game Parameters\\Default Work Unit\\S2T_MovementDuration",
+      "GUID": "{0B368253-87CC-5AB7-817D-117441933247}"
+     }
+    ]
+   }
+  ],
+  "FileHash": "{42DE1AD4-34B3-1E54-234A-319CDF292116}"
+ }
+}

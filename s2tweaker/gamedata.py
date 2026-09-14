@@ -21,6 +21,7 @@ from .cfgparse import CfgStruct, parse_number
 NEEDED_FILES = [
     "ObjPrototypes.cfg.bin",
     "ItemPrototypes.cfg.bin",
+    "MeshPrototypes.cfg.bin",
     "TradePrototypes.cfg.bin",
     "DifficultyPrototypes.cfg.bin",
     "EffectPrototypes.cfg.bin",
@@ -85,7 +86,7 @@ NEEDED_FILES = [
 ]
 
 # Increment when NEEDED_FILES changes to invalidate incomplete old caches.
-CACHE_SCHEMA = 27   # rebuild caches decoded without binary cfg version 2 support
+CACHE_SCHEMA = 28   # Include live weapon mesh identities for optional sound routing.
 OPTIONAL_SPAWN = "SpawnActorPrototypes.cfg.bin"
 
 # Mutant factions mapped to attack-struct prefixes in AbilityPrototypes.cfg.

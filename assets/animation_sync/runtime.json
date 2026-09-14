@@ -1,0 +1,24 @@
+{
+  "format": "S2Tweaker.AnimationSync.1",
+  "files": {
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.pak": "a496117d5557c6de5c7b9d4c61705946406f3dc8619ad9170ebf89a2eca4424c",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.utoc": "2eec22ede1e36195d2e19abb1ed1fe19c177e941df697d973c86542b6cfb4a9d",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.ucas": "c9b54e7299736b25358353104831914d56087ce9178ecef202f4ab162c494bec",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.pak": "b2be77ed6f9dd20765c302ed699d1a29b382c46905f95c54fde2b70b25824d67",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.utoc": "7f74117d8318c2133cc4b575ca654d066f2a33e450e598100580a90f04320769",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.ucas": "11c2b90e0b8ea24e2ac8ddb674342bee394a63962a917190b8b6e1c9f41eaf94",
+    "Stalker2/Mods/S2TRuntimeLab/S2TRuntimeLab.uplugin": "cdfcb717556b833120e11582418275f4c829df78d28ba6405e731e1aa161d7fa"
+  },
+  "runtime_bytes": 52824,
+  "validation": "Zone Kit isolated PIE with actual CFGs; packaged campaign validation pending.",
+  "features": [
+    "movement-animation",
+    "weapon-action-sound",
+    "movement-sound",
+    "equipment-sound",
+    "weapon-idle-sway",
+    "limping-animation",
+    "firing-animation-motion"
+  ],
+  "profile_slot": "S2Tweaker_AnimationProfile_v1"
+}

@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{DB9A9B89-764C-433B-AEB3-B0979B2A7B27}" SchemaVersion="123">
+	<GameParameters>
+		<WorkUnit Name="S2Tweaker" ID="{DB9A9B89-764C-433B-AEB3-B0979B2A7B27}" PersistMode="Standalone">
+			<ChildrenList>
+				<GameParameter Name="S2T_ActionDuration" ID="{4DFF30C9-0481-57B8-8D9A-92392A7DD7C9}">
+					<PropertyList>
+						<Property Name="Min" Type="Real64" Value="25" />
+						<Property Name="Max" Type="Real64" Value="1600" />
+						<Property Name="InitialValue" Type="Real64" Value="100" />
+					</PropertyList>
+				</GameParameter>
+				<GameParameter Name="S2T_MovementDuration" ID="{0B368253-87CC-5AB7-817D-117441933247}">
+					<PropertyList>
+						<Property Name="Min" Type="Real64" Value="25" />
+						<Property Name="Max" Type="Real64" Value="1600" />
+						<Property Name="InitialValue" Type="Real64" Value="100" />
+					</PropertyList>
+				</GameParameter>
+			</ChildrenList>
+		</WorkUnit>
+	</GameParameters>
+</WwiseDocument>

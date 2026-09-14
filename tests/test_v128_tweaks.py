@@ -817,22 +817,22 @@ assert {v["HideEquipmentTime"] for v in live.values()} == {"1.0"}
 assert not build_patches(gd, S(equip_speed_factor=1.0))
 print(f"1.29.0 Live: {len(live)} weapons with draw/holster duration, all 1.0, neutral empty  OK")
 
-# Scale base and edition timings inversely.
+# Native equipment fields are animation-rate multipliers, despite their names.
 p = build_patches(gd, S(equip_speed_factor=2.0))
 wgs = parsed(p, WGS)
 assert len(wgs.children) == 92, len(wgs.children)
-assert all(n.values == {"ShowEquipmentTime": "0.5", "HideEquipmentTime": "0.5"}
+assert all(n.values == {"ShowEquipmentTime": "2.0", "HideEquipmentTime": "2.0"}
            for n in wgs.children.values())
 dlc = [k for k in p if k.startswith("//GameLite/DLCGameData/") and "WeaponGeneralSetup" in k]
 assert len(dlc) == 3, dlc                       # Deluxe, PreOrder, Ultimate
 n_dlc = sum(len(parsed(p, k).children) for k in dlc)
 assert n_dlc == 11, n_dlc
-assert all(v == "0.5" for k in dlc for n in parsed(p, k).children.values()
+assert all(v == "2.0" for k in dlc for n in parsed(p, k).children.values()
            for key, v in n.values.items() if key in EQUIP_KEYS)
 half = parsed(build_patches(gd, S(equip_speed_factor=0.5)), WGS)
-assert next(iter(half.children.values())).values["ShowEquipmentTime"] == "2.0"
+assert next(iter(half.children.values())).values["ShowEquipmentTime"] == "0.5"
 assert "FireInterval" not in p[WGS] and "ReloadTimeMultiplier" not in p[WGS]
-print(f"1.29.0 Sliders: 92 base + {n_dlc} edition weapons, x2 -> 0.5 s, x0.5 -> 2.0 s  OK")
+print(f"Equipment rates: 92 base + {n_dlc} edition weapons, x2 -> 2.0, x0.5 -> 0.5  OK")
 
 # --- 3) Skipped firing animations ---
 live_skip = {sid: n.values["ShootingAnimationNumberToSkip"]

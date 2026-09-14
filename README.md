@@ -11,6 +11,15 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.44.0 — Animation & Sound Update (experimental):** optional native movement and
+sound synchronization, idle sway and firing-pose controls. No UE4SS or player
+Zone Kit installation required. [Release notes](release/NOTES_v1.44.0.md).
+
+**Experimental A-Life distance:** the grid slider has no verified safe range.
+Keep a separate save from before testing; removing a Pak does not reverse saved
+consequences. The percentage is not a measured render distance or a Distant
+Horizons preset. [Scope, external reports and save handling](docs/A_LIFE_GRID_LIMITS.md).
+
 **1.43.0 compatibility corrections:** independent controls now write only
 their changed fields, including NPC threat settings, flashlights, radiation,
 weapon jams, encounters, weather and indexed detail settings. Extra artifact
@@ -32,8 +41,19 @@ unchanged. [Release notes](release/NOTES_v1.42.0.md).
 [data-only detail options](docs/DETAIL_OPTIONS.md): special artifacts, individual
 medicine/buffs and weapon item values, weather senses, camp activities,
 grenade budgets, selective helmets, upgrade bonuses and passive scanners.
-Movement, reload and animation-timing extensions are deferred. No UE4SS or Dev
-Kit is required. See the linked guide for supported values and gameplay limits.
+These detail options require no UE4SS or Dev Kit. See the linked guide for
+supported values and gameplay limits.
+
+Version 1.44.0 includes an optional
+[native animation and sound companion](docs/ANIMATION_SYNC.md). It follows exact
+crouch/sprint/limping slider values and preserves native action timing. Separate options
+adjust weapon-action and movement sound durations, including draw/holster and
+overweight slowdown, without replacing game media. A separate 0–400% native idle-sway
+control also covers iron sights. An independent 0–100% firing-animation control
+reduces native shooting pose movement while retaining reload and equip animations.
+Camera shake and weapon inertia remain separate. The small
+companion requires neither UE4SS nor the Zone Kit on the user's PC. Isolated
+Zone Kit gameplay tests passed; packaged campaign validation remains open.
 
 **1.40.1 adds repairs for job texts and return markers.**
 Molkerr [reports translated quest text and the second return marker surviving
@@ -396,7 +416,7 @@ before creating either archive. Multilingual search aliases remain supported.
   [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt); the repak MIT notice
   is also reprinted in `release/README.txt` (the file inside the player ZIP).
 - Known limits: DLC items aren't covered by the per-item weight slider;
-  iron-sight sway is animation-driven (not cfg-tweakable); the in-game
+  the scoped-sway slider does not control iron-sight sway or all weapon animation; the in-game
   "Custom Rules" difficulty overlaps some multipliers (precedence untested).
 
 ## Credits

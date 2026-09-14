@@ -59,6 +59,11 @@ class PublicFilesTests(unittest.TestCase):
                 (root / "release" / "README.txt").write_text("Player instructions", encoding="utf-8")
                 (root / "README.md").write_text("Public documentation", encoding="utf-8")
                 tracked = ["README.md", "release/README.txt"]
+                companion = root / "assets/animation_sync/runtime.zip"
+                companion.parent.mkdir(parents=True)
+                with zipfile.ZipFile(companion, "w") as archive:
+                    archive.writestr("controller.fixture", "original companion fixture")
+                tracked.append("assets/animation_sync/runtime.zip")
                 if private_source:
                     (root / "CLAUDE.md").write_text("Private note", encoding="utf-8")
                     tracked.append("CLAUDE.md")
@@ -76,6 +81,8 @@ class PublicFilesTests(unittest.TestCase):
                         with zipfile.ZipFile(root / "release/S2Tweaker_vtest_source.zip") as archive:
                             self.assertEqual(set(archive.namelist()), set(tracked))
                             self.assertEqual(archive.read("README.md"), b"Public documentation")
+                            self.assertEqual(archive.read("assets/animation_sync/runtime.zip"),
+                                             companion.read_bytes())
                         with zipfile.ZipFile(root / "release/S2Tweaker_vtest.zip") as archive:
                             validate_public_paths(archive.namelist())
                             self.assertIn("_internal/sitecustomize.py", archive.namelist())

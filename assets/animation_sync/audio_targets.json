@@ -1,0 +1,192 @@
+[
+  {
+    "family": "AK74",
+    "node_id": 373933397,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/AK74/AK74_Reload/SFX_AK74_Mag_Tap.SFX_AK74_Mag_Tap"
+  },
+  {
+    "family": "AKU",
+    "node_id": 40460176,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SMG/AKU/AKU_Reload/SFX_AKU_Mag_Out.SFX_AKU_Mag_Out"
+  },
+  {
+    "family": "APB",
+    "node_id": 5253455,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/HG/APB/APB_Reload/SFX_APB_Mag_Out.SFX_APB_Mag_Out"
+  },
+  {
+    "family": "Arev",
+    "node_id": 870845322,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/S2_Live/Weapons/AR/Arev/Arev_Reload/SFX_Arev_Mag_Out.SFX_Arev_Mag_Out"
+  },
+  {
+    "family": "Bucket",
+    "node_id": 565025060,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SMG/Bucket/Bucket_Reload/SFX_Bucket_Mag_In.SFX_Bucket_Mag_In"
+  },
+  {
+    "family": "D12",
+    "node_id": 968759079,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/D12/D12_Reload/SFX_D12_Mag_Out.SFX_D12_Mag_Out"
+  },
+  {
+    "family": "Dnipro",
+    "node_id": 928834641,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/Dnipro/Dnipro_Reload/SFX_Dnipro_Mag_Out.SFX_Dnipro_Mag_Out"
+  },
+  {
+    "family": "Fora",
+    "node_id": 558757866,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/Fora/Fora_Reload/SFX_Fora_Mag_Out.SFX_Fora_Mag_Out"
+  },
+  {
+    "family": "Fora230",
+    "node_id": 531232985,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/S2_Live/Weapons/SMG/Fora230/Fora230_Reload/SFX_Fora230_Mag_Out.SFX_Fora230_Mag_Out"
+  },
+  {
+    "family": "GP37",
+    "node_id": 760209527,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/GP37/GP37_Reload/SFX_GP37_Ejector.SFX_GP37_Ejector"
+  },
+  {
+    "family": "GP3A",
+    "node_id": 794640275,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/S2_Live/Weapons/SR/GP3A/GP3A_Reload/SFX_GP3A_Slide_Up.SFX_GP3A_Slide_Up"
+  },
+  {
+    "family": "Gauss",
+    "node_id": 444671786,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/Unique/Gauss/Gauss_Reload/SFX_Gauss_Mag_Out.SFX_Gauss_Mag_Out"
+  },
+  {
+    "family": "Grim",
+    "node_id": 987423323,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/Grim/Grim_Reload/SFX_Grim_GP_In.SFX_Grim_GP_In"
+  },
+  {
+    "family": "Gvintar",
+    "node_id": 74896241,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/Gvintar/Gvintar_Reload/SFX_Gvintar_Mag_In.SFX_Gvintar_Mag_In"
+  },
+  {
+    "family": "Integral",
+    "node_id": 779109920,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SMG/Integral/Integral_Reload/SFX_Integral_Mag_Out.SFX_Integral_Mag_Out"
+  },
+  {
+    "family": "Kharod",
+    "node_id": 310095416,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/Kharod/Kharod_Reload/SFX_Kharod_Mag_Out.SFX_Kharod_Mag_Out"
+  },
+  {
+    "family": "Kora",
+    "node_id": 470166494,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/S2_Live/Weapons/HG/Kora/Kora_Reload/SFX_Kora_Mag_Out.SFX_Kora_Mag_Out"
+  },
+  {
+    "family": "M10",
+    "node_id": 622180821,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/HG/M10/M10_Reload/SFX_M10_Mag_Out.SFX_M10_Mag_Out"
+  },
+  {
+    "family": "M16",
+    "node_id": 708939305,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/AR/M16/M16_Reload/SFX_M16_Mag_Out.SFX_M16_Mag_Out"
+  },
+  {
+    "family": "M701",
+    "node_id": 6067095,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SR/M701/M701_Reload/SFX_M701_Mag_Out.SFX_M701_Mag_Out"
+  },
+  {
+    "family": "M860",
+    "node_id": 739941916,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/M860/M860_Reload/SFX_M860_Mag_In.SFX_M860_Mag_In"
+  },
+  {
+    "family": "Mark",
+    "node_id": 83277266,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SR/Mark/Mark_Reload/SFX_Mark_Slide_Hit.SFX_Mark_Slide_Hit"
+  },
+  {
+    "family": "Obrez",
+    "node_id": 355422561,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/Obrez/Obrez_Reload/SFX_Obrez_Mag_In.SFX_Obrez_Mag_In"
+  },
+  {
+    "family": "PKP",
+    "node_id": 934302571,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/MG/PKP/PKP_Reload/SFX_PKP_Mag_Out.SFX_PKP_Mag_Out"
+  },
+  {
+    "family": "PM",
+    "node_id": 65114491,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/HG/PM/PM_Reload/SFX_PM_Mag_In.SFX_PM_Mag_In"
+  },
+  {
+    "family": "RPD",
+    "node_id": 265508823,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/MG/RPD/RPD_Reload/SFX_RPD_Slide_Up.SFX_RPD_Slide_Up"
+  },
+  {
+    "family": "RPG7",
+    "node_id": 20625143,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/Unique/RPG7/RPG7_Reload/SFX_RPG7_Reload_Screw.SFX_RPG7_Reload_Screw"
+  },
+  {
+    "family": "Ram2",
+    "node_id": 341599752,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/Ram2/Ram2_Reload/SFX_Ram2_Mag_In.SFX_Ram2_Mag_In"
+  },
+  {
+    "family": "Rhino",
+    "node_id": 839517075,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/HG/Rhino/Rhino_Reload/SFX_Rhino_Trigger.SFX_Rhino_Trigger"
+  },
+  {
+    "family": "SKP",
+    "node_id": 864931331,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/S2_Live/Weapons/SR/SKP/SKP_Reload/SFX_SKP_Mag_In.SFX_SKP_Mag_In"
+  },
+  {
+    "family": "SPSA",
+    "node_id": 785195330,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/SPSA/SPSA_Reload/SFX_SPSA_Mag_In.SFX_SPSA_Mag_In"
+  },
+  {
+    "family": "SVD",
+    "node_id": 541822051,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SR/SVDM/SVDM_Reload/SFX_SVDM_Mag_Out.SFX_SVDM_Mag_Out"
+  },
+  {
+    "family": "SVU",
+    "node_id": 457730379,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SR/SVU/SVU_Reload/SFX_SVU_Mag_Out.SFX_SVU_Mag_Out"
+  },
+  {
+    "family": "TOZ34",
+    "node_id": 204547098,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SG/TOZ34/TOZ34_Reload/SFX_TOZ34_Slide_Hit.SFX_TOZ34_Slide_Hit"
+  },
+  {
+    "family": "ThreeLine",
+    "node_id": 345891256,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SR/ThreeLine/ThreeLine_Reload/SFX_ThreeLine_Mag_In.SFX_ThreeLine_Mag_In"
+  },
+  {
+    "family": "UDP",
+    "node_id": 184281282,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/HG/UDP/UDP_Reload/SFX_UDP_Mag_Out.SFX_UDP_Mag_Out"
+  },
+  {
+    "family": "Viper",
+    "node_id": 232322254,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SMG/Viper/Viper_Reload/SFX_Viper_Mag_Out.SFX_Viper_Mag_Out"
+  },
+  {
+    "family": "Zubr",
+    "node_id": 734327515,
+    "anchor_event": "/Game/_STALKER2/Audio/WwiseAudio/Events/Weapons/SMG/Zubr/Zubr_Reload/SFX_Zubr_Mag_Out.SFX_Zubr_Mag_Out"
+  }
+]

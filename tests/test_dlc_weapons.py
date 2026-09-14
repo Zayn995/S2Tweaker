@@ -120,7 +120,7 @@ dbg_gui = SCRATCH / f"{mod_name}_cfg"
 assert (dbg_gui / "GameLite" / "DLCGameData").is_dir(), \
     sorted(x.as_posix() for x in dbg_gui.rglob("*.cfg"))[:5]
 msg = "\n".join(str(x) for x in seen)
-assert "Debug:" in msg and "patch .cfg files" in msg and "failed" not in msg, msg
+assert "Debug:" in msg and "generated files" in msg and "failed" not in msg, msg
 out_pak.unlink(missing_ok=True)
 shutil.rmtree(dbg_gui, ignore_errors=True)
 for w in [x for x in app.winfo_children()

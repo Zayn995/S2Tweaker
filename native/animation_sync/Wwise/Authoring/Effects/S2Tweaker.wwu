@@ -1,0 +1,101 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{8DB79F51-6981-4604-80BB-4952CCD818D0}" SchemaVersion="123">
+	<Effects>
+		<WorkUnit Name="S2Tweaker" ID="{8DB79F51-6981-4604-80BB-4952CCD818D0}" PersistMode="Standalone">
+			<ChildrenList>
+				<Effect Name="S2T_ActionTime" ID="{804F4243-278D-4A77-82F7-54890C13996A}" PluginName="Wwise Time Stretch" CompanyID="0" PluginID="130" PluginType="3">
+					<PropertyList>
+						<Property Name="QualityEnable" Type="int16" Value="1" />
+						<Property Name="TimeStretch" Type="Real32" Value="100" />
+						<Property Name="WindowSize" Type="int32" Value="512" />
+					</PropertyList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<Reference>
+								<Local>
+									<RTPC Name="" ID="{EB68E428-6C24-5421-BF10-E641346B5411}">
+										<PropertyList>
+											<Property Name="PropertyName" Type="string" Value="TimeStretch" />
+										</PropertyList>
+										<ReferenceList>
+											<Reference Name="ControlInput">
+												<ObjectRef Name="S2T_ActionDuration" ID="{4DFF30C9-0481-57B8-8D9A-92392A7DD7C9}" WorkUnitID="{DB9A9B89-764C-433B-AEB3-B0979B2A7B27}" />
+											</Reference>
+											<Reference Name="Curve">
+												<Custom>
+													<Curve Name="" ID="{3D5B4DF8-FFB7-5AB3-AF2E-734EEB20B1A3}">
+														<PropertyList>
+															<Property Name="Flags" Type="int32" Value="1" />
+														</PropertyList>
+														<PointList>
+															<Point>
+																<XPos>25</XPos>
+																<YPos>25</YPos>
+																<Flags>5</Flags>
+															</Point>
+															<Point>
+																<XPos>1600</XPos>
+																<YPos>1600</YPos>
+																<Flags>37</Flags>
+															</Point>
+														</PointList>
+													</Curve>
+												</Custom>
+											</Reference>
+										</ReferenceList>
+									</RTPC>
+								</Local>
+							</Reference>
+						</ObjectList>
+					</ObjectLists>
+				</Effect>
+				<Effect Name="S2T_MovementTime" ID="{70D42A47-E0D1-51EE-9909-DDCD8E941F84}" PluginName="Wwise Time Stretch" CompanyID="0" PluginID="130" PluginType="3">
+					<PropertyList>
+						<Property Name="QualityEnable" Type="int16" Value="1" />
+						<Property Name="TimeStretch" Type="Real32" Value="100" />
+						<Property Name="WindowSize" Type="int32" Value="512" />
+					</PropertyList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<Reference>
+								<Local>
+									<RTPC Name="" ID="{55C956B1-A1AB-5C7C-8679-F7841CF1DA8E}">
+										<PropertyList>
+											<Property Name="PropertyName" Type="string" Value="TimeStretch" />
+										</PropertyList>
+										<ReferenceList>
+											<Reference Name="ControlInput">
+												<ObjectRef Name="S2T_MovementDuration" ID="{0B368253-87CC-5AB7-817D-117441933247}" WorkUnitID="{DB9A9B89-764C-433B-AEB3-B0979B2A7B27}" />
+											</Reference>
+											<Reference Name="Curve">
+												<Custom>
+													<Curve Name="" ID="{5793EADE-7989-504C-9366-00A78E674433}">
+														<PropertyList>
+															<Property Name="Flags" Type="int32" Value="1" />
+														</PropertyList>
+														<PointList>
+															<Point>
+																<XPos>25</XPos>
+																<YPos>25</YPos>
+																<Flags>5</Flags>
+															</Point>
+															<Point>
+																<XPos>1600</XPos>
+																<YPos>1600</YPos>
+																<Flags>37</Flags>
+															</Point>
+														</PointList>
+													</Curve>
+												</Custom>
+											</Reference>
+										</ReferenceList>
+									</RTPC>
+								</Local>
+							</Reference>
+						</ObjectList>
+					</ObjectLists>
+				</Effect>
+			</ChildrenList>
+		</WorkUnit>
+	</Effects>
+</WwiseDocument>

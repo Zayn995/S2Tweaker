@@ -35,9 +35,11 @@ def main() -> None:
     validate_public_paths(tracked)
     player_files = sorted(path for path in app.rglob("*") if path.is_file())
     validate_public_paths(path.relative_to(app).as_posix() for path in player_files)
-    # Exclude runtime binaries from the source archive.
+    # Retain the original cooked companion needed by source-mode exports.
+    # Exclude downloaded runtime binaries and other generated archives.
     source_files = [f for f in tracked
-                    if not f.endswith((".zip", ".exe", ".dll", ".pyd"))
+                    if (f == "assets/animation_sync/runtime.zip"
+                        or not f.endswith((".zip", ".exe", ".dll", ".pyd")))
                     and not f.startswith("release/screenshots")]
 
     out = REPO / "release"
