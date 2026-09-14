@@ -38,7 +38,7 @@ class AnimationSyncTests(unittest.TestCase):
 
     def test_non_quarter_values_and_strict_native_format(self):
         data = sync.profile_bytes(Settings(animation_sync=True, walk_speed_factor=1.1375, run_speed_factor=1.26))
-        self.assertEqual(parse(data).payload, "S2T1\nmovement.crouch=1.1375\nmovement.limp.run=1.26\nmovement.limp.walk=1.1375\nmovement.sprint=1.26")
+        self.assertEqual(parse(data).payload, "S2T1\nmovement.crouch=1.1375\nmovement.limp.run=1.26\nmovement.limp.walk=1.1375\nmovement.run=1.26\nmovement.sprint=1.26\nmovement.walk=1.1375")
         for broken in (data[:-1], data + b"\0", data.replace(b"BP_S2TProfile", b"BP_OtherSave0")):
             with self.assertRaises(ValueError):
                 parse(broken)
@@ -55,7 +55,7 @@ class AnimationSyncTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             self.assertTrue(set(runtime).issubset(archive.namelist()))
             profile = archive.read("Profile/" + sync.PROFILE_SLOT + ".sav")
-            self.assertEqual(parse(profile).payload, "S2T1\nmovement.crouch=0.8\nmovement.limp.run=1.4\nmovement.limp.walk=0.8\nmovement.sprint=1.4")
+            self.assertEqual(parse(profile).payload, "S2T1\nmovement.crouch=0.8\nmovement.limp.run=1.4\nmovement.limp.walk=0.8\nmovement.run=1.4\nmovement.sprint=1.4\nmovement.walk=0.8")
             self.assertEqual(json.loads(archive.read("S2Tweaker_AnimationSync.json"))["cfg_pak"], "my_mod.pak")
 
     def test_install_update_disable_preserves_campaign_saves(self):
@@ -66,7 +66,7 @@ class AnimationSyncTests(unittest.TestCase):
         profile = self.saves / (sync.PROFILE_SLOT + ".sav")
         self.assertIn("movement.crouch=0.8", parse(profile.read_bytes()).payload)
         self.apply(self.changes(Settings(animation_sync=True, walk_speed_factor=1.1)))
-        self.assertEqual(parse(profile.read_bytes()).payload, "S2T1\nmovement.crouch=1.1\nmovement.limp.run=1\nmovement.limp.walk=1.1")
+        self.assertEqual(parse(profile.read_bytes()).payload, "S2T1\nmovement.crouch=1.1\nmovement.limp.run=1\nmovement.limp.walk=1.1\nmovement.walk=1.1")
         self.apply(self.changes(Settings()))
         self.assertFalse(profile.exists())
         self.assertFalse(any(p.is_file() for p in self.game.rglob("*")))

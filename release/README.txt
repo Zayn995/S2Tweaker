@@ -11,7 +11,16 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.44.1 — COMPANION BUILD AND DEBUG EXPORT FIXES
+NEW IN 1.44.2 — MOVEMENT ANIMATION & SOUND UPDATE
+----------------------------------------------------
+Walking, running, sprinting, crouched sneaking and low crouch now follow the
+selected movement factors with matching animations and movement sounds. Ordinary
+walk/run animation synchronization is added to the existing crouch/sprint path.
+Enable both movement synchronization options, then rebuild and reinstall the
+companion/profile. Short Zone Kit checks passed; campaign testing remains open.
+The original native companion is about 52 KiB; all 19 signed desktop binaries stay unchanged.
+
+INCLUDED FROM 1.44.1 — COMPANION BUILD AND DEBUG EXPORT FIXES
 ----------------------------------------------------
 Native idle sway and firing movement now build and install without CFG changes.
 Debug export includes the loose companion, numeric profile and readable parameters

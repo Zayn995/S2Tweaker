@@ -4281,17 +4281,21 @@ class App(WorkbenchMixin, ctk.CTk):
         self._slider(f, "sp_regen", "Stamina regen (per second)", 0, 50, 1, 5, fmt_dec)
         self._slider(f, "fall", "Fall damage", 0, 100, 5, 100, fmt_pct,
                      "0 % = no fall damage.")
-        self._slider(f, "walk", "Walk & crouch speed", 50, 150, 5, 100, fmt_pct)
+        self._slider(f, "walk", "Walk & crouch speed", 50, 150, 5, 100, fmt_pct,
+                     "Walking, crouched sneaking and low-crouch speed read from the "
+                     "installed game. Enable both movement synchronization options below "
+                     "for matching animations and footstep, backpack and clothing sounds.")
         self._slider(f, "run", "Run & sprint speed", 50, 150, 5, 100, fmt_pct,
                      "Movement speed read from the installed game. Enable the "
-                     "optional native companion below to adjust sprint and crouch "
+                     "optional native companion below to adjust walk, run, sprint and crouch "
                      "animations. Numeric entry also accepts values between slider steps.")
         self._check(f, "animation_sync", "Synchronize movement animations (experimental)",
                     "Optional native companion. "
-                    "Crouch, sprint and limping animations follow the movement sliders, "
+                    "Walk, run, crouch, sprint and limping animations follow the movement sliders, "
                     "while active action montages retain native timing. Verified "
                     "in the Zone Kit test scene; campaign testing remains open. "
-                    "Use the separate sound option for weapon action audio. Build pak "
+                    "Enable Synchronize movement sounds for matching footsteps, backpack "
+                    "and clothing audio. Weapon action sounds have a separate option. Build pak "
                     "exports a matching companion ZIP; Install to ~mods installs "
                     "the companion and its separate numeric profile automatically. "
                     "Exit the game first and restart after changing settings. "

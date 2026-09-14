@@ -27,9 +27,10 @@ installation. Its profile is
 Despite the `.sav` extension, this file contains only numeric configuration;
 it does not contain or replace campaign progress.
 
-The option adjusts crouch, sprint and limping animations and preserves native timing of
-active action montages. Ordinary walking/running retains the game's existing
-animation behavior. In particular, native reload rates already follow the CFG
+The option adjusts walking, running, crouching, sprinting and limping animations
+and preserves native timing of active action montages. The controller detects
+the player's actual gait and applies the corresponding selected factor.
+In particular, native reload rates already follow the CFG
 reload multipliers and must not receive the factor twice. No original animation
 assets are replaced.
 
@@ -37,6 +38,12 @@ Limping uses the installed wounded-speed coefficient and its native cap, combine
 with the selected walking/running factor. Crouching takes priority over limping.
 The game's own overweight effect already changes locomotion playback speed;
 the companion preserves that correction instead of applying it twice.
+
+A short actual-CFG check verified ordinary walking at 80% and running at 140%:
+body and shadow playback used the selected factors, measured foot-pose cycles
+changed accordingly, and the movement sound controller applied matching
+duration parameters to footsteps, backpack and clothing. Crossed extreme
+walk/run combinations have not been individually validated.
 
 On the Weapons page, **Adjust weapon idle sway with native companion** enables
 the **Weapon idle sway (native companion)** slider, including iron sights. It supports 0–400%, where
@@ -69,6 +76,9 @@ Jam-clearing classification is implemented but has not been triggered in that te
 for footsteps, backpack rattle and player clothing. Native animation events
 still trigger footsteps; this option adjusts their sound duration. It does not
 schedule extra footsteps or alter gunshot tails, speech, music or ambient audio.
+Enable both movement synchronization options to match animation playback and
+sound duration to the movement sliders. After updating the tool, rebuild and
+reinstall the companion and numeric profile to apply new controller behavior.
 The weapon and movement parameters are independent, including during reloads.
 Limping also composes with gait settings. Native overweight locomotion slowdown
 is included in movement sound duration, within the effect's supported range.

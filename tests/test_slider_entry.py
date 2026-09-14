@@ -106,7 +106,7 @@ assert typed(app.sliders["run"], "126") == 126
 app.checks["animation_sync"].set(True)
 movement = app._collect()
 assert movement.animation_sync
-assert parse(animation_sync.profile_bytes(movement)).payload == "S2T1\nmovement.crouch=1.13\nmovement.sprint=1.26"
+assert parse(animation_sync.profile_bytes(movement)).payload == "S2T1\nmovement.crouch=1.13\nmovement.limp.run=1.26\nmovement.limp.walk=1.13\nmovement.run=1.26\nmovement.sprint=1.26\nmovement.walk=1.13"
 app.sliders["walk"].reset()
 app.sliders["run"].reset()
 app.checks["animation_sync"].set(False)

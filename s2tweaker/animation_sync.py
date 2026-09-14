@@ -32,7 +32,9 @@ def digest(data):
 def factors(settings):
     result = {}
     for key, field in (("movement.crouch", "walk_speed_factor"),
-                       ("movement.sprint", "run_speed_factor")):
+                       ("movement.sprint", "run_speed_factor"),
+                       ("movement.walk", "walk_speed_factor"),
+                       ("movement.run", "run_speed_factor")):
         value = getattr(settings, field)
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= 100:
             raise ValueError(f"Invalid animation multiplier: {field}")
@@ -214,7 +216,7 @@ def export_files(settings, out_pak, *, gd=None):
         "For automatic installation, use Install to ~mods in S2Tweaker instead.\n"
         "To remove this companion, delete only Stalker2/Mods/S2TRuntimeLab and\n"
         "the named animation profile. Restore movement settings in the CFG Pak separately.\n\n"
-        "Crouch and sprint animation rates follow the selected movement factors.\n"
+        "Walk, run, crouch and sprint animation rates follow the selected movement factors.\n"
         "Active action montages retain native gameplay timing. Existing animation\n"
         "assets are not replaced. Optional sound controls change reload/jam or\n"
         "movement sound duration independently without replacing original media.\n"

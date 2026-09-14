@@ -38,8 +38,9 @@ The controller loads `S2Tweaker_AnimationProfile_v1` through Unreal's native
 SaveGame API. This is a separate numeric configuration object with no player
 progress. It accepts schema 1 and bounded positive multipliers, enables its
 native tick when a movement profile is present, and follows the local player's
-actual crouch/sprint/limping state. The normal walk/run state retains native animation
-behavior. Cinematics and absent players release previously applied rates.
+actual walk/run/crouch/sprint/limping state. `movement.walk` and `movement.run`
+use the same component-rate correction as crouching and sprinting. Cinematics
+and absent players release previously applied rates.
 
 Body and shadow animation component rates use the initial native rate as their
 basis. For the currently active action montage, the controller cancels only its
@@ -51,6 +52,10 @@ changes, and restores owned rates when the correction is released.
 Validation: isolated Zone Kit gameplay with actual generated CFG patches and
 native input, including 80% crouch, 140% sprint, 130% AK fire/reload, and stance
 transitions during reload. The finished bundle has been cooked and inspected.
+A separate brief walk/run check confirmed 80% walking and 140% running,
+matching body/shadow component rates, measured foot-pose periods and movement
+sound duration parameters for Step, Backpack and Clothes. Crossed extreme
+walk/run combinations remain outside the measured scope.
 Packaged campaign testing and arbitrary multi-slot montages remain unestablished.
 Native draw/holster montages follow
 the direct CFG equipment-rate multiplier; the fields named ShowEquipmentTime

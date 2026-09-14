@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.44.2 — Movement Animation & Sound Update:** walking, running, sprinting,
+crouched sneaking and low crouch follow the selected factors with matching
+animations and movement sounds. Enable both movement synchronization options
+and rebuild/reinstall the companion. [Release notes](release/NOTES_v1.44.2.md).
+
 **1.44.1 fixes companion-only builds and extends Debug export:** native sway and
 firing motion can be installed alone; debug output includes the companion and readable
 profile. [Release notes](release/NOTES_v1.44.1.md).
@@ -47,9 +52,9 @@ grenade budgets, selective helmets, upgrade bonuses and passive scanners.
 See the linked guide for
 supported values and gameplay limits.
 
-Version 1.44.0 includes an optional
+Version 1.44.2 includes an optional
 [native animation and sound companion](docs/ANIMATION_SYNC.md). It follows exact
-crouch/sprint/limping slider values and preserves native action timing. Separate options
+walk/run/crouch/sprint/limping slider values and preserves native action timing. Separate options
 adjust weapon-action and movement sound durations, including draw/holster and
 overweight slowdown, without replacing game media. A separate 0–400% native idle-sway
 control also covers iron sights. An independent 0–100% firing-animation control

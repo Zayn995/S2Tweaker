@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.44.1:[/b] Native idle sway and firing movement now build and install on their own. Debug export includes the companion and readable settings under <mod_name>_cfg/AnimationSync. This small follow-up preserves the native companion and signed runtime; existing experimental limits remain.
+[b]New in 1.44.2 — Movement Animation & Sound Update:[/b] Walking, running, sprinting, crouched sneaking and low crouch now follow the selected factors with matching animations and movement sounds. Normal walk/run animation synchronization closes the previous gap. Enable both movement synchronization options and rebuild/reinstall the companion and profile. Brief Zone Kit checks passed; campaign testing remains open. About 52 KiB of original companion runtime; signed desktop binaries unchanged.
+
+[b]Included from 1.44.1:[/b] Native idle sway and firing movement now build and install on their own. Debug export includes the companion and readable settings under <mod_name>_cfg/AnimationSync. This small follow-up preserves the native companion and signed runtime; existing experimental limits remain.
 
 [b]Included from 1.44.0 — Animation & Sound Update (experimental):[/b] Optional native movement animation synchronization, pitch-preserving action and movement sounds, iron-sight idle sway (0–400%) and firing motion (0–100%). Fine values supported; all companion options start disabled. About 52 KiB of original companion runtime, no game media. Draw/holster speed is corrected and reload/jam controls include edition values. Short Zone Kit checks passed; packaged campaign behavior and every weapon/mod combination remain unverified.
 
@@ -39,10 +41,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.44.1): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.44.2): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.44.1, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.44.2, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -260,7 +262,7 @@ If the ~mods folder doesn't exist, create it.
 [*]After a game update: start the tool and confirm the game folder again - it detects the new version and re-reads the vanilla values automatically. Then rebuild your pak
 [*]If you already use single-purpose mods that change the same values (e.g. "carry weight 200"), remove them - this tool covers them and its pak loads last anyway
 [*]Weapon fire rate, spread and recoil live in game data shared with NPCs - NPCs using those weapons are affected too (noted in the app)
-[*]Optional native movement synchronization covers crouch/sprint/limping and preserves native action timing and overweight animation behavior. Independent movement sounds include native slowdown. Zone Kit checks passed; campaign behavior remains unverified. Audio mods occupying the same effect slots can conflict.
+[*]Optional native movement synchronization covers walk/run/crouch/low-crouch/sprint/limping and preserves native action timing and overweight animation behavior. Independent movement sounds include native slowdown. Zone Kit checks passed; campaign behavior remains unverified. Audio mods occupying the same effect slots can conflict.
 [*]AK sustained fire was checked in the Zone Kit. The new firing-motion control changes pose amplitude, not gunshot timing; recoil, camera shake and inertia remain separate. Extreme fire rates, unusual animation mods and all weapon families are not validated.
 [*]S2Tweaker.exe is the unmodified pythonw.exe from python.org, signed by the Python Software Foundation - that is why it shows the Python icon and Python's version info. The signature covers the starter; each linked scan report applies only to its exact file hash
 [*]Reading the game's packed config files needs Oodle's oo2core_9_win64.dll (0.6 MB). It is proprietary, cannot be shipped with the tool, and the game does not ship it as a separate file either (Oodle is compiled into the game's own executable). Since 1.19.1 the tool does NOT download it - a program that fetches a library and then runs it is exactly what malware does, and that is one reason scanners flag tools like this one. Instead a setup window walks you through getting it once, with pictures, and shows you where to put it. It takes a minute, and afterwards the tool never asks again. You may already have the file: every Unreal Engine installation ships it
@@ -269,6 +271,14 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.44.2 - Movement Animation & Sound Update[/b]
+[list]
+[*]Walking, running, sprinting, sneaking and low crouch follow the selected movement factors with matching animation and sound options.
+[*]Normal walk/run animation synchronization added using the existing crouch/sprint controller.
+[*]80% walking and 140% running checked with actual CFGs, body/shadow playback and matching footstep, backpack and clothing sound parameters.
+[*]Rebuild/reinstall the companion and profile. Campaign and arbitrary mod combinations remain unverified.
+[/list]
+
 [b]v1.44.1 - companion build and debug export fixes[/b]
 [list]
 [*]Native idle sway and firing-animation settings build/install without CFG changes.
@@ -276,6 +286,7 @@ If the ~mods folder doesn't exist, create it.
 [*]22 focused checks passed; existing experimental and GUI limits remain.
 [/list]
 
+[spoiler]
 [b]v1.44.0 - Animation & Sound Update (experimental)[/b]
 [list]
 [*]Optional native movement synchronization and independent pitch-preserving weapon-action and movement sounds.
@@ -289,7 +300,6 @@ If the ~mods folder doesn't exist, create it.
 [*]All 19 signed desktop runtime binaries unchanged. No new VirusTotal result claimed.
 [/list]
 
-[spoiler]
 [b]v1.43.0 - control compatibility and optional extended damage mercy[/b]
 [list]
 [*]NPC Search Time and Alertness write only their own changed fields, preserving each other's settings in separately named exports.

@@ -2,20 +2,30 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.44.1 - Companion build and debug export fixes
-File version:  1.44.1
+Name:          S2Tweaker 1.44.2 - Movement Animation & Sound Update: Walk, Run, Sprint & Sneak
+File version:  1.44.2
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Native idle sway and firing movement now build and install without CFG changes.
-Debug export includes the loose companion, numeric profile and readable parameters
-under <mod_name>_cfg/AnimationSync. Failed Pak builds retain installation rollback;
-debug errors do not fail successful builds. Companion and 19 signed runtime binaries
-unchanged. 22 focused checks passed; existing experimental and GUI limits remain.
+Walking, running, sprinting, crouched sneaking and low crouch now follow the
+selected movement factors with matching animations and movement sounds. Ordinary
+walk/run animation synchronization is added to the existing crouch/sprint path.
+Enable both movement synchronization options, then rebuild and reinstall the
+companion/profile. Short Zone Kit checks passed; campaign testing remains open.
+The original native companion is about 52 KiB; all 19 signed desktop binaries stay unchanged.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.44.2 - Movement Animation & Sound Update
+
+Walking, running, sprinting, crouched sneaking and low crouch now follow the
+selected movement factors with matching animations and movement sounds. Ordinary
+walk/run animation synchronization is added to the existing crouch/sprint path.
+Enable both movement synchronization options, then rebuild and reinstall the
+companion/profile. Short Zone Kit checks passed; campaign testing remains open.
+The original native companion is about 52 KiB; all 19 signed desktop binaries stay unchanged.
+
 1.44.1 - companion build and debug export fixes
 
 Native idle sway and firing movement now build and install without CFG changes.
