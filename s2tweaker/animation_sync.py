@@ -192,14 +192,10 @@ def installation_changes(settings, game_dir, save_dir=None, *, gd=None):
     return changes
 
 
-def export_changes(settings, out_pak, *, gd=None):
-    target = Path(out_pak).with_name(Path(out_pak).stem + "_AnimationSync.zip")
-    if target.exists():
-        with zipfile.ZipFile(target) as existing:
-            if json.loads(existing.read("S2Tweaker_AnimationSync.json")).get("format") != FORMAT:
-                raise ValueError("The companion export path contains a different archive.")
+def export_files(settings, out_pak, *, gd=None):
+    """Prepare the same companion files for portable and loose debug exports."""
     if not enabled(settings):
-        return {target: None} if target.exists() else {}
+        return {}
     files = runtime_files()
     files["Profile/" + PROFILE_SLOT + ".sav"] = profile_bytes(settings, gd)
     files["S2Tweaker_AnimationSync.json"] = json.dumps({
@@ -228,11 +224,56 @@ def export_changes(settings, out_pak, *, gd=None):
         "Other audio mods using the same effect slots can conflict. This is not\n"
         "a general fix for every animation/sound; campaign testing remains open.\n"
     ).encode("utf-8")
+    return files
+
+
+def export_changes(settings, out_pak, *, gd=None):
+    target = Path(out_pak).with_name(Path(out_pak).stem + "_AnimationSync.zip")
+    if target.exists():
+        with zipfile.ZipFile(target) as existing:
+            if json.loads(existing.read("S2Tweaker_AnimationSync.json")).get("format") != FORMAT:
+                raise ValueError("The companion export path contains a different archive.")
+    files = export_files(settings, out_pak, gd=gd)
+    if not files:
+        return {target: None} if target.exists() else {}
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, data in sorted(files.items()):
             archive.writestr(name, data)
     return {target: stream.getvalue()}
+
+
+def debug_changes(settings, out_pak, root, *, gd=None):
+    """Export loose companion files and decoded configuration beside CFG patches.
+
+    Clear known previous companion outputs when disabled, preserving unrelated
+    debug notes. No files from the installed game or campaign saves are read.
+    """
+    root = Path(root).resolve()
+    directory = root / "AnimationSync"
+    if directory.is_symlink() or not directory.resolve().is_relative_to(root):
+        raise ValueError("Companion debug output must remain inside the debug folder.")
+    marker = directory / "S2Tweaker_AnimationSync.json"
+    previous = set()
+    if marker.exists():
+        if json.loads(marker.read_text(encoding="utf-8")).get("format") != FORMAT:
+            raise ValueError("The companion debug folder contains a different export.")
+        previous = set(runtime_files()) | {
+            "S2Tweaker_AnimationSync.json", "README.txt",
+            "Profile/" + PROFILE_SLOT + ".sav", "Profile/" + PROFILE_SLOT + ".txt",
+        }
+    files = export_files(settings, out_pak, gd=gd)
+    if files:
+        profile = files["Profile/" + PROFILE_SLOT + ".sav"]
+        files["Profile/" + PROFILE_SLOT + ".txt"] = (parse(profile).payload + "\n").encode("utf-8")
+    changes = {}
+    for name in sorted(previous | set(files)):
+        target = directory.joinpath(*PurePosixPath(name).parts)
+        if target.is_symlink() or not target.resolve().is_relative_to(directory.resolve()):
+            raise ValueError("Companion debug file resolves outside its output folder.")
+        if name in files or target.exists():
+            changes[target] = files.get(name)
+    return changes
 
 
 @contextmanager

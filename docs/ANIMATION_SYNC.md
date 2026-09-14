@@ -10,6 +10,17 @@ a separate numeric profile. **Install to ~mods** installs both automatically.
 Close the game before installing and restart after changing settings. Use only
 one active S2Tweaker companion profile.
 
+Idle sway or firing-animation movement can also be built and installed on their
+own, without changing a CFG slider. In that case, the matching Pak contains the
+settings manifest; the actual effect comes from the companion and its profile.
+
+With **Debug export** enabled, the usual `<mod_name>_cfg` folder also contains an
+`AnimationSync` directory with the loose companion files, installation README,
+numeric `.sav` profile and a decoded `.txt` copy of that profile. The JSON manifest
+lists the profile parameters. These files come from the same generated bundle
+as the regular ZIP, including when using **Install to ~mods**. A subsequent debug
+export with the companion disabled clears its known previous debug files.
+
 The companion lives in `Stalker2/Mods/S2TRuntimeLab` inside the selected game
 installation. Its profile is
 `%LOCALAPPDATA%/Stalker2/Saved/SaveGames/S2Tweaker_AnimationProfile_v1.sav`.

@@ -11,7 +11,15 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.44.0 — ANIMATION & SOUND UPDATE (EXPERIMENTAL)
+NEW IN 1.44.1 — COMPANION BUILD AND DEBUG EXPORT FIXES
+----------------------------------------------------
+Native idle sway and firing movement now build and install without CFG changes.
+Debug export includes the loose companion, numeric profile and readable parameters
+under <mod_name>_cfg/AnimationSync. Failed Pak builds retain installation rollback;
+debug errors do not fail successful builds. Companion and 19 signed runtime binaries
+unchanged. 22 focused checks passed; existing experimental and GUI limits remain.
+
+INCLUDED FROM 1.44.0 — ANIMATION & SOUND UPDATE (EXPERIMENTAL)
 ------------------------------------------------------
 Optional native movement animations, pitch-preserving weapon-action and
 movement sounds, idle sway (0-400%) and firing motion (0-100%). New options start disabled; fine numeric values are supported.

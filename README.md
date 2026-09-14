@@ -11,6 +11,10 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.44.1 fixes companion-only builds and extends Debug export:** native sway and
+firing motion can be installed alone; debug output includes the companion and readable
+profile. [Release notes](release/NOTES_v1.44.1.md).
+
 **1.44.0 — Animation & Sound Update (experimental):** optional native movement and
 sound synchronization, idle sway and firing-pose controls. [Release notes](release/NOTES_v1.44.0.md).
 

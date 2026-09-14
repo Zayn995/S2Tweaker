@@ -8356,11 +8356,11 @@ class App(WorkbenchMixin, ctk.CTk):
                 "Everything is set to vanilla – nothing to patch.")
             return False
         patches = build_patches(self.gd, s)
-        # Input toggles write UserInput.ini rather than GameData and still count as output.
+        # Input toggles and native profiles can be effective without CFG patches.
         ini = input_ini(s)
         # Changed settings can produce no patch, e.g. zero baselines or unselected
         # weight categories. Reject empty output with an explanation before packing.
-        if not patches and ini is None:
+        if not patches and ini is None and not animation_sync.enabled(s):
             # Show only explanations relevant to the actual no-output cause.
             ammo_touched = bool(s.ammo_overrides) or any(
                 abs(v - 1.0) > 1e-9 for v in (
@@ -8401,9 +8401,13 @@ class App(WorkbenchMixin, ctk.CTk):
             try:
                 written = pakio.export_cfgs(patches, debug_root)
                 written.extend(pakio.export_root_files(extra_files, debug_root))
+                debug_companion = animation_sync.debug_changes(s, out_pak, debug_root, gd=self.gd)
+                with animation_sync.file_transaction(debug_companion):
+                    pass
+                written.extend(path for path, data in debug_companion.items() if data is not None)
                 debug_note += (f"\n\nDebug: {len(written)} generated files "
                               f"in\n{debug_root}")
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 debug_note += ("\n\nDebug export failed (the pak itself is "
                               f"fine): {exc}")
 

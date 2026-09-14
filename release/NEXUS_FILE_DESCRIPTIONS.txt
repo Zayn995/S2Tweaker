@@ -2,21 +2,28 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.44.0 - Animation & Sound Update (experimental)
-File version:  1.44.0
+Name:          S2Tweaker 1.44.1 - Companion build and debug export fixes
+File version:  1.44.1
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Optional native movement animations, pitch-preserving weapon-action and
-movement sounds, idle sway (0-400%) and firing motion (0-100%). New options start disabled; fine numeric values are supported.
-Draw/holster speed is corrected and reload/jam controls cover edition values.
-Short Zone Kit checks passed; packaged campaign behavior is NOT verified.
-The native companion adds about 52 KiB unpacked, with no original game media.
-All 19 signed desktop runtime binaries remain unchanged.
+Native idle sway and firing movement now build and install without CFG changes.
+Debug export includes the loose companion, numeric profile and readable parameters
+under <mod_name>_cfg/AnimationSync. Failed Pak builds retain installation rollback;
+debug errors do not fail successful builds. Companion and 19 signed runtime binaries
+unchanged. 22 focused checks passed; existing experimental and GUI limits remain.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.44.1 - companion build and debug export fixes
+
+Native idle sway and firing movement now build and install without CFG changes.
+Debug export includes the loose companion, numeric profile and readable parameters
+under <mod_name>_cfg/AnimationSync. Failed Pak builds retain installation rollback;
+debug errors do not fail successful builds. Companion and 19 signed runtime binaries
+unchanged. 22 focused checks passed; existing experimental and GUI limits remain.
+
 1.44.0 - Animation & Sound Update (experimental)
 
 Optional native movement animations, pitch-preserving weapon-action and
