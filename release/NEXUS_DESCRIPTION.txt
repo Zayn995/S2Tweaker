@@ -8,7 +8,7 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.44.0 — Animation & Sound Update (experimental):[/b] Optional native movement animation synchronization, pitch-preserving action and movement sounds, iron-sight idle sway (0–400%) and firing motion (0–100%). Fine values supported; all companion options start disabled. No UE4SS or player Zone Kit needed. About 52 KiB of original companion runtime, no game media. Draw/holster speed is corrected and reload/jam controls include edition values. Short Zone Kit checks passed; packaged campaign behavior and every weapon/mod combination remain unverified.
+[b]New in 1.44.0 — Animation & Sound Update (experimental):[/b] Optional native movement animation synchronization, pitch-preserving action and movement sounds, iron-sight idle sway (0–400%) and firing motion (0–100%). Fine values supported; all companion options start disabled. About 52 KiB of original companion runtime, no game media. Draw/holster speed is corrected and reload/jam controls include edition values. Short Zone Kit checks passed; packaged campaign behavior and every weapon/mod combination remain unverified.
 
 [b]Included from 1.43.0:[/b] Independent controls now write only changed fields, including NPC Search Time and Alertness. The wider audit fixes the same unnecessary overrides in flashlight, radiation, weapon jam, weather, encounter, artifact and detail settings. An optional experimental damage-mercy mode permits weights above 1.0; existing presets keep their cap. Rebuild affected Paks and give separate exports distinct mod names. Competing assignments to the same field still conflict. Generated output is tested; in-game confirmation remains open. No UE4SS.
 
@@ -269,7 +269,7 @@ If the ~mods folder doesn't exist, create it.
 
 [b]v1.44.0 - Animation & Sound Update (experimental)[/b]
 [list]
-[*]Optional native movement synchronization and independent pitch-preserving weapon-action and movement sounds; no UE4SS or player Zone Kit installation.
+[*]Optional native movement synchronization and independent pitch-preserving weapon-action and movement sounds.
 [*]Idle sway including iron sights: 0–400%. Firing-animation motion: 0–100%, 10% slider steps and fine numeric entry; reload/equip retain full weight.
 [*]Movement supports 5% steps/fine entry, limping and native overweight timing. Equipment audio follows installed individual/category/global values; unsupported or ambiguous factors report errors.
 [*]Draw/holster factors now scale native rates directly. Rebuild affected Paks and review presets. Reload/jam controls include explicit edition and auxiliary twin values without double-scaling inheritance.

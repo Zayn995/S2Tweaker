@@ -377,7 +377,7 @@ FAQ_ENTRIES = [
              "Exact magnitudes, every combination and inherited fake/quest "
              "protection still need game tests. Generate multiple additions to "
              "the same artifact together: separate Paks can compete for the same "
-             "new effect slot. No UE4SS is required.",
+             "new effect slot.",
         "k": "artifact add extra new bonus bonuses fire burn protection liquid "
              "stone additional effects strength carry stamina radiation",
     },
@@ -446,7 +446,7 @@ FAQ_ENTRIES = [
              "least one weather type above zero. Regional factors multiply global "
              "weather settings. Quest and forced weather can still override normal "
              "weather; this feature has not been play-tested. Disabled vanilla "
-             "weather is not enabled by these factors. No UE4SS is required.",
+             "weather is not enabled by these factors.",
         "k": "regional weather rain fog cloudy storm duration selection weight",
     },
     {
@@ -585,7 +585,7 @@ FAQ_ENTRIES = [
     {
         "q": "Why is there no bullet time / slow motion tweak?",
         "a": "An independent slow-motion hotkey needs runtime logic. Native "
-             "Blueprint mods can provide it without UE4SS, but this tool "
+             "Blueprint mods can provide it, but this tool "
              "does not include that feature. The quick-wheel time-speed "
              "setting only affects the item selector, not general gameplay.",
         "k": "bullet time slow motion slomo slowmo matrix ue4ss missing feature",
@@ -1103,7 +1103,7 @@ FAQ_ENTRIES = [
         "q": "Movement speed changes feel wrong or animations look broken",
         "a": "The Player page now offers 'Synchronize movement animations "
              "(experimental)'. Its small native companion adjusts crouch, "
-             "sprint and limping animations from exact slider values without UE4SS. "
+             "sprint and limping animations from exact slider values. "
              "Native overweight animation slowdown is preserved; the movement "
              "sound option includes it in sound duration. "
              "Movement and action alignment passed isolated Zone Kit tests; "

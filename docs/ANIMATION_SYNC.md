@@ -2,8 +2,7 @@
 
 Enable **Synchronize movement animations (experimental)** beside the movement
 sliders on the Player page. It uses the exact selected factors; 5% slider steps
-and finer numeric-entry values are supported. No UE4SS or Zone Kit is required
-on the user's PC.
+and finer numeric-entry values are supported.
 
 **Build pak** writes the ordinary CFG Pak and a matching `*_AnimationSync.zip`.
 The archive includes installation instructions, the small native companion and

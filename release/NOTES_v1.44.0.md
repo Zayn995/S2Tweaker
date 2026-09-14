@@ -2,8 +2,7 @@
 
 Optional controls now coordinate movement animations, weapon-action sounds and
 movement sounds with the selected settings. Separate controls adjust idle sway
-and firing-animation movement. **No UE4SS or Zone Kit installation is required
-for players.** All new companion options start disabled.
+and firing-animation movement. All new companion options start disabled.
 
 ## New options
 

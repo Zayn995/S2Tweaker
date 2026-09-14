@@ -4287,7 +4287,7 @@ class App(WorkbenchMixin, ctk.CTk):
                      "optional native companion below to adjust sprint and crouch "
                      "animations. Numeric entry also accepts values between slider steps.")
         self._check(f, "animation_sync", "Synchronize movement animations (experimental)",
-                    "Optional native companion; no UE4SS or Zone Kit required. "
+                    "Optional native companion. "
                     "Crouch, sprint and limping animations follow the movement sliders, "
                     "while active action montages retain native timing. Verified "
                     "in the Zone Kit test scene; campaign testing remains open. "
@@ -4297,7 +4297,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     "Exit the game first and restart after changing settings. "
                     "Use one active S2Tweaker companion profile.")
         self._check(f, "sound_sync", "Synchronize weapon action sounds (experimental)",
-                    "Optional native companion; no UE4SS or Zone Kit required. "
+                    "Optional native companion. "
                     "Adjusts supported reload, jam-clearing and draw/holster sound durations to "
                     "the corresponding speed sliders without changing pitch. "
                     "Supports 6.25% to 400%; weapon families are resolved from "
@@ -4311,7 +4311,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     "the walk/crouch, run/sprint and limping speed settings, independently "
                     "of reload sounds. Native overweight slowdown also contributes. "
                     "Native animation events still trigger the "
-                    "steps. No pitch shift, UE4SS or replacement sound files. "
+                    "steps. No pitch shift or replacement sound files. "
                     "Supports 6.25% to 400%. Uses the last effect slot in these "
                     "audio groups; other mods using that slot can conflict. "
                     "Install/export works through the same native companion. "
@@ -5447,7 +5447,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._check(f, "weapon_sway_sync", "Adjust weapon idle sway with native companion",
                     "Controls visible idle sway, including iron sights. Requires "
                     "the optional native companion, installed/exported with your pak. "
-                    "No UE4SS. The scoped-effect slider remains separate; this does "
+                    "The scoped-effect slider remains separate; this does "
                     "not change recoil, shot dispersion or walking weapon bob.")
         self._slider(f, "weapon_sway", "Weapon idle sway (native companion)", 0, 400, 5, 100, fmt_pct,
                      "100 % preserves native sway; 50 % halves its amplitude; "
@@ -5457,7 +5457,7 @@ class App(WorkbenchMixin, ctk.CTk):
                      "and combinations with other animation mods are unverified.")
         self._check(f, "weapon_shot_sync", "Adjust firing animation with native companion",
                     "Reduces visible firing movement using the optional native companion. "
-                    "No UE4SS. Independent of recoil, bullet dispersion and camera shake.")
+                    "Independent of recoil, bullet dispersion and camera shake.")
         self._slider(f, "weapon_shot", "Firing animation movement (native companion)", 0, 100, 10, 100, fmt_pct,
                      "100 % preserves the original firing pose; lower values blend toward "
                      "the pose without the firing montage. 0 % suppresses that contribution, "

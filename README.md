@@ -12,8 +12,7 @@ Everyone is free to use it. This README tells you everything you need.
 ## What it does
 
 **1.44.0 — Animation & Sound Update (experimental):** optional native movement and
-sound synchronization, idle sway and firing-pose controls. No UE4SS or player
-Zone Kit installation required. [Release notes](release/NOTES_v1.44.0.md).
+sound synchronization, idle sway and firing-pose controls. [Release notes](release/NOTES_v1.44.0.md).
 
 **Experimental A-Life distance:** the grid slider has no verified safe range.
 Keep a separate save from before testing; removing a Pak does not reverse saved
@@ -41,7 +40,7 @@ unchanged. [Release notes](release/NOTES_v1.42.0.md).
 [data-only detail options](docs/DETAIL_OPTIONS.md): special artifacts, individual
 medicine/buffs and weapon item values, weather senses, camp activities,
 grenade budgets, selective helmets, upgrade bonuses and passive scanners.
-These detail options require no UE4SS or Dev Kit. See the linked guide for
+See the linked guide for
 supported values and gameplay limits.
 
 Version 1.44.0 includes an optional
@@ -51,8 +50,7 @@ adjust weapon-action and movement sound durations, including draw/holster and
 overweight slowdown, without replacing game media. A separate 0–400% native idle-sway
 control also covers iron sights. An independent 0–100% firing-animation control
 reduces native shooting pose movement while retaining reload and equip animations.
-Camera shake and weapon inertia remain separate. The small
-companion requires neither UE4SS nor the Zone Kit on the user's PC. Isolated
+Camera shake and weapon inertia remain separate. Isolated
 Zone Kit gameplay tests passed; packaged campaign validation remains open.
 
 **1.40.1 adds repairs for job texts and return markers.**
@@ -66,7 +64,7 @@ Version 1.40.0 includes an experimental
 [NPC equipment editor by faction and player progression](docs/NPC_EQUIPMENT.md).
 Choose ordinary faction/role profiles in World and adjust existing weapon,
 pistol and body-armor choices within their native rank and difficulty groups.
-This addition has not been play-tested; it needs no UE4SS.
+This addition has not been play-tested.
 
 Version 1.40.0 also adds [extra artifact bonuses](docs/ARTIFACT_EDITOR.md)
 (for example fire protection on Liquid Stone) and optional strength labels.
@@ -76,13 +74,13 @@ native [journal translations](docs/REPEATABLE_JOBS_REPAIR.md) for every installe
 language and reapplies remaining ready-to-return markers; his 12 September
 follow-up reports success for the tested quest text and marker case. Wider game
 checks remain open. Translation files enlarge the generated pak and conflict with other mods
-replacing those files. No UE4SS is required.
+replacing those files.
 
 Version 1.39.0 adds an [artifact editor and related settings](docs/ARTIFACT_EDITOR.md):
 individual artifact values and bonuses, separate detector radii, Weird Ball
 parameters, moving-anomaly speed/pursuit, and rank-based rarity weights.
 Open World → Artifact editor & related settings. These additions are experimental,
-have not been play-tested and require no UE4SS. See the guide for native radiation tiers and shared quest placements.
+have not been play-tested. See the guide for native radiation tiers and shared quest placements.
 
 Version 1.39.0 also adds **Maximum talk distance only** for [issue #10](https://github.com/Zayn995/S2Tweaker/issues/10).
 In Vaulting → Interaction reach, leave the existing minimum/maximum control at
@@ -93,7 +91,7 @@ the minimum. Old profiles keep their behavior. The new setting is not play-teste
 Version 1.38.0 adds [regional weather controls](docs/REGIONAL_WEATHER.md):
 selection weights and duration for 18 regions, using the installed game's values.
 Open World → Regional weather to choose a region. These experimental controls
-have not been play-tested; they require no UE4SS.
+have not been play-tested.
 
 Version 1.37.4 repairs game-data loading after game patch **2.0.5**. It reads
 binary cfg formats 1 and 2, rebuilds the cache once, and names the affected

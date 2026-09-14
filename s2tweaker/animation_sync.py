@@ -207,7 +207,7 @@ def export_changes(settings, out_pak, *, gd=None):
     }, indent=2).encode("utf-8")
     files["README.txt"] = (
         "S2Tweaker native animation and sound companion (experimental)\n\n"
-        "No UE4SS or Zone Kit is required. Windows PC only.\n"
+        "Windows PC only.\n"
         "Exit the game before installation; restart it after changing the profile.\n"
         "1. Copy Stalker2 into the game installation directory.\n"
         "2. Copy Profile/" + PROFILE_SLOT + ".sav into\n"

@@ -14,8 +14,7 @@ Traders.
 NEW IN 1.44.0 — ANIMATION & SOUND UPDATE (EXPERIMENTAL)
 ------------------------------------------------------
 Optional native movement animations, pitch-preserving weapon-action and
-movement sounds, idle sway (0-400%) and firing motion (0-100%). No UE4SS or player
-Zone Kit needed. New options start disabled; fine numeric values are supported.
+movement sounds, idle sway (0-400%) and firing motion (0-100%). New options start disabled; fine numeric values are supported.
 Draw/holster speed is corrected and reload/jam controls cover edition values.
 Short Zone Kit checks passed; packaged campaign behavior is NOT verified.
 The native companion adds about 52 KiB unpacked, with no original game media.
