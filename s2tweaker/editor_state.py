@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 
 GROUPS = ("sliders", "checks", "cats", "weapon_overrides", "weapon_calibers",
+          "weapon_fire_modes", "weapon_ammo_types",
           "ammo_overrides", "scope_overrides", "armor_overrides",
           "mutant_overrides", "faction_relations", "armor_custom")
 OVERRIDES = {"weapon_overrides", "ammo_overrides", "scope_overrides",
@@ -55,8 +56,11 @@ def state_only(data):
                 raise ValueError(f"Invalid setting path in {group}")
             if group in ("checks", "cats"):
                 valid = isinstance(leaf, bool) or type(leaf) is int and leaf in (0, 1)
-            elif group == "weapon_calibers":
+            elif group in ("weapon_calibers", "weapon_fire_modes", "weapon_ammo_types"):
                 valid = isinstance(leaf, str) and 0 < len(leaf) < 100
+                if valid and group != "weapon_calibers":
+                    from .weapon_choices import decode, FIRE_LABELS, AMMO_LABELS
+                    valid = bool(decode(leaf, FIRE_LABELS if group == "weapon_fire_modes" else AMMO_LABELS))
             else:
                 valid = type(leaf) in (int, float) and math.isfinite(leaf)
             if not valid:

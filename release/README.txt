@@ -11,7 +11,16 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.44.2 — MOVEMENT ANIMATION & SOUND UPDATE
+NEW IN 1.45.0 — WEAPON FIRE MODES, AMMO TYPES & COMPATIBILITY FIXES
+----------------------------------------------------
+Per-weapon Single, Burst and Auto combinations, plus allowed ammunition types
+for the selected caliber. New options are experimental and not play-tested.
+Corrected weapon-class lookup for restricted pistol-slot selections and improved
+mod-scan detection of inventory/slot overrides. OXA Standard All weapons is
+player-confirmed; restricted modes, the exact OXA inventory conflict and OXA
+Prototype remain unverified. All 19 signed runtime binaries are unchanged.
+
+INCLUDED FROM 1.44.2 — MOVEMENT ANIMATION & SOUND UPDATE
 ----------------------------------------------------
 Walking, running, sprinting, crouched sneaking and low crouch now follow the
 selected movement factors with matching animations and movement sounds. Ordinary

@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.45.0 — Weapon Fire Modes, Ammo Types & Compatibility Fixes:** experimental
+per-weapon fire-mode and ammunition-type selections, corrected sidearm weapon
+classification, and improved overhaul conflict warnings.
+[Release notes](release/NOTES_v1.45.0.md) · [Scope and test limits](docs/WEAPON_MODES_AND_AMMO_TYPES.md).
+
 **1.44.2 — Movement Animation & Sound Update:** walking, running, sprinting,
 crouched sneaking and low crouch follow the selected factors with matching
 animations and movement sounds. Enable both movement synchronization options

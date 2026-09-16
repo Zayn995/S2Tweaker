@@ -5,6 +5,39 @@ Keywords include synonyms and common spelling variants for feature discovery."""
 
 FAQ_ENTRIES = [
     {
+        "q": "Can I select firing modes and ammunition types for each weapon?",
+        "a": "Open a weapon in the Weapons editor. Fire modes offers Single, Burst, "
+             "Auto and combinations; the separate ammunition-type menu selects "
+             "existing Standard, Armor-piercing, Expanding or Supersonic rounds "
+             "for the selected caliber. Burst retains the native burst length, "
+             "or uses the most common burst length found in the installed "
+             "weapon definitions. Vanilla removes the override. Changing caliber "
+             "resets an incompatible type selection. No new ammunition is created. "
+             "These options are experimental: shared setups also affect NPCs, "
+             "mechanical bolt/pump cycles are unchanged, and the animation and "
+             "sound support of newly enabled modes is not verified. Re-equip an "
+             "unloaded weapon after changing them. The mod scan reports potential "
+             "conflicts, but Avoid conflicts does not lock these dropdowns.",
+        "k": "weapon fire mode single semi automatic full auto burst queue ammo "
+             "ammunition types regular standard armor piercing expanding expansive supersonic",
+    },
+    {
+        "q": "Does the sidearm slot work with OXA, and why did inventory sizes reset?",
+        "a": "Molkerr reports All weapons working with OXA Standard, but SMG and "
+             "SMG + shotgun only partly working. A weapon-class lookup error has "
+             "been corrected; the corrected restricted options still need an OXA "
+             "test. OXA Prototype is untested. The inventory comparison may use "
+             "only the pistol-slot weapon. Separately, an OXA Standard update "
+             "reportedly restored Arev and Fora230 inventory dimensions. Both "
+             "weapons are covered by our size patches. Full item definitions can "
+             "overwrite dimensions or slots even when they repeat vanilla values; "
+             "the scanner now flags these assignments. Rescan after updating other "
+             "mods. A warning detects overlap; it does not merge mods or establish "
+             "which values the game actually loaded.",
+        "k": "oxa standard prototype sidearm pistol slot smg shotgun inventory "
+             "icon size arev fora230 conflict compatibility vanilla overwrite",
+    },
+    {
         "q": "Can NPC search time and alertness use separate Paks?",
         "a": "The current development generator writes separate fields: alertness "
              "changes reaction thresholds, while search time changes memory freeze "

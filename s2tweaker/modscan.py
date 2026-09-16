@@ -33,6 +33,9 @@ PACKED_NO_CFG_NOTE = ("no config overrides in its .pak part - its packed "
 
 _INDEX_KEY = re.compile(r"^\[\d+\]$")
 _EFFECT_LISTS = frozenset({"EffectPrototypeSIDs", "ShouldShowEffects"})
+# Full item definitions can restore these leaves to vanilla after a tweak.
+# Keep them visible even when the mod's value equals the installed baseline.
+_ITEM_OVERRIDE_LEAVES = frozenset({"ItemGridWidth", "ItemGridHeight", "ItemSlotType"})
 EFFECT_LIST_LEAF = "@effect-list"
 
 
@@ -342,8 +345,14 @@ def collect_pairs(root: CfgStruct,
                          and "bpatch" not in attrs)
         effect_nodes = {id(top.children[key]) for key in _EFFECT_LISTS
                         if key in top.children}
+        for key in ("FireTypes", "AmmoTypeProjectiles"):
+            if key in top.children or key in top.values:
+                pairs.update((name, "@" + key) for name in names)
+        fire_node = top.children.get("FireTypes")
         for node in top.walk():
             for key, value in node.values.items():
+                if node is fire_node and _INDEX_KEY.fullmatch(key):
+                    continue
                 if (id(node) in effect_nodes
                         and (key == "[*]" or _INDEX_KEY.fullmatch(key))):
                     # Bare array indices lose the list identity and make
@@ -358,7 +367,8 @@ def collect_pairs(root: CfgStruct,
                     vals = vanilla_index.get((own, key))
                     if vals is None and refkey in names:
                         vals = vanilla_index.get((refkey, key))
-                    if vals is not None and _norm_value(value) in vals:
+                    if (vals is not None and _norm_value(value) in vals
+                            and not (node is top and key in _ITEM_OVERRIDE_LEAVES)):
                         continue         # Whole-file copy repeats vanilla values.
                 for name in names:
                     pairs.add((name, key))

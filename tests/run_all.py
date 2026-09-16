@@ -17,6 +17,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_weapon_choices.py",
+    "test_gui_weapon_choices.py",
     "test_animation_sync.py",
     "test_companion_generation.py",
     "test_sound_sync.py",

@@ -21,7 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
-from . import extension_controls, regional_weather, artifact_extensions, npc_equipment, detail_controls
+from . import extension_controls, regional_weather, artifact_extensions, npc_equipment, detail_controls, weapon_choices
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions, animation_sync
 from .tweaks import (
@@ -1141,6 +1141,9 @@ class IwWeaponRow:
         self.sliders: dict[str, SliderRow] = {}
         self.cal_menu = None                   # Caliber dropdown (issue #6).
         self.cal_warn = None                   # Warning line below it.
+        self.choice_menus = {}
+        self.choice_values = {}
+        self.choice_warn = None
         self._cal_vanilla = None
         self._cal_values: list[str] = []
         self._cal_labels: list[str] = []
@@ -1196,6 +1199,7 @@ class IwWeaponRow:
                 font=self.app._iw_font_hint, text_color=MUTED,
             ).pack(fill="x", padx=12, pady=(2, 0))
         self._build_caliber_row()
+        self._build_choice_rows()
         # Preserve the existing construction lock: SliderRow initialization invokes
         # change callbacks, which must not overwrite saved values with a partial row.
         prev = self.app._iw_loading
@@ -1250,7 +1254,7 @@ class IwWeaponRow:
         self._cal_labels = labels
         row = ctk.CTkFrame(self.body, fg_color="transparent")
         row.pack(fill="x", padx=12, pady=(4, 0))
-        ctk.CTkLabel(row, text="Ammunition", width=260, anchor="w",
+        ctk.CTkLabel(row, text="Ammunition caliber", width=260, anchor="w",
                      font=self.app._iw_font_row).pack(side="left")
         self.cal_menu = ctk.CTkOptionMenu(
             row, values=labels, width=230, command=self._caliber_changed)
@@ -1287,6 +1291,9 @@ class IwWeaponRow:
             self.app.weapon_calibers[self.sid] = wanted
         else:
             self.app.weapon_calibers.pop(self.sid, None)
+        self.app.weapon_ammo_types = weapon_choices.clean(
+            self.app.gd, self.app.weapon_ammo_types, "weapon_ammo_types", self.app.weapon_calibers)
+        self._refresh_choice_rows()
         self._refresh_caliber_warning()
         self.refresh()
         self.app._iw_after_change(self.cat)
@@ -1299,6 +1306,70 @@ class IwWeaponRow:
         if chosen and self.app.gd is not None:
             text = caliber_warning(self.app.gd, self._cal_vanilla, chosen)
         self.cal_warn.configure(text=("   " + text) if text else "")
+
+    def _build_choice_rows(self):
+        for group, title in (("weapon_fire_modes", "Fire modes (experimental)"),
+                             ("weapon_ammo_types", "Allowed ammunition types (experimental)")):
+            if not weapon_choices.options(self.app.gd, self.sid, group):
+                continue
+            row = ctk.CTkFrame(self.body, fg_color="transparent")
+            row.pack(fill="x", padx=12, pady=(4, 0))
+            ctk.CTkLabel(row, text=title, width=300, anchor="w",
+                        font=self.app._iw_font_row).pack(side="left")
+            menu = ctk.CTkOptionMenu(row, values=["Vanilla"], width=290,
+                                   command=lambda value, g=group: self._choice_changed(g, value))
+            menu.pack(side="left")
+            self.choice_menus[group] = menu
+        if self.choice_menus:
+            count = weapon_choices.burst_count(self.app.gd, self.sid, self.app._iw_dlc.get(self.sid))
+            note = ("Select one mode/type or a combination. Vanilla leaves the installed list unchanged. "
+                    "Changing caliber resets an incompatible ammunition-type selection. "
+                    "Only existing ammunition is offered; this does not create new rounds. "
+                    "Re-equip an unloaded weapon after changing these options. Shared setups also affect NPCs. "
+                    "Bolt/pump cycles, animations and sound assets are unchanged; newly enabled modes may not "
+                    "work on every weapon. Not play-tested yet.")
+            if count:
+                note += f" Burst uses {count} rounds from the installed weapon data."
+            ctk.CTkLabel(self.body, text="   " + note, anchor="w", justify="left", wraplength=700,
+                        font=self.app._iw_font_hint, text_color=MUTED).pack(fill="x", padx=12, pady=(2, 4))
+            self.choice_warn = ctk.CTkLabel(self.body, text="", anchor="w", justify="left", wraplength=700,
+                                          font=self.app._iw_font_hint, text_color=MARK_WARN)
+            self.choice_warn.pack(fill="x", padx=12)
+        self._refresh_choice_rows()
+
+    def _refresh_choice_rows(self):
+        for group, menu in self.choice_menus.items():
+            labels = weapon_choices.FIRE_LABELS if group == "weapon_fire_modes" else weapon_choices.AMMO_LABELS
+            default = weapon_choices.baseline(self.app.gd, self.sid, group)
+            options = weapon_choices.options(self.app.gd, self.sid, group, self.app.weapon_calibers.get(self.sid))
+            values = {f"Vanilla ({weapon_choices.label(default, labels)})": ""}
+            values.update({title: value for value, title in options.items() if value != default})
+            self.choice_values[group] = values
+            menu.configure(values=list(values))
+            chosen = getattr(self.app, group).get(self.sid, "")
+            menu.set(next((title for title, value in values.items() if value == chosen), next(iter(values))))
+        if self.choice_warn is not None:
+            pairs = set()
+            for group in self.choice_menus:
+                if self.sid in getattr(self.app, group):
+                    pairs |= weapon_choices.footprint(self.app.gd, self.sid, group)
+            mods = sorted({info.name for info in self.app.modscan_results if info.pairs & pairs})
+            self.choice_warn.configure(text=("   Potential mode/ammo conflict: " + ", ".join(mods)
+                + ". These dropdowns are not locked by Avoid conflicts; reset them to Vanilla to remove your override.") if mods else "")
+
+    def _choice_changed(self, group, title):
+        if self.app._iw_loading:
+            return
+        self.app._iw_auto_opened.discard(self.cat)
+        value = self.choice_values[group].get(title, "")
+        target = getattr(self.app, group)
+        if value:
+            target[self.sid] = value
+        else:
+            target.pop(self.sid, None)
+        self._refresh_choice_rows()
+        self.refresh()
+        self.app._iw_after_change(self.cat)
 
     def toggle(self):
         # Manual interaction takes ownership of expansion state from search.
@@ -1316,6 +1387,7 @@ class IwWeaponRow:
     # ------------------------------------------------------------- Values
     def load_values(self):
         """Apply weapon_overrides to sliders without _changed writing them back."""
+        self._refresh_choice_rows()
         if self.cal_menu is not None:
             chosen = self.app.weapon_calibers.get(self.sid, "")
             prev = self.app._iw_loading
@@ -1355,6 +1427,8 @@ class IwWeaponRow:
     def reset(self):
         self.app.weapon_overrides.pop(self.sid, None)
         self.app.weapon_calibers.pop(self.sid, None)
+        for group in weapon_choices.GROUPS:
+            getattr(self.app, group).pop(self.sid, None)
         self.load_values()
         self.app._iw_after_change(self.cat)
 
@@ -1370,8 +1444,11 @@ class IwWeaponRow:
             # Show caliber changes separately from factor counts, including when collapsed.
             mark += (f"     ●  {caliber_label(cal)}" if mark
                      else f"     ●  {caliber_label(cal)}")
+        choices = sum(self.sid in getattr(self.app, group) for group in weapon_choices.GROUPS)
+        if choices:
+            mark += f"     ●  {choices} mode/ammo selections"
         self.btn.configure(text=f"{arrow}  {weapon_display(self.sid)}{mark}")
-        self._apply_color(n or (1 if cal else 0))
+        self._apply_color(n or cal or choices)
 
     def _apply_color(self, n: int):
         """Display precedence: dimmed > search match > existing overrides."""
@@ -1386,7 +1463,8 @@ class IwWeaponRow:
     def set_highlight(self, mode: str):
         self._highlight = mode
         self._apply_color(len(self.app.weapon_overrides.get(self.sid, {}))
-                          or (1 if self.app.weapon_calibers.get(self.sid) else 0))
+                          or (1 if self.app.weapon_calibers.get(self.sid) else 0)
+                          or any(self.sid in getattr(self.app, g) for g in weapon_choices.GROUPS))
 
     def set_state(self, state: str):
         # Skip unchanged state to avoid refreshing every expanded weapon control.
@@ -1398,6 +1476,8 @@ class IwWeaponRow:
             self.reset_btn.configure(state=state)
         if self.cal_menu is not None:
             self.cal_menu.configure(state=state)
+        for menu in self.choice_menus.values():
+            menu.configure(state=state)
         for row in self.sliders.values():
             row.set_state(state)
 
@@ -1485,7 +1565,8 @@ class IwCategoryBlock:
         # Caliber changes count as overridden weapons in category totals.
         n_over = sum(1 for sid in self.sids
                      if sid in self.app.weapon_overrides
-                     or sid in self.app.weapon_calibers)
+                     or sid in self.app.weapon_calibers
+                     or any(sid in getattr(self.app, g) for g in weapon_choices.GROUPS))
         arrow = "▾" if self.expanded else "▸"
         extra = (f"     ●  {n_over} of {len(self.sids)} overridden"
                  if n_over else "")
@@ -2693,6 +2774,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self._iw_setup_users: dict[str, int] = {}      # Items per setup, including NPC counterparts.
         # Per-weapon caliber names are stored separately from numeric factor overrides.
         self.weapon_calibers: dict[str, str] = {}
+        self.weapon_fire_modes: dict[str, str] = {}
+        self.weapon_ammo_types: dict[str, str] = {}
         self._iw_blocks: dict[str, IwCategoryBlock] = {}
         self._iw_auto_opened: set[str] = set()     # Expanded by search.
         # Weapon-category buttons: {category: (button, label, color)}.
@@ -3255,6 +3338,8 @@ class App(WorkbenchMixin, ctk.CTk):
             sid: cal for sid, cal in self.weapon_calibers.items()
             if sid in self._iw_categories and cal in self._iw_caliber_options
         }
+        for group in weapon_choices.GROUPS:
+            setattr(self, group, weapon_choices.clean(self.gd, getattr(self, group), group, self.weapon_calibers))
         self._iw_build_tree()
 
     def _iw_build_tree(self):
@@ -3297,7 +3382,8 @@ class App(WorkbenchMixin, ctk.CTk):
         self._iw_update_info()
 
     def _iw_update_info(self):
-        namen = sorted(set(self.weapon_overrides) | set(self.weapon_calibers))
+        namen = sorted(set(self.weapon_overrides) | set(self.weapon_calibers)
+                       | set(self.weapon_fire_modes) | set(self.weapon_ammo_types))
         if namen:
             text = "Overrides set for: " + ", ".join(namen)
         else:
@@ -3315,6 +3401,8 @@ class App(WorkbenchMixin, ctk.CTk):
     def _iw_clear_all(self):
         self.weapon_overrides.clear()
         self.weapon_calibers.clear()
+        self.weapon_fire_modes.clear()
+        self.weapon_ammo_types.clear()
         self._iw_refresh_all()
 
     def _iw_note(self, block, cat_hit: bool, sid_hits: list, hits) -> None:
@@ -4688,7 +4776,10 @@ class App(WorkbenchMixin, ctk.CTk):
                      "small things up to 6x3 for a rifle). 50 % roughly "
                      "halves every footprint; nothing ever drops below one "
                      "cell. Whole cells only, so small items may not change "
-                     "at all. Not play-tested yet.")
+                     "at all. OXA Standard can override Arev/Fora230 sizes, according "
+                     "to a player report. Run the mod scan after updating an overhaul; "
+                     "full item definitions may restore vanilla dimensions. Scan warnings "
+                     "do not merge conflicting mods automatically.")
         self._slider(f, "inv_action", "Inventory action speed", 25, 400, 5, 100,
                      fmt_pct,
                      "How long using something from the inventory takes "
@@ -5668,15 +5759,15 @@ class App(WorkbenchMixin, ctk.CTk):
                      "Lets SMGs, shotguns or any weapon sit in the sidearm "
                      "slot; the two main slots keep taking every weapon. The "
                      "'SMG in pistol slot' and 'Any weapon as sidearm' mods. "
-                     "Not play-tested yet.")
+                     "Molkerr reports 'All weapons' working with OXA Standard. "
+                     "The restricted selections and other OXA editions are not confirmed.")
         ctk.CTkLabel(
-            f, text="   \u26a0 Compatibility: NOT compatible with OXA (it redefines "
-                    "the weapons) and it conflicts with any mod that patches "
-                    "the same weapon entries (Better Ballistics and the like; "
-                    "the mod scan will tell you). Known quirks from the Nexus "
-                    "mods: the stat comparison then always compares against "
-                    "the sidearm-slot weapon, and long guns are still held "
-                    "two-handed.",
+            f, text="   \u26a0 OXA Standard: 'All weapons' reported working by Molkerr. "
+                    "'SMG' and 'SMG + shotgun' were reported only partly working. "
+                    "Weapon-class lookup has been corrected; that fix still needs an OXA test. "
+                    "OXA Prototype is untested. Mods redefining the same item slots can conflict. "
+                    "Known limitation: inventory stats may compare only with the sidearm-slot "
+                    "weapon; long guns remain two-handed.",
             anchor="w", justify="left", wraplength=780,
             font=ctk.CTkFont(size=12), text_color="#E0A040").pack(fill="x", padx=12)
         ctk.CTkLabel(f, text="", height=2).pack()
@@ -7125,6 +7216,8 @@ class App(WorkbenchMixin, ctk.CTk):
             weapon_overrides={sid: dict(v)
                               for sid, v in self.weapon_overrides.items()},
             weapon_calibers=dict(self.weapon_calibers),
+            weapon_fire_modes=dict(self.weapon_fire_modes),
+            weapon_ammo_types=dict(self.weapon_ammo_types),
             ammo_overrides={sid: dict(v)
                             for sid, v in self.ammo_overrides.items()},
             armor_overrides={sid: dict(v)
@@ -7443,7 +7536,8 @@ class App(WorkbenchMixin, ctk.CTk):
             box.configure(text_color=(
                 "gray45" if bool(box.get()) else "gray95"))
         for blocks, overrides in (
-                (self._iw_blocks, self.weapon_overrides),
+                (self._iw_blocks, {**self.weapon_overrides, **self.weapon_calibers,
+                                   **self.weapon_fire_modes, **self.weapon_ammo_types}),
                 (self._ia_blocks, self.ammo_overrides),
                 (self._ir_blocks, {**self.armor_overrides, **self.armor_custom}),
                 (self._if_blocks, self.faction_relations),
@@ -7688,6 +7782,14 @@ class App(WorkbenchMixin, ctk.CTk):
         mods = [info.name for info in infos if info.pairs & self._footprints[key]]
         if mods:
             conflicts[key] = mods
+        key = "tree:weapon_choices"
+        if key not in self._footprints:
+            self._footprints[key] = set().union(*(
+                weapon_choices.footprint(gd, sid, group)
+                for sid in gd.player_weapons() for group in weapon_choices.GROUPS))
+        mods = [info.name for info in infos if info.pairs & self._footprints[key]]
+        if mods:
+            conflicts[key] = mods
         return conflicts
 
     def _faction_tree_footprint(self, gd) -> set:
@@ -7750,6 +7852,9 @@ class App(WorkbenchMixin, ctk.CTk):
                              self._mods_unknown)
         self._if_update_conflict_note()
         self._ir_update_conflict_note()
+        for block in self._iw_blocks.values():
+            for row in block.rows.values():
+                row._refresh_choice_rows()
         self._apply_conflict_locks()
         self._refresh_check_dots()
 
@@ -7916,6 +8021,8 @@ class App(WorkbenchMixin, ctk.CTk):
                 labels.append("Faction relations (Factions tab)")
             elif key == "tree:armor_custom":
                 labels.append("Additional per-armor settings (Armor tab)")
+            elif key == "tree:weapon_choices":
+                labels.append("Per-weapon fire modes and ammunition types (Weapons tab)")
             elif key in self.sliders:
                 labels.append(str(self.sliders[key].label.cget("text")))
         return labels
@@ -7974,6 +8081,8 @@ class App(WorkbenchMixin, ctk.CTk):
                     label = "Faction relations (Factions tab)"
                 elif key == "tree:armor_custom":
                     label = "Additional per-armor settings (Armor tab)"
+                elif key == "tree:weapon_choices":
+                    label = "Per-weapon fire modes and ammunition types (Weapons tab)"
                 else:
                     row = self.sliders.get(key)
                     label = str(row.label.cget("text")) if row else key
@@ -8135,6 +8244,8 @@ class App(WorkbenchMixin, ctk.CTk):
             "cats": {k: bool(v.get()) for k, v in self.cat_checks.items()},
             "weapon_overrides": self.weapon_overrides,
             "weapon_calibers": self.weapon_calibers,
+            "weapon_fire_modes": self.weapon_fire_modes,
+            "weapon_ammo_types": self.weapon_ammo_types,
             "ammo_overrides": self.ammo_overrides,
             "scope_overrides": self.scope_overrides,
             "armor_overrides": self.armor_overrides,
@@ -8277,6 +8388,9 @@ class App(WorkbenchMixin, ctk.CTk):
             if self._iw_caliber and self._iw_caliber.get(sid) == caliber:
                 continue                      # Matches vanilla.
             self.weapon_calibers[sid] = caliber
+        for group in weapon_choices.GROUPS:
+            getattr(self, group).update(weapon_choices.clean(
+                self.gd, data.get(group, {}), group, self.weapon_calibers))
         for species, params in (data.get("mutant_overrides") or {}).items():
             try:
                 clean = {p: float(v) for p, v in params.items()

@@ -11,11 +11,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions, npc_equipment, detail_controls
+from . import editor_state as state, mod_library, theme, armor_extensions, regional_weather, artifact_extensions, npc_equipment, detail_controls, weapon_choices
 
 OVERVIEW_PAGE_SIZE = 20
 
 TREE_TABS = {"weapon_overrides": "Weapons", "weapon_calibers": "Weapons",
+             "weapon_fire_modes": "Weapons", "weapon_ammo_types": "Weapons",
              "ammo_overrides": "Ammo", "scope_overrides": "Upgrades",
              "armor_overrides": "Armor", "armor_custom": "Armor", "mutant_overrides": "Mutants",
              "faction_relations": "Factions", "cats": "Weight & items"}
@@ -316,7 +317,7 @@ class WorkbenchMixin:
         if group == "cats":
             return "Weight category: " + key, "Weight & items", ""
         label = key
-        if group in ("weapon_overrides", "weapon_calibers"):
+        if group in ("weapon_overrides", "weapon_calibers", *weapon_choices.GROUPS):
             label = ui().weapon_display(key)
         elif group == "faction_relations":
             label = self._if_labels.get(key, key)
@@ -327,6 +328,9 @@ class WorkbenchMixin:
             label += " · " + (spec.label if spec else param[0].replace("_", " "))
         elif group == "weapon_calibers":
             label += " · caliber"
+        elif group in weapon_choices.GROUPS:
+            label += " · " + ("fire modes" if group == "weapon_fire_modes" else "allowed ammunition types")
+            return label, "Weapons", "Experimental. Edit combinations in the per-weapon editor. Shared setups affect NPCs; not play-tested."
         return label, TREE_TABS.get(group, "Player"), ""
 
     def _wb_neutral(self, path):
@@ -339,6 +343,8 @@ class WorkbenchMixin:
             return self._if_vanilla.get(key)
         if group == "weapon_calibers":
             return self._iw_caliber.get(key)
+        if group in weapon_choices.GROUPS:
+            return weapon_choices.baseline(self.gd, key, group) if self.gd else None
         return self._wb_defaults.get(group, {}).get(key)
 
     def _wb_catalog(self):
@@ -681,6 +687,18 @@ class WorkbenchMixin:
                 box.select() if enabled else box.deselect()
                 if group == "checks":
                     self._update_check_dot(key)
+            elif group in weapon_choices.GROUPS:
+                wanted = text.strip()
+                options = weapon_choices.options(self.gd, key, group, self.weapon_calibers.get(key))
+                wanted = next((value for value, title in options.items() if title.casefold() == wanted.casefold()), wanted)
+                default = weapon_choices.baseline(self.gd, key, group) if self.gd else None
+                if wanted.casefold() in ("default", "vanilla") or wanted == default:
+                    getattr(self, group).pop(key, None)
+                elif wanted in options:
+                    getattr(self, group)[key] = wanted
+                else:
+                    raise ValueError("Choose a supported combination in the weapon's category.")
+                self._iw_refresh_all()
             elif group == "weapon_calibers":
                 wanted = text.strip()
                 if wanted not in self._iw_caliber_options:
@@ -689,6 +707,8 @@ class WorkbenchMixin:
                     self.weapon_calibers.pop(key, None)
                 else:
                     self.weapon_calibers[key] = wanted
+                self.weapon_ammo_types = weapon_choices.clean(
+                    self.gd, self.weapon_ammo_types, "weapon_ammo_types", self.weapon_calibers)
                 self._iw_refresh_all()
             else:
                 raw = text.strip().replace(",", ".")

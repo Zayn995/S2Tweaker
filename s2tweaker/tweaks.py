@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import math
 import re
 
-from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions, npc_equipment, detail_controls
+from . import loot_extensions, repair_extensions, world_extensions, extension_controls, armor_extensions, artifact_extensions, npc_equipment, detail_controls, weapon_choices
 from .cfgparse import parse_number
 from .emit import emit_patch, fmt_float
 from .gamedata import CATEGORY_TEMPLATES, GameData
@@ -772,6 +772,8 @@ class Settings:
     weapon_overrides: dict = field(default_factory=dict)         # {WGS-SID: {param: f}}
     # Store caliber names outside weapon_overrides, whose values must remain numeric.
     weapon_calibers: dict = field(default_factory=dict)
+    weapon_fire_modes: dict = field(default_factory=dict)
+    weapon_ammo_types: dict = field(default_factory=dict)
     # Individual armor overrides: {item SID: {strike/burn/...: factor}}
     armor_overrides: dict = field(default_factory=dict)
     armor_custom: dict = field(default_factory=dict)  # explicit per-piece fields, absent = inherit
@@ -3482,6 +3484,7 @@ def _weapon_general_patch(gd: GameData, s: Settings) -> tuple[dict, dict]:
         for key, value in node.items():
             existing = bucket.setdefault(sid, {})
             existing[key] = value
+    weapon_choices.apply(gd, s, patches, dlc_patches)
     # Scale explicit reload/jam leaves in their owning base or edition file.
     # Inherited leaves follow their patched parent without another multiplier.
     # CFG timing changes alone do not establish animation/audio synchronization.
@@ -6755,6 +6758,14 @@ def summarize(s: Settings) -> list[str]:
         from .names import WEAPON_ALIASES
         lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: ammunition "
                      f"-> {caliber_label(caliber)}")
+
+    for group, title, labels in (("weapon_fire_modes", "fire modes", weapon_choices.FIRE_LABELS),
+                                  ("weapon_ammo_types", "allowed ammunition types", weapon_choices.AMMO_LABELS)):
+        for sid, value in sorted(getattr(s, group).items()):
+            from .names import WEAPON_ALIASES
+            readable = weapon_choices.label(value, labels)
+            if readable:
+                lines.append(f"{WEAPON_ALIASES.get(sid, sid)}: {title} -> {readable} (experimental)")
 
     f("Anomaly damage", s.anomaly_damage_factor)
     f("Anomaly damage: electro", s.anomaly_electro_factor)

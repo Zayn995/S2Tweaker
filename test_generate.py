@@ -107,6 +107,8 @@ s = Settings(
                              "pistol": {"spread": 0.5, "aimtime": 2.0}},
     weapon_overrides={"GunM860_SG": {"damage": 3.0},
                       "GunAK74_ST": {"recoil": 0.5, "aimtime": 1.5}},
+    weapon_fire_modes={"GunAK74_ST": "SemiAutomatic,Queue,Automatic"},
+    weapon_ammo_types={"GunSVDM_SP": "Default,ArmorPiercing"},
     npc_accuracy_factor=2.0, npc_vision_factor=0.5, npc_hearing_factor=0.5,
     npc_grenade_factor=2.0, npc_no_heal=True,
     aim_punch_factor=2.0, npc_reaction_factor=2.0,

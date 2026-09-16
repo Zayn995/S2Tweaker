@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.44.2 — Movement Animation & Sound Update:[/b] Walking, running, sprinting, crouched sneaking and low crouch now follow the selected factors with matching animations and movement sounds. Normal walk/run animation synchronization closes the previous gap. Enable both movement synchronization options and rebuild/reinstall the companion and profile. Brief Zone Kit checks passed; campaign testing remains open. About 52 KiB of original companion runtime; signed desktop binaries unchanged.
+[b]New in 1.45.0 — Weapon fire modes and ammunition types:[/b] Select Single, Burst, Auto or combinations per weapon, and choose existing ammunition types independently of caliber. These new options are experimental and not play-tested. Restricted sidearm weapon-class lookup is corrected; inventory and slot override warnings are improved. OXA Standard All weapons is player-confirmed; this is not a verified OXA-specific merge. Signed desktop binaries remain unchanged.
+
+[b]Included from 1.44.2 — Movement Animation & Sound Update:[/b] Walking, running, sprinting, crouched sneaking and low crouch now follow the selected factors with matching animations and movement sounds. Normal walk/run animation synchronization closes the previous gap. Enable both movement synchronization options and rebuild/reinstall the companion and profile. Brief Zone Kit checks passed; campaign testing remains open. About 52 KiB of original companion runtime; signed desktop binaries unchanged.
 
 [b]Included from 1.44.1:[/b] Native idle sway and firing movement now build and install on their own. Debug export includes the companion and readable settings under <mod_name>_cfg/AnimationSync. This small follow-up preserves the native companion and signed runtime; existing experimental limits remain.
 
@@ -41,10 +43,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.44.2): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.45.0): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.44.2, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.45.0, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -271,6 +273,15 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.45.0 - Weapon fire modes, ammunition types and compatibility fixes[/b]
+[list]
+[*]Experimental per-weapon Single/Burst/Auto combinations and allowed ammunition types for the selected caliber.
+[*]Profiles, history, My changes, reset, summaries and generated CFG/debug output include the new selections.
+[*]Restricted pistol-slot selections now follow each item's actual weapon setup. OXA Standard All weapons is player-confirmed; restricted options and OXA Prototype remain unverified.
+[*]Mod scan detects explicit inventory dimensions and slots even when copied definitions restore vanilla values. No automatic OXA merge.
+[*]66 local headless suites and a focused GUI check passed; new game behavior remains unverified.
+[/list]
+
 [b]v1.44.2 - Movement Animation & Sound Update[/b]
 [list]
 [*]Walking, running, sprinting, sneaking and low crouch follow the selected movement factors with matching animation and sound options.
@@ -279,6 +290,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Rebuild/reinstall the companion and profile. Campaign and arbitrary mod combinations remain unverified.
 [/list]
 
+[spoiler]
 [b]v1.44.1 - companion build and debug export fixes[/b]
 [list]
 [*]Native idle sway and firing-animation settings build/install without CFG changes.
@@ -286,7 +298,6 @@ If the ~mods folder doesn't exist, create it.
 [*]22 focused checks passed; existing experimental and GUI limits remain.
 [/list]
 
-[spoiler]
 [b]v1.44.0 - Animation & Sound Update (experimental)[/b]
 [list]
 [*]Optional native movement synchronization and independent pitch-preserving weapon-action and movement sounds.

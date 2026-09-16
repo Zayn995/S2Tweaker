@@ -549,7 +549,8 @@ class GameData:
                 continue
             slot = (self.resolve(self.items, sid, "ItemSlotType") or "").split("::")[-1].strip()
             if slot:
-                result[sid] = (self.weapon_category(sid), slot, None)
+                setup = self.resolve(self.items, sid, "GeneralWeaponSetup")
+                result[sid] = (self.weapon_category(setup or sid), slot, None)
         for edition, trees in self.dlc_editions.items():
             items = trees.get("items")
             for sid in (items.children if items else ()):
@@ -561,7 +562,8 @@ class GameData:
                     continue
                 slot = (self._chain_get(chain, "ItemSlotType") or "").split("::")[-1].strip()
                 if slot:
-                    result[sid] = (self.dlc_weapon_category(edition, sid), slot, edition)
+                    setup = self._chain_get(chain, "GeneralWeaponSetup")
+                    result[sid] = (self.dlc_weapon_category(edition, setup or sid), slot, edition)
         return result
 
     def pistol_slot_literal(self) -> str | None:
