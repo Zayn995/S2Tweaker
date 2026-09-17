@@ -4,6 +4,27 @@ Introduced in version 1.37.2; story cancellation corrected in 1.37.3,
 11 September 2026. Partially player-tested on 1.39; further repairs after the
 1.40 report are available in version 1.40.1, with limited player confirmation below.
 
+## Player follow-up, 16 September 2026: Hera unavailable
+
+[Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5703418420)
+that Hera at the Duty base no longer offers jobs after completing the first
+part of Cost of Hope in Iron Forest, while other givers still work. This is an
+open report; the timing alone does not establish DLC causation or a generator bug.
+
+The local 2.0.5 data identifies Hera's job container as `RSQ07_C00_TSEMZAVOD`,
+with nine task slots and a native three-per-round counter. Its round restart
+contains a 24 in-game-hour timer, modified only when the cooldown control is
+changed. Existing saved timers can retain their end time. Waiting a few real
+minutes in a dialogue is not a reliable cooldown check. The surrounding
+`ConcretePlant_Hub_Container` restart wiring is unchanged by the generated patch.
+
+The compatibility report alone cannot show the active/saved job state, selected
+quest controls or which generated Pak is installed. Diagnosis needs the preset
+and generated CFGs, the active/completed Hera jobs and the last hand-in/cancel
+sequence. Story flags, the hub container and saved quest state are not reset as
+a speculative repair. The existing multi-job journals must not be removed from
+an active-job save as a blind comparison test.
+
 ## Player follow-up, 12 September 2026
 
 [Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5644157394) working quest translations and the second quest's

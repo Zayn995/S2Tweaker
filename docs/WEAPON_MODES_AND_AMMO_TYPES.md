@@ -1,6 +1,9 @@
 # Per-weapon fire modes, ammunition types and overhaul compatibility
 
-Introduced in 1.45.0. New fire-mode and ammunition-type behavior is not play-tested yet.
+Introduced in 1.45.0. [Molkerr's 16 September report](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5700758898)
+confirms several fire-mode/ammunition combinations and ammunition choices adapting
+to a changed caliber. The report does not name every tested weapon or combination;
+it is limited player evidence, not our own game test or universal compatibility.
 
 ## Weapon editor
 
@@ -46,16 +49,20 @@ their respective output branches. Complete selected arrays are emitted as nested
 struct replacements rather than index-by-index merges so removed entries are not
 intentionally retained. The containing weapon uses `{bpatch}` and unrelated
 magazine, rate, reload and caliber changes are preserved. Sparse unchanged
-selections emit no additional patch. Array replacement and newly enabled firing
-behavior still need a game test; a parser readback is not an engine test.
+selections emit no additional patch. The player report supports the tested
+combinations; it does not independently verify every array reduction or newly
+enabled firing mode. A parser readback is not an engine test.
 
 ## Sidearm and inventory compatibility
 
-[Molkerr's 15 September report](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5679630409)
-confirms **All weapons** with OXA Standard. The same report describes partial
-failure with **SMG** and **SMG + shotgun**, an inventory comparison limited to the
-pistol-slot weapon, and Arev/Fora230 inventory sizes reverting after an OXA update.
-This is a player report, not our own OXA test. OXA Prototype remains unverified.
+Molkerr previously confirmed **All weapons** with OXA Standard. His 16 September
+follow-up on 1.45.0 now also confirms **SMG** and **SMG + shotgun**, superseding the
+earlier partial-failure report. OXA Prototype remains unverified. The earlier
+inventory-comparison limitation has not been reported as fixed.
+
+The native `GunAKU_PP` setup (AKM-74U) inherits `TemplateSMG`. Consequently the
+SMG category and sidearm selection include it; this is the game's category, not
+a claim about the real weapon's classification.
 
 The restricted sidearm selector now classifies each item through its actual
 `GeneralWeaponSetup` reference. Previously it incorrectly passed the item SID to
@@ -76,8 +83,57 @@ remove its override. Scan warnings identify potential overlap, not an automatic
 mod merge or verified load precedence. Full copies, mod-specific item names,
 unreadable assets and game-side loading can still require a targeted patch.
 
-The current OXA Standard package was not available locally for this check. No
-OXA-specific binary or configuration merge is included or claimed as verified.
+The supplied compatibility report identifies **OXA Standard 3.0.5** in the
+accompanying message, OXA's A/B Paks and packed assets, with Avoid conflicts off.
+It confirms overlapping item-dimension fields, but does not include the selected
+size factor, generated CFG values or final runtime values. Local 50% generation
+produces 2x1 cells for both Arev and Fora230 from the installed baselines. That
+does not prove what his save/installation loaded. The exact OXA Standard 3.0.5
+package and generated output are not available locally. No OXA-specific merge or
+inventory-size fix is claimed.
+
+### OXA 3.0.6 archive inspection
+
+Both locally supplied **3.0.6** archives were inspected separately. This is a
+newer version than the **3.0.5** package in the player report, not a reproduction
+of that installation. Standard contains 56 CFG files across its A/C Paks;
+Prototype contains 1,842 across its Z/DLC Paks. All of those CFGs were readable
+by the existing scanner. Their separate IoStore assets were not inspected.
+
+Both variants explicitly apply `{bpatch}` assignments to these existing items:
+
+| Item | OXA 3.0.6 width x height | S2Tweaker at 50% |
+| --- | --- | --- |
+| Arev (`GunArev_ST`) | 5 x 2 | 2 x 1 |
+| Fora230 (`GunFora230_PP`) | 4 x 2 | 2 x 1 |
+| AKM-74U (`GunAKU_PP`) | 5 x 2 | 2 x 1 |
+
+In Standard these assignments are in
+`ItemPrototypes/WeaponPrototypes_OXA.cfg`. In Prototype Arev/Fora230 are in
+`ItemPrototypes/WeaponPrototypes/WeaponPrototypes_AR.cfg`, and AKM-74U is in
+`ItemPrototypes/WeaponPrototypes/WeaponPrototypes_SMG.cfg`. The scanner detects
+their dimension fields. This establishes an actual competing assignment; it
+does **not** establish the order in which the game applies the distinct patch
+files. These specific entries are sparse patches, not whole-item replacements.
+Renaming the outer Pak is not a verified repair for their conflict.
+
+Prototype also defines many additional weapon IDs. For example,
+`GunAKS74U_PP` is a separate item from the installed game's `GunAKU_PP` and has
+its own grid and weapon-setup reference. Patching the latter does not directly
+patch the former. Standard also introduces items such as `GunGlock17_HG` and
+`GunP30L_HG`. S2Tweaker currently reads the installed game's catalog; scanning
+an overhaul does not import its new items into that catalog or extend the
+global/per-weapon controls to them. Treat neither variant as fully supported.
+
+The generated 50% CFGs, neutral no-output behavior and all scanned archive CFGs
+were checked locally. Neither overhaul was installed for this inspection. A
+matching generated S2Tweaker Pak/preset and the affected inventory example are
+still needed to narrow the original report; no in-game size repair is claimed.
+
+Since 1.46.0, the compatibility report includes current editor selections and
+the complete property overlap list. It explicitly distinguishes the current editor
+from the installed Pak and treats filename order as an estimate. The prior
+"your values win" guarantee was not justified for patch order or packed assets.
 
 ## Validation
 

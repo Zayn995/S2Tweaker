@@ -73,7 +73,8 @@ assert "also changed by OXA_Overhaul" in row._dot_tip
 row.set(2.0)          # Change slider -> warning severity.
 app.update()
 assert row.dot.cget("text_color") == MARK_WARN
-assert "your value wins" in row._dot_tip
+assert "filename order favors your pak" in row._dot_tip
+assert "not verified" in row._dot_tip
 print("Slider dot: info -> warning when changed  OK")
 
 # Resetting values must retain scan markers.

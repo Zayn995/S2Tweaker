@@ -126,7 +126,8 @@ s = Settings(
     npc_free_shots_factor=0.0, npc_burst_factor=1.5,          # NPC combat behavior.
     npc_fire_pause_factor=2.0, npc_engage_range_factor=0.5,
     npc_weapon_range_factor=0.75, npc_regen_factor=0.25,
-    crouch_stealth_factor=2.0, movement_noise_factor=0.5,     # Stealth and awareness.
+    crouch_visibility_factor=2.0, crouch_noise_factor=1.5,
+    movement_noise_factor=0.5,     # Stealth and awareness.
     weather_stealth_factor=2.0, flashlight_stealth_factor=0.0,
     npc_alertness_factor=0.5, npc_search_time_factor=2.0, npc_courage_factor=2.0,
     npc_stagger_factor=0.5, npc_attack_cooldown_factor=1.5, npc_weapon_rank_add=1,

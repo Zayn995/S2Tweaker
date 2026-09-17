@@ -11,14 +11,23 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.45.0 — WEAPON FIRE MODES, AMMO TYPES & COMPATIBILITY FIXES
+NEW IN 1.46.0 — SEPARATE CROUCH STEALTH & CLEARER COMPATIBILITY REPORTS
+----------------------------------------------------
+Separate crouched visibility and AI hearing controls, with automatic migration
+of old combined profiles. Compatibility reports now include current editor
+choices and every overlapping property, without claiming a guaranteed winner.
+OXA 3.0.6 archive inspection confirms competing size patches and mod-only item
+IDs; the inventory-size issue and Hera job-offer report remain unresolved.
+New split controls are not play-tested. All 19 signed desktop binaries and the
+animation/sound companion remain unchanged.
+
+INCLUDED FROM 1.45.0 — WEAPON FIRE MODES, AMMO TYPES & COMPATIBILITY FIXES
 ----------------------------------------------------
 Per-weapon Single, Burst and Auto combinations, plus allowed ammunition types
-for the selected caliber. New options are experimental and not play-tested.
-Corrected weapon-class lookup for restricted pistol-slot selections and improved
-mod-scan detection of inventory/slot overrides. OXA Standard All weapons is
-player-confirmed; restricted modes, the exact OXA inventory conflict and OXA
-Prototype remain unverified. All 19 signed runtime binaries are unchanged.
+for the selected caliber. Molkerr reports several combinations and the restricted
+OXA Standard sidearm modes working. Coverage is limited, so these options remain
+experimental. The OXA inventory-size conflict and Prototype gameplay remain
+unverified. All 19 signed runtime binaries are unchanged.
 
 INCLUDED FROM 1.44.2 — MOVEMENT ANIMATION & SOUND UPDATE
 ----------------------------------------------------

@@ -622,7 +622,7 @@ class SliderRow:
             notes = []
             if self.conflict_after:
                 notes.append(", ".join(sorted(self.conflict_after))
-                             + " loads AFTER your pak, so its value may win")
+                             + " sorts AFTER your pak by filename, so its value may win")
             if self.conflict_unknown:
                 notes.append(", ".join(sorted(self.conflict_unknown))
                              + " is loaded by the game's own mod manager "
@@ -632,7 +632,8 @@ class SliderRow:
                                  + "; ".join(notes))
             else:
                 self._dot_tip = (
-                    f"{names} changes this too \u2014 your value wins")
+                    f"{names} changes this too \u2014 filename order favors your pak; "
+                    "the final in-game value is not verified")
         if not self.dot.winfo_manager():
             self.dot.pack(side="left", after=self.label)
 
@@ -747,7 +748,8 @@ SLIDER_FIELDS: dict[str, str] = {
     "npc_free_shots": "npc_free_shots_factor", "npc_burst": "npc_burst_factor",
     "npc_fire_pause": "npc_fire_pause_factor", "npc_engage": "npc_engage_range_factor",
     "npc_range": "npc_weapon_range_factor", "npc_regen": "npc_regen_factor",
-    "stealth_crouch": "crouch_stealth_factor", "stealth_noise": "movement_noise_factor",
+    "stealth_crouch_sight": "crouch_visibility_factor",
+    "stealth_crouch_sound": "crouch_noise_factor", "stealth_noise": "movement_noise_factor",
     "stealth_weather": "weather_stealth_factor",
     "stealth_flashlight": "flashlight_stealth_factor",
     "npc_alertness": "npc_alertness_factor", "npc_search": "npc_search_time_factor",
@@ -1327,7 +1329,8 @@ class IwWeaponRow:
                     "Only existing ammunition is offered; this does not create new rounds. "
                     "Re-equip an unloaded weapon after changing these options. Shared setups also affect NPCs. "
                     "Bolt/pump cycles, animations and sound assets are unchanged; newly enabled modes may not "
-                    "work on every weapon. Not play-tested yet.")
+                    "work on every weapon. Molkerr reports several successful mode/type "
+                    "combinations on 1.45.0; individual weapons remain unverified.")
             if count:
                 note += f" Burst uses {count} rounds from the installed weapon data."
             ctk.CTkLabel(self.body, text="   " + note, anchor="w", justify="left", wraplength=700,
@@ -4776,10 +4779,12 @@ class App(WorkbenchMixin, ctk.CTk):
                      "small things up to 6x3 for a rifle). 50 % roughly "
                      "halves every footprint; nothing ever drops below one "
                      "cell. Whole cells only, so small items may not change "
-                     "at all. OXA Standard can override Arev/Fora230 sizes, according "
-                     "to a player report. Run the mod scan after updating an overhaul; "
-                     "full item definitions may restore vanilla dimensions. Scan warnings "
-                     "do not merge conflicting mods automatically.")
+                     "at all. Both OXA 3.0.6 variants explicitly set Arev/Fora230 "
+                     "dimensions, conflicting with size changes here. Mod-only item "
+                     "IDs are not automatically included in this installed-game "
+                     "catalog. Run the mod scan after updating an overhaul; scan "
+                     "warnings do not merge conflicting mods or prove which "
+                     "values the game loaded.")
         self._slider(f, "inv_action", "Inventory action speed", 25, 400, 5, 100,
                      fmt_pct,
                      "How long using something from the inventory takes "
@@ -5040,15 +5045,26 @@ class App(WorkbenchMixin, ctk.CTk):
         self._slider(f, "darkness", "Night darkness for NPC eyes", 0, 200, 10, 100, fmt_pct,
                      "The base light level NPC eyes assume by time of day "
                      "(vanilla night 0.2, dawn 0.3, morning 0.6, day 1.0). "
-                     "0 % = pitch black nights for NPCs; only values below 1 "
-                     "scale, capped at 1.0. craigduk76 reports improved "
+                     "0 % sets the affected base values to zero; it does not "
+                     "guarantee invisibility. Only values below 1 scale, "
+                     "capped at 1.0. craigduk76 reports improved "
                      "night stealth at 50 % (GitHub #17). Dawn and morning "
                      "also change; the exact detection effect is unmeasured.")
-        self._slider(f, "stealth_crouch", "Crouch stealth", 25, 400, 5, 100, fmt_pct,
-                     "How much crouching and crawling hide you from eyes AND "
-                     "ears (vanilla: crouched you are 25 % less visible and "
-                     "much quieter). 200 % = twice as hard to notice while "
-                     "crouched.")
+        self._slider(f, "stealth_crouch_sight", "Crouch visual stealth", 25, 400, 5, 100, fmt_pct,
+                     "Scales down the player crouch visibility and shared "
+                     "crouch/low-crouch pose visibility coefficients. Higher "
+                     "means harder to see; 200 % halves each coefficient. "
+                     "Leaves hearing unchanged. Shared pose settings may "
+                     "also affect NPCs using those poses. Does not change "
+                     "rendered brightness or guarantee a detection distance. "
+                     "Not play-tested yet.")
+        self._slider(f, "stealth_crouch_sound", "Crouch sound stealth", 25, 400, 5, 100, fmt_pct,
+                     "Scales down the player crouch noise and shared "
+                     "crouch/low-crouch pose noise coefficients used by AI. "
+                     "Higher means quieter to AI; 200 % halves each coefficient. "
+                     "Leaves visibility and audible footstep volume unchanged. "
+                     "Shared pose settings may also affect NPCs using those "
+                     "poses. Not play-tested yet.")
         self._slider(f, "stealth_noise", "Movement noise", 0, 200, 10, 100, fmt_pct,
                      "Noise of walking, running and sprinting (vanilla 0.6 / "
                      "0.8 / 1.0). 0 % = silent feet; crouch noise has its "
@@ -5759,12 +5775,13 @@ class App(WorkbenchMixin, ctk.CTk):
                      "Lets SMGs, shotguns or any weapon sit in the sidearm "
                      "slot; the two main slots keep taking every weapon. The "
                      "'SMG in pistol slot' and 'Any weapon as sidearm' mods. "
-                     "Molkerr reports 'All weapons' working with OXA Standard. "
-                     "The restricted selections and other OXA editions are not confirmed.")
+                     "Molkerr reports All weapons, SMG and SMG + shotgun working "
+                     "with OXA Standard on 1.45.0. Uses the game's categories: "
+                     "AKM-74U inherits TemplateSMG and is included. OXA Prototype "
+                     "and every individual weapon are not confirmed.")
         ctk.CTkLabel(
-            f, text="   \u26a0 OXA Standard: 'All weapons' reported working by Molkerr. "
-                    "'SMG' and 'SMG + shotgun' were reported only partly working. "
-                    "Weapon-class lookup has been corrected; that fix still needs an OXA test. "
+            f, text="   OXA Standard: Molkerr reports All weapons, SMG and SMG + shotgun "
+                    "working on 1.45.0. The native SMG group includes AKM-74U. "
                     "OXA Prototype is untested. Mods redefining the same item slots can conflict. "
                     "Known limitation: inventory stats may compare only with the sidearm-slot "
                     "weapon; long guns remain two-handed.",
@@ -6910,7 +6927,8 @@ class App(WorkbenchMixin, ctk.CTk):
             npc_engage_range_factor=s["npc_engage"].get() / 100.0,
             npc_weapon_range_factor=s["npc_range"].get() / 100.0,
             npc_regen_factor=s["npc_regen"].get() / 100.0,
-            crouch_stealth_factor=s["stealth_crouch"].get() / 100.0,
+            crouch_visibility_factor=s["stealth_crouch_sight"].get() / 100.0,
+            crouch_noise_factor=s["stealth_crouch_sound"].get() / 100.0,
             movement_noise_factor=s["stealth_noise"].get() / 100.0,
             weather_stealth_factor=s["stealth_weather"].get() / 100.0,
             flashlight_stealth_factor=s["stealth_flashlight"].get() / 100.0,
@@ -7871,7 +7889,7 @@ class App(WorkbenchMixin, ctk.CTk):
         text = "●  Mod scan: also changing faction relations: " + ", ".join(mods)
         if after:
             text += ("  —  " + ", ".join(after)
-                     + " loads AFTER your pak and wins shared values")
+                     + " sorts AFTER your pak; shared values may be overridden")
         if unknown:
             text += ("  —  " + ", ".join(unknown)
                      + " is loaded by the game's mod manager (load order "
@@ -7990,7 +8008,7 @@ class App(WorkbenchMixin, ctk.CTk):
             losers = sorted(set(mods) & self._mods_after)
             unknown = sorted(set(mods) & self._mods_unknown)
             if losers:
-                notes.append(f"{', '.join(losers)} loads AFTER your pak, "
+                notes.append(f"{', '.join(losers)} sorts AFTER your pak by filename, "
                              "so its value may win")
             if unknown:
                 notes.append(f"{', '.join(unknown)} is loaded by the "
@@ -8002,7 +8020,8 @@ class App(WorkbenchMixin, ctk.CTk):
                     + "; ".join(notes))
             else:
                 self._check_tips[key] = (
-                    f"{names} changes this too \u2014 your value wins")
+                    f"{names} changes this too \u2014 filename order favors your pak; "
+                    "the final in-game value is not verified")
         else:
             dot.configure(text="\u25cf", text_color=MARK_INFO)
             self._check_tips[key] = f"also changed by {names}"
@@ -8036,22 +8055,29 @@ class App(WorkbenchMixin, ctk.CTk):
             "S2Tweaker compatibility report",
             f"Generated: {now}  |  S2Tweaker {__version__}  |  "
             f"game pak fingerprint: {fp if fp else 'n/a'}",
-            f"Own output pak: {own}  (load order in ~mods is alphabetical)",
+            f"Own output pak: {own}  (~mods filename-order estimate only)",
             f"Avoid-conflicts mode: {'ON' if self.avoid_conflicts else 'off'}"
             + (f", consciously unlocked: "
                + ", ".join(sorted(self.avoid_unlocked))
                if self.avoid_conflicts and self.avoid_unlocked else ""),
             "",
-            f"Scanned mods ({len(self.modscan_results)}):",
+            "Selected changes in the current editor (not a readback of the installed Pak):",
         ]
+        selected = summarize(self._collect())
+        lines.extend("  " + entry for entry in selected)
+        if not selected:
+            lines.append("  None (all settings are neutral).")
+        lines += ["", "Potential overlaps below include controls still at vanilla. "
+                  "They do not establish which values the game actually loaded.",
+                  "", f"Scanned mods ({len(self.modscan_results)}):"]
         for info in self.modscan_results:
             if info.source == "workshop":
                 order = ("Steam Workshop mod - activation and load order "
                          "are managed by the game (not verified)")
-            elif info.name in self._mods_after:
-                order = "loads AFTER your pak - ITS values win shared conflicts"
+            elif info.path.name.casefold() > own.casefold():
+                order = "filename sorts AFTER your pak - shared values may be overridden (not verified)"
             else:
-                order = "loads before your pak - your values win"
+                order = "filename sorts before your pak - your overrides may take priority (not verified)"
             lines.append(f"  {info.name}  [{info.path.name}]"
                          if info.source == "workshop"
                          else f"  {info.path.name}")
@@ -8064,7 +8090,7 @@ class App(WorkbenchMixin, ctk.CTk):
             lines.append(f"      {info.n_cfg} config file"
                          f"{'s' if info.n_cfg != 1 else ''}, {order}")
             if labels:
-                lines.append("      overlapping settings: "
+                lines.append("      potential overlapping settings: "
                              + ", ".join(labels))
             elif info.n_cfg:
                 lines.append("      no overlap with this tool's settings")
@@ -8095,14 +8121,18 @@ class App(WorkbenchMixin, ctk.CTk):
                     leaf_labels = {"@loot-layout": "loot list layout",
                                    "@loot-weight": "loot selection weight",
                                    "@effect-list": "item effect list"}
-                    shown = ", ".join(f"{a}.{leaf_labels.get(b, b)}"
-                                      for a, b in overlap[:10])
-                    more = ("" if len(overlap) <= 10
-                            else f" (+{len(overlap) - 10} more)")
-                    lines.append(f"      {info.name}: {shown}{more}")
-        lines += ["", "Notes: only values off (vanilla) are written to the "
-                      "pak; shared values are decided by ~mods load order "
-                      "(alphabetical).", ""]
+                    for offset in range(0, len(overlap), 10):
+                        shown = ", ".join(f"{a}.{leaf_labels.get(b, b)}"
+                                          for a, b in overlap[offset:offset + 10])
+                        lines.append(f"      {info.name}: {shown}")
+                    if not overlap:
+                        lines.append(f"      {info.name}: exact property overlap unavailable")
+        lines += ["", "Notes: only changed values are written to a newly generated Pak. "
+                      "This report does not read your installed S2Tweaker Pak, savegame "
+                      "or final runtime values. Filename order is an estimate, not a "
+                      "verified winner: patch-file ordering, full replacements and "
+                      "uninspected packed assets can affect the result. Include your "
+                      "preset and generated CFG debug output when reporting a mismatch.", ""]
         return "\n".join(lines)
 
     def _export_compat_report(self):
@@ -8153,9 +8183,9 @@ class App(WorkbenchMixin, ctk.CTk):
         after = sorted(self._mods_after
                        & {i.name for i in self.modscan_results})
         if after:
-            line("\u26a0 " + ", ".join(after) + " load(s) AFTER this "
-                 "tool's pak (~mods loads alphabetically) \u2014 for any "
-                 "shared value THAT mod wins, not your slider.",
+            line("\u26a0 " + ", ".join(after) + " sort(s) AFTER this "
+                 "tool's pak by filename \u2014 shared values may be overridden. "
+                 "The final in-game result is not verified.",
                  text_color=ACCENT)
         ws = sorted(self._mods_unknown
                     & {i.name for i in self.modscan_results})
@@ -8168,8 +8198,8 @@ class App(WorkbenchMixin, ctk.CTk):
                  text_color=MUTED)
         line("Affected settings are marked with a dot: blue = a mod changes "
              "it while you are at (vanilla), violet = you changed it too. "
-             "Your pak usually wins shared values because its zzz_ name "
-             "loads last. The dots stay until you scan again.",
+             "Filename order is only an estimate; patches and packed assets "
+             "can affect the final result. The dots stay until you scan again.",
              text_color=MUTED)
 
         foot = ctk.CTkFrame(win, fg_color="transparent")
@@ -8346,7 +8376,7 @@ class App(WorkbenchMixin, ctk.CTk):
         self._apply_ui_state(data)
 
     def _apply_ui_state(self, data: dict):
-        sliders = data.get("sliders", {})
+        sliders = editor_state.migrate_stealth_sliders(data.get("sliders", {}))
         # Migration: old "move" slider -> "walk" and "run".
         if "move" in sliders:
             sliders.setdefault("walk", sliders["move"])

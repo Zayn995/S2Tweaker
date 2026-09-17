@@ -2,21 +2,32 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.45.0 - Weapon Fire Modes, Ammo Types & Compatibility Fixes
-File version:  1.45.0
+Name:          S2Tweaker 1.46.0 - Separate Crouch Stealth & Clearer Compatibility Reports
+File version:  1.46.0
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Per-weapon Single, Burst and Auto combinations, plus allowed ammunition types
-for the selected caliber. New options are experimental and not play-tested.
-Corrected weapon-class lookup for restricted pistol-slot selections and improved
-mod-scan detection of inventory/slot overrides. OXA Standard All weapons is
-player-confirmed; restricted modes, the exact OXA inventory conflict and OXA
-Prototype remain unverified. All 19 signed runtime binaries are unchanged.
+Separate crouched visibility and AI hearing controls, with automatic migration
+of old combined profiles. Compatibility reports now include current editor
+choices and every overlapping property, without claiming a guaranteed winner.
+OXA 3.0.6 archive inspection confirms competing size patches and mod-only item
+IDs; the inventory-size issue and Hera job-offer report remain unresolved.
+New split controls are not play-tested. All 19 signed desktop binaries and the
+animation/sound companion remain unchanged.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.46.0 - Separate crouch stealth and clearer compatibility reports
+
+Separate crouched visibility and AI hearing controls, with automatic migration
+of old combined profiles. Compatibility reports now include current editor
+choices and every overlapping property, without claiming a guaranteed winner.
+OXA 3.0.6 archive inspection confirms competing size patches and mod-only item
+IDs; the inventory-size issue and Hera job-offer report remain unresolved.
+New split controls are not play-tested. All 19 signed desktop binaries and the
+animation/sound companion remain unchanged.
+
 1.45.0 - Weapon fire modes, ammo types and compatibility fixes
 
 Per-weapon Single, Burst and Auto combinations, plus allowed ammunition types

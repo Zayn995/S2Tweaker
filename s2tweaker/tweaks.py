@@ -434,7 +434,9 @@ class Settings:
     npc_weapon_range_factor: float = 1.0  # CWS *_NPC distance keys.
     npc_regen_factor: float = 1.0         # Human NPC RegenHP.
     # --- Stealth: AIGlobals pose/weather/flashlight and Player.StealthParams ---
-    crouch_stealth_factor: float = 1.0    # >1 = harder to see/hear while crouching.
+    crouch_stealth_factor: float = 1.0    # Legacy combined factor for programmatic callers.
+    crouch_visibility_factor: float = 1.0  # >1 reduces crouched visibility coefficients.
+    crouch_noise_factor: float = 1.0       # >1 reduces crouched AI-noise coefficients.
     movement_noise_factor: float = 1.0    # Noise from walking/running/sprinting.
     weather_stealth_factor: float = 1.0   # Weather sight/hearing penalties.
     flashlight_stealth_factor: float = 1.0  # How strongly the player's flashlight reveals them.
@@ -1057,6 +1059,16 @@ SYNC_GROUPS = {"sync_melee_factor": ("TokenTag.Melee",),
 
 # ------------------------------------------------------------------ features
 
+def _crouch_stealth_factors(s: Settings) -> tuple[float, float]:
+    """Keep legacy combined inputs working; the UI exposes only separate factors."""
+    def valid(value):
+        return value if isinstance(value, (int, float)) and math.isfinite(value) and value > 0 else 1.0
+
+    legacy = valid(s.crouch_stealth_factor)
+    return (legacy * valid(s.crouch_visibility_factor),
+            legacy * valid(s.crouch_noise_factor))
+
+
 def _player_patch(gd: GameData, s: Settings) -> dict:
     player_node = gd.obj.children.get("Player")
 
@@ -1212,11 +1224,13 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
 
     # Scale player crouch visibility/noise and flashlight stealth coefficients.
     stealth: dict = {}
-    if _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0:
-        for key in ("VisibilityCrouchCoef", "NoiseCrouchCoef"):
+    crouch_visibility, crouch_noise = _crouch_stealth_factors(s)
+    for key, factor in (("VisibilityCrouchCoef", crouch_visibility),
+                        ("NoiseCrouchCoef", crouch_noise)):
+        if _neq(factor, 1.0):
             raw = gd.resolve(gd.obj, "Player", f"StealthParams.{key}")
             if raw is not None and parse_number(raw) > 0:
-                stealth[key] = _scale_literal(raw, 1.0 / s.crouch_stealth_factor)
+                stealth[key] = _scale_literal(raw, 1.0 / factor)
     if _neq(s.flashlight_stealth_factor, 1.0) and s.flashlight_stealth_factor >= 0:
         raw = gd.resolve(gd.obj, "Player", "StealthParams.FlashLightCoef")
         if raw is not None and parse_number(raw) > 0:
@@ -1783,7 +1797,8 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         settings["MinALifeDespawnDistance"] = _num(new_despawn)
 
     # Indexed posture entries merge recursively; emit only changed coefficients.
-    crouch_on = _neq(s.crouch_stealth_factor, 1.0) and s.crouch_stealth_factor > 0
+    crouch_visibility, crouch_noise = _crouch_stealth_factors(s)
+    crouch_on = _neq(crouch_visibility, 1.0) or _neq(crouch_noise, 1.0)
     noise_on = _neq(s.movement_noise_factor, 1.0) and s.movement_noise_factor >= 0
     if crouch_on or noise_on:
         poses = root.children.get("CharacterPoseSettings")
@@ -1791,19 +1806,20 @@ def _aiglobals_patch(gd: GameData, s: Settings) -> dict:
         for idx, entry in (poses.children.items() if poses else ()):
             pose = (entry.values.get("Pose") or "").strip()
             short = pose.split("::")[-1]
-            vis = entry.values.get("VisibilityCoef")
-            noise = entry.values.get("NoiseCoef")
-            if vis is None or noise is None:
-                continue
-            new_vis, new_noise = vis.strip(), noise.strip()
+            factors = {}
             if crouch_on and short in ("LowCrouchInPlace", "Crouch"):
-                new_vis = _scale_literal(vis, 1.0 / s.crouch_stealth_factor) or new_vis
-                new_noise = _scale_literal(noise, 1.0 / s.crouch_stealth_factor) or new_noise
+                factors = {"VisibilityCoef": 1.0 / crouch_visibility,
+                           "NoiseCoef": 1.0 / crouch_noise}
             elif noise_on and short in ("Walk", "Run", "Sprint", "None"):
-                new_noise = _scale_literal(noise, s.movement_noise_factor) or new_noise
-            row = {key: value for key, value, raw in (
-                ("VisibilityCoef", new_vis, vis), ("NoiseCoef", new_noise, noise))
-                if _neq(parse_number(value), parse_number(raw))}
+                factors = {"NoiseCoef": s.movement_noise_factor}
+            row = {}
+            for key, factor in factors.items():
+                raw = entry.values.get(key)
+                if raw is None or not _neq(factor, 1.0):
+                    continue
+                value = _scale_literal(raw, factor)
+                if value is not None and _neq(parse_number(value), parse_number(raw)):
+                    row[key] = value
             if row:
                 entries[idx] = row
         if entries:
@@ -6797,6 +6813,8 @@ def summarize(s: Settings) -> list[str]:
     if not s.npc_no_heal:
         f("NPC health regen", s.npc_regen_factor)
     f("Crouch stealth", s.crouch_stealth_factor)
+    f("Crouch visual stealth", s.crouch_visibility_factor)
+    f("Crouch sound stealth", s.crouch_noise_factor)
     f("Movement noise", s.movement_noise_factor)
     f("Bad-weather stealth", s.weather_stealth_factor)
     f("Flashlight gives you away", s.flashlight_stealth_factor)

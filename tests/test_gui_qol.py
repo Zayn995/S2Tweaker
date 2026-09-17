@@ -137,7 +137,7 @@ report = app._build_compat_report()
 print("--- Report excerpt ---")
 print("\n".join(report.splitlines()[:14]))
 assert "zzz_zOXA_P.pak" in report
-assert "loads AFTER your pak" in report
+assert "filename sorts AFTER your pak" in report
 assert "not a readable .pak file" in report and "overlap unknown" in report
 assert "note: " + modscan.PACKED_NOTE in report, \
     "Packed-assets note missing from report"

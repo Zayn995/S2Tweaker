@@ -41,6 +41,16 @@ def flatten(value, prefix=()):
     return result
 
 
+def migrate_stealth_sliders(sliders):
+    """Split the old combined factor without changing either coefficient scale."""
+    result = dict(sliders)
+    legacy = result.pop("stealth_crouch", None)
+    if type(legacy) in (int, float) and math.isfinite(legacy) and legacy > 0:
+        result.setdefault("stealth_crouch_sight", legacy)
+        result.setdefault("stealth_crouch_sound", legacy)
+    return result
+
+
 def state_only(data):
     """Validate external profile/manifest input before it reaches widget setters."""
     if not isinstance(data, dict):
@@ -70,6 +80,7 @@ def state_only(data):
             result[group] = {sid: clean(params) for sid, params in value.items()}
         else:
             result[group] = clone(value)
+    result["sliders"] = migrate_stealth_sliders(result["sliders"])
     return result
 
 

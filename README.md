@@ -11,6 +11,13 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.46.0 — Separate Crouch Stealth & Clearer Compatibility Reports:** independent
+crouched visibility and AI hearing controls, automatic migration of old profiles,
+and complete conflict reports with current editor choices. OXA inventory-size
+conflicts and the Hera quest report remain open; no automatic OXA merge is claimed.
+[Release notes](release/NOTES_v1.46.0.md) · [Stealth scope](docs/STEALTH_CONTROLS.md) ·
+[OXA archive findings](docs/WEAPON_MODES_AND_AMMO_TYPES.md#oxa-306-archive-inspection).
+
 **1.45.0 — Weapon Fire Modes, Ammo Types & Compatibility Fixes:** experimental
 per-weapon fire-mode and ammunition-type selections, corrected sidearm weapon
 classification, and improved overhaul conflict warnings.
@@ -230,8 +237,8 @@ On request the tool scans the OTHER mods in the game's `~mods` folder (never
 without asking — overhaul paks can be 2 GB) and tells the user in plain
 language which of its own settings those mods also change. Affected sliders
 keep a colored dot: blue while the slider sits at (vanilla) ("also changed by
-X"), violet once the user moves it ("X changes this too — your value wins",
-because the tool's `zzz_` pak loads last). "Reset all to vanilla" keeps the
+X"), violet once the user moves it ("X changes this too"). Filename ordering
+is an estimate, not proof of the final game value. "Reset all to vanilla" keeps the
 dots — the foreign mods are still installed; only a re-scan updates them.
 
 Mechanics ([modscan.py](s2tweaker/modscan.py)): per pak only the cfg entries
@@ -258,7 +265,11 @@ nested `Weight` are excluded from the comparison. Expensive footprints (the
 scanned mod plausibly touches them. The scan runs in a worker thread against
 a GameData snapshot; Browse/Reload are locked while it runs. If a foreign
 pak sorts alphabetically AFTER the tool's `zzz_` pak, the tooltip and the
-results dialog say so instead of claiming "your value wins".
+results dialog flag a possible override. Patch-file ordering, full replacements
+and packed assets can affect the outcome. The text report includes current
+editor choices and all overlapping properties; it does not read back the
+installed S2Tweaker Pak or savegame. Listed potential overlaps also include
+controls still at vanilla, so they are not a list of active conflicting patches.
 
 ## The loot-amount safety filter
 

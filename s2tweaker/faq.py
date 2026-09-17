@@ -13,7 +13,9 @@ FAQ_ENTRIES = [
              "or uses the most common burst length found in the installed "
              "weapon definitions. Vanilla removes the override. Changing caliber "
              "resets an incompatible type selection. No new ammunition is created. "
-             "These options are experimental: shared setups also affect NPCs, "
+             "Molkerr reports several mode/type combinations and caliber adaptation "
+             "working in 1.45.0. Coverage is limited; these options remain "
+             "experimental: shared setups also affect NPCs, "
              "mechanical bolt/pump cycles are unchanged, and the animation and "
              "sound support of newly enabled modes is not verified. Re-equip an "
              "unloaded weapon after changing them. The mod scan reports potential "
@@ -23,23 +25,26 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Does the sidearm slot work with OXA, and why did inventory sizes reset?",
-        "a": "Molkerr reports All weapons working with OXA Standard, but SMG and "
-             "SMG + shotgun only partly working. A weapon-class lookup error has "
-             "been corrected; the corrected restricted options still need an OXA "
-             "test. OXA Prototype is untested. The inventory comparison may use "
-             "only the pistol-slot weapon. Separately, an OXA Standard update "
-             "reportedly restored Arev and Fora230 inventory dimensions. Both "
-             "weapons are covered by our size patches. Full item definitions can "
-             "overwrite dimensions or slots even when they repeat vanilla values; "
-             "the scanner now flags these assignments. Rescan after updating other "
-             "mods. A warning detects overlap; it does not merge mods or establish "
-             "which values the game actually loaded.",
+        "a": "Molkerr reports All weapons, SMG and SMG + shotgun working with "
+             "OXA Standard in 1.45.0 after the weapon-class lookup fix. "
+             "The game's GunAKU_PP setup (AKM-74U) inherits TemplateSMG, so the "
+             "SMG selector includes it. OXA Prototype has not been play-tested. "
+             "Inspection of both OXA 3.0.6 archives confirms direct grid-size "
+             "patches: Arev is set to 5x2 and Fora230 to 4x2. S2Tweaker at 50% "
+             "writes 2x1 for both, so these assignments conflict. The winning "
+             "runtime values are not established by archive inspection or Pak "
+             "filenames alone. Prototype also defines many weapons with new "
+             "internal IDs, such as GunAKS74U_PP; the installed-game catalog "
+             "does not automatically include those mod-only items. Standard "
+             "adds some new IDs too. Rescan after updating other mods. Scan "
+             "warnings do not merge patches or import overhaul items. The "
+             "inventory comparison may also use only the pistol-slot weapon.",
         "k": "oxa standard prototype sidearm pistol slot smg shotgun inventory "
-             "icon size arev fora230 conflict compatibility vanilla overwrite",
+             "icon size arev fora230 aku ak74u akm74u conflict compatibility vanilla overwrite",
     },
     {
         "q": "Can NPC search time and alertness use separate Paks?",
-        "a": "The current development generator writes separate fields: alertness "
+        "a": "The generator writes separate fields: alertness "
              "changes reaction thresholds, while search time changes memory freeze "
              "times and decay rates. The new patches omit unchanged values. "
              "Rebuild BOTH Paks with this generator and use different mod names; "
@@ -873,9 +878,15 @@ FAQ_ENTRIES = [
     },
     {
         "q": "Can I sneak better - crouching, in the dark, in the rain?",
-        "a": "NPCs & AI tab, 'Stealth: how NPCs notice you'. 'Crouch "
-             "stealth' scales how much crouching hides you from eyes and "
-             "ears, 'Movement noise' the footstep noise of walking, running "
+        "a": "NPCs & AI tab, 'Stealth: how NPCs notice you'. 'Crouch visual "
+             "stealth' and 'Crouch sound stealth' separately reduce crouched "
+             "visibility and AI noise coefficients: 200% halves each "
+             "affected coefficient, not a measured detection distance. "
+             "Both include shared crouch/low-crouch pose settings, so NPCs "
+             "using these poses may also be affected. Old combined profiles "
+             "load the same percentage into both sliders. The sound slider "
+             "does not change audible footstep volume. 'Movement noise' "
+             "controls AI noise for walking, running "
              "and sprinting, 'Bad-weather stealth' how much fog, rain and "
              "thunder blind and deafen NPCs, and 'Flashlight gives you away' "
              "how strongly your own beam fills their vision. Since 1.27.0 "
@@ -887,6 +898,23 @@ FAQ_ENTRIES = [
         "k": "stealth sneak crouch invisible dark night rain fog storm "
              "flashlight noise footsteps hide detection axxii smell scent "
              "flair nose mutant sniff",
+    },
+    {
+        "q": "Can I remove player glow or cap NPC vision only at night?",
+        "a": "A separate player-glow value and a night-only hard distance "
+             "cap have not been verified in the installed 2.0.5 CFG data. "
+             "The native AIGlobals comment says the player uses environment "
+             "luminance; BaseLuminance is for agents. 'Night darkness for NPC "
+             "eyes' already changes the sub-daylight time-of-day values, "
+             "including dawn and evening. Weather luminance can be adjusted "
+             "separately in World. 'AI sight through grass and leaves' "
+             "reduces AI translucency for supported vegetation materials. "
+             "These are perception settings, not Lumen rendering fixes or "
+             "guaranteed concealment. General NPC vision range also affects "
+             "daytime. The vision data references daytime curves; adding a "
+             "true night-only cap needs further asset/engine investigation.",
+        "k": "stealth player glow illumination footprint luminance lumen "
+             "night vision distance hard cap foliage bush grass leaves",
     },
     {
         "q": "Can I make NPCs less alert, or braver?",
