@@ -21,6 +21,7 @@ import customtkinter as ctk
 
 from . import __version__, faq, game, modscan, pakio, theme
 from .gamedata import GameData
+from .build_result import show_build_result
 from . import extension_controls, regional_weather, artifact_extensions, npc_equipment, detail_controls, weapon_choices
 from .workbench_ui import WorkbenchMixin
 from . import editor_state, mod_library, armor_extensions, animation_sync
@@ -8560,8 +8561,8 @@ class App(WorkbenchMixin, ctk.CTk):
                               f"fine): {exc}")
 
         self._save_ui_settings()
-        messagebox.showinfo(
-            APP_TITLE,
+        show_build_result(
+            self, APP_TITLE,
             "Mod pak created:\n" + str(out_pak) + debug_note
             + "\n\nActive tweaks:\n– " + "\n– ".join(active))
         return True

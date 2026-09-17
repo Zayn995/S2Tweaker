@@ -31,6 +31,7 @@ class CompanionGenerationTests(unittest.TestCase):
             patch.object(gui, "build_patches", return_value={}),
             patch.object(gui, "build_root_files", return_value={}),
             patch.object(gui.messagebox, "showinfo"),
+            patch.object(gui, "show_build_result"),
             patch.object(sync, "default_save_dir", return_value=self.saves),
         ):
             context.start()
@@ -126,9 +127,24 @@ class CompanionGenerationTests(unittest.TestCase):
             ok, target = self.generate(settings)
         self.assertTrue(ok)
         self.assertTrue(target.is_file())
-        message = gui.messagebox.showinfo.call_args.args[1]
+        message = gui.show_build_result.call_args.args[2]
         self.assertIn("Debug export failed", message)
         self.assertIn("invalid debug folder", message)
+
+    def test_long_build_summary_preserves_all_details(self):
+        settings = Settings(mod_name="LongReport", weapon_shot_sync=True, weapon_shot_pct=40)
+        active = [f"Weapon {i}: changed setting" for i in range(350)]
+        with patch.object(gui, "summarize", return_value=active):
+            ok, target = self.generate(settings)
+        self.assertTrue(ok)
+        parent, title, report = gui.show_build_result.call_args.args
+        self.assertIs(parent, self.app)
+        self.assertEqual(title, gui.APP_TITLE)
+        self.assertIn(str(target), report)
+        self.assertIn("Matching animation / sound companion", report)
+        self.assertIn("Debug:", report)
+        self.assertTrue(report.endswith("\n– ".join(active)))
+        gui.messagebox.showinfo.assert_not_called()
 
 
 if __name__ == "__main__":

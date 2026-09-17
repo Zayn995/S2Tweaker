@@ -2,22 +2,28 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.46.0 - Separate Crouch Stealth & Clearer Compatibility Reports
-File version:  1.46.0
+Name:          S2Tweaker 1.46.1 - Scrollable Build Reports
+File version:  1.46.1
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Separate crouched visibility and AI hearing controls, with automatic migration
-of old combined profiles. Compatibility reports now include current editor
-choices and every overlapping property, without claiming a guaranteed winner.
-OXA 3.0.6 archive inspection confirms competing size patches and mod-only item
-IDs; the inventory-size issue and Hera job-offer report remain unresolved.
-New split controls are not play-tested. All 19 signed desktop binaries and the
-animation/sound companion remain unchanged.
+The build-completion report is now wider, resizable and scrollable, with
+word-wrapped paths and an OK button outside the scrolling text. Enter and Escape
+also close it. The full change list, backup, companion and debug details remain.
+Fixes the off-screen confirmation button when many settings are changed (#21).
+Existing Paks need no rebuild for this UI fix. Gameplay and companion unchanged.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.46.1 - Scrollable build reports
+
+The build-completion report is now wider, resizable and scrollable, with
+word-wrapped paths and an OK button outside the scrolling text. Enter and Escape
+also close it. The full change list, backup, companion and debug details remain.
+Fixes the off-screen confirmation button when many settings are changed (#21).
+Existing Paks need no rebuild for this UI fix. Gameplay and companion unchanged.
+
 1.46.0 - Separate crouch stealth and clearer compatibility reports
 
 Separate crouched visibility and AI hearing controls, with automatic migration

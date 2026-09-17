@@ -11,7 +11,15 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.46.0 — SEPARATE CROUCH STEALTH & CLEARER COMPATIBILITY REPORTS
+NEW IN 1.46.1 — SCROLLABLE BUILD REPORTS
+--------------------------------------
+The build-completion report is now wider, resizable and scrollable, with
+word-wrapped paths and an OK button outside the scrolling text. Enter and Escape
+also close it. The full change list, backup, companion and debug details remain.
+Fixes the off-screen confirmation button when many settings are changed (#21).
+Existing Paks need no rebuild for this UI fix. Gameplay and companion unchanged.
+
+INCLUDED FROM 1.46.0 — SEPARATE CROUCH STEALTH & CLEARER COMPATIBILITY REPORTS
 ----------------------------------------------------
 Separate crouched visibility and AI hearing controls, with automatic migration
 of old combined profiles. Compatibility reports now include current editor

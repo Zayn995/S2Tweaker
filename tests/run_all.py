@@ -17,6 +17,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = [
+    "test_gui_build_result.py",
     "test_compat_report.py",
     "test_crouch_stealth.py",
     "test_gui_crouch_stealth.py",
@@ -163,7 +164,8 @@ def affected_by(changed):
 def opens_window(name):
     """Detect suites constructing real app windows from their source."""
     try:
-        return "gui.App()" in path_of(name).read_text(encoding="utf-8")
+        source = path_of(name).read_text(encoding="utf-8")
+        return any(constructor in source for constructor in ("gui.App()", "ctk.CTk()"))
     except OSError:
         return False
 

@@ -11,6 +11,11 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.46.1 — Scrollable Build Reports:** the window shown after building a Pak
+now scrolls and resizes, keeping OK visible even with hundreds of changes.
+Output paths, companion instructions and debug details remain available.
+[Release notes](release/NOTES_v1.46.1.md).
+
 **1.46.0 — Separate Crouch Stealth & Clearer Compatibility Reports:** independent
 crouched visibility and AI hearing controls, automatic migration of old profiles,
 and complete conflict reports with current editor choices. OXA inventory-size
