@@ -11,6 +11,14 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.46.2 — Repeatable Job Pool Repair (experimental):** enlarged repeatable-job menus now stop when
+the currently eligible pool is exhausted. This addresses Hera waiting for five
+choices when native restrictions allow fewer. Story gates and existing journals
+are preserved; the repair is not play-tested.
+Rebuild the same Pak while retaining existing multi-job settings.
+[Release notes](release/NOTES_v1.46.2.md) ·
+[Cause and validation limits](docs/JOB_POOL_EXHAUSTION.md).
+
 **1.46.1 — Scrollable Build Reports:** the window shown after building a Pak
 now scrolls and resizes, keeping OK visible even with hundreds of changes.
 Output paths, companion instructions and debug details remain available.

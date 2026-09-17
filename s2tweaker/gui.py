@@ -6501,15 +6501,16 @@ class App(WorkbenchMixin, ctk.CTk):
                      "save finishes at its old pace first.")
         self._slider(f, "rq_jobs", "Repeatable jobs per round", 1, 10, 1, 3,
                      fmt_int,
-                     "How many jobs a task giver puts on the menu each "
-                     "round (vanilla 3). Each giver is capped at the number "
-                     "of different jobs he actually has (6 to 10). Confirmed "
-                     "in-game by Molkerr on 1.35.0 (GitHub #9): the menu "
-                     "really grows. On its own this is a bigger CHOICE, not "
-                     "more jobs: vanilla lets you take one, and handing it "
-                     "in (or cancelling it) ends the round and starts the "
-                     "cooldown above. To actually take several, use the "
-                     "switch below.")
+                     "Maximum menu choices per round (vanilla 3). Story gates, "
+                     "the previous job and mutually exclusive jobs can leave "
+                     "fewer choices available than this number. Enlarged pools "
+                     "now stop when no further native job is eligible and show "
+                     "the choices already collected. This repairs a possible "
+                     "endless selection loop, reported for Hera with 5 choices. "
+                     "The repair is not play-tested. It preserves story gates "
+                     "and does not reset saved jobs. This setting only expands "
+                     "the menu; use the switch below to accept several jobs. "
+                     "Rebuild the same Pak to apply changes.")
         self._check(f, "rq_jobs_multi",
                     "Accept several jobs from one giver (experimental repair)",
                     "Take a job, then interact with the giver again to take "

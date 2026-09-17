@@ -11,7 +11,16 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.46.1 — SCROLLABLE BUILD REPORTS
+NEW IN 1.46.2 — REPEATABLE JOB POOL REPAIR (EXPERIMENTAL)
+-----------------------------------------------------
+Enlarged repeatable-job menus now stop when their eligible pool is exhausted,
+instead of waiting forever for an impossible number of choices. Addresses Hera's
+missing offer when five jobs were requested but native restrictions allowed fewer.
+Applies to all eight givers; original story gates, journals and rewards remain.
+Experimental, not play-tested. Rebuild the same Pak and retain existing multi-job
+settings for active jobs. OXA inventory-size compatibility remains unresolved.
+
+INCLUDED FROM 1.46.1 — SCROLLABLE BUILD REPORTS
 --------------------------------------
 The build-completion report is now wider, resizable and scrollable, with
 word-wrapped paths and an OK button outside the scrolling text. Enter and Escape
@@ -25,7 +34,8 @@ Separate crouched visibility and AI hearing controls, with automatic migration
 of old combined profiles. Compatibility reports now include current editor
 choices and every overlapping property, without claiming a guaranteed winner.
 OXA 3.0.6 archive inspection confirms competing size patches and mod-only item
-IDs; the inventory-size issue and Hera job-offer report remain unresolved.
+IDs. OXA inventory-size conflicts remain unresolved; the experimental Hera
+repair is introduced in 1.46.2 above, with player confirmation still pending.
 New split controls are not play-tested. All 19 signed desktop binaries and the
 animation/sound companion remain unchanged.
 

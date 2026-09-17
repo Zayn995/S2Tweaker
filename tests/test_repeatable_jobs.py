@@ -1,7 +1,7 @@
 """Check repeatable-job pool limits, cooldowns and dialogue rearming against live data.
 
-Counters count jobs issued per round, not currently held jobs. Resolve varying
-launcher indices, cap limits by pool size, and emit only changed values.
+Counters count menu entries, not currently held jobs. Resolve varying launcher
+indices, preserve eligibility conditions and stop when the pool is exhausted.
 Neutral settings must avoid parsing the large quest file."""
 import sys
 from pathlib import Path
@@ -46,20 +46,21 @@ assert not build_patches(fresh, Settings())
 assert "questnodes" not in fresh.__dict__, "Neutral settings parse QuestNodePrototypes"
 print("Neutral: no patch, 75-MB file untouched  OK")
 
-# --- 3) Limit patch: preserve the existing condition except its limit ---
+# Preserve the existing counter condition except its limit.
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=6)))
-assert len(p) == 8, sorted(p)
-for sid, node in p.items():
+assert len(p) == 24, sorted(p)  # Limit, random input and exhausted-pool dialog per giver.
+for giver in givers:
+    sid = giver["cap_key"]
+    node = p[sid]
     entry = node.children["Conditions"].children["[0]"].children["[0]"]
     assert set(entry.values) == {"VariableValue"}, (sid, sorted(entry.values))
     assert gd.resolve(gd.questnodes, sid, "Conditions.[0].[0].ConditionComparance") == "EConditionComparance::Less"
     assert entry.values["VariableValue"] == "6", (sid, entry.values["VariableValue"])
-print("Limit 6: 8 nodes, only the limit is written OK")
+print("Limit 6: counter values and exhaustion wiring for all eight givers OK")
 
 # --- 4) Cap each giver to its job pool ---
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=10)))
-got = {sid: n.children["Conditions"].children["[0]"].children["[0]"].values["VariableValue"]
-       for sid, n in p.items()}
+got = {g["cap_key"]: p[g["cap_key"]].get("Conditions.[0].[0].VariableValue") for g in givers}
 by_quest = {q: got[g["cap_key"]] for q, g in
             ((g["quest"], g) for g in givers)}
 assert by_quest == {"RSQ01": "6", "RSQ04": "10", "RSQ05": "8", "RSQ06": "9",
@@ -92,9 +93,9 @@ print("Dialog changes: only one pin set to True, SIDs and adjacent entries uncha
 # Patch RSQ nodes only.
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=6,
                                      repeatable_jobs_instant=True)))
-assert len(p) == 16, sorted(p)
+assert len(p) == 24, sorted(p)
 assert all(sid.startswith("RSQ") for sid in p), sorted(p)
-print("16 nodes, all RSQ - story and side quests remain vanilla  OK")
+print("24 existing nodes, all RSQ - unrelated quests remain vanilla OK")
 
 # Compose limit and dialogue changes with cooldowns.
 p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=6,
@@ -103,8 +104,22 @@ p = nodes(build_patches(gd, Settings(repeatable_jobs_per_round=6,
 timers = [sid for sid, n in p.items() if "InGameHours" in n.values]
 assert len(timers) == 8, timers
 assert {n.values["InGameHours"] for sid, n in p.items() if sid in timers} == {"0"}
-assert len(p) == 24, len(p)   # Each limit/dialogue/timer node must appear once.
-print("Limit, dialog and cooldown share one patch file (24 nodes)  OK")
+assert len(p) == 32, len(p)   # Limit/random/dialogue/timer nodes appear once.
+print("Limit, random, dialog and cooldown compose in one patch file OK")
+
+# Live eligibility conditions are copied exactly, including journal/story gates.
+from s2tweaker.quest_pool import build_pool_guard
+from s2tweaker.tweaks import _struct_dict
+for giver in givers:
+    old, added = build_pool_guard(gd, giver)
+    for index, slot in enumerate(gd.repeatable_job_slots(giver["quest_sid"])):
+        add = gd.questnodes.children[slot["add"]]
+        source = next(iter(next(iter(add.children["Launchers"].children.values())).children["Connections"].children.values()))
+        gate = gd.questnodes.children[source.values["SID"]]
+        check = added[f"S2T_{giver['quest_sid']}_PoolCandidate_{index}"]
+        assert check["Conditions"] == _struct_dict(gate.children["Conditions"])
+    assert len(added) == giver["pool"] + 1
+print("All 69 native eligibility trees preserved; no story conditions removed OK")
 
 # --- 8) Tweak list ------------------------------------------------------
 lines = summarize(Settings(repeatable_jobs_per_round=6, repeatable_jobs_instant=True))

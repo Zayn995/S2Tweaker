@@ -37,7 +37,13 @@ FAQ_ENTRIES = [
              "internal IDs, such as GunAKS74U_PP; the installed-game catalog "
              "does not automatically include those mod-only items. Standard "
              "adds some new IDs too. Rescan after updating other mods. Scan "
-             "warnings do not merge patches or import overhaul items. The "
+             "warnings do not merge patches or import overhaul items. Avoid "
+             "conflicts resets and locks an entire overlapping slider, so "
+             "enabling it can remove all global size or weight changes. This "
+             "prevents the overlap; it does not make both mods' values work "
+             "together. Molkerr's attached 1.45.0 Pak contains the requested "
+             "size changes, while his later 1.46.0 report has those sliders "
+             "reset. The OXA size conflict remains unresolved. The "
              "inventory comparison may also use only the pistol-slot weapon.",
         "k": "oxa standard prototype sidearm pistol slot smg shotgun inventory "
              "icon size arev fora230 aku ak74u akm74u conflict compatibility vanilla overwrite",
@@ -377,6 +383,22 @@ FAQ_ENTRIES = [
              "proven effect.",
         "k": "artifact detector required visible without see artifacts "
              "veles bear echo svarog no detector",
+    },
+    {
+        "q": "Why did Hera stop offering jobs after increasing jobs per round?",
+        "a": "Older builds waited until the requested number of menu entries "
+             "was reached. Story gates, the previous job and mutually exclusive "
+             "choices can make that number impossible, even when the giver has "
+             "more job definitions. Molkerr restored Hera's offer by changing "
+             "5 back to vanilla 3. The experimental 1.46.2 repair checks the original "
+             "eligibility conditions and shows the collected choices when the "
+             "remaining pool is exhausted. It is not play-tested. It does not "
+             "reset quests or bypass story gates. In released builds through "
+             "1.46.1, keep this setting at 3 if affected and rebuild the same "
+             "Pak while retaining the existing multi-job setting. Do not remove "
+             "the journals from a save with active jobs.",
+        "k": "hera repeatable jobs per round missing dialogue offers no quests "
+             "five three exhausted pool story locked cement factory duty",
     },
     {
         "q": "Can I take several repeatable jobs at once?",

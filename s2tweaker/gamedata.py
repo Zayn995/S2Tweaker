@@ -2367,8 +2367,8 @@ class GameData:
     def repeatable_quest_givers(self) -> list[dict]:
         """Discover repeatable-job givers and their pool limits/dialogue links.
 
-        A per-giver variable increments on acceptance and resets with the cooldown;
-        its Less limit counts jobs per round, not currently held jobs. In vanilla,
+        A per-giver variable increments when an offer is added to the menu and
+        resets with the cooldown; it does not count accepted jobs. In vanilla,
         the dialogue rearms from the limit check's False output.
 
         Discover the Add/Less relationship within each quest rather than relying

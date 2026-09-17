@@ -126,14 +126,38 @@ an overhaul does not import its new items into that catalog or extend the
 global/per-weapon controls to them. Treat neither variant as fully supported.
 
 The generated 50% CFGs, neutral no-output behavior and all scanned archive CFGs
-were checked locally. Neither overhaul was installed for this inspection. A
-matching generated S2Tweaker Pak/preset and the affected inventory example are
-still needed to narrow the original report; no in-game size repair is claimed.
+were checked locally. Neither overhaul was installed for this inspection. The
+later supplied output is analyzed below; no in-game size repair is claimed.
 
 Since 1.46.0, the compatibility report includes current editor selections and
 the complete property overlap list. It explicitly distinguishes the current editor
 from the installed Pak and treats filename order as an estimate. The prior
 "your values win" guarantee was not justified for patch order or packed assets.
+
+### Supplied player Pak and report, 17 September 2026
+
+Molkerr supplied a [generated Pak](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5718066361)
+and a [new compatibility report](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5717746507).
+These represent different editor/build states:
+
+- The embedded manifest identifies the Pak as **1.45.0**, generated on
+  16 September at 19:19:03. It selects 50% inventory size and 20% item weight.
+  Direct CFG inspection confirms `GunArev_ST`, `GunFora230_PP` and `GunAKU_PP`
+  each receive a **2x1** grid, plus their requested weight changes. Those changes
+  are present in the supplied output; they were not omitted by the generator.
+- The report identifies **1.46.0**, OXA Standard 3.0.6 and **Avoid conflicts ON**.
+  The current changes list no longer includes the global size/weight adjustments.
+  Avoid conflicts intentionally resets and locks an entire overlapping slider,
+  including its nonoverlapping items. It does not merge competing values.
+- His [follow-up](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5718158532)
+  reports unchanged grids on OXA-integrated weapons and smaller grids on weapons
+  outside that integration. This supports the OXA overlap diagnosis; it does not
+  identify the engine's final patch ordering or establish an automatic repair.
+
+Switching Avoid conflicts off restores access to the sliders; it is **not a
+verified solution to the original OXA conflict**. No OXA files or player-generated
+translations are redistributed with the tool. The supplied files were inspected
+locally without installing either overhaul or altering a save.
 
 ## Validation
 

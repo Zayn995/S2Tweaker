@@ -4855,8 +4855,8 @@ def _quest_timer_patch(gd: GameData, s: Settings) -> dict:
 def _quest_limit_patch(gd: GameData, s: Settings) -> dict:
     """Set jobs-per-round limits, capped by each giver's available task pool.
 
-    The counter resets on cooldown, not hand-in. Patch only the counter limit
-    and parse the large quest file only when required."""
+    The counter counts added menu entries and resets on cooldown. Enlarged pools
+    also use build_pool_guard to stop when the remaining jobs are ineligible."""
     target = int(s.repeatable_jobs_per_round)
     if target == Settings.repeatable_jobs_per_round or target < 1:
         return {}
@@ -6205,6 +6205,14 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     quest_patches = _quest_timer_patch(gd, s)
     quest_patches.update(_skip_intro_patch(gd, s))
     _merge_nested(quest_patches, _quest_limit_patch(gd, s))
+    pool_nodes = {}
+    if s.repeatable_jobs_per_round > Settings.repeatable_jobs_per_round:
+        from .quest_pool import build_pool_guard
+        for giver in gd.repeatable_quest_givers():
+            if min(s.repeatable_jobs_per_round, giver["pool"]) > giver["cap"]:
+                pool_patches, new_pool_nodes = build_pool_guard(gd, giver)
+                _merge_nested(quest_patches, pool_patches)
+                pool_nodes.update(new_pool_nodes)
     _merge_nested(quest_patches, _quest_dialog_patch(gd, s))
     _merge_nested(quest_patches, _quest_multi_patch(gd, s))
     job_guards, job_journals = {}, {}
@@ -6217,6 +6225,7 @@ def build_patches(gd: GameData, s: Settings) -> dict[str, str]:
     add(f"DialogPrototypes/DialogPrototypes_patch_{n}.cfg", _quest_menu_patch(gd, s))
     job_nodes = _quest_taken_patch(gd, s)
     job_nodes.update(job_guards)
+    job_nodes.update(pool_nodes)
     add(f"QuestNodePrototypes/{n}_Jobs.cfg", job_nodes)
     add(f"JournalQuestPrototypes/{n}_Jobs.cfg", job_journals)
     # Runtime relation nodes use a separate quest file alongside the prototype

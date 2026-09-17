@@ -4,7 +4,17 @@ Introduced in version 1.37.2; story cancellation corrected in 1.37.3,
 11 September 2026. Partially player-tested on 1.39; further repairs after the
 1.40 report are available in version 1.40.1, with limited player confirmation below.
 
-## Player follow-up, 16 September 2026: Hera unavailable
+## Player follow-up, 17 September 2026: exhausted menu pool
+
+[Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5718007870)
+that restoring **Repeatable jobs per round** from 5 to vanilla 3 brings Hera's
+offer back. The attached 1.45.0 Pak confirms the five-choice setting. The generator
+used the total definition count even though native story and mutual-exclusion
+gates can leave fewer eligible choices. See the [pool-exhaustion analysis and
+1.46.2 repair](JOB_POOL_EXHAUSTION.md). This narrows the cause beyond the
+earlier cooldown hypothesis below. The repair is experimental and not play-tested.
+
+## Earlier follow-up, 16 September 2026: Hera unavailable
 
 [Molkerr reports](https://github.com/Zayn995/S2Tweaker/issues/9#issuecomment-5703418420)
 that Hera at the Duty base no longer offers jobs after completing the first

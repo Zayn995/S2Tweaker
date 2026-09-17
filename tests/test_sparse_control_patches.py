@@ -95,16 +95,42 @@ class InstalledData(unittest.TestCase):
     def setUpClass(cls):
         cls.gd = GameData(VANILLA)
 
-    def assignments(self, settings):
+    def assignments(self, settings, *, allow_added_job_launchers=False):
         result = {}
+        expected_pool_nodes = set()
+        if allow_added_job_launchers:
+            for giver in self.gd.repeatable_quest_givers():
+                expected_pool_nodes.add(f"S2T_{giver['quest_sid']}_PoolExhausted")
+                expected_pool_nodes.update(f"S2T_{giver['quest_sid']}_PoolCandidate_{i}"
+                                           for i in range(giver['pool']))
         for path, text in build_patches(self.gd, settings).items():
             base = base_file(path)
             if base is None:
                 continue
             root = self.gd._parse(base)
-            for leaf, value in leaves(cfgparse.parse(text)).items():
+            emitted = cfgparse.parse(text)
+            for leaf, value in leaves(emitted).items():
                 sid, nested = leaf.split("/", 1)
                 raw = self.gd.resolve(root, sid, nested.replace("/", "."))
+                if raw is None and allow_added_job_launchers:
+                    if sid not in root.children:
+                        self.assertIn(sid, expected_pool_nodes)
+                        self.assertFalse(emitted.children[sid].attrs)
+                        self.assertEqual(emitted.children[sid].values['NodeType'], 'EQuestNodeType::If')
+                        result[(base, leaf)] = value
+                        continue
+                    # Pool exhaustion deliberately appends launcher entries; it
+                    # must not rewrite an existing entry with vanilla values.
+                    parts = nested.split("/")
+                    node = root.children[sid]
+                    self.assertIn(node.values.get("NodeType"),
+                                  ("EQuestNodeType::Random", "EQuestNodeType::SetDialog"))
+                    self.assertEqual(parts[0], "Launchers")
+                    self.assertNotIn(parts[1], node.children["Launchers"].children)
+                    self.assertIn("/".join(parts[2:]),
+                                  ("Excluding", "Connections/[0]/SID", "Connections/[0]/Name"))
+                    result[(base, leaf)] = value
+                    continue
                 self.assertIsNotNone(raw, (path, leaf))
                 self.assertFalse(same(value, raw), (path, leaf, value))
                 result[(base, leaf)] = value
@@ -154,7 +180,8 @@ class InstalledData(unittest.TestCase):
             {"repeatable_jobs_per_round": 6}, {"surface_noise_overrides": {"Grass": .5}},
         ):
             with self.subTest(options=options):
-                self.assertTrue(self.assignments(Settings(**options)))
+                self.assertTrue(self.assignments(Settings(**options),
+                    allow_added_job_launchers="repeatable_jobs_per_round" in options))
         self.assertEqual(build_patches(self.gd, Settings()), {})
 
     def test_legacy_job_pin_and_rearm_do_not_restore_other_connections(self):

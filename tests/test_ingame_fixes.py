@@ -113,13 +113,14 @@ for giver in givers:
     assert giver["accept"] not in nodes, giver["quest"]
 check(True, "round cleanup is guarded; End and acceptance stay vanilla")
 
-# Without the option, dialogue and end nodes remain unchanged.
+# Enlarged pools now get exhaustion guards independently of the multi-job toggle.
 only_limit = build(repeatable_jobs_per_round=6)
 if only_limit:
     assert "ExcludeAllNodesInContainer" not in only_limit.get(QUESTS, "")
-    assert "Excluding" not in only_limit.get(QUESTS, "")
-    assert MENU not in only_limit and JOBS not in only_limit
-check(True, "Without the toggle, the dialog, end node and menu remain unchanged")
+    assert MENU not in only_limit and JOBS in only_limit
+    assert "S2T_Job_" not in only_limit[JOBS]
+    assert "EQuestNodeType::SetJournal" not in only_limit[JOBS]
+check(True, "Pool exhaustion works without multi-job journals or dialogue-menu changes")
 
 # Check the initial dialogue gate routes both outcomes to the job menu.
 menu = cfgparse.parse(p[MENU]).children
