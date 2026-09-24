@@ -689,7 +689,7 @@ class Settings:
     music_combat_lifetime: float = 25.0      # CoreVariables MusicManagerCombatEnemyAttackActionLifetimeSeconds (absolute)
     camp_life_factor: float = 1.0            # Camp-activity need IncreaseRateMin/Max.
     # Artifact and loot controls.
-    artifact_radius_factor: float = 1.0      # Per-artifact ItemPrototypes radius (40 cm / 10) and visibility.
+    artifact_radius_factor: float = 1.0      # Per-artifact ItemPrototypes Radius (40 cm / 10); reported hover height (#23).
     artifacts_no_hop: bool = False           # Likewise Strafe true -> false (146 of 154)
     artifact_keepaway_factor: float = 1.0    # Likewise PlayerDistance (1000) + CoreVariables ArtifactStrafeMinDistance (600)
     artifact_hop_pause_factor: float = 1.0   # Likewise JumpSeriesDelay (45/35/25/15)
@@ -2753,7 +2753,8 @@ def _singleton_patch(gd: GameData, s: Settings) -> dict:
 def _artifact_behaviour_patch(gd: GameData, s: Settings) -> dict:
     """Adjust explicit artifact movement/visibility fields per prototype.
 
-    Radius interpretation remains provisional. Preserve false/zero defaults.
+    Radius is reported to be the artifact's hover height above the ground
+    (#23, one screenshot). Preserve false/zero defaults.
     Compose jump interval/series delay, return/player distance, and jump
     force/distance/height controls. DetectorRequired is an independent toggle.
     The checked edition files contain no artifact prototypes."""
@@ -6665,7 +6666,7 @@ def summarize(s: Settings) -> list[str]:
         lines.append(f"Combat music lingers {s.music_combat_lifetime:g} s (vanilla 25)")
     f("Camp life", s.camp_life_factor)
     # 1.28.0 P7
-    f("Artifact visibility radius", s.artifact_radius_factor)
+    f("Artifact hover height", s.artifact_radius_factor)
     if s.artifacts_no_hop:
         lines.append("Artifacts don't hop away")
     f("Artifact keep-away distance (experimental)", s.artifact_keepaway_factor)

@@ -11,7 +11,17 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.46.2 — REPEATABLE JOB POOL REPAIR (EXPERIMENTAL)
+NEW IN 1.46.3 — SMALLER GENERATED PAKS
+--------------------------------------
+Generated Paks and the settings file now store only the settings you changed,
+instead of the state of all 3,264 controls. An aim-punch-only Pak drops from
+245 KB to 1 KB. "Load preset ..." still reads your settings back out of a Pak,
+and your existing Paks import exactly as before - rebuilding is optional and
+only makes the file smaller. The patches inside the Pak are unchanged, so the
+game sees the same values. The artifact "Radius" slider is renamed "Artifact
+hover height" after a player reported that it lifts artifacts off the ground.
+
+INCLUDED FROM 1.46.2 — REPEATABLE JOB POOL REPAIR (EXPERIMENTAL)
 -----------------------------------------------------
 Enlarged repeatable-job menus now stop when their eligible pool is exhausted,
 instead of waiting forever for an impossible number of choices. Addresses Hera's

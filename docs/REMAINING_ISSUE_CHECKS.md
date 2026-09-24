@@ -1,4 +1,4 @@
-# Remaining issue checks — updated for 1.42.0
+# Remaining issue checks — updated for 1.46.3
 
 ## Maximum talk distance (#10)
 
@@ -91,3 +91,33 @@ reading below the cap does not prove that increasing the cap has no cost.
 
 No performance or stability conclusion about another mod is established by
 this report. #19 remains open for the continuing observations.
+
+## Artifact hover height (#23)
+
+The 40 cm `Radius` in each artifact struct had no established meaning. The
+slider on it was added in 1.28.0 as the suspected key behind "Less Shy
+Artifacts", corrected in 1.29.0 once that mod turned out to raise the
+detector's `ShowArtifactRadius` instead, and carried the label "(unproven)"
+from then on.
+
+Update, 20 September: [matalayupog reports](https://github.com/Zayn995/S2Tweaker/issues/23)
+that the key sets how far the artifact floats above the ground, with a
+screenshot of the same Slug at 5x sitting visibly higher than at 2x. The
+slider is renamed **Artifact hover height** and the build report follows.
+
+This rests on one screenshot from one player and has not been reproduced
+here, so the label keeps "(experimental)". The generator is unchanged: it
+still scales the same `Radius` values it always did, and a factor of 1x
+writes no patch.
+
+For a game check, take one artifact type and one save. Build one pak with
+only this slider at 5x, note where the artifact rests relative to the
+ground, then rebuild at 1x and compare the same artifact in the same spot.
+Restart the game between pak changes. Worth recording as well: whether a
+raised artifact can still be picked up, whether the detector still reacts at
+the usual distance, and whether hopping artifacts land back at the new
+height. Report the game version and the artifact used.
+
+The alternative readings are not excluded. A pickup or interaction radius
+that happens to displace the mesh would look similar in a screenshot; that
+is one reason the in-game check above asks about picking the artifact up.

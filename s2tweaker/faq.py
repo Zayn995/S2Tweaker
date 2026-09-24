@@ -986,14 +986,33 @@ FAQ_ENTRIES = [
     {
         "q": "Can I load the settings back from a built .pak?",
         "a": "Yes - every pak built with v1.10.0 or newer embeds a "
-             "manifest (tool version, build date, game version and ALL "
-             "settings). Click 'Load preset ...' and pick the .pak: your "
-             "sliders, overrides and the mod name come back exactly. "
-             "That also makes shared paks editable presets, and for bug "
-             "reports the author can see what was set. Older or foreign "
-             "paks carry no manifest and cannot be imported.",
+             "manifest (tool version, build date, game version and every "
+             "setting you changed). Click 'Load preset ...' and pick the "
+             ".pak: your sliders, overrides and the mod name come back "
+             "exactly, because importing resets everything to vanilla "
+             "first and then applies the manifest. That also makes shared "
+             "paks editable presets, and for bug reports the author can "
+             "see what was set. Older or foreign paks carry no manifest "
+             "and cannot be imported.",
         "k": "import pak load settings from pak manifest restore recover "
              "share preset which settings reproduce",
+    },
+    {
+        "q": "Why is my pak bigger than the settings I changed?",
+        "a": "It should not be, from 1.46.3 on. Paks are written "
+             "uncompressed and carry the manifest described above, and up "
+             "to 1.46.2 that manifest stored the state of every single "
+             "control - including the thousands of artifact-editor, NPC-"
+             "equipment, weather and detail settings you never touched. "
+             "That put about 240 KB into every pak no matter how little "
+             "you changed, which is what craigduk76 spotted in #22. Now "
+             "only your changed settings are stored, so a pak with one "
+             "changed slider is about 1 KB. The patches the game reads "
+             "were never affected, and your older paks still load their "
+             "settings. Rebuilding is optional: it only makes the file "
+             "smaller.",
+        "k": "pak size big large why 240 kb bigger smaller manifest "
+             "settings.json disk space grew",
     },
     {
         "q": "Someone says my mod conflicts with theirs - how do I check?",
@@ -1404,15 +1423,18 @@ FAQ_ENTRIES = [
         "a": "Use 'Detector & scanner range' in the World tab - that is the "
              "one that works. It scales the detector's own artifact display "
              "radius (vanilla 230 to 400 cm), which is exactly what the mod "
-             "'Less Shy Artifacts' raises to 750. We also offer 'Artifact "
-             "Radius value' next to the artifact sliders, but be warned: we "
-             "added it believing it was that mod's key, and after reading "
-             "the mod's files we know it is not. What that 40 cm Radius "
-             "does is unproven. Next to it, 'Artifacts don't hop away' "
-             "stops the 146 artifacts that jump off when you approach. Not "
-             "play-tested yet.",
+             "'Less Shy Artifacts' raises to 750. The artifact's own 40 cm "
+             "'Radius' is a different thing: we once added a slider for it "
+             "believing it was that mod's key, and after reading the mod's "
+             "files we know it is not. matalayupog has since reported what "
+             "it actually does - it lifts the artifact higher off the "
+             "ground - so that slider is now called 'Artifact hover height'. "
+             "One report, not reproduced here. Next to it, 'Artifacts don't "
+             "hop away' stops the 146 artifacts that jump off when you "
+             "approach. Not play-tested yet.",
         "k": "artifact artifacts invisible see visible radius hidden find "
-             "shy hop jump away run escape catch detector distance",
+             "shy hop jump away run escape catch detector distance hover "
+             "height floating above ground",
     },
     {
         "q": "Anomalies keep wrecking my armour and guns - can I stop that?",

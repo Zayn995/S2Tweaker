@@ -8,7 +8,9 @@
 
 [b]Community update, 11 September:[/b] Players report successful talk-distance, 1% sober-up, aim-punch and weapon-noise tests. Search time, guaranteed-hit shots, night perception and combat flashlight use have encouraging observations; the combined quieter-zone test does not verify each A-Life slider separately.
 
-[b]New in 1.46.2 — Repeatable job pool repair (experimental):[/b] Enlarged job menus stop when native eligibility rules leave no further choices. Addresses Hera waiting for five choices when fewer are possible, and covers all eight givers. Story gates, journals and rewards are preserved. Not play-tested; rebuild the same Pak while retaining existing multi-job settings. OXA inventory-size compatibility remains unresolved.
+[b]New in 1.46.3 — Smaller generated Paks:[/b] Paks and the settings file now store only the settings you changed, instead of the state of all 3,264 controls. An aim-punch-only Pak drops from 245 KB to 1 KB. "Load preset ..." still reads your settings back out of a Pak, existing Paks import exactly as before, and the patches inside the Pak are unchanged - rebuilding is optional and only makes the file smaller. The artifact "Radius" slider is renamed "Artifact hover height" after a player reported that it lifts artifacts off the ground; the generator is unchanged and the reading is not confirmed.
+
+[b]Included from 1.46.2 — Repeatable job pool repair (experimental):[/b] Enlarged job menus stop when native eligibility rules leave no further choices. Addresses Hera waiting for five choices when fewer are possible, and covers all eight givers. Story gates, journals and rewards are preserved. Not play-tested; rebuild the same Pak while retaining existing multi-job settings. OXA inventory-size compatibility remains unresolved.
 
 [b]Included from 1.46.1 — Scrollable build reports:[/b] The completion window now scrolls, wraps long paths and resizes to fit the screen. OK stays outside the scrolling report; Enter and Escape also close it. All output, backup, companion and debug details remain. Fixes off-screen confirmation with many changes. Gameplay and companion unchanged; existing Paks need no rebuild.
 
@@ -49,10 +51,10 @@ The full source code is available under the MIT license. Bug reports, improvemen
 
 [b]Virus scan of exactly the file on this page:[/b]
 [list]
-[*]The tool ZIP (1.46.2): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
+[*]The tool ZIP (1.46.3): no VirusTotal result is available for this exact ZIP yet. Earlier reports below apply only to their named files
 [*]The program file inside it, S2Tweaker.exe: [url=https://www.virustotal.com/gui/file/d72294fb338bc2fc8896d25a7395a4db466425427e1559e77185d5135a830681]VirusTotal - 0 of 71[/url]. It is pythonw.exe from python.org, byte for byte, digitally signed by the Python Software Foundation - VirusTotal labels it "File distributed by Python Software Foundation"
 [/list]
-S2Tweaker.exe is byte-identical in 1.21.0 through 1.46.2, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
+S2Tweaker.exe is byte-identical in 1.21.0 through 1.46.3, so its report covers all of them. There is no other executable in the package: the one unsigned helper program of earlier versions, repak.exe, is gone since 1.23.0 (see the changelog). Earlier versions were built with PyInstaller and kept collecting false positives (1.20.0: 1 of 65 for the ZIP, 2 of 70 for the exe) even after every setting had been tried; the changelog below explains what changed.
 
 [b]Every version scanned since 1.23.0 - click to expand[/b]
 [spoiler]
@@ -279,6 +281,17 @@ If the ~mods folder doesn't exist, create it.
 
 [heading]CHANGELOG[/heading]
 
+[b]v1.46.3 - Smaller generated Paks[/b]
+[list]
+[*]Generated Paks and settings.json store only changed settings instead of the complete state of all 3,264 controls. An aim-punch-only Pak drops from 245,363 to 1,012 bytes; a settings file with two changed values from 237,931 to 308.
+[*]Fixes craigduk76's report (#22): the embedded manifest grew with the optional editors, from 17.5 KB on 1.37.3 to 238.9 KB, and Paks are written uncompressed. The debug export never contained it, so the configuration output looked unchanged.
+[*]Reading settings back is unaffected: importing resets every control to vanilla first. Existing Paks keep their complete manifest and import as before; the format stays manifest_version 1, readable by 1.10.0 and newer. Profiles and presets keep the complete state.
+[*]The configuration patches inside the Pak are unchanged, so rebuilding is optional and only makes the file smaller.
+[*]Artifact "Radius" renamed "Artifact hover height" after matalayupog's report (#23) that it lifts artifacts off the ground. One screenshot, not reproduced, still marked experimental; the generator is unchanged.
+[*]All 28 headless CI suites passed on Windows, plus the portable self-test. The game-data suites run locally.
+[*]Animation/sound companion and all 19 signed runtime binaries unchanged.
+[/list]
+
 [b]v1.46.2 - Repeatable job pool repair (experimental)[/b]
 [list]
 [*]Stop enlarged job menus when their current eligible pool is exhausted, preserving native restrictions and existing collected choices. Applies to all eight givers.
@@ -288,6 +301,7 @@ If the ~mods folder doesn't exist, create it.
 [*]OXA inventory-size conflicts remain unresolved. Animation/sound companion and all 19 signed runtime binaries unchanged.
 [/list]
 
+[spoiler]
 [b]v1.46.1 - Scrollable build reports[/b]
 [list]
 [*]Wider, resizable build-completion window with scrolling, word wrapping and an OK button below the report. Enter and Escape also close it.
@@ -296,7 +310,6 @@ If the ~mods folder doesn't exist, create it.
 [*]Gameplay, animation/sound companion and all 19 signed runtime binaries unchanged.
 [/list]
 
-[spoiler]
 [b]v1.46.0 - Separate crouch stealth and clearer compatibility reports[/b]
 [list]
 [*]Independent crouched visibility and AI hearing factors, with automatic migration of combined profiles. The hearing control does not alter audible sound volume.

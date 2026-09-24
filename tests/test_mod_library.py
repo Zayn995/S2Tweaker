@@ -9,7 +9,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from s2tweaker import mod_library as library, pakio
 from s2tweaker.editor_preview import base_file, describe_output
-from s2tweaker import cfgparse
+from s2tweaker import cfgparse, editor_state, extension_controls
 from s2tweaker.tweaks import Settings
 
 
@@ -139,6 +139,78 @@ class LibraryTests(unittest.TestCase):
         self.assertIn("[new or unresolved base] → 250", text)
         with patch("s2tweaker.editor_preview.build_patches", return_value={}):
             self.assertIn("No effective patch", describe_output(gd, Settings()))
+
+
+class ManifestSizeTests(unittest.TestCase):
+    """A generated Pak must not carry the defaults of every editor control.
+
+    The optional editors register thousands of controls through the ordinary
+    slider registry, so embedding the complete editor state added roughly
+    240 KB of vanilla values to every Pak (issue #22). Build the defaults from
+    the real control inventory so new controls cannot reintroduce it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        # The same snapshot the editor builds in _wb_setup.
+        self.defaults = {"sliders": {key: default for key, _t, _lo, _hi, default, _h
+                                     in extension_controls.control_specs()},
+                         "checks": {key: False for key in extension_controls.CHECKS},
+                         "cats": {"weapon": True, "ammo": True}}
+        self.assertGreater(len(self.defaults["sliders"]), 2000,
+                           "control inventory unexpectedly small")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def state(self, **changed):
+        """A complete editor state: every control at its default but `changed`."""
+        full = {group: dict(values) for group, values in self.defaults.items()}
+        full.update({group: {} for group in editor_state.GROUPS
+                     if group not in full})
+        for group, values in changed.items():
+            full[group].update(values)
+        return full
+
+    def pack(self, ui_state, target="zzz_Sized_P.pak"):
+        text = json.dumps({"tool": "S2Tweaker test", "manifest_version": 1,
+                           "mod_name": "Sized", "active_tweaks": ["one tweak"],
+                           "ui_state": ui_state}, indent=2)
+        path = library.build_safely({"ObjPrototypes/Own.cfg": cfg(250)},
+                                    self.root / target, {library.MANIFEST: text},
+                                    self.root / "history")
+        self.assertIsNone(path)
+        return self.root / target
+
+    def test_reduced_manifest_keeps_paks_small(self):
+        changed = {"sliders": {"bolt_lifetime_factor": 250},
+                   "checks": {"weird_flower_permanent": True}}
+        full = self.state(**changed)
+        reduced = editor_state.state_delta(full, self.defaults)
+        self.assertEqual(reduced, changed)
+        complete = self.pack(full, "zzz_Complete_P.pak").stat().st_size
+        small = self.pack(reduced).stat().st_size
+        self.assertGreater(complete, 150 * 1024, "fixture no longer reproduces #22")
+        self.assertLess(small, 8 * 1024, f"manifest carries defaults again: {small} bytes")
+
+    def test_reduced_manifest_still_imports(self):
+        changed = {"sliders": {"bolt_lifetime_factor": 250},
+                   "checks": {"weird_flower_permanent": True},
+                   "weapon_overrides": {"Gun": {"damage": 2.0}}}
+        pak = self.pack(editor_state.state_delta(self.state(**changed), self.defaults))
+        mod = library.read_own_mod(pak)
+        self.assertEqual(mod.name, "Sized")
+        state = editor_state.state_only(mod.manifest["ui_state"])
+        self.assertEqual(state["sliders"], changed["sliders"])
+        self.assertEqual(state["checks"], changed["checks"])
+        self.assertEqual(state["weapon_overrides"], changed["weapon_overrides"])
+        # Controls left at vanilla are absent, not reported as changed.
+        self.assertNotIn("decal_count_factor", state["sliders"])
+        self.assertEqual(state["cats"], {})
+
+    def test_all_vanilla_manifest_remains_readable(self):
+        pak = self.pack(editor_state.state_delta(self.state(), self.defaults))
+        self.assertEqual(library.read_own_mod(pak).name, "Sized")
 
 
 if __name__ == "__main__":
