@@ -11,6 +11,14 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.46.3 — Smaller Generated Paks:** Paks and the settings file now store only
+the settings you changed, instead of the state of all 3,264 controls. An
+aim-punch-only Pak drops from 245 KB to 1 KB. Reading settings back out of a Pak
+is unaffected, and existing Paks import exactly as before.
+The artifact `Radius` slider is renamed **Artifact hover height** after a player
+report. [Release notes](release/NOTES_v1.46.3.md) ·
+[Game check for the hover height](docs/REMAINING_ISSUE_CHECKS.md).
+
 **1.46.2 — Repeatable Job Pool Repair (experimental):** enlarged repeatable-job menus now stop when
 the currently eligible pool is exhausted. This addresses Hera waiting for five
 choices when native restrictions allow fewer. Story gates and existing journals

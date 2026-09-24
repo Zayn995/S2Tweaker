@@ -2,21 +2,34 @@ NEXUS FILE DESCRIPTIONS
 ======================
 
 FILE — Main Files
-Name:          S2Tweaker 1.46.2 - Repeatable Job Pool Repair
-File version:  1.46.2
+Name:          S2Tweaker 1.46.3 - Smaller Generated Paks
+File version:  1.46.3
 File category: Main Files
 ==================================================================
 
 --- File description ---
-Enlarged repeatable-job menus now stop when their eligible pool is exhausted,
-instead of waiting forever for an impossible number of choices. Addresses Hera's
-missing offer when five jobs were requested but native restrictions allowed fewer.
-Applies to all eight givers; original story gates, journals and rewards remain.
-Experimental, not play-tested. Rebuild the same Pak and retain existing multi-job
-settings for active jobs. OXA inventory-size compatibility remains unresolved.
+Generated Paks and the settings file now store only the settings you changed,
+instead of the state of all 3,264 controls. An aim-punch-only Pak drops from
+245 KB to 1 KB. "Load preset ..." still reads your settings back out of a Pak,
+existing Paks import exactly as before, and the patches inside the Pak are
+unchanged - rebuilding is optional and only makes the file smaller (#22). The
+artifact "Radius" slider is renamed "Artifact hover height" after a player
+reported that it lifts artifacts off the ground (#23); the generator is unchanged
+and that reading is not confirmed.
 ------------------------------------------------------------------
 
 --- Changelog ----------------------------------------------------
+1.46.3 - Smaller generated Paks
+
+Generated Paks and the settings file now store only the settings you changed,
+instead of the state of all 3,264 controls. An aim-punch-only Pak drops from
+245 KB to 1 KB. "Load preset ..." still reads your settings back out of a Pak,
+existing Paks import exactly as before, and the patches inside the Pak are
+unchanged - rebuilding is optional and only makes the file smaller (#22). The
+artifact "Radius" slider is renamed "Artifact hover height" after a player
+reported that it lifts artifacts off the ground (#23); the generator is unchanged
+and that reading is not confirmed.
+
 1.46.2 - Repeatable job pool repair (experimental)
 
 Enlarged repeatable-job menus now stop when their eligible pool is exhausted,

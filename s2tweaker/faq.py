@@ -998,6 +998,23 @@ FAQ_ENTRIES = [
              "share preset which settings reproduce",
     },
     {
+        "q": "Why is my pak bigger than the settings I changed?",
+        "a": "It should not be, from 1.46.3 on. Paks are written "
+             "uncompressed and carry the manifest described above, and up "
+             "to 1.46.2 that manifest stored the state of every single "
+             "control - including the thousands of artifact-editor, NPC-"
+             "equipment, weather and detail settings you never touched. "
+             "That put about 240 KB into every pak no matter how little "
+             "you changed, which is what craigduk76 spotted in #22. Now "
+             "only your changed settings are stored, so a pak with one "
+             "changed slider is about 1 KB. The patches the game reads "
+             "were never affected, and your older paks still load their "
+             "settings. Rebuilding is optional: it only makes the file "
+             "smaller.",
+        "k": "pak size big large why 240 kb bigger smaller manifest "
+             "settings.json disk space grew",
+    },
+    {
         "q": "Someone says my mod conflicts with theirs - how do I check?",
         "a": "Run 'Scan ~mods', then click 'Export report ...' in the "
              "results window: you get a plain-text compatibility report "

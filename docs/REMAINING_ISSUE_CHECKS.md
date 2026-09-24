@@ -1,4 +1,4 @@
-# Remaining issue checks — updated for 1.42.0
+# Remaining issue checks — updated for 1.46.3
 
 ## Maximum talk distance (#10)
 
