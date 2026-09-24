@@ -82,5 +82,57 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text()), {"good": 1})
 
 
+class DeltaTests(unittest.TestCase):
+    """state_delta keeps what an import cannot reconstruct from a reset."""
+    defaults = {"sliders": {"hp": 100, "loot": 100.0},
+                "checks": {"vault": False}, "cats": {"weapon": True}}
+
+    def delta(self, **groups):
+        return state.state_delta(groups, self.defaults)
+
+    def test_default_values_and_empty_groups_are_dropped(self):
+        self.assertEqual(self.delta(sliders={"hp": 100.0, "loot": 100},
+                                    checks={"vault": False},
+                                    cats={"weapon": True},
+                                    weapon_overrides={}), {})
+
+    def test_changed_values_survive_per_group(self):
+        self.assertEqual(
+            self.delta(sliders={"hp": 250.0, "loot": 100.0},
+                       checks={"vault": True}, cats={"weapon": False}),
+            {"sliders": {"hp": 250.0}, "checks": {"vault": True},
+             "cats": {"weapon": False}})
+
+    def test_groups_without_defaults_are_kept_verbatim(self):
+        overrides = {"Gun": {"damage": 2.0}}
+        result = self.delta(weapon_overrides=overrides, faction_relations={"a:b": -1})
+        self.assertEqual(result, {"weapon_overrides": {"Gun": {"damage": 2.0}},
+                                  "faction_relations": {"a:b": -1}})
+        result["weapon_overrides"]["Gun"]["damage"] = 3.0
+        self.assertEqual(overrides["Gun"]["damage"], 2.0, "must not alias live state")
+
+    def test_unknown_keys_have_no_default_and_are_retained(self):
+        self.assertEqual(self.delta(sliders={"future_control": 0}),
+                         {"sliders": {"future_control": 0}})
+
+    def test_near_equal_floats_count_as_default(self):
+        self.assertEqual(self.delta(sliders={"hp": 100 + 1e-12}), {})
+        self.assertEqual(self.delta(sliders={"hp": 100.001}),
+                         {"sliders": {"hp": 100.001}})
+
+    def test_reduced_state_stays_valid_and_reapplies_unchanged(self):
+        full = {group: {} for group in state.GROUPS}
+        full.update(sliders={"hp": 250.0, "loot": 100.0}, checks={"vault": True},
+                    cats={"weapon": True}, weapon_overrides={"Gun": {"damage": 2.0}})
+        reduced = state.state_delta(full, self.defaults)
+        # Resetting to the defaults and applying the delta restores the original.
+        restored = {group: dict(values) for group, values in self.defaults.items()}
+        for group, values in state.state_only(reduced).items():
+            restored.setdefault(group, {}).update(values)
+        self.assertEqual(restored["sliders"], {"hp": 250.0, "loot": 100})
+        self.assertEqual(restored["checks"], {"vault": True})
+        self.assertEqual(restored["weapon_overrides"], {"Gun": {"damage": 2.0}})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -84,6 +84,30 @@ def state_only(data):
     return result
 
 
+def state_delta(state, defaults):
+    """Keep only the settings that differ from their default value.
+
+    Loading a preset or a Pak resets every control to vanilla before applying
+    the stored state, so default values carry no information. Groups without a
+    default snapshot are the override dictionaries, which already hold nothing
+    but user selections. Empty groups are dropped; state_only() treats an absent
+    group as neutral."""
+    result = {}
+    for group, values in state.items():
+        if not isinstance(values, dict):
+            continue
+        neutral = (defaults or {}).get(group)
+        if neutral is None:
+            kept = clone(values)
+        else:
+            # An unknown key has no default to compare against and is retained.
+            kept = {key: clone(value) for key, value in values.items()
+                    if key not in neutral or not equal(value, neutral[key])}
+        if kept:
+            result[group] = kept
+    return result
+
+
 def differences(left, right, defaults=None):
     """Compare settings, treating absent old-profile fields as their neutral values."""
     a, b = flatten(state_only(left)), flatten(state_only(right))

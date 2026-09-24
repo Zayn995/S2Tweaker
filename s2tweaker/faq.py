@@ -986,12 +986,14 @@ FAQ_ENTRIES = [
     {
         "q": "Can I load the settings back from a built .pak?",
         "a": "Yes - every pak built with v1.10.0 or newer embeds a "
-             "manifest (tool version, build date, game version and ALL "
-             "settings). Click 'Load preset ...' and pick the .pak: your "
-             "sliders, overrides and the mod name come back exactly. "
-             "That also makes shared paks editable presets, and for bug "
-             "reports the author can see what was set. Older or foreign "
-             "paks carry no manifest and cannot be imported.",
+             "manifest (tool version, build date, game version and every "
+             "setting you changed). Click 'Load preset ...' and pick the "
+             ".pak: your sliders, overrides and the mod name come back "
+             "exactly, because importing resets everything to vanilla "
+             "first and then applies the manifest. That also makes shared "
+             "paks editable presets, and for bug reports the author can "
+             "see what was set. Older or foreign paks carry no manifest "
+             "and cannot be imported.",
         "k": "import pak load settings from pak manifest restore recover "
              "share preset which settings reproduce",
     },

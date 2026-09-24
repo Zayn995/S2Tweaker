@@ -40,14 +40,29 @@ with tempfile.TemporaryDirectory(prefix="s2t_qol_") as tmp:
     active = summarize(s)
     patches = build_patches(gd, s)
     pak = Path(tmp) / "zzz_QolTest_P.pak"
-    pakio.pack_mod(patches, pak,
-                   root_files={gui.MANIFEST_NAME:
-                               app._build_manifest(s, active)})
+    text = app._build_manifest(s, active)
+    pakio.pack_mod(patches, pak, root_files={gui.MANIFEST_NAME: text})
     entries = pakio.list_pak(pak)
     assert gui.MANIFEST_NAME in entries, entries[:5]
     assert all(e == gui.MANIFEST_NAME or e.startswith("Stalker2/")
                for e in entries), "Manifest must be at the root"
     print("Manifest embedded at pak root  OK")
+
+    # The manifest carries the changed settings only. Storing the complete state
+    # of every editor control added roughly 240 KB to each Pak (issue #22).
+    stored = json.loads(text)["ui_state"]
+    assert len(text) < 8 * 1024, f"manifest carries defaults again: {len(text)} bytes"
+    assert len(app.sliders) > 2000, f"control inventory unexpectedly small: {len(app.sliders)}"
+    assert abs(stored["sliders"]["hp"] - 250) < 1e-9, stored["sliders"].get("hp")
+    assert abs(stored["sliders"]["loot_amount"] - 200) < 1e-9
+    assert stored["checks"] == {"improved_vaulting": True}, stored["checks"]
+    assert stored["armor_overrides"] == {"SEVA_Neutral_Armor": {"radiation": 2.0}}
+    assert "cats" not in stored, "all categories are ticked by default"
+    untouched = [key for key in ("decal_count_factor", "bolt_lifetime_factor",
+                                "aimpunch", "carry") if key in stored["sliders"]]
+    assert not untouched, untouched
+    print(f"Manifest stores {len(stored['sliders'])} of {len(app.sliders)} sliders, "
+          f"{len(text)} bytes  OK")
 
     # Reset then restore all state from the Pak.
     app._reset_all()

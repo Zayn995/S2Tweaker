@@ -8581,7 +8581,12 @@ class App(WorkbenchMixin, ctk.CTk):
         return None
 
     def _build_manifest(self, s, active: list[str]) -> str:
-        """Build a support/preset manifest embedded in the generated Pak."""
+        """Build a support/preset manifest embedded in the generated Pak.
+
+        Store only settings that differ from vanilla. _import_pak resets every
+        control before applying the manifest, so the complete state restores
+        exactly the same values while adding the defaults of every editor
+        control - hundreds of kilobytes - to each generated Pak (issue #22)."""
         return json.dumps({
             "manifest_version": 1,
             "tool": f"S2Tweaker {__version__}",
@@ -8589,7 +8594,8 @@ class App(WorkbenchMixin, ctk.CTk):
             "game_pak_fingerprint": self._game_fingerprint(),
             "mod_name": s.mod_name,
             "active_tweaks": active,
-            "ui_state": self._ui_state(),
+            "ui_state": editor_state.state_delta(self._ui_state(),
+                                                 self._wb_defaults),
         }, indent=2)
 
     def _import_pak(self, path: Path) -> None:
