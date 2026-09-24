@@ -179,12 +179,19 @@ jobs:
           for file in "$notes" "$player" "$source"; do
             test -f "$file" || { echo "Missing: $file"; exit 1; }
           done
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "A release for $tag already exists; nothing to do."
-            exit 0
-          fi
           # One source of truth for the title: the notes file's own heading.
           title="$(head -1 "$notes" | sed 's/^# *//')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$(gh release view "$tag" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "$tag is already published; leaving it untouched."
+              exit 0
+            fi
+            # A draft is still ours to correct, e.g. after rebuilding from main.
+            gh release edit "$tag" --target main --title "$title" --notes-file "$notes"
+            gh release upload "$tag" "$player" "$source" --clobber
+            echo "Draft release $tag refreshed from this run."
+            exit 0
+          fi
           # --target creates the tag on main when the tag does not exist yet.
           gh release create "$tag" --draft --target main \
             --title "$title" --notes-file "$notes" "$player" "$source"
