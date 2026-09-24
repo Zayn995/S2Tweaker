@@ -104,3 +104,75 @@ jobs:
           name: S2Tweaker-${{ github.sha }}
           path: dist/S2Tweaker/
           if-no-files-found: error
+
+      # Release ZIPs are built from the directory verified above, in this same
+      # job, so nothing unverified can reach a release. Every other run only
+      # proves the release path still works.
+      - name: Check the release path still works
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: python tools/make_release_zips.py 0.0.0-ci --dist dist/S2Tweaker
+
+      - name: Check the tag against the version and its notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $version = (python -c "import s2tweaker; print(s2tweaker.__version__)").Trim()
+          "tag: $tag / __version__: $version"
+          if ($tag -ne $version) {
+            throw "Tag v$tag does not match s2tweaker.__version__ $version"
+          }
+          if (-not (Test-Path "release/NOTES_v$version.md")) {
+            throw "release/NOTES_v$version.md is missing"
+          }
+
+      - name: Build the release ZIPs
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          python tools/make_release_zips.py $version --dist dist/S2Tweaker
+
+      - name: Upload the release ZIPs
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zips
+          path: release/S2Tweaker_v*.zip
+          if-no-files-found: error
+
+  # A tag creates a DRAFT release with both ZIPs attached. Publishing stays a
+  # deliberate click: a published release notifies watchers and cannot be taken
+  # back cleanly, and a mistyped tag should not reach anyone.
+  release:
+    name: draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # Only this job writes; the build job stays read-only.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-zips
+          path: release-zips
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          notes="release/NOTES_v$version.md"
+          player="release-zips/S2Tweaker_v$version.zip"
+          source="release-zips/S2Tweaker_v${version}_source.zip"
+          for file in "$notes" "$player" "$source"; do
+            test -f "$file" || { echo "Missing: $file"; exit 1; }
+          done
+          # One source of truth for the title: the notes file's own heading.
+          title="$(head -1 "$notes" | sed 's/^# *//')"
+          gh release create "$GITHUB_REF_NAME" --draft \
+            --title "$title" --notes-file "$notes" "$player" "$source"
+          echo "Draft release for $GITHUB_REF_NAME created. Review it, then publish."
