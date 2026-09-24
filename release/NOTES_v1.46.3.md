@@ -67,9 +67,12 @@ quietly reintroduce the defaults. The window check builds a Pak, reimports it,
 writes the settings file and restarts the editor from it. The sizes above are
 that suite's measurements.
 
+All 28 headless CI suites passed on Windows, along with the portable self-test
+and the signature check on all 19 unchanged runtime binaries. The game-data and
+window suites run locally, as always.
+
 No game or Zone Kit session was started. The artifact hover height is not
-play-tested, and neither is the rest of the tool. All 19 signed desktop runtime
-binaries are unchanged.
+play-tested, and neither is the rest of the tool.
 
 Download **S2Tweaker_v1.46.3.zip** and extract the complete folder. Keep
 `_internal` beside `S2Tweaker.exe`. Preserve your settings and profiles when

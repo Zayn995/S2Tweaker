@@ -288,6 +288,7 @@ If the ~mods folder doesn't exist, create it.
 [*]Reading settings back is unaffected: importing resets every control to vanilla first. Existing Paks keep their complete manifest and import as before; the format stays manifest_version 1, readable by 1.10.0 and newer. Profiles and presets keep the complete state.
 [*]The configuration patches inside the Pak are unchanged, so rebuilding is optional and only makes the file smaller.
 [*]Artifact "Radius" renamed "Artifact hover height" after matalayupog's report (#23) that it lifts artifacts off the ground. One screenshot, not reproduced, still marked experimental; the generator is unchanged.
+[*]All 28 headless CI suites passed on Windows, plus the portable self-test. The game-data suites run locally.
 [*]Animation/sound companion and all 19 signed runtime binaries unchanged.
 [/list]
 
