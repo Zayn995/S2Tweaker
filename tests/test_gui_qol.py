@@ -171,5 +171,37 @@ for geom in ("1010x720", "880x600"):
     assert app.search_entry.winfo_width() >= 150, geom
 print("Layout: Changed-only button visible at 1010/880 px  OK")
 
+# --- 5) settings.json stores the changed settings only -------------------
+app._reset_all()
+app.sliders["hp"].set(250)
+app.checks["improved_vaulting"].select()
+app.name_entry.delete(0, "end")
+app.name_entry.insert(0, "QolTest")
+app.update()
+app._save_ui_settings()
+saved = gui.SETTINGS_FILE.read_text(encoding="utf-8")
+data = json.loads(saved)
+assert len(saved) < 8 * 1024, f"settings file carries defaults again: {len(saved)} bytes"
+assert abs(data["sliders"]["hp"] - 250) < 1e-9, data["sliders"].get("hp")
+assert data["checks"] == {"improved_vaulting": True}, data["checks"]
+assert "cats" not in data, "all categories are ticked by default"
+assert "decal_count_factor" not in data["sliders"], "editor defaults saved again"
+print(f"settings.json stores {len(data['sliders'])} of {len(app.sliders)} sliders, "
+      f"{len(saved)} bytes  OK")
+
 app.destroy()
+
+# The reduced settings file restores the same state on the next start, because
+# freshly built controls already sit at the defaults it leaves out.
+app2 = gui.App()
+app2.update()
+assert abs(app2.sliders["hp"].get() - 250) < 1e-9, "changed slider not restored"
+assert bool(app2.checks["improved_vaulting"].get()), "changed checkbox not restored"
+assert app2.name_entry.get() == "QolTest"
+untouched = app2.sliders["decal_count_factor"]
+assert abs(untouched.get() - untouched.default) < 1e-9, untouched.get()
+assert all(bool(box.get()) for box in app2.cat_checks.values()), "categories lost"
+app2.destroy()
+gui.SETTINGS_FILE.unlink(missing_ok=True)
+print("Restart restores the state from the reduced settings file  OK")
 print("\nQOL-TEST OK")

@@ -8286,6 +8286,21 @@ class App(WorkbenchMixin, ctk.CTk):
             "faction_relations": self.faction_relations,
         }
 
+    def _changed_state(self) -> dict:
+        """Return the control state reduced to what differs from vanilla.
+
+        The settings file and the embedded Pak manifest are both applied to
+        controls that sit at their default: the editor builds them that way at
+        startup, and _import_pak resets them first. A stored default therefore
+        restores nothing that an absent key would not restore, while the
+        thousands of optional editor controls make the complete state dominate
+        both files (issue #22). Presets keep the complete state.
+
+        Before _wb_setup builds the defaults snapshot there is nothing to
+        compare against, so the complete state is written."""
+        return editor_state.state_delta(self._ui_state(),
+                                        getattr(self, "_wb_defaults", None))
+
     def _save_ui_settings(self):
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -8298,7 +8313,7 @@ class App(WorkbenchMixin, ctk.CTk):
                 "changed_only": self.changed_only,
                 "theme": self.theme_name,
                 "modscan_unlocked": sorted(self.avoid_unlocked),
-                **self._ui_state(),
+                **self._changed_state(),
             }
             editor_state.write_json(SETTINGS_FILE, data)
         except OSError:
@@ -8581,12 +8596,7 @@ class App(WorkbenchMixin, ctk.CTk):
         return None
 
     def _build_manifest(self, s, active: list[str]) -> str:
-        """Build a support/preset manifest embedded in the generated Pak.
-
-        Store only settings that differ from vanilla. _import_pak resets every
-        control before applying the manifest, so the complete state restores
-        exactly the same values while adding the defaults of every editor
-        control - hundreds of kilobytes - to each generated Pak (issue #22)."""
+        """Build a support/preset manifest embedded in the generated Pak."""
         return json.dumps({
             "manifest_version": 1,
             "tool": f"S2Tweaker {__version__}",
@@ -8594,8 +8604,7 @@ class App(WorkbenchMixin, ctk.CTk):
             "game_pak_fingerprint": self._game_fingerprint(),
             "mod_name": s.mod_name,
             "active_tweaks": active,
-            "ui_state": editor_state.state_delta(self._ui_state(),
-                                                 self._wb_defaults),
+            "ui_state": self._changed_state(),
         }, indent=2)
 
     def _import_pak(self, path: Path) -> None:
