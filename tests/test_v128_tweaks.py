@@ -729,10 +729,11 @@ joined = "\n".join(summarize(S(artifact_radius_factor=19.0, artifacts_no_hop=Tru
                                artifact_keepaway_factor=0.5, artifact_hop_pause_factor=2.0,
                                artifact_caches_drop=True, loot_reroll_radius_factor=2.0,
                                loot_reroll_timer_factor=0.5)))
-for needle in ("visibility radius", "don't hop away", "keep-away", "hop pause",
+for needle in ("hover height", "don't hop away", "keep-away", "hop pause",
                "caches actually drop", "re-roll radius", "re-roll delay"):
     assert needle in joined, (needle, joined)
-assert not any(k in "\n".join(summarize(S())) for k in ("visibility radius", "hop", "caches", "re-roll"))
+assert not any(k in "\n".join(summarize(S()))
+               for k in ("hover height", "hop", "caches", "re-roll"))
 print("P7.6 Summary: 7 lines present, neutral empty  OK")
 
 # Traders and economy.

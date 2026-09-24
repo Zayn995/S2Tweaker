@@ -6409,17 +6409,20 @@ class App(WorkbenchMixin, ctk.CTk):
                      "(bolt 300) or a timer (flower 2 h). 1000 % = practically "
                      "no recharge, like 'NoWeirdArtifactRecharge'. Not "
                      "play-tested yet.")
-        self._slider(f, "art_radius", "Artifact 'Radius' value (unproven)", 1, 20, 0.1, 1, fmt_factor,
-                     "Every artifact carries a Radius of 40 cm. We built this "
-                     "slider believing that is what 'Less Shy Artifacts' "
-                     "changes - since then we have read that mod's files, and "
-                     "it does something else entirely: it raises the "
-                     "DETECTOR's ShowArtifactRadius. So what this key does is "
-                     "genuinely unknown, and the slider may do nothing. If you "
-                     "want artifacts to show up from further away, use "
-                     "'Detector & scanner range' in the World tab instead - "
-                     "that is the key the mod actually uses. Not play-tested "
-                     "yet.")
+        self._slider(f, "art_radius", "Artifact hover height ('Radius', experimental)",
+                     1, 20, 0.1, 1, fmt_factor,
+                     "Every artifact carries a Radius of 40 cm, and what it "
+                     "does was unknown until matalayupog reported it: the "
+                     "artifact floats that much higher above the ground. The "
+                     "same Slug sits visibly higher at 5x than at 2x "
+                     "(issue #23, 20 Sep 2026). That is one report with a "
+                     "screenshot, not reproduced here, so treat the height as "
+                     "the likely reading rather than a settled one. It is NOT "
+                     "the distance from which a detector shows artifacts - we "
+                     "built this slider believing it was, and 'Less Shy "
+                     "Artifacts' turned out to raise the DETECTOR's "
+                     "ShowArtifactRadius instead. For that, use 'Detector & "
+                     "scanner range' in the World tab.")
         self._check(f, "art_no_hop", "Artifacts don't hop away",
                     "146 of the 154 artifacts jump away when you get close; "
                     "this switches that off. The eight that already stay put "

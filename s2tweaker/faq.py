@@ -1406,15 +1406,18 @@ FAQ_ENTRIES = [
         "a": "Use 'Detector & scanner range' in the World tab - that is the "
              "one that works. It scales the detector's own artifact display "
              "radius (vanilla 230 to 400 cm), which is exactly what the mod "
-             "'Less Shy Artifacts' raises to 750. We also offer 'Artifact "
-             "Radius value' next to the artifact sliders, but be warned: we "
-             "added it believing it was that mod's key, and after reading "
-             "the mod's files we know it is not. What that 40 cm Radius "
-             "does is unproven. Next to it, 'Artifacts don't hop away' "
-             "stops the 146 artifacts that jump off when you approach. Not "
-             "play-tested yet.",
+             "'Less Shy Artifacts' raises to 750. The artifact's own 40 cm "
+             "'Radius' is a different thing: we once added a slider for it "
+             "believing it was that mod's key, and after reading the mod's "
+             "files we know it is not. matalayupog has since reported what "
+             "it actually does - it lifts the artifact higher off the "
+             "ground - so that slider is now called 'Artifact hover height'. "
+             "One report, not reproduced here. Next to it, 'Artifacts don't "
+             "hop away' stops the 146 artifacts that jump off when you "
+             "approach. Not play-tested yet.",
         "k": "artifact artifacts invisible see visible radius hidden find "
-             "shy hop jump away run escape catch detector distance",
+             "shy hop jump away run escape catch detector distance hover "
+             "height floating above ground",
     },
     {
         "q": "Anomalies keep wrecking my armour and guns - can I stop that?",
