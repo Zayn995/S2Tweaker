@@ -6,15 +6,17 @@ game animations. `S2TRuntimeLab` is a stable internal Unreal package name; chang
 it also requires updating the numeric profile class and cooked references.
 
 Copy this mod folder into the compatible Zone Kit's `Stalker2/Mods/S2TRuntimeLab`
-and select it as the active mod. The four files under `Wwise/Banks` are the
-companion's own effect banks and metadata. Copy only these four files into the
-active Wwise workspace at `Stalker2/S2_WwiseProject/GeneratedSoundBanks/Windows`.
+and select it as the active mod. The eight files under `Wwise/Banks` are the
+companion's own effect banks and metadata. Copy only these eight files into the
+active mod's Wwise workspace at
+`Stalker2/Mods/S2TRuntimeLab/S2_WwiseProject/GeneratedSoundBanks/Windows`.
 Let the editor finish detecting the changes and caching them for the active mod.
 Use **Package Mod** in the editor so its audio preparation and package
-classification steps run before cooking. For the NewContent cook, disable Wwise
+classification steps run before cooking. For both content-group cooks, disable Wwise
 bulk-data packaging in the SDK's temporary custom-cook configuration. This
 build uses the following section in both `DefaultGame.ini` and
-`DefaultEngine.ini` under `Stalker2/Config/Custom/ModCookNewContent`:
+`DefaultEngine.ini` under `Stalker2/Config/Custom/ModCookNewContent` and
+`Stalker2/Config/Custom/ModCookOverrideContent`:
 
 ```ini
 [/Script/WwisePackaging.WwisePackagingSettings]
@@ -23,8 +25,8 @@ bPackageAsBulkData=False
 
 Back up existing configuration before adding this section and restore it after
 cooking. These are SDK build settings; do not distribute them with the mod.
-This packages the two own banks as files inside the companion's Pak, instead of
-leaving references to unavailable bulk data. Verify both bank payloads in the
+This packages the four own banks as files inside the companion's Pak, instead of
+leaving references to unavailable bulk data. Verify all four bank payloads in the
 finished Pak before distributing it. The
 editor generates the world-subsystem registration asset. Both the NewContent and
 OverrideContent Pak/IoStore triplets are needed. Do not distribute the SDK,
@@ -74,8 +76,8 @@ rattle roots, loads existing anchor events and tracks successful attachments
 for removal. Unmapped weapons release the
 previous effect. This uses only the first active montage exposed by the engine.
 
-`BP_S2TMovementSoundController` independently controls Step, Backpack Rattle and
-Player Clothes groups with `S2T_MovementTime` / `S2T_MovementDuration`. Native
+`BP_S2TMovementSoundController` independently controls Step and Backpack Rattle
+groups with `S2T_MovementTime` / `S2T_MovementDuration`. Native
 player gait selects the walk/crouch, run/sprint or limping factor. The live native
 locomotion PlayRate also contributes to audio duration so overweight slowdown
 is preserved. Its animation correction already belongs to the native engine.
@@ -84,44 +86,38 @@ events retain responsibility for triggering footsteps. The effect uses a fixed
 zero pitch shift and a 25–1600% duration range. Other mods using these effect slots
 can conflict; NPC emitters keep the unchanged global parameter default.
 
-`BP_S2TVisualController` scales all six standing/crouching/moving idle-sway
-amplitude modifiers. Profile `visual.sway` encodes the requested factor plus one
-so a positive value of one explicitly requests zero sway. Original values and
-last writes are tracked per animation instance and per field; repeated updates
-do not compound, external changes become new baselines, and release restores
-only owned values. Runtime rotation, alpha and curves remain native. This does
-not reduce firing montage kick, pushback or weapon inertia.
+`BP_S2TConsumableSoundController` owns the shared Player Clothes group through
+`S2T_ClothesTime` / `S2T_ClothesDuration`. Consumable timing takes priority while
+a recognized use montage is active; otherwise enabled movement sound timing
+provides the factor, including the native locomotion rate. Keeping one owner
+prevents the movement and consumable controllers from replacing each other's
+clothing effect. The new movement-to-consumable clothing handoff has not had a
+separate runtime comparison; earlier movement observations predate this handoff.
 
-`BP_S2TShotController` handles firing-pose amplitude separately. `visual.shot`
-encodes the requested 0–1 factor plus one; omission leaves the layer unchanged.
-It links the original `ABP_S2TShotMix` control graph into the native player's
-weapon-slot layer. Two `ABP_S2TShotBridge` instances evaluate the existing native
-layer with and without main-instance montage data; cached inputs and a pose
-blend provide fractional amplitude without duplicating animation sequences.
-The two linked-graph nodes use static bridge classes with the `InstanceClass`
-input pin hidden. Preserve these fixed bindings and the five cached pose inputs
-when editing or cooking the control graph.
-Only the normal branch receives main-instance montage data. The controller
-selects the requested blend during `_shoot` montages, or firing when no montage
-is active, and returns to full weight for other actions. It refuses a foreign
-slot-layer replacement and unlinks only its own verified instance on release.
-Player/cinematic changes release ownership. Camera shake and weapon inertia
-remain native; zero weight need not remove every visible movement.
+The animation controller also recognizes 12 exact pairs of native player and
+held-item use montages. Profile keys `action.consumable.medicine`,
+`action.consumable.food` and `action.consumable.drink` accept factors 0.25–4.0.
+Both halves retain their native events and the existing consumption notify;
+the companion does not call consumption or alter effect strength/duration.
+Quest and mod variants sharing those exact montages inherit the family speed.
+Cinematics and unrecognized animation paths are excluded. Consumable sound
+uses a separate duration parameter and 28 native event/container anchors.
 
-A brief automatic AK test verified 40% shooting weight, full reload/idle weight,
-and release. A same-session comparison of native playback and 100%, 50%, 0%
-blend weights preserved firing cadence. This shared-layer approach has not been
-individually validated on every weapon family or in packaged campaign play.
+A bounded comparison using ordinary quickslot drinking at 100% and 150%
+measured both montage rates at the expected ratio, exactly one consumed item
+and normal action completion. Sound and clothing duration parameters followed
+the factor. Audible alignment, other families played individually, campaign
+play and combinations with Inventory action speed remain unverified. See
+`docs/CONSUMABLE_ACTION_RESEARCH.md` for the scope and evidence.
 
-The `Content/Audio` assets and included Wwise effect banks contain no original
-game media. `Wwise/Authoring` contains only the companion's three work units,
-authored with Wwise 2024.1.10.8979. Add them to the corresponding Effects, Game
-Parameters and SoundBanks folders of a compatible Wwise project; preserve their
-GUIDs. An isolated authoring project avoids generating unrelated automatic
-SoundBanks from the full game project. Generate only `S2T_ActionTime` and
-`S2T_MovementTime`, then stage their `.bnk` / `.json` pairs as described above.
-Never substitute the game's
-Init bank with one generated by a separate authoring project.
+## Optional in-game menu
 
-The native subsystem mechanism is documented in
-[GSC's ModWorldSubsystem guide](https://zonekit-support.stalker2.com/hc/en-us/articles/39356792645521-How-to-work-with-ModWorldSubsystem).
+Enable **In-game companion menu (F10, experimental)** when generating the mod.
+The profile-bound native menu controls idle sway, firing motion, weapon/movement
+sound toggles and medicine/eating/drinking playback speed. It has 1%, 5% and 10%
+adjustment steps, three matching-profile preset slots, per-row reset and edit discard.
+See [the companion guide](../../docs/ANIMATION_SYNC.md#in-game-companion-menu)
+for controls, persistence and validation limits. CFG gameplay changes still require
+rebuilding. Consumable playback uses the same validated local widget values in the
+single montage writer and the consumable/clothing sound owner; the original parsed
+profile map is never overwritten. The menu remains experimental and does not pause.

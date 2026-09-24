@@ -90,8 +90,58 @@ Sound synchronization supports factors from 6.25% to 400%, including fine numeri
 entry. Values outside this range produce an explanatory error instead of silently
 clamping the requested profile. The options use Wwise's last effect slot in the
 target audio groups; another mod using those same slots can conflict. Only local
-player emitters receive changed duration parameters. Two tiny original effect
+player emitters receive changed duration parameters. Four tiny original effect
 banks are included; no original game sound media or game Init bank is supplied.
+
+## Consumable action speeds
+
+World has separate experimental **Medicine use speed**, **Eating speed** and
+**Drinking speed** controls. They support 25–400%, five-point
+slider steps and finer numeric entry. Changing one requests the companion and
+matching sound timing automatically. At 100%, that category remains unchanged.
+
+Both the player and held item use their original animations at the selected
+speed. The native consumption and sound events stay attached to those animations;
+effect strength and duration are unchanged. The controls cover 12 ordinary use
+animation families, including the standard medicine, food and drink variants.
+Quest or mod items reusing the exact same animations share the family speed;
+custom animation routes and cinematics are excluded. **Inventory action speed**
+is a separate CFG control, whose combination with these new controls has not yet
+been verified.
+
+A short Zone Kit comparison checked ordinary drinking at 100% and 150%:
+both animation rates matched, exactly one item was consumed, and the action
+finished normally. Sound duration parameters followed the selected speed.
+This is not a full audible-alignment or campaign test for every item.
+The shared clothing-sound controller prioritizes an active consumable action,
+then falls back to enabled movement timing. This handoff has not been separately
+tested; earlier movement-sound observations predate that change.
+
+## In-game companion menu
+
+Enable **In-game companion menu (F10, experimental)** on the Player page before building or
+installing. During ordinary gameplay, F10 opens the menu. Up/Down select a row;
+Left/Right change the value. Rows cover idle sway (0-400%), firing motion (0-100%),
+weapon/movement sound synchronization, medicine/eating/drinking speed (25-400%),
+adjustment steps (1%, 5% or 10%) and preset slots (1-3).
+
+- **Enter:** save the current live preferences for this generated profile.
+- **R:** reset the selected row. **Home:** reset companion values to the generated profile and the step to 10%.
+- **Backspace:** discard edits since opening the menu or the last successful Enter save.
+- **P / L:** save / load the selected preset slot. Loading applies immediately;
+  Enter makes the loaded values the normal startup preferences.
+- **F10 / Escape:** close, retaining the current session's live values.
+
+These companion changes apply live, including paired consumable animations and
+sound duration. Weapon/movement sound toggles use speeds prepared during generation.
+Other CFG controls still require rebuilding and reinstalling. The menu does not
+pause the game. Menu preferences use `S2Tweaker_LiveMenu_v1.sav` beside the companion
+profile; preset slots use `_Preset1` through `_Preset3`. These files contain no
+campaign progress and load only for an identical generated source profile.
+Older menu-only preview saves are ignored; generated defaults are used until
+you save preferences in the expanded menu.
+Validation of this expanded menu is described in the companion bundle manifest.
+Campaign behavior and audible consumable alignment remain unverified.
 
 Tests used actual generated CFGs in a small Zone Kit gameplay scene: movement,
 AK sustained hip/ADS fire, reloads and stance transitions. The package is a

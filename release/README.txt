@@ -11,7 +11,25 @@ Hundreds of controls in 14 categories plus Overview: Player, Vaulting, Weight & 
 NPCs & AI, Mutants, Factions, Weapons, Ammo, Armor, Upgrades, World, Economy,
 Traders.
 
-NEW IN 1.46.3 — SMALLER GENERATED PAKS
+NEW IN 1.47.0 - Live In-Game Menu & Consumable Animation/Sound Update
+
+Optional F10 menu: sway, firing movement, sound toggles and separate medicine,
+eating and drinking speeds. Choose 1/5/10% steps and three preset slots.
+Up/Down selects; Left/Right adjusts; Enter saves; P/L saves/loads a preset;
+R resets a row; Home resets companion values; Backspace discards unsaved edits.
+The menu does not pause gameplay. Ordinary CFG settings still need a rebuild.
+
+World also has medicine/eating/drinking controls with paired native animations
+and matching sound timing. Four new CFG sliders adjust sprint exhaustion,
+exhausted recovery delay, suppression recovery and wounded-NPC help hold time.
+Those four are not play-tested. Zone Kit checked the menu and normal drinking
+at 150%; wider item, audible-alignment and campaign testing remain open.
+
+Rebuild/reinstall the companion and profile to use the new features. The native
+runtime is about 95 KiB, with no original game media. Signed desktop binaries
+are unchanged. See the included Companion guide.md and Recovery controls.md.
+
+INCLUDED FROM 1.46.3 — SMALLER GENERATED PAKS
 --------------------------------------
 Generated Paks and the settings file now store only the settings you changed,
 instead of the state of all 3,264 controls. An aim-punch-only Pak drops from

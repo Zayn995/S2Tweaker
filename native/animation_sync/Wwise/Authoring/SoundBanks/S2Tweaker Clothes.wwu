@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{BE8E3569-D951-55E4-9B5A-C13905C6808F}" SchemaVersion="123">
+	<SoundBanks>
+		<WorkUnit Name="S2Tweaker Clothes" ID="{BE8E3569-D951-55E4-9B5A-C13905C6808F}" PersistMode="Standalone">
+			<ChildrenList>
+				<SoundBank Name="S2T_ClothesTime" ID="{1C6D23B5-FC49-50A8-B220-CE012C77ECF3}">
+					<ObjectInclusionList>
+						<ObjectRef Name="S2T_ClothesTime" ID="{9466D5B8-C776-5E1B-95DF-A4A3509A71DB}" WorkUnitID="{C254168D-FC34-5C8E-8589-DC6B384F6813}" Origin="Manual" Filter="2" />
+					</ObjectInclusionList>
+					<ObjectExclusionList />
+					<GameSyncExclusionList />
+				</SoundBank>
+			</ChildrenList>
+		</WorkUnit>
+	</SoundBanks>
+</WwiseDocument>

@@ -1,24 +1,49 @@
 NEXUS FILE DESCRIPTIONS
 ======================
 
-FILE — Main Files
-Name:          S2Tweaker 1.46.3 - Smaller Generated Paks
-File version:  1.46.3
+FILE - Main Files
+Name:          S2Tweaker 1.47.0 - Live Menu & Consumable Animation/Sound Update
+File version:  1.47.0
 File category: Main Files
-==================================================================
 
 --- File description ---
-Generated Paks and the settings file now store only the settings you changed,
-instead of the state of all 3,264 controls. An aim-punch-only Pak drops from
-245 KB to 1 KB. "Load preset ..." still reads your settings back out of a Pak,
-existing Paks import exactly as before, and the patches inside the Pak are
-unchanged - rebuilding is optional and only makes the file smaller (#22). The
-artifact "Radius" slider is renamed "Artifact hover height" after a player
-reported that it lifts artifacts off the ground (#23); the generator is unchanged
-and that reading is not confirmed.
-------------------------------------------------------------------
+1.47.0 - Live In-Game Menu & Consumable Animation/Sound Update
+
+Optional F10 menu: sway, firing movement, sound toggles and separate medicine,
+eating and drinking speeds. Choose 1/5/10% steps and three preset slots.
+Up/Down selects; Left/Right adjusts; Enter saves; P/L saves/loads a preset;
+R resets a row; Home resets companion values; Backspace discards unsaved edits.
+The menu does not pause gameplay. Ordinary CFG settings still need a rebuild.
+
+World also has medicine/eating/drinking controls with paired native animations
+and matching sound timing. Four new CFG sliders adjust sprint exhaustion,
+exhausted recovery delay, suppression recovery and wounded-NPC help hold time.
+Those four are not play-tested. Zone Kit checked the menu and normal drinking
+at 150%; wider item, audible-alignment and campaign testing remain open.
+
+Rebuild/reinstall the companion and profile to use the new features. The native
+runtime is about 95 KiB, with no original game media. Signed desktop binaries
+are unchanged. See the included Companion guide.md and Recovery controls.md.
 
 --- Changelog ----------------------------------------------------
+1.47.0 - Live In-Game Menu & Consumable Animation/Sound Update
+
+Optional F10 menu: sway, firing movement, sound toggles and separate medicine,
+eating and drinking speeds. Choose 1/5/10% steps and three preset slots.
+Up/Down selects; Left/Right adjusts; Enter saves; P/L saves/loads a preset;
+R resets a row; Home resets companion values; Backspace discards unsaved edits.
+The menu does not pause gameplay. Ordinary CFG settings still need a rebuild.
+
+World also has medicine/eating/drinking controls with paired native animations
+and matching sound timing. Four new CFG sliders adjust sprint exhaustion,
+exhausted recovery delay, suppression recovery and wounded-NPC help hold time.
+Those four are not play-tested. Zone Kit checked the menu and normal drinking
+at 150%; wider item, audible-alignment and campaign testing remain open.
+
+Rebuild/reinstall the companion and profile to use the new features. The native
+runtime is about 95 KiB, with no original game media. Signed desktop binaries
+are unchanged. See the included Companion guide.md and Recovery controls.md.
+
 1.46.3 - Smaller generated Paks
 
 Generated Paks and the settings file now store only the settings you changed,

@@ -33,7 +33,13 @@ def main() -> None:
                              encoding="utf-8", check=True).stdout.rstrip("\0").split("\0")
     # Validate both inventories before creating either archive.
     validate_public_paths(tracked)
-    player_files = sorted(path for path in app.rglob("*") if path.is_file())
+    guides = {"README.txt": REPO / "release/README.txt",
+              "Companion guide.md": REPO / "docs/ANIMATION_SYNC.md",
+              "Recovery controls.md": REPO / "docs/PLAYER_RECOVERY_CONTROLS.md"}
+    player_files = sorted(path for path in app.rglob("*")
+                          if path.is_file() and path.suffix not in (".pyc", ".pyo")
+                          and "__pycache__" not in path.relative_to(app).parts
+                          and path.relative_to(app).as_posix() not in guides)
     validate_public_paths(path.relative_to(app).as_posix() for path in player_files)
     # Retain the original cooked companion needed by source-mode exports.
     # Exclude downloaded runtime binaries and other generated archives.
@@ -47,7 +53,8 @@ def main() -> None:
     with zipfile.ZipFile(player, "w", zipfile.ZIP_DEFLATED) as z:
         for path in player_files:
             z.write(path, path.relative_to(app).as_posix())
-        z.write(out / "README.txt", "README.txt")
+        for name, path in guides.items():
+            z.write(path, name)
     print(f"{player.name}: {player.stat().st_size:,} bytes")
 
     # Verify the player ZIP contains its root launcher and populated runtime.
@@ -56,7 +63,9 @@ def main() -> None:
     assert "S2Tweaker.exe" in names, names[:10]
     internal = [n for n in names if n.startswith("_internal/")]
     assert len(internal) > 100, f"only {len(internal)} files in _internal/"
-    assert "README.txt" in names, names[:10]
+    assert set(guides) <= set(names), "Player guides missing"
+    assert len(names) == len(set(names)), "Duplicate player ZIP members"
+    assert not any("__pycache__" in n.split("/") or n.endswith((".pyc", ".pyo")) for n in names)
     # No updater script belongs in the player archive.
     assert "update.bat" not in names, "update.bat does not belong in the player ZIP"
     # Require the search-path file and launcher module; exclude network modules

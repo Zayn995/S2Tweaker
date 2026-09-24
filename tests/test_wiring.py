@@ -86,6 +86,18 @@ COUPLED = {
 t0 = time.time()
 dead, no_line = [], []
 for field in sorted(fields):
+    consumable = {"consumable_medicine_speed": "action.consumable.medicine",
+                  "consumable_food_speed": "action.consumable.food",
+                  "consumable_drink_speed": "action.consumable.drink"}.get(field)
+    if consumable:
+        enabled = Settings(**{field: 1.5})
+        payload = animation_sync.parse(animation_sync.profile_bytes(enabled, gd)).payload
+        check(f"{consumable}=1.5" in payload,
+              f"native consumable {field} writes the requested profile value")
+        check(not build_patches(gd, enabled),
+              f"native consumable {field} leaves CFG values unchanged")
+        check(bool(summarize(enabled)), f"native consumable {field} appears in the tweak list")
+        continue
     native = {"weapon_sway_pct": ("weapon_sway_sync", "visual.sway"),
               "weapon_shot_pct": ("weapon_shot_sync", "visual.shot")}.get(field)
     if native:

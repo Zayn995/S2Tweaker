@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{61A02560-F0C4-5312-804B-3386BC6EC34E}" SchemaVersion="123">
+	<GameParameters>
+		<WorkUnit Name="S2Tweaker Consumable" ID="{61A02560-F0C4-5312-804B-3386BC6EC34E}" PersistMode="Standalone">
+			<ChildrenList>
+				<GameParameter Name="S2T_ConsumableDuration" ID="{313948DD-2D3D-5912-8739-26B9634B7BCB}">
+					<PropertyList>
+						<Property Name="Min" Type="Real64" Value="25" />
+						<Property Name="Max" Type="Real64" Value="1600" />
+						<Property Name="InitialValue" Type="Real64" Value="100" />
+					</PropertyList>
+				</GameParameter>
+			</ChildrenList>
+		</WorkUnit>
+	</GameParameters>
+</WwiseDocument>

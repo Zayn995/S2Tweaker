@@ -11,6 +11,14 @@ Everyone is free to use it. This README tells you everything you need.
 
 ## What it does
 
+**1.47.0 — Live In-Game Menu & Consumable Animation/Sound Update:** optional F10
+controls for sway, firing movement, sounds and medicine/eating/drinking speeds;
+1/5/10% steps, three preset slots, reset and discard. Four additional CFG sliders
+cover sprint exhaustion, recovery delay, suppression recovery and wounded-NPC
+help hold time. Rebuild/reinstall the companion to use the menu. Limited Zone Kit
+checks passed; the four CFG controls and packaged campaign behavior remain
+unverified. [Release notes](release/NOTES_v1.47.0.md).
+
 **1.46.3 — Smaller Generated Paks:** Paks and the settings file now store only
 the settings you changed, instead of the state of all 3,264 controls. An
 aim-punch-only Pak drops from 245 KB to 1 KB. Reading settings back out of a Pak
@@ -94,6 +102,21 @@ control also covers iron sights. An independent 0–100% firing-animation contro
 reduces native shooting pose movement while retaining reload and equip animations.
 Camera shake and weapon inertia remain separate. Isolated
 Zone Kit gameplay tests passed; packaged campaign validation remains open.
+
+Version 1.47.0 adds an experimental F10 companion menu for live idle
+sway, firing motion, weapon/movement sound toggles and medicine/eating/drinking
+speeds, also available under World. The menu includes 1/5/10% adjustment steps,
+three profile-bound preset slots, selected-value reset and discard to the last save. Consumable controls use paired native
+animations and matching sound-duration parameters. A bounded drinking comparison
+at 100% and 150% preserved single consumption and normal completion; other
+families and audible alignment still need campaign validation. See the
+[companion guide](docs/ANIMATION_SYNC.md) for controls and limits. Night-only NPC
+vision remains [research](docs/NIGHT_VISION_RUNTIME_RESEARCH.md), not an exposed
+setting.
+
+Four additional [recovery and interaction controls](docs/PLAYER_RECOVERY_CONTROLS.md)
+adjust sprint exhaustion, its recovery delay, suppression recovery and the hold
+time to help wounded NPCs. These CFG controls are not yet play-tested.
 
 **1.40.1 adds repairs for job texts and return markers.**
 Molkerr [reports translated quest text and the second return marker surviving

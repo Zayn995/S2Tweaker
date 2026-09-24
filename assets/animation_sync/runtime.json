@@ -1,24 +1,27 @@
 {
   "format": "S2Tweaker.AnimationSync.1",
   "files": {
-    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.pak": "085f9a061c837eb1129068932c813e8200608c066511d158341fed30f3abbcff",
-    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.utoc": "5d4420aaa13aa534a6ecafaec8f9a2a5d204bc5250aaa19f0de26ed3e3b07633",
-    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.ucas": "319a1b501ba80b0a1be7bec61ee3b80cda113dcf60a0b44e3a6e7e8b900e5e7a",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.pak": "a75ab12280ee75ed6d79609c79374868e98d8cc8af55d61089b4bb304d811d50",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.ucas": "5d117271ee82814fc51a2f992d44721c18d9d2130fbd10f1f37c9bcde404901a",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-NewContent.utoc": "5c20c49bce6e0ab35a9d32f7460353f4cd5919d0cf3641d185977387f57db598",
     "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.pak": "b2be77ed6f9dd20765c302ed699d1a29b382c46905f95c54fde2b70b25824d67",
-    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.utoc": "7f74117d8318c2133cc4b575ca654d066f2a33e450e598100580a90f04320769",
-    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.ucas": "11c2b90e0b8ea24e2ac8ddb674342bee394a63962a917190b8b6e1c9f41eaf94",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.ucas": "5daa67e4c06dd96d157e73b05823ea57408c4edec5ba588801522ea85099d9c8",
+    "Stalker2/Mods/S2TRuntimeLab/Content/Paks/Windows/S2TRuntimeLabStalker2-Windows-OverrideContent.utoc": "b3e31e51dcdbe48a38b62ec8609a655dab9699a5c869feb0cc0454984241cdc0",
     "Stalker2/Mods/S2TRuntimeLab/S2TRuntimeLab.uplugin": "cdfcb717556b833120e11582418275f4c829df78d28ba6405e731e1aa161d7fa"
   },
-  "runtime_bytes": 52904,
-  "validation": "Zone Kit isolated PIE with actual CFGs, including walk/run animation and movement sound; packaged campaign validation pending.",
+  "runtime_bytes": 97592,
+  "validation": "Zone Kit isolated PIE: expanded F10 menu, 1/5/10% increments, slot-1 save/load, Enter save, selected reset and discard verified. One normal Vodka action after a live 100%-to-150% menu change consumed one item, used paired 1.5 animation rates and matching 66.67% sound/clothing-duration parameters, and returned normally to the weapon. Other consumable families, audible alignment, preset slots 2/3, fresh-session schema-2 restore and packaged campaign behavior remain unverified. Previous movement and weapon-action checks retained.",
   "features": [
-    "movement-animation",
-    "weapon-action-sound",
-    "movement-sound",
+    "consumable-actions",
     "equipment-sound",
-    "weapon-idle-sway",
+    "firing-animation-motion",
+    "ingame-menu",
+    "ingame-menu-presets",
     "limping-animation",
-    "firing-animation-motion"
+    "movement-animation",
+    "movement-sound",
+    "weapon-action-sound",
+    "weapon-idle-sway"
   ],
   "profile_slot": "S2Tweaker_AnimationProfile_v1"
 }

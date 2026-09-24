@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{076599C0-F674-5525-BB48-7E14FC27732D}" SchemaVersion="123">
+	<GameParameters>
+		<WorkUnit Name="S2Tweaker Clothes" ID="{076599C0-F674-5525-BB48-7E14FC27732D}" PersistMode="Standalone">
+			<ChildrenList>
+				<GameParameter Name="S2T_ClothesDuration" ID="{C437D088-9121-54E3-8F9F-E1DBB6082C8E}">
+					<PropertyList>
+						<Property Name="Min" Type="Real64" Value="25" />
+						<Property Name="Max" Type="Real64" Value="1600" />
+						<Property Name="InitialValue" Type="Real64" Value="100" />
+					</PropertyList>
+				</GameParameter>
+			</ChildrenList>
+		</WorkUnit>
+	</GameParameters>
+</WwiseDocument>

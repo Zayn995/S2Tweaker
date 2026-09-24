@@ -86,6 +86,8 @@ s = Settings(
     field_repair_body_pct=10, field_repair_head_pct=10, field_repair_weapons_pct=10,
     bolt_lifetime_factor=5,
     max_hp=200, hp_regen=2, max_stamina=300, stamina_regen=10,
+    sprint_exhaustion_factor=.5, exhausted_recovery_delay_factor=.5,
+    suppression_recovery_factor=1.5, wounded_help_hold_factor=.5,
     fall_damage_pct=25, walk_speed_factor=1.1, run_speed_factor=0.8,
     jump_height_factor=1.3,
     stamina_sprint=0.5, stamina_jump=0.25, stamina_melee_light=0.5,

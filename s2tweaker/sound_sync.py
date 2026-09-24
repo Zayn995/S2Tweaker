@@ -1,6 +1,7 @@
 """Resolve native action-sound targets from the installed weapon configuration."""
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import math
 from pathlib import Path
@@ -103,8 +104,16 @@ def movement_factors(settings):
 
 
 def profile_values(settings, gd):
+    menu = bool(settings.ingame_menu)
+    if menu:
+        # Prepare both sound routes so the live menu can enable them later.
+        # The separate menu flags retain the user's initial on/off choices.
+        settings = replace(settings, sound_sync=True, movement_sound_sync=True)
     values = action_factors(settings)
     movement = movement_factors(settings)
+    if menu:
+        movement.update({"audio.movement": 1, "audio.walk": settings.walk_speed_factor,
+                         "audio.run": settings.run_speed_factor})
     if movement:
         from .animation_sync import limp_values
         limping = {key.replace("movement.", "audio.", 1): value
@@ -113,11 +122,11 @@ def profile_values(settings, gd):
             raise ValueError("Combined movement and limping sound speed must stay between 6.25% and 400%.")
         movement.update(limping)
     equip = equipment_requested(settings)
-    if not values and not equip:
+    if not values and not equip and not menu:
         return movement
     if gd is None:
         raise ValueError("Load installed game data before enabling sound synchronization.")
-    targets = mesh_targets(gd, settings if equip else None)
+    targets = mesh_targets(gd, settings if equip or menu else None)
     if not targets:
         raise ValueError("No supported weapon sound families were found in the installed game data.")
     values.pop("audio.equip", None)  # Equipment factors are resolved per mesh.

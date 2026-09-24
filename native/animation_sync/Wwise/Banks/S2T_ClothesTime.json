@@ -1,0 +1,41 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "154",
+  "SoundBanks": [
+   {
+    "Id": "3726725836",
+    "Type": "User",
+    "GUID": "{1C6D23B5-FC49-50A8-B220-CE012C77ECF3}",
+    "Language": "SFX",
+    "Hash": "{2FB54E64-1FED-F2D6-FBA9-372CD780F763}",
+    "ObjectPath": "\\SoundBanks\\S2Tweaker Clothes\\S2T_ClothesTime",
+    "ShortName": "S2T_ClothesTime",
+    "Path": "S2T_ClothesTime.bnk",
+    "Plugins": {
+     "ShareSets": [
+      {
+       "Id": "3726725836",
+       "Name": "S2T_ClothesTime",
+       "ObjectPath": "\\Effects\\S2Tweaker Clothes\\S2T_ClothesTime",
+       "GUID": "{9466D5B8-C776-5E1B-95DF-A4A3509A71DB}",
+       "LibName": "Wwise Time Stretch",
+       "LibId": "8519683"
+      }
+     ]
+    },
+    "GameParameters": [
+     {
+      "Id": "2890303135",
+      "Name": "S2T_ClothesDuration",
+      "ObjectPath": "\\Game Parameters\\S2Tweaker Clothes\\S2T_ClothesDuration",
+      "GUID": "{C437D088-9121-54E3-8F9F-E1DBB6082C8E}"
+     }
+    ]
+   }
+  ],
+  "FileHash": "{F45FDF66-14D7-EF90-C30C-A814FDAD1F4A}"
+ }
+}

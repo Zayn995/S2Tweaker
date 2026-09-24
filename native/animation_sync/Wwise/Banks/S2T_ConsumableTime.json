@@ -1,0 +1,41 @@
+{
+ "SoundBanksInfo": {
+  "Platform": "Windows",
+  "BasePlatform": "Windows",
+  "SchemaVersion": "16",
+  "SoundBankVersion": "154",
+  "SoundBanks": [
+   {
+    "Id": "131417555",
+    "Type": "User",
+    "GUID": "{155720E0-D59F-547A-86AF-2357B16A2B8F}",
+    "Language": "SFX",
+    "Hash": "{BD60BCF8-0353-DD49-3E09-3967AF830D4A}",
+    "ObjectPath": "\\SoundBanks\\S2Tweaker Consumable\\S2T_ConsumableTime",
+    "ShortName": "S2T_ConsumableTime",
+    "Path": "S2T_ConsumableTime.bnk",
+    "Plugins": {
+     "ShareSets": [
+      {
+       "Id": "131417555",
+       "Name": "S2T_ConsumableTime",
+       "ObjectPath": "\\Effects\\S2Tweaker Consumable\\S2T_ConsumableTime",
+       "GUID": "{97582693-E8E4-50AB-B407-6C1BE24653DE}",
+       "LibName": "Wwise Time Stretch",
+       "LibId": "8519683"
+      }
+     ]
+    },
+    "GameParameters": [
+     {
+      "Id": "575038832",
+      "Name": "S2T_ConsumableDuration",
+      "ObjectPath": "\\Game Parameters\\S2Tweaker Consumable\\S2T_ConsumableDuration",
+      "GUID": "{313948DD-2D3D-5912-8739-26B9634B7BCB}"
+     }
+    ]
+   }
+  ],
+  "FileHash": "{008F591B-5612-E271-860A-CEC7576555A9}"
+ }
+}

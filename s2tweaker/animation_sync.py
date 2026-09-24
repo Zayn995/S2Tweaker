@@ -1,7 +1,7 @@
 """Export and install the optional native animation and sound companion.
 
 Only the companion's own files and its separate numeric profile are managed.
-The generated CFG Pak remains the source of gameplay timing values.
+CFG gameplay changes remain separate from the companion's playback profile.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import tempfile
 import zipfile
 
 from .animation_profile import parse
-from . import sound_sync, cfgparse
+from . import sound_sync, cfgparse, consumable_sync
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets" / "animation_sync"
 PROFILE_SLOT = "S2Tweaker_AnimationProfile_v1"
@@ -62,11 +62,13 @@ def limp_values(settings, gd):
 
 
 def enabled(settings):
-    return ((bool(settings.animation_sync) and
+    return (bool(settings.ingame_menu)
+            or (bool(settings.animation_sync) and
              (bool(factors(settings)) or not math.isclose(settings.limp_speed_factor, 1)))
             or bool(sound_sync.action_factors(settings))
             or sound_sync.equipment_requested(settings)
             or bool(sound_sync.movement_factors(settings))
+            or consumable_sync.enabled(settings)
             or bool(visual_values(settings)))
 
 
@@ -76,12 +78,14 @@ def visual_values(settings):
         (settings.weapon_sway_sync, settings.weapon_sway_pct, 400, "visual.sway", "Weapon idle sway"),
         (settings.weapon_shot_sync, settings.weapon_shot_pct, 100, "visual.shot", "Firing animation movement"),
     ):
-        if not active:
+        if not active and not settings.ingame_menu:
             continue
+        if not active:
+            value = 100
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= limit:
             raise ValueError(f"{label} supports 0% to {limit}%.")
         # Positive profile values encode a zero-capable factor plus one.
-        if not math.isclose(value, 100):
+        if settings.ingame_menu or not math.isclose(value, 100):
             values[key] = 1 + value / 100
     return values
 
@@ -90,7 +94,14 @@ def profile_values(settings, gd=None):
     values = factors(settings) if settings.animation_sync else {}
     if settings.animation_sync:
         values.update(limp_values(settings, gd))
-    return {**values, **sound_sync.profile_values(settings, gd), **visual_values(settings)}
+    menu = ({"menu.enabled": 1, "menu.sound.weapon": 2 if settings.sound_sync else 1,
+             "menu.sound.movement": 2 if settings.movement_sound_sync else 1}
+            if settings.ingame_menu else {})
+    if settings.ingame_menu:
+        # Neutral keys keep the companion ready for live category changes.
+        menu.update({key: 1.0 for key, _ in consumable_sync.PROFILE_FIELDS})
+    return {**values, **sound_sync.profile_values(settings, gd), **menu,
+            **consumable_sync.profile_values(settings), **visual_values(settings)}
 
 
 def profile_bytes(settings, gd=None):
@@ -115,10 +126,23 @@ def _relative(name):
     return path
 
 
-def runtime_files():
+def required_runtime_features(settings):
+    features = {"consumable-actions"} if consumable_sync.enabled(settings) else set()
+    if settings.ingame_menu:
+        features.update({"ingame-menu", "ingame-menu-presets", "consumable-actions"})
+    return features
+
+
+def runtime_files(*, required_features=()):
     manifest = json.loads((ASSETS / "runtime.json").read_text(encoding="utf-8"))
     if manifest.get("format") != FORMAT or not manifest.get("files"):
         raise ValueError("Unsupported animation companion bundle.")
+    missing = set(required_features) - set(manifest.get("features", ()))
+    if missing:
+        raise ValueError("The bundled native companion does not support: "
+                         + ", ".join(sorted(missing))
+                         + ". Use a compatible companion build, disable these options "
+                         "or reset their speed controls to 100%.")
     with zipfile.ZipFile(ASSETS / "runtime.zip") as archive:
         if len(archive.infolist()) != len(manifest["files"]) or set(archive.namelist()) != set(manifest["files"]):
             raise ValueError("Animation companion inventory mismatch.")
@@ -179,7 +203,7 @@ def installation_changes(settings, game_dir, save_dir=None, *, gd=None):
     if profile.exists():
         parse(profile.read_bytes())  # Reject every class except the companion profile.
     if active:
-        payload = runtime_files()
+        payload = runtime_files(required_features=required_runtime_features(settings))
         for relative, data in payload.items():
             target = _target(game_dir, relative)
             if target.exists() and target not in changes and target.read_bytes() != data:
@@ -198,7 +222,7 @@ def export_files(settings, out_pak, *, gd=None):
     """Prepare the same companion files for portable and loose debug exports."""
     if not enabled(settings):
         return {}
-    files = runtime_files()
+    files = runtime_files(required_features=required_runtime_features(settings))
     files["Profile/" + PROFILE_SLOT + ".sav"] = profile_bytes(settings, gd)
     files["S2Tweaker_AnimationSync.json"] = json.dumps({
         "format": FORMAT, "cfg_pak": Path(out_pak).name, "factors": profile_values(settings, gd),
@@ -217,10 +241,24 @@ def export_files(settings, out_pak, *, gd=None):
         "To remove this companion, delete only Stalker2/Mods/S2TRuntimeLab and\n"
         "the named animation profile. Restore movement settings in the CFG Pak separately.\n\n"
         "Walk, run, crouch and sprint animation rates follow the selected movement factors.\n"
-        "Active action montages retain native gameplay timing. Existing animation\n"
+        "Movement synchronization compensates action montages to retain native timing.\n"
+        "Separate medicine, eating and drinking controls adjust paired native animations.\n"
+        "They do not change Inventory action speed, healing strength or effect duration.\n"
+        "Items sharing those native animations share their category's speed.\n"
+        "A 100%/150% drinking check passed in Zone Kit; other items and audible\n"
+        "alignment still require campaign testing.\n"
+        "Existing animation\n"
         "assets are not replaced. Optional sound controls change reload/jam or\n"
         "movement sound duration independently without replacing original media.\n"
         "Optional idle-sway and firing-pose controls adjust animation amplitude.\n"
+        "If enabled, F10 opens the in-game menu for idle sway, firing movement\n"
+        "and weapon/movement sound synchronization toggles. These sound toggles\n"
+        "use the timings prepared from the generated settings. The menu cannot\n"
+        "change CFG gameplay values or reload a generated CFG Pak while playing.\n"
+        "Up/Down select; Left/Right adjust; Enter saves; Home restores the generated\n"
+        "values; F10/Escape close. The menu does not pause gameplay. Its separate\n"
+        "S2Tweaker_LiveMenu_v1.sav preferences contain no campaign progress and\n"
+        "apply only to the same generated profile.\n"
         "The firing control retains full reload/equip motion; camera shake and\n"
         "weapon inertia remain separate. Other slot-layer replacements can conflict.\n"
         "Other audio mods using the same effect slots can conflict. This is not\n"

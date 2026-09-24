@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{C254168D-FC34-5C8E-8589-DC6B384F6813}" SchemaVersion="123">
+	<Effects>
+		<WorkUnit Name="S2Tweaker Clothes" ID="{C254168D-FC34-5C8E-8589-DC6B384F6813}" PersistMode="Standalone">
+			<ChildrenList>
+				<Effect Name="S2T_ClothesTime" ID="{9466D5B8-C776-5E1B-95DF-A4A3509A71DB}" PluginName="Wwise Time Stretch" CompanyID="0" PluginID="130" PluginType="3">
+					<PropertyList>
+						<Property Name="QualityEnable" Type="int16" Value="1" />
+						<Property Name="TimeStretch" Type="Real32" Value="100" />
+						<Property Name="WindowSize" Type="int32" Value="512" />
+					</PropertyList>
+					<ObjectLists>
+						<ObjectList Name="RTPC">
+							<Reference>
+								<Local>
+									<RTPC Name="" ID="{0559F55A-6527-5D03-9816-7268CE23E8D0}">
+										<PropertyList>
+											<Property Name="PropertyName" Type="string" Value="TimeStretch" />
+										</PropertyList>
+										<ReferenceList>
+											<Reference Name="ControlInput">
+												<ObjectRef Name="S2T_ClothesDuration" ID="{C437D088-9121-54E3-8F9F-E1DBB6082C8E}" WorkUnitID="{076599C0-F674-5525-BB48-7E14FC27732D}" />
+											</Reference>
+											<Reference Name="Curve">
+												<Custom>
+													<Curve Name="" ID="{109B4F36-BC61-5DE5-8B34-5D1EEDEB0E9C}">
+														<PropertyList>
+															<Property Name="Flags" Type="int32" Value="1" />
+														</PropertyList>
+														<PointList>
+															<Point>
+																<XPos>25</XPos>
+																<YPos>25</YPos>
+																<Flags>5</Flags>
+															</Point>
+															<Point>
+																<XPos>1600</XPos>
+																<YPos>1600</YPos>
+																<Flags>37</Flags>
+															</Point>
+														</PointList>
+													</Curve>
+												</Custom>
+											</Reference>
+										</ReferenceList>
+									</RTPC>
+								</Local>
+							</Reference>
+						</ObjectList>
+					</ObjectLists>
+				</Effect>
+			</ChildrenList>
+		</WorkUnit>
+	</Effects>
+</WwiseDocument>

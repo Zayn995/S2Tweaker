@@ -716,6 +716,10 @@ def weapon_param_range(param: str) -> tuple[float, float]:
 SLIDER_FIELDS: dict[str, str] = {
     "hp": "max_hp", "hp_regen": "hp_regen", "sp": "max_stamina",
     "sp_regen": "stamina_regen", "fall": "fall_damage_pct",
+    "sprint_exhaustion": "sprint_exhaustion_factor",
+    "exhausted_delay": "exhausted_recovery_delay_factor",
+    "suppression_recovery": "suppression_recovery_factor",
+    "wounded_hold": "wounded_help_hold_factor",
     "walk": "walk_speed_factor", "run": "run_speed_factor",
     "jump": "jump_height_factor", "vault_height": "vault_height_factor",
     "vault_distance": "vault_distance_factor",
@@ -897,6 +901,9 @@ SLIDER_FIELDS: dict[str, str] = {
     "weapon_noise": "weapon_noise_factor",
     "item_grid": "item_grid_factor",
     "inv_action": "inventory_action_factor",
+    "cons_medicine_speed": "consumable_medicine_speed",
+    "cons_food_speed": "consumable_food_speed",
+    "cons_drink_speed": "consumable_drink_speed",
     "npc_anomaly": "npc_anomaly_ignore_factor",
     "ragdoll": "ragdoll_force_factor",
     "npc_retreat_dist": "npc_retreat_radius_factor",
@@ -1109,6 +1116,9 @@ def footprint_settings(key: str) -> list[Settings] | None:
         return [Settings(**{field_name: True})]
     field_name = SLIDER_FIELDS.get(key)
     if field_name is None:
+        return None
+    if field_name in ("consumable_medicine_speed", "consumable_food_speed", "consumable_drink_speed"):
+        # These profile controls do not write CFG leaves tracked by the mod scan.
         return None
     default = getattr(Settings(), field_name)
     if field_name in FOOTPRINT_PROBES:
@@ -4347,6 +4357,35 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkButton(frame, text="Edit loot & world settings", command=self._wb_extra_controls,
                       width=240).pack(anchor="w", **PAD)
 
+    def _build_consumable_controls(self, body):
+        frame = self._section(body, "Consumable action speed (experimental)")
+        common = ("Playback speed for supported native consumable animations. 100% leaves native timing unchanged; "
+                  "200% requests twice the playback speed. Independent of Inventory action speed, "
+                  "healing strength and effect duration. Includes the native companion and matching sound timing. "
+                  "An isolated drinking test passed; sound alignment and other actions still require campaign testing. "
+                  "Combination with a changed Inventory action speed is not yet verified. "
+                  "Quest or mod-added items reusing these animations share the same speed; "
+                  "custom animations and cinematic actions are excluded. "
+                  "Numeric entry accepts values between slider steps. ")
+        self._slider(frame, "cons_medicine_speed", "Medicine use speed", 25, 400, 5, 100, fmt_pct,
+                     common + "Medkits, bandages, anti-rad and supported pills.")
+        self._slider(frame, "cons_food_speed", "Eating speed", 25, 400, 5, 100, fmt_pct,
+                     common + "Bread, sausage and canned food.")
+        self._slider(frame, "cons_drink_speed", "Drinking speed", 25, 400, 5, 100, fmt_pct,
+                     common + "Water, beer, vodka, energy drinks and condensed milk.")
+
+    def _build_ingame_menu_control(self, frame):
+        self._check(frame, "ingame_menu", "In-game companion menu (F10, experimental)",
+                    "Press F10 during normal gameplay to adjust idle sway and firing-animation "
+                    "movement, medicine/eating/drinking speed, or toggle weapon and movement sound synchronization. "
+                    "Choose 1%, 5% or 10% steps; save/load three presets, reset a row or discard unsaved edits. "
+                    "Sound timings are prepared from the selected speed settings even when their "
+                    "sound options start disabled. This menu does not change CFG gameplay values "
+                    "or reload a generated CFG Pak. Requires a compatible native companion; "
+                    "Install to ~mods installs it and Build pak exports its companion ZIP. "
+                    "Restart the game after changing the generated profile. "
+                    "Live-menu behavior still requires campaign testing.")
+
     def _tab(self, name: str) -> ctk.CTkScrollableFrame:
         """Create a tab and return its scrollable content frame."""
         self._current_tab = name
@@ -4371,6 +4410,14 @@ class App(WorkbenchMixin, ctk.CTk):
                      "Vanilla: no passive regen. NPCs use 1 HP/s.")
         self._slider(f, "sp", "Max stamina", 50, 1000, 10, 100, fmt_int)
         self._slider(f, "sp_regen", "Stamina regen (per second)", 0, 50, 1, 5, fmt_dec)
+        self._slider(f, "sprint_exhaustion", "Sprint exhaustion threshold", 25, 400, 5, 100, fmt_pct,
+                     "Scales the installed stamina-point threshold that blocks sprinting. "
+                     "Lower values allow sprinting with less stamina. This is a percentage "
+                     "of the installed threshold, not of maximum stamina. Not play-tested yet.")
+        self._slider(f, "exhausted_delay", "Exhausted stamina recovery delay", 0, 400, 5, 100, fmt_pct,
+                     "Delay before stamina recovers in the sprint-exhausted state. "
+                     "0 % removes this configured delay; regeneration speed is separate. "
+                     "Not play-tested yet.")
         self._slider(f, "fall", "Fall damage", 0, 100, 5, 100, fmt_pct,
                      "0 % = no fall damage.")
         self._slider(f, "walk", "Walk & crouch speed", 50, 150, 5, 100, fmt_pct,
@@ -4412,6 +4459,7 @@ class App(WorkbenchMixin, ctk.CTk):
                     "audio groups; other mods using that slot can conflict. "
                     "Install/export works through the same native companion. "
                     "Campaign testing remains open.")
+        self._build_ingame_menu_control(f)
         ctk.CTkButton(f, text="Remove installed animation / sound companion", width=300,
                       command=self._remove_animation_sync).pack(anchor="w", padx=12, pady=(2, 8))
         self._warning(f, "Players report that speed changes sometimes only "
@@ -4715,6 +4763,10 @@ class App(WorkbenchMixin, ctk.CTk):
                      "and at 1 %, including eventual sobriety (GitHub #12). "
                      "1 % slows the configured recovery rate to one "
                      "hundredth of vanilla.")
+        self._slider(f, "suppression_recovery", "Suppression recovery speed", 25, 400, 5, 100, fmt_pct,
+                     "How fast the player's suppression points decay after the existing delay. "
+                     "Higher values shorten suppression blur and temporary accuracy penalties. "
+                     "Weapon recoil and spread settings remain separate. Not play-tested yet.")
         self._slider(f, "energy_tol", "Energy drink tolerance (Cost of Hope)", 25, 400, 5, 100, fmt_pct,
                      "How many energy drinks Skif takes before overuse and "
                      "tolerance effects kick in (vanilla overuse 1000, "
@@ -4789,8 +4841,10 @@ class App(WorkbenchMixin, ctk.CTk):
         self._slider(f, "inv_action", "Inventory action speed", 25, 400, 5, 100,
                      fmt_pct,
                      "How long using something from the inventory takes "
-                     "(vanilla 2.5 to 5 s). 200 % = half the time. Not "
-                     "play-tested yet.")
+                     "according to InventoryActionTime (vanilla 2.5 to 5 s). "
+                     "200 % halves that configuration value. Separate from the "
+                     "native consumable animation controls in World. This does "
+                     "not verify visible animation or sound duration; not play-tested yet.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
         body = self._tab("Combat")
@@ -4988,6 +5042,10 @@ class App(WorkbenchMixin, ctk.CTk):
         ctk.CTkLabel(f, text="", height=2).pack()
 
         f = self._section(body, "Wounded NPCs")
+        self._slider(f, "wounded_hold", "Hold time to help a wounded NPC", 25, 400, 5, 100, fmt_pct,
+                     "Scales the input hold time before helping a wounded NPC. "
+                     "Does not change health restored, item use or healing animation speed. "
+                     "Not play-tested yet.")
         self._slider(f, "wounded_chance", "Wounded NPCs: chance to recover", 0, 100, 5, 70, fmt_pct,
                      "When a human NPC goes down wounded, this is the chance "
                      "(vanilla 70 %) that they heal over time instead of "
@@ -6196,6 +6254,8 @@ class App(WorkbenchMixin, ctk.CTk):
                      "hours per day, the day/night ratio stays vanilla.")
         ctk.CTkLabel(f, text="", height=2).pack()
 
+        self._build_consumable_controls(body)
+
         f = self._section(body, "Sky & night (experimental — untested file)")
         self._warning(f, "These six values live in a game file no mod has "
                          "patched before, and their names do not appear in the "
@@ -6881,12 +6941,20 @@ class App(WorkbenchMixin, ctk.CTk):
             hp_regen=s["hp_regen"].get(),
             max_stamina=s["sp"].get(),
             stamina_regen=s["sp_regen"].get(),
+            sprint_exhaustion_factor=s["sprint_exhaustion"].get() / 100.0,
+            exhausted_recovery_delay_factor=s["exhausted_delay"].get() / 100.0,
+            suppression_recovery_factor=s["suppression_recovery"].get() / 100.0,
+            wounded_help_hold_factor=s["wounded_hold"].get() / 100.0,
             fall_damage_pct=s["fall"].get(),
             walk_speed_factor=s["walk"].get() / 100.0,
             run_speed_factor=s["run"].get() / 100.0,
             animation_sync=bool(self.checks["animation_sync"].get()),
             sound_sync=bool(self.checks["sound_sync"].get()),
             movement_sound_sync=bool(self.checks["movement_sound_sync"].get()),
+            ingame_menu=bool(self.checks["ingame_menu"].get()),
+            consumable_medicine_speed=s["cons_medicine_speed"].get() / 100.0,
+            consumable_food_speed=s["cons_food_speed"].get() / 100.0,
+            consumable_drink_speed=s["cons_drink_speed"].get() / 100.0,
             weapon_sway_sync=bool(self.checks["weapon_sway_sync"].get()),
             weapon_sway_pct=s["weapon_sway"].get(),
             weapon_shot_sync=bool(self.checks["weapon_shot_sync"].get()),
@@ -8705,8 +8773,11 @@ class App(WorkbenchMixin, ctk.CTk):
             self.checks["animation_sync"].set(False)
             self.checks["sound_sync"].set(False)
             self.checks["movement_sound_sync"].set(False)
+            self.checks["ingame_menu"].set(False)
             self.checks["weapon_sway_sync"].set(False)
             self.checks["weapon_shot_sync"].set(False)
+            for key in ("cons_medicine_speed", "cons_food_speed", "cons_drink_speed"):
+                self.sliders[key].reset()
             self._save_ui_settings()
             messagebox.showinfo(APP_TITLE,
                 "Animation / sound companion removed. Restart the game.\n"

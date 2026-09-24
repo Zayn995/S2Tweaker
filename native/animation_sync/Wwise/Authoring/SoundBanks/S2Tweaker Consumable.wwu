@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WwiseDocument Type="WorkUnit" ID="{B3C8AD56-1E7D-50D4-967B-6C4B75E6231D}" SchemaVersion="123">
+	<SoundBanks>
+		<WorkUnit Name="S2Tweaker Consumable" ID="{B3C8AD56-1E7D-50D4-967B-6C4B75E6231D}" PersistMode="Standalone">
+			<ChildrenList>
+				<SoundBank Name="S2T_ConsumableTime" ID="{155720E0-D59F-547A-86AF-2357B16A2B8F}">
+					<ObjectInclusionList>
+						<ObjectRef Name="S2T_ConsumableTime" ID="{97582693-E8E4-50AB-B407-6C1BE24653DE}" WorkUnitID="{0F303152-3292-5C46-8D94-E4053B2CF970}" Origin="Manual" Filter="2" />
+					</ObjectInclusionList>
+					<ObjectExclusionList />
+					<GameSyncExclusionList />
+				</SoundBank>
+			</ChildrenList>
+		</WorkUnit>
+	</SoundBanks>
+</WwiseDocument>

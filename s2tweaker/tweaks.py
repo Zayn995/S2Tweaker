@@ -380,12 +380,20 @@ class Settings:
     hp_regen: float = 0.0                    # HP/s, Vanilla 0
     max_stamina: float = 100.0               # Vanilla 100
     stamina_regen: float = 5.0               # SP/s, Vanilla 5
+    sprint_exhaustion_factor: float = 1.0    # Installed Sprint threshold in stamina points.
+    exhausted_recovery_delay_factor: float = 1.0
+    suppression_recovery_factor: float = 1.0
+    wounded_help_hold_factor: float = 1.0    # Input hold duration, independent of healing.
     fall_damage_pct: float = 100.0           # 100 = vanilla; 0 = no fall damage.
     walk_speed_factor: float = 1.0           # Walking and sneaking.
     run_speed_factor: float = 1.0            # Running and sprinting.
     animation_sync: bool = False            # Optional native movement-animation companion.
     sound_sync: bool = False                # Optional native action-sound duration companion.
     movement_sound_sync: bool = False       # Independent footstep and gear-sound duration control.
+    ingame_menu: bool = False               # Optional live controls for the native companion.
+    consumable_medicine_speed: float = 1.0  # Native paired consumable montage rate; no CFG timing patch.
+    consumable_food_speed: float = 1.0
+    consumable_drink_speed: float = 1.0
     weapon_sway_sync: bool = False          # Optional native idle-sway amplitude control.
     weapon_sway_pct: float = 100.0          # Includes iron sights; separate from scoped effect strength.
     weapon_shot_sync: bool = False         # Optional native firing-pose amplitude control.
@@ -1069,6 +1077,63 @@ def _crouch_stealth_factors(s: Settings) -> tuple[float, float]:
             legacy * valid(s.crouch_noise_factor))
 
 
+def _live_recovery_scale(gd, root, sid, path, factor, minimum=0.25):
+    """Validate an opted-in multiplier without inventing a missing game baseline."""
+    if not math.isfinite(factor) or not minimum <= factor <= 4.0:
+        raise ValueError(f"{path}: multiplier must be between {minimum:g} and 4.")
+    raw = gd.resolve(root, sid, path)
+    baseline = parse_number(raw, float("nan"))
+    if not math.isfinite(baseline) or baseline < 0:
+        raise ValueError(f"{sid}.{path}: installed baseline is missing or invalid.")
+    value = baseline * factor
+    if not math.isfinite(value):
+        raise ValueError(f"{sid}.{path}: requested value is not finite.")
+    return _num(value) if _neq(value, baseline) else None
+
+
+def _stamina_exhaustion_patch(gd: GameData, s: Settings) -> dict:
+    """Clone the installed array and edit only its uniquely identified Sprint row."""
+    if all(math.isfinite(factor) and not _neq(factor, 1.0) for factor in
+           (s.sprint_exhaustion_factor, s.exhausted_recovery_delay_factor)):
+        return {}
+    node = gd.obj.children.get("Player")
+    if node is None:
+        raise ValueError("Sprint exhaustion: Player is missing from installed data.")
+    rows = _resolved_struct(gd.obj, node).get("VitalParams", {}).get("StaminaDisableThresholds", {})
+    if not rows or any(not isinstance(row, dict) for row in rows.values()):
+        raise ValueError("Sprint exhaustion: unsupported installed threshold array.")
+    candidates = [key for key, row in rows.items()
+                  if isinstance(row.get("StateTags"), dict)
+                  and list(row["StateTags"].values()) == ["EStateTag::Sprint"]]
+    if len(candidates) != 1:
+        raise ValueError("Sprint exhaustion: expected exactly one Sprint-only threshold.")
+    key = candidates[0]
+    prefix = f"VitalParams.StaminaDisableThresholds.{key}"
+    changed = False
+    for leaf, factor, minimum in (("Threshold", s.sprint_exhaustion_factor, 0.25),
+                                  ("RegenerationDelay", s.exhausted_recovery_delay_factor, 0.0)):
+        if math.isfinite(factor) and not _neq(factor, 1.0):
+            continue
+        value = _live_recovery_scale(gd, gd.obj, "Player", f"{prefix}.{leaf}", factor, minimum)
+        if value is None:
+            continue
+        if leaf == "Threshold":
+            thresholds = {k: parse_number(row.get("Threshold"), float("nan"))
+                          for k, row in rows.items()}
+            if any(not math.isfinite(v) or v < 0 for v in thresholds.values()):
+                raise ValueError("Sprint exhaustion: installed thresholds are invalid.")
+            baseline = thresholds[key]
+            target = parse_number(value)
+            others = [v for k, v in thresholds.items() if k != key]
+            if (not any(v > baseline for v in others)
+                    or any(v == baseline or (v < baseline and target <= v)
+                           or (v > baseline and target >= v) for v in others)):
+                raise ValueError("Sprint exhaustion: requested threshold crosses another installed stamina state.")
+        rows[key][leaf] = value
+        changed = True
+    return rows if changed else {}
+
+
 def _player_patch(gd: GameData, s: Settings) -> dict:
     player_node = gd.obj.children.get("Player")
 
@@ -1102,6 +1167,15 @@ def _player_patch(gd: GameData, s: Settings) -> dict:
                 scaled = _scale_literal(raw, factor)
                 if scaled is not None:
                     vital[key] = scaled
+
+    exhaustion = _stamina_exhaustion_patch(gd, s)
+    if exhaustion:
+        vital["StaminaDisableThresholds"] = exhaustion
+    if not math.isfinite(s.suppression_recovery_factor) or _neq(s.suppression_recovery_factor, 1.0):
+        value = _live_recovery_scale(gd, gd.obj, "Player", "VitalParams.DegenSuppressionPoints",
+                                     s.suppression_recovery_factor)
+        if value is not None:
+            vital["DegenSuppressionPoints"] = value
 
     player: dict = {}
     if vital:
@@ -4008,6 +4082,11 @@ def _cover_evaluator_patch(gd: GameData, s: Settings) -> dict:
 
 def _corevars_patch(gd: GameData, s: Settings) -> dict:
     cfg: dict = {}
+    if not math.isfinite(s.wounded_help_hold_factor) or _neq(s.wounded_help_hold_factor, 1.0):
+        value = _live_recovery_scale(gd, gd.corevars, "DefaultConfig", "WoundedHealHoldInteractTime",
+                                     s.wounded_help_hold_factor)
+        if value is not None:
+            cfg["WoundedHealHoldInteractTime"] = value
     if _neq(s.repair_cost_factor, 1.0):
         vanilla = gd.corevar("BaseRepairCostModifier", 0.7)
         cfg["BaseRepairCostModifier"] = _num(vanilla * s.repair_cost_factor)
@@ -6322,8 +6401,14 @@ def summarize(s: Settings) -> list[str]:
             lines.append(f"Stamina cost {key} × {factor:g}")
     if _neq(s.fall_damage_pct, 100):
         lines.append(f"Fall damage {s.fall_damage_pct:g} %")
+    f("Sprint exhaustion threshold", s.sprint_exhaustion_factor)
+    f("Exhausted stamina recovery delay", s.exhausted_recovery_delay_factor)
+    f("Suppression recovery speed", s.suppression_recovery_factor)
+    f("Hold time to help a wounded NPC", s.wounded_help_hold_factor)
     f("Walk & crouch speed", s.walk_speed_factor)
     f("Run & sprint speed", s.run_speed_factor)
+    if s.ingame_menu:
+        lines.append("Native in-game menu (F10; sway, firing movement, sound toggles, consumables and presets; experimental)")
     if s.animation_sync and (_neq(s.walk_speed_factor, 1.0) or _neq(s.run_speed_factor, 1.0)
                              or _neq(s.limp_speed_factor, 1.0)):
         lines.append("Native movement animation synchronization (experimental)")
@@ -6340,6 +6425,9 @@ def summarize(s: Settings) -> list[str]:
     if s.movement_sound_sync and (_neq(s.walk_speed_factor, 1.0) or _neq(s.run_speed_factor, 1.0)
                                   or _neq(s.limp_speed_factor, 1.0)):
         lines.append("Native movement sound synchronization (experimental)")
+    f("Medicine use speed (native companion, experimental)", s.consumable_medicine_speed)
+    f("Eating speed (native companion, experimental)", s.consumable_food_speed)
+    f("Drinking speed (native companion, experimental)", s.consumable_drink_speed)
     f("Jump height", s.jump_height_factor)
 
     if _neq(s.max_carry_weight, VANILLA_MAX_CARRY):

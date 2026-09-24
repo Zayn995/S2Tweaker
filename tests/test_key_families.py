@@ -133,7 +133,7 @@ CANDIDATES = {
     "VaultOverCrouchingHeight", "VaultOverStandingHeight",
     "CriticalDamageCoefThreshold", "CriticalDamageCooldownMin",
     "CriticalDamageCooldownMax", "CriticalDamageAccumulationPeriod",
-    "DegenSuppressionPoints", "DegenSuppressionDelayTimeSeconds",
+    "MaxSuppressionPoints", "DegenSuppressionDelayTimeSeconds",  # Capacity/delay are independent of recovery rate.
     "HealthPercentToRetreat", "MinRetreatActivationRadius",
     "SafeDistanceToEnemy", "SafeDistanceToExplosives", "EffectiveDistanceToEnemy",
     "AimSpeedCoef", "WalkTransitionCoef", "EnteringDuration",
@@ -217,7 +217,7 @@ if gone:
 
 # Verify the detector itself using known remaining family gaps,
 # so a broken detector cannot silently pass everything.
-for key, why in (("DegenSuppressionPoints", "Unterdrueckungsfeuer"),
+for key, why in (("MaxSuppressionPoints", "suppression capacity"),
                  ("NoiseJumpCoef", "halbe Stealth-Familie")):
     assert key in names, f"Detector no longer finds {why} - broken rule?"
 print(f"\nThe detector still finds the reference cases.")
